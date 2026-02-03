@@ -1,6 +1,8 @@
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
+using Microsoft.UI.Xaml.Media;
+using Microsoft.UI;
 using Microsoft.Web.WebView2.Core;
 using Microsoft.UI.Dispatching;
 using System;
@@ -21,6 +23,12 @@ namespace Uviewer
         private string _currentTextContent = "";
         private string _currentTextFilePath = "";
         private DispatcherQueueTimer? _pageInfoTimer;
+
+        // Virtualized text viewer for very large plain .txt files
+        private System.Collections.ObjectModel.ObservableCollection<string> _virtualTextLines = new System.Collections.ObjectModel.ObservableCollection<string>();
+        private bool _useVirtualTextViewer = false;
+        private ScrollViewer? _virtualScrollViewer = null;
+        private bool _virtualEventsAttached = false;
 
         // --- 탐색 속도 개선을 위한 변수 추가 ---
         private DispatcherQueueTimer? _navDebounceTimer;
@@ -178,7 +186,6 @@ namespace Uviewer
                     best = enc;
                 }
             }
-
             consider(utf8, utf8Rep, utf8Hangul, utf8Kana);
             consider(euckr, euckrRep, euckrHangul, euckrKana);
             consider(sjis, sjisRep, sjisHangul, sjisKana);
@@ -202,6 +209,24 @@ namespace Uviewer
             System.Diagnostics.Debug.WriteLine($"Final choice: {(best == utf8 ? "UTF-8" : best == euckr ? "EUC-KR" : "S-JIS")}");
             System.Diagnostics.Debug.WriteLine("--- ChooseTextEncoding Analysis Complete ---");
             return best;
+        }
+
+        private ScrollViewer? FindScrollViewer(DependencyObject? root)
+        {
+            if (root == null) return null;
+            try
+            {
+                int count = VisualTreeHelper.GetChildrenCount(root);
+                for (int i = 0; i < count; i++)
+                {
+                    var child = VisualTreeHelper.GetChild(root, i);
+                    if (child is ScrollViewer sv) return sv;
+                    var nested = FindScrollViewer(child);
+                    if (nested != null) return nested;
+                }
+            }
+            catch { }
+            return null;
         }
 
         /// <summary>
@@ -245,16 +270,19 @@ namespace Uviewer
                 // Check file size to determine loading strategy
                 var basicProperties = await file.GetBasicPropertiesAsync();
                 var fileSize = basicProperties.Size;
+                var ext = Path.GetExtension(file.Name).ToLowerInvariant();
                 
                 // Use streaming for files larger than 0.3MB
                 if (fileSize > 0.3 * 1024 * 1024)
                 {
                     System.Diagnostics.Debug.WriteLine($"Large file detected: {fileSize} bytes, using streaming load");
-                    await LoadLargeTextFileAsync(file);
+                    // For plain .txt files use the virtualized ListView for best responsiveness
+                    bool useVirtual = ext == ".txt";
+                    await LoadLargeTextFileAsync(file, useVirtual);
                     return;
                 }
 
-                // For smaller files, use the regular loading method
+                // For smaller files, read whole file (we may still use virtualized viewer for .txt)
                 byte[] bytes = await File.ReadAllBytesAsync(file.Path);
                 
                 string content = "";
@@ -287,7 +315,8 @@ namespace Uviewer
                         {
                             int kanaCount = CountKana(content);
                             System.Diagnostics.Debug.WriteLine($"UTF-8 kana count: {kanaCount}");
-                            if (kanaCount > 5) // If we have significant kana characters, likely UTF-8
+                            if (kanaCount > 5 // If we have significant kana characters, likely UTF-8
+                            )
                             {
                                 System.Diagnostics.Debug.WriteLine($"UTF-8 with {kanaCount} kana characters detected, preferring UTF-8");
                                 // Skip the encoding fallback logic below
@@ -311,7 +340,7 @@ namespace Uviewer
                 }
 
                 // HTML 파일인 경우 내부 charset 확인
-                string ext = Path.GetExtension(file.Name).ToLowerInvariant();
+                ext = Path.GetExtension(file.Name).ToLowerInvariant();
                 bool isHtml = (ext == ".html" || ext == ".htm");
                 System.Diagnostics.Debug.WriteLine($"Is HTML: {isHtml}");
 
@@ -533,6 +562,36 @@ namespace Uviewer
                     _currentTextContent = content;
                 }
                 _isCurrentTextContentPreprocessed = false;
+
+                // If this is a plain text file, use the virtualized ListView for small and large files
+                if (ext == ".txt")
+                {
+                    _useVirtualTextViewer = true;
+                    _virtualTextLines.Clear();
+                    var lines = _currentTextContent.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
+                    foreach (var l in lines) _virtualTextLines.Add(l);
+
+                    await InitializeTextViewerAsync(); // ensure webview ready for other usages
+                    // Ensure virtualized viewer is immediately bound and visible
+                    DispatcherQueue.TryEnqueue(() =>
+                    {
+                        try
+                        {
+                            VirtualTextListView.ItemsSource = _virtualTextLines;
+                            VirtualTextListView.Visibility = Visibility.Visible;
+                            TextViewer.Visibility = Visibility.Collapsed;
+                            FileNameText.Text = Path.GetFileName(_currentTextFilePath);
+                        }
+                        catch { }
+                    });
+
+                    // Finalize virtualized viewer setup
+                    await UpdateVirtualizedTextViewer();
+                    ShowTextUI();
+                    UpdateStatusBarForText();
+                    _ = AddToRecentAsync();
+                    return;
+                }
 
                 await InitializeTextViewerAsync();
                 await UpdateTextViewer();
@@ -812,6 +871,29 @@ namespace Uviewer
         {
             try
             {
+                // If virtualized viewer is active, compute page info from ScrollViewer
+                if (_useVirtualTextViewer)
+                {
+                    if (_virtualScrollViewer == null)
+                    {
+                        _virtualScrollViewer = FindScrollViewer(VirtualTextListView);
+                    }
+
+                    if (_virtualScrollViewer != null)
+                    {
+                        // Use TryEnqueue to marshal to UI thread
+                        DispatcherQueue.TryEnqueue(() =>
+                        {
+                            double viewport = _virtualScrollViewer.ViewportHeight;
+                            double extent = _virtualScrollViewer.ExtentHeight;
+                            double offset = _virtualScrollViewer.VerticalOffset;
+                            int totalPages = Math.Max(1, (int)Math.Ceiling(extent / Math.Max(1.0, viewport)));
+                            int currentPage = Math.Max(1, (int)Math.Floor(offset / Math.Max(1.0, viewport)) + 1);
+                            ImageIndexText.Text = $"Page: {currentPage} / {totalPages} (Font: {_textFontSize}pt)";
+                        });
+                        return;
+                    }
+                }
                 if (_isTextSideBySide)
                 {
                     // For side-by-side mode, get horizontal scroll info
@@ -830,7 +912,7 @@ namespace Uviewer
                         int totalPages = Math.Max(1, (int)Math.Ceiling(totalWidth / viewportWidth));
                         int currentPage = Math.Max(1, (int)Math.Floor(scrollLeft / viewportWidth) + 1);
                         
-                        _ = DispatcherQueue.TryEnqueue(() =>
+                        DispatcherQueue.TryEnqueue(() =>
                         {
                             ImageIndexText.Text = $"Page: {currentPage} / {totalPages} (Font: {_textFontSize}pt)";
                         });
@@ -854,7 +936,7 @@ namespace Uviewer
                         int totalPages = Math.Max(1, (int)Math.Ceiling(totalHeight / viewportHeight));
                         int currentPage = Math.Max(1, (int)Math.Floor(scrollTop / viewportHeight) + 1);
                         
-                        _ = DispatcherQueue.TryEnqueue(() =>
+                        DispatcherQueue.TryEnqueue(() =>
                         {
                             ImageIndexText.Text = $"Page: {currentPage} / {totalPages} (Font: {_textFontSize}pt)";
                         });
@@ -871,6 +953,16 @@ namespace Uviewer
         {
             try
             {
+                if (_useVirtualTextViewer)
+                {
+                    if (_virtualScrollViewer == null) _virtualScrollViewer = FindScrollViewer(VirtualTextListView);
+                    if (_virtualScrollViewer != null)
+                    {
+                        return _virtualScrollViewer.VerticalOffset;
+                    }
+                    return null;
+                }
+
                 if (_isTextMode && TextViewer.CoreWebView2 != null)
                 {
                     if (_isTextSideBySide)
@@ -906,6 +998,16 @@ namespace Uviewer
         {
             try
             {
+                if (_useVirtualTextViewer)
+                {
+                    if (_virtualScrollViewer == null) _virtualScrollViewer = FindScrollViewer(VirtualTextListView);
+                    if (_virtualScrollViewer != null)
+                    {
+                        _virtualScrollViewer.ChangeView(null, position, null, true);
+                    }
+                    return;
+                }
+
                 if (_isTextMode && TextViewer.CoreWebView2 != null)
                 {
                     if (_isTextSideBySide)
@@ -928,7 +1030,7 @@ namespace Uviewer
             }
         }
 
-        private async Task LoadLargeTextFileAsync(StorageFile file)
+        private async Task LoadLargeTextFileAsync(StorageFile file, bool useVirtualViewer)
         {
             try
             {
@@ -1015,8 +1117,36 @@ namespace Uviewer
                 
                 // Initialize viewer with first chunk immediately
                 await InitializeTextViewerAsync();
-                await UpdateTextViewer();
-                ShowTextUI();
+                if (useVirtualViewer)
+                {
+                    // For virtualized viewer, clear existing lines and add initial chunk lines
+                    _useVirtualTextViewer = true;
+                    _virtualTextLines.Clear();
+
+                    var initialLines = firstChunkText.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
+                    foreach (var l in initialLines)
+                    {
+                        _virtualTextLines.Add(l);
+                    }
+
+                    // Ensure ListView is visible and WebView hidden
+                    _ = DispatcherQueue.TryEnqueue(() =>
+                    {
+                        try
+                        {
+                            VirtualTextListView.ItemsSource = _virtualTextLines;
+                            VirtualTextListView.Visibility = Visibility.Visible;
+                            TextViewer.Visibility = Visibility.Collapsed;
+                            ShowTextUI();
+                        }
+                        catch { }
+                    });
+                }
+                else
+                {
+                    await UpdateTextViewer();
+                    ShowTextUI();
+                }
                 
                 // Update status with loading indicator
                 FileNameText.Text = $"{file.Name} (로딩 중...)";
@@ -1076,8 +1206,23 @@ namespace Uviewer
                                     _currentTextContent += chunkText;
                                     _isCurrentTextContentPreprocessed = false;
                                     
-                                    // Update viewer without flickering
-                                    _ = UpdateTextViewerIncremental(chunkText);
+                                    if (useVirtualViewer)
+                                    {
+                                        // For virtualized viewer, add lines incrementally
+                                        var lines = chunkText.Split(new[] { '\n', '\r' }, StringSplitOptions.RemoveEmptyEntries);
+                                        foreach (var line in lines)
+                                        {
+                                            _virtualTextLines.Add(line);
+                                        }
+                                        
+                                        // Update viewer to show new lines
+                                        _ = UpdateVirtualizedTextViewer();
+                                    }
+                                    else
+                                    {
+                                        // Update viewer without flickering
+                                        _ = UpdateTextViewerIncremental(chunkText);
+                                    }
                                     
                                     // Update loading progress
                                     var progress = (int)((bytesRead * 100) / totalBytes);
@@ -1818,7 +1963,32 @@ namespace Uviewer
     </div>
 </body>
 </html>";
-            await NavigateTextHtmlAsync(fullHtml);
+            // If virtualized viewer is active for .txt files, skip WebView2 and show ListView
+            if (_useVirtualTextViewer && ext == ".txt")
+            {
+                DispatcherQueue.TryEnqueue(() =>
+                {
+                    VirtualTextListView.ItemsSource = _virtualTextLines;
+                    VirtualTextListView.Visibility = Visibility.Visible;
+                    TextViewer.Visibility = Visibility.Collapsed;
+                    FileNameText.Text = Path.GetFileName(_currentTextFilePath);
+                });
+            }
+            else
+            {
+                // Ensure virtual mode is disabled when showing non-txt content
+                if (_useVirtualTextViewer)
+                {
+                    _useVirtualTextViewer = false;
+                    _ = DispatcherQueue.TryEnqueue(() =>
+                    {
+                        VirtualTextListView.Visibility = Visibility.Collapsed;
+                        VirtualTextListView.ItemsSource = null;
+                        TextViewer.Visibility = Visibility.Visible;
+                    });
+                }
+                await NavigateTextHtmlAsync(fullHtml);
+            }
             
             // Wait a bit and then try to manually trigger page info update
             await Task.Delay(1500);
@@ -1827,6 +1997,219 @@ namespace Uviewer
                 await TextViewer.CoreWebView2.ExecuteScriptAsync("updatePageInfo()").AsTask();
             }
             catch { }
+        }
+
+        private async Task UpdateVirtualizedTextViewer()
+        {
+            // Ensure ListView is visible and bound
+            try
+            {
+                await Task.Yield();
+                _ = DispatcherQueue.TryEnqueue(() =>
+                {
+                    System.Diagnostics.Debug.WriteLine($"[UpdateVirtualizedTextViewer] Starting update");
+                    TextViewer.Visibility = Visibility.Collapsed;
+                    VirtualTextListView.Visibility = Visibility.Visible;
+                    VirtualTextListView.ItemsSource = _virtualTextLines;
+                    
+                    System.Diagnostics.Debug.WriteLine($"[UpdateVirtualizedTextViewer] ItemsSource set to {_virtualTextLines.Count} items");
+                    
+                    // Attach scroll and click handlers once
+                    if (!_virtualEventsAttached)
+                    {
+                        System.Diagnostics.Debug.WriteLine($"[UpdateVirtualizedTextViewer] Attaching event handlers");
+                        
+                        _virtualScrollViewer = FindScrollViewer(VirtualTextListView);
+                        if (_virtualScrollViewer != null)
+                        {
+                            _virtualScrollViewer.ViewChanged += (s, e) => { _ = UpdatePageInfoDirectly(); };
+                            System.Diagnostics.Debug.WriteLine($"[UpdateVirtualizedTextViewer] ScrollViewer found and ViewChanged handler attached");
+                        }
+                        else
+                        {
+                            System.Diagnostics.Debug.WriteLine($"[UpdateVirtualizedTextViewer] ERROR: ScrollViewer not found!");
+                        }
+                        
+                        // Item click for mouse navigation
+                        VirtualTextListView.PointerPressed += VirtualTextListView_PointerPressed;
+                        System.Diagnostics.Debug.WriteLine($"[UpdateVirtualizedTextViewer] PointerPressed handler attached");
+                        
+                        // Container content changing to apply font, wrap and width
+                        VirtualTextListView.ContainerContentChanging += VirtualTextListView_ContainerContentChanging;
+                        System.Diagnostics.Debug.WriteLine($"[UpdateVirtualizedTextViewer] ContainerContentChanging handler attached");
+                        
+                        _virtualEventsAttached = true;
+                    }
+
+                    // Apply background/foreground and other visual settings
+                    try
+                    {
+                        // Map known background choices to named colors for compatibility
+                        if (!string.IsNullOrEmpty(_textBgColor))
+                        {
+                            if (_textBgColor.Equals("White", StringComparison.OrdinalIgnoreCase) || _textBgColor.Equals("#FFFFFF", StringComparison.OrdinalIgnoreCase))
+                            {
+                                VirtualTextListView.Background = new SolidColorBrush(Colors.White);
+                            }
+                            else if (_textBgColor.Equals("#F4ECD8", StringComparison.OrdinalIgnoreCase) || _textBgColor.Equals("Beige", StringComparison.OrdinalIgnoreCase))
+                            {
+                                // Use a Beige-like color available in Colors
+                                VirtualTextListView.Background = new SolidColorBrush(Colors.Beige);
+                            }
+                            else if (_textBgColor.Equals("#1E1E1E", StringComparison.OrdinalIgnoreCase) || _textBgColor.Equals("Dark", StringComparison.OrdinalIgnoreCase))
+                            {
+                                VirtualTextListView.Background = new SolidColorBrush(Colors.Black);
+                            }
+                            else
+                            {
+                                // Default fallback
+                                VirtualTextListView.Background = new SolidColorBrush(Colors.White);
+                            }
+                        }
+                    }
+                    catch { }
+                });
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error updating virtualized viewer: {ex.Message}");
+            }
+        }
+
+        private void VirtualTextListView_ContainerContentChanging(ListViewBase sender, ContainerContentChangingEventArgs args)
+        {
+            try
+            {
+                System.Diagnostics.Debug.WriteLine($"[ContainerContentChanging] Called for index {args.ItemIndex}");
+                
+                if (args.ItemContainer == null)
+                {
+                    System.Diagnostics.Debug.WriteLine($"[ContainerContentChanging] ItemContainer is null");
+                    return;
+                }
+                
+                var container = args.ItemContainer;
+                System.Diagnostics.Debug.WriteLine($"[ContainerContentChanging] Container type: {container.GetType().Name}");
+                
+                // Find TextBlock in the visual tree of the container
+                var tb = FindVisualChild<TextBlock>(container);
+                if (tb != null)
+                {
+                    System.Diagnostics.Debug.WriteLine($"[ContainerContentChanging] Found TextBlock, current size: {tb.FontSize}, applying: {_textFontSize}pt, font: {_currentFontFamily}");
+                    
+                    tb.TextWrapping = TextWrapping.Wrap;
+                    tb.FontSize = (double)_textFontSize;
+                    tb.FontFamily = new Microsoft.UI.Xaml.Media.FontFamily(_currentFontFamily);
+                    
+                    System.Diagnostics.Debug.WriteLine($"[ContainerContentChanging] Applied font: {_currentFontFamily}, size: {_textFontSize}pt, container: {args.ItemIndex}");
+                    System.Diagnostics.Debug.WriteLine($"[ContainerContentChanging] After setting - FontSize is now: {tb.FontSize}");
+                    
+                    // Foreground based on bg color
+                    try
+                    {
+                        string bg = NormalizeColorToHex(_textBgColor ?? "#FFFFFF");
+                        int r = Convert.ToInt32(bg.Substring(1, 2), 16);
+                        int g = Convert.ToInt32(bg.Substring(3, 2), 16);
+                        int b = Convert.ToInt32(bg.Substring(5, 2), 16);
+                        double lum = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+                        tb.Foreground = new SolidColorBrush(lum < 128 ? Colors.White : Colors.Black);
+                    }
+                    catch { }
+
+                    // Max width: approx 80 chars in pixels, but responsive to control width
+                    double approxCharWidth = _textFontSize * 0.6;
+                    double maxWidthPx = Math.Max(200, approxCharWidth * 80);
+                    double available = VirtualTextListView.ActualWidth;
+                    if (available > 0)
+                    {
+                        maxWidthPx = Math.Min(maxWidthPx, available * 0.95);
+                    }
+                    tb.MaxWidth = maxWidthPx;
+                }
+                else
+                {
+                    System.Diagnostics.Debug.WriteLine($"[ContainerContentChanging] TextBlock NOT FOUND in container {args.ItemIndex}");
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error in VirtualTextListView_ContainerContentChanging: {ex.Message}\n{ex.StackTrace}");
+            }
+        }
+
+        private static T? FindVisualChild<T>(DependencyObject parent) where T : DependencyObject
+        {
+            if (parent == null) return default;
+            int count = VisualTreeHelper.GetChildrenCount(parent);
+            for (int i = 0; i < count; i++)
+            {
+                var child = VisualTreeHelper.GetChild(parent, i);
+                if (child is T t) return t;
+                var nested = FindVisualChild<T>(child);
+                if (nested != null) return nested;
+            }
+            return default;
+        }
+
+        private void VirtualTextListView_PointerPressed(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
+        {
+            try
+            {
+                // Get pointer position relative to ListView
+                var point = e.GetCurrentPoint(VirtualTextListView);
+                var pos = point.Position;
+                double half = VirtualTextListView.ActualWidth / 2.0;
+                
+                System.Diagnostics.Debug.WriteLine($"[VirtualTextListView_PointerPressed] Pointer at X={pos.X}, ListView width={VirtualTextListView.ActualWidth}, half={half}");
+                System.Diagnostics.Debug.WriteLine($"[VirtualTextListView_PointerPressed] IsLeftButtonPressed: {point.Properties.IsLeftButtonPressed}");
+                
+                // Only handle primary (left) button clicks
+                if (point.Properties.IsLeftButtonPressed)
+                {
+                    if (pos.X > half)
+                    {
+                        // Right half - Next page
+                        System.Diagnostics.Debug.WriteLine("[VirtualTextListView_PointerPressed] Navigating to NEXT page");
+                        _ = ScrollTextPage(true);
+                    }
+                    else
+                    {
+                        // Left half - Previous page
+                        System.Diagnostics.Debug.WriteLine("[VirtualTextListView_PointerPressed] Navigating to PREVIOUS page");
+                        _ = ScrollTextPage(false);
+                    }
+                    
+                    // Mark event as handled to prevent default behavior
+                    e.Handled = true;
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[VirtualTextListView_PointerPressed] Error: {ex.Message}\n{ex.StackTrace}");
+            }
+        }
+
+        private string NormalizeColorToHex(string colorValue)
+        {
+            // Convert color names to hex values
+            if (string.IsNullOrEmpty(colorValue)) return "#FFFFFF";
+            
+            colorValue = colorValue.Trim();
+            
+            // If already hex, return as-is
+            if (colorValue.StartsWith("#") && colorValue.Length == 7)
+            {
+                return colorValue;
+            }
+            
+            // Convert color names to hex
+            return colorValue.ToLowerInvariant() switch
+            {
+                "white" or "#ffffff" => "#FFFFFF",
+                "beige" or "#f4ecd8" => "#F4ECD8",
+                "dark" or "#1e1e1e" => "#1E1E1E",
+                _ => "#FFFFFF" // Default fallback
+            };
         }
 
         private void ToggleTextSideBySide()
@@ -1842,7 +2225,7 @@ namespace Uviewer
         {
             // Save current scroll position before changing font size
             double? scrollPosition = null;
-            if (_isTextMode && TextViewer.CoreWebView2 != null)
+            if (_isTextMode)
             {
                 scrollPosition = await GetTextScrollPositionAsync();
             }
@@ -1850,16 +2233,109 @@ namespace Uviewer
             if (increase) _textFontSize += 2;
             else _textFontSize = Math.Max(8, _textFontSize - 2);
             
-            _ = UpdateTextViewer();
-            UpdateStatusBarForText();
+            // Update UI to show new font size immediately
             ZoomLevelText.Text = $"{_textFontSize}pt";
             
-            // Restore scroll position after font size change
-            if (scrollPosition.HasValue)
+            if (_useVirtualTextViewer)
             {
-                // Give it a moment to render the new content
-                await Task.Delay(100);
-                await SetTextScrollPosition(scrollPosition.Value);
+                System.Diagnostics.Debug.WriteLine($"[ZoomTextStyle] Applying font size change to virtual viewer: {_textFontSize}pt");
+                System.Diagnostics.Debug.WriteLine($"[ZoomTextStyle] Current scroll position before reset: {scrollPosition}");
+                
+                _ = DispatcherQueue.TryEnqueue(async () =>
+                {
+                    try
+                    {
+                        System.Diagnostics.Debug.WriteLine($"[ZoomTextStyle] Directly updating all visible TextBlock containers");
+                        
+                        // Calculate foreground color based on background luminance
+                        string bg = NormalizeColorToHex(_textBgColor ?? "#FFFFFF");
+                        int r = Convert.ToInt32(bg.Substring(1, 2), 16);
+                        int g = Convert.ToInt32(bg.Substring(3, 2), 16);
+                        int b = Convert.ToInt32(bg.Substring(5, 2), 16);
+                        double lum = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+                        SolidColorBrush foregroundBrush = new SolidColorBrush(lum < 128 ? Colors.White : Colors.Black);
+                        
+                        // Directly update all TextBlock children in the ListView containers
+                        int updatedCount = 0;
+                        int containerCount = VirtualTextListView.Items.Count;
+                        int notFoundCount = 0;
+                        
+                        for (int i = 0; i < containerCount; i++)
+                        {
+                            try
+                            {
+                                var container = VirtualTextListView.ContainerFromIndex(i) as ListViewItem;
+                                if (container != null)
+                                {
+                                    var tb = FindVisualChild<TextBlock>(container);
+                                    if (tb != null)
+                                    {
+                                        double oldSize = tb.FontSize;
+                                        tb.FontSize = (double)_textFontSize;
+                                        tb.FontFamily = new Microsoft.UI.Xaml.Media.FontFamily(_currentFontFamily);
+                                        tb.Foreground = foregroundBrush;
+                                        updatedCount++;
+                                        
+                                        if (updatedCount <= 5 || updatedCount % 200 == 0)
+                                        {
+                                            System.Diagnostics.Debug.WriteLine($"[ZoomTextStyle] Updated container {i}, font size: {oldSize}pt -> {tb.FontSize}pt, font: {_currentFontFamily}");
+                                        }
+                                    }
+                                    else
+                                    {
+                                        notFoundCount++;
+                                        if (notFoundCount <= 3)
+                                        {
+                                            System.Diagnostics.Debug.WriteLine($"[ZoomTextStyle] TextBlock NOT FOUND in container {i}");
+                                        }
+                                    }
+                                }
+                            }
+                            catch (Exception ex)
+                            {
+                                System.Diagnostics.Debug.WriteLine($"[ZoomTextStyle] Exception at index {i}: {ex.Message}");
+                            }
+                        }
+                        
+                        System.Diagnostics.Debug.WriteLine($"[ZoomTextStyle] Direct update completed: {updatedCount} containers updated, {notFoundCount} TextBlocks not found");
+                        
+                        await Task.Delay(150);
+                        
+                        // Restore scroll position
+                        if (scrollPosition.HasValue)
+                        {
+                            if (_virtualScrollViewer == null) 
+                                _virtualScrollViewer = FindScrollViewer(VirtualTextListView);
+                            
+                            if (_virtualScrollViewer != null)
+                            {
+                                System.Diagnostics.Debug.WriteLine($"[ZoomTextStyle] Restoring scroll position to {scrollPosition.Value}");
+                                _virtualScrollViewer.ChangeView(null, scrollPosition.Value, null, false);
+                                System.Diagnostics.Debug.WriteLine($"[ZoomTextStyle] Scroll position restored");
+                            }
+                        }
+                        
+                        System.Diagnostics.Debug.WriteLine($"[ZoomTextStyle] Font size change completed");
+                    }
+                    catch (Exception ex)
+                    {
+                        System.Diagnostics.Debug.WriteLine($"[ZoomTextStyle] Error applying font size: {ex.Message}\n{ex.StackTrace}");
+                    }
+                });
+            }
+            else
+            {
+                // For WebView2, update content
+                System.Diagnostics.Debug.WriteLine($"[ZoomTextStyle] Using WebView2 mode, calling UpdateTextViewer");
+                _ = UpdateTextViewer();
+                
+                // Restore scroll position after font size change
+                if (scrollPosition.HasValue)
+                {
+                    // Give it a moment to render the new content
+                    await Task.Delay(100);
+                    await SetTextScrollPosition(scrollPosition.Value);
+                }
             }
             
             // Save settings after font size change
@@ -1870,61 +2346,87 @@ namespace Uviewer
         {
             try
             {
-                string direction = forward ? "1" : "-1";
-                
-                // Calculate accurate page height for precise scrolling with 1-line overlap
-                string script = $@"
-(function() {{
+                // If virtualized viewer is in use, perform scrolling via its ScrollViewer
+                if (_useVirtualTextViewer)
+                {
+                    try
+                    {
+                        if (_virtualScrollViewer == null) _virtualScrollViewer = FindScrollViewer(VirtualTextListView);
+                        if (_virtualScrollViewer != null)
+                        {
+                            // Calculate full page height for scrolling
+                            double viewport = _virtualScrollViewer.ViewportHeight;
+                            double pageHeight = Math.Max(1.0, viewport);
+
+                            double offset = _virtualScrollViewer.VerticalOffset;
+                            double extent = _virtualScrollViewer.ExtentHeight;
+                            double maxOffset = Math.Max(0, extent - viewport);
+
+                            double newOffset = offset;
+                            if (forward)
+                            {
+                                newOffset = Math.Min(offset + pageHeight, maxOffset);
+                            }
+                            else
+                            {
+                                newOffset = Math.Max(offset - pageHeight, 0);
+                            }
+
+                            _virtualScrollViewer.ChangeView(null, newOffset, null, true);
+                            return;
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        System.Diagnostics.Debug.WriteLine($"Virtual scroll error: {ex.Message}");
+                    }
+                }
+
+                // Fallback to WebView2 JS scrolling
+                if (TextViewer.CoreWebView2 != null)
+                {
+                    string direction = forward ? "1" : "-1";
+                    string script = $@"(function() {{
     const viewportHeight = window.innerHeight;
     const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
     const documentHeight = document.documentElement.scrollHeight;
     const maxScroll = documentHeight - viewportHeight;
-    
-    // Calculate line height based on current font size and line-height (1.8)
     const fontSize = {_textFontSize};
     const lineHeight = fontSize * 1.8;
-    
-    // Calculate page height as viewport height minus 1 line for overlap
     const pageHeight = Math.floor(viewportHeight - lineHeight);
-    
-    // Calculate new scroll position
     let newScrollTop;
     if ({direction} > 0) {{
-        // Scroll forward
         newScrollTop = Math.min(scrollTop + pageHeight, maxScroll);
     }} else {{
-        // Scroll backward  
         newScrollTop = Math.max(scrollTop - pageHeight, 0);
     }}
-    
-    // Scroll to the calculated position
-    window.scrollTo({{
-        top: newScrollTop,
-        behavior: 'smooth'
-    }});
-    
-    // Return the actual scroll position for debugging
-    return {{
-        currentScroll: scrollTop,
-        newScroll: newScrollTop,
-        pageHeight: pageHeight,
-        lineHeight: lineHeight,
-        viewportHeight: viewportHeight,
-        documentHeight: documentHeight,
-        maxScroll: maxScroll
-    }};
-}})()";
-                
-                var result = await TextViewer.CoreWebView2.ExecuteScriptAsync(script).AsTask();
-                System.Diagnostics.Debug.WriteLine($"Page scroll result: {result}");
+    window.scrollTo({{ top: newScrollTop, behavior: 'smooth' }});
+    return {{ currentScroll: scrollTop, newScroll: newScrollTop, pageHeight: pageHeight }};
+}})();";
+                    var result = await TextViewer.CoreWebView2.ExecuteScriptAsync(script).AsTask();
+                    System.Diagnostics.Debug.WriteLine($"Page scroll result: {result}");
+                }
             }
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"Error in ScrollTextPage: {ex.Message}");
-                
+
                 // Fallback to simple scrolling
-                string direction = forward ? "1" : "-1";
-                await TextViewer.CoreWebView2.ExecuteScriptAsync($"window.scrollBy({{ top: window.innerHeight * 0.9 * {direction}, behavior: 'smooth' }})").AsTask();
+                try
+                {
+                    if (_useVirtualTextViewer && _virtualScrollViewer != null)
+                    {
+                        double delta = (_virtualScrollViewer.ViewportHeight * 0.9) * (forward ? 1 : -1);
+                        double newOffset = Math.Max(0, Math.Min(_virtualScrollViewer.ExtentHeight - _virtualScrollViewer.ViewportHeight, _virtualScrollViewer.VerticalOffset + delta));
+                        _virtualScrollViewer.ChangeView(null, newOffset, null, true);
+                    }
+                    else if (TextViewer.CoreWebView2 != null)
+                    {
+                        string direction = forward ? "1" : "-1";
+                        await TextViewer.CoreWebView2.ExecuteScriptAsync($"window.scrollBy({{ top: window.innerHeight * 0.9 * {direction}, behavior: 'smooth' }})").AsTask();
+                    }
+                }
+                catch { }
             }
         }
 
@@ -1934,12 +2436,13 @@ namespace Uviewer
         {
             // Save current scroll position before changing font
             double? scrollPosition = null;
-            if (_isTextMode && TextViewer.CoreWebView2 != null)
+            if (_isTextMode)
             {
                 scrollPosition = await GetTextScrollPositionAsync();
             }
             
             _currentFontFamily = _currentFontFamily == "Yu Mincho" ? "Yu Gothic Medium" : "Yu Mincho";
+            System.Diagnostics.Debug.WriteLine($"[ChangeFont_Click] Changed font to: {_currentFontFamily}");
             
             if (_isEpubMode)
             {
@@ -1948,14 +2451,86 @@ namespace Uviewer
             }
             else
             {
-                _ = UpdateTextViewer();
-                
-                // Restore scroll position after font change
-                if (scrollPosition.HasValue)
+                if (_useVirtualTextViewer)
                 {
-                    // Give it a moment to render the new content
-                    await Task.Delay(100);
-                    await SetTextScrollPosition(scrollPosition.Value);
+                    // For virtual viewer, directly update all visible TextBlock containers
+                    System.Diagnostics.Debug.WriteLine($"[ChangeFont_Click] Refreshing virtual viewer with font: {_currentFontFamily}");
+                    _ = DispatcherQueue.TryEnqueue(async () =>
+                    {
+                        try
+                        {
+                            System.Diagnostics.Debug.WriteLine($"[ChangeFont_Click] Directly updating all visible TextBlock containers");
+                            
+                            // Calculate foreground color based on background luminance
+                            string bg = NormalizeColorToHex(_textBgColor ?? "#FFFFFF");
+                            int r = Convert.ToInt32(bg.Substring(1, 2), 16);
+                            int g = Convert.ToInt32(bg.Substring(3, 2), 16);
+                            int b = Convert.ToInt32(bg.Substring(5, 2), 16);
+                            double lum = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+                            SolidColorBrush foregroundBrush = new SolidColorBrush(lum < 128 ? Colors.White : Colors.Black);
+                            
+                            // Directly update all TextBlock children in the ListView containers
+                            int updatedCount = 0;
+                            int containerCount = VirtualTextListView.Items.Count;
+                            
+                            for (int i = 0; i < containerCount; i++)
+                            {
+                                try
+                                {
+                                    var container = VirtualTextListView.ContainerFromIndex(i) as ListViewItem;
+                                    if (container != null)
+                                    {
+                                        var tb = FindVisualChild<TextBlock>(container);
+                                        if (tb != null)
+                                        {
+                                            tb.FontFamily = new Microsoft.UI.Xaml.Media.FontFamily(_currentFontFamily);
+                                            tb.Foreground = foregroundBrush;
+                                            updatedCount++;
+                                            
+                                            if (updatedCount <= 3 || updatedCount % 100 == 0)
+                                            {
+                                                System.Diagnostics.Debug.WriteLine($"[ChangeFont_Click] Updated container {i}, font family now: {_currentFontFamily}");
+                                            }
+                                        }
+                                    }
+                                }
+                                catch { }
+                            }
+                            
+                            System.Diagnostics.Debug.WriteLine($"[ChangeFont_Click] Direct update completed: {updatedCount} containers updated");
+                            
+                            await Task.Delay(150);
+                            
+                            // Restore scroll position
+                            if (scrollPosition.HasValue)
+                            {
+                                if (_virtualScrollViewer == null)
+                                    _virtualScrollViewer = FindScrollViewer(VirtualTextListView);
+                                
+                                if (_virtualScrollViewer != null)
+                                {
+                                    System.Diagnostics.Debug.WriteLine($"[ChangeFont_Click] Restoring scroll position to {scrollPosition.Value}");
+                                    _virtualScrollViewer.ChangeView(null, scrollPosition.Value, null, false);
+                                    System.Diagnostics.Debug.WriteLine($"[ChangeFont_Click] Scroll position restored");
+                                }
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            System.Diagnostics.Debug.WriteLine($"[ChangeFont_Click] Error refreshing virtual viewer: {ex.Message}");
+                        }
+                    });
+                }
+                else
+                {
+                    _ = UpdateTextViewer();
+                    
+                    // Restore scroll position after font change
+                    if (scrollPosition.HasValue)
+                    {
+                        await Task.Delay(100);
+                        await SetTextScrollPosition(scrollPosition.Value);
+                    }
                 }
             }
             
@@ -1969,7 +2544,7 @@ namespace Uviewer
             {
                 // Save current scroll position before changing background
                 double? scrollPosition = null;
-                if (_isTextMode && TextViewer.CoreWebView2 != null)
+                if (_isTextMode)
                 {
                     scrollPosition = await GetTextScrollPositionAsync();
                 }
@@ -1983,14 +2558,80 @@ namespace Uviewer
                 }
                 else
                 {
-                    _ = UpdateTextViewer();
-                    
-                    // Restore scroll position after background change
-                    if (scrollPosition.HasValue)
+                    if (_useVirtualTextViewer)
                     {
-                        // Give it a moment to render the new content
-                        await Task.Delay(100);
-                        await SetTextScrollPosition(scrollPosition.Value);
+                        // Apply background AND foreground colors immediately for virtualized viewer
+                        _ = DispatcherQueue.TryEnqueue(() =>
+                        {
+                            try
+                            {
+                                // Set background color
+                                if (!string.IsNullOrEmpty(_textBgColor))
+                                {
+                                    if (_textBgColor.Equals("White", StringComparison.OrdinalIgnoreCase) || _textBgColor.Equals("#FFFFFF", StringComparison.OrdinalIgnoreCase))
+                                    {
+                                        VirtualTextListView.Background = new SolidColorBrush(Colors.White);
+                                    }
+                                    else if (_textBgColor.Equals("#F4ECD8", StringComparison.OrdinalIgnoreCase) || _textBgColor.Equals("Beige", StringComparison.OrdinalIgnoreCase))
+                                    {
+                                        VirtualTextListView.Background = new SolidColorBrush(Colors.Beige);
+                                    }
+                                    else if (_textBgColor.Equals("#1E1E1E", StringComparison.OrdinalIgnoreCase) || _textBgColor.Equals("Dark", StringComparison.OrdinalIgnoreCase))
+                                    {
+                                        VirtualTextListView.Background = new SolidColorBrush(Colors.Black);
+                                    }
+                                    else
+                                    {
+                                        VirtualTextListView.Background = new SolidColorBrush(Colors.White);
+                                    }
+                                }
+                                
+                                // Calculate foreground color based on background luminance
+                                string bg = NormalizeColorToHex(_textBgColor ?? "#FFFFFF");
+                                int r = Convert.ToInt32(bg.Substring(1, 2), 16);
+                                int g = Convert.ToInt32(bg.Substring(3, 2), 16);
+                                int b = Convert.ToInt32(bg.Substring(5, 2), 16);
+                                double lum = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+                                SolidColorBrush foregroundBrush = new SolidColorBrush(lum < 128 ? Colors.White : Colors.Black);
+                                
+                                // Update all visible containers with new foreground color
+                                int containerCount = VirtualTextListView.Items.Count;
+                                for (int i = 0; i < containerCount; i++)
+                                {
+                                    try
+                                    {
+                                        var container = VirtualTextListView.ContainerFromIndex(i) as ListViewItem;
+                                        if (container != null)
+                                        {
+                                            var tb = FindVisualChild<TextBlock>(container);
+                                            if (tb != null)
+                                            {
+                                                tb.Foreground = foregroundBrush;
+                                            }
+                                        }
+                                    }
+                                    catch { }
+                                }
+                                
+                                System.Diagnostics.Debug.WriteLine($"[ChangeBg_Click] Updated {VirtualTextListView.Items.Count} containers with new background and foreground colors");
+                            }
+                            catch (Exception ex)
+                            {
+                                System.Diagnostics.Debug.WriteLine($"[ChangeBg_Click] Error updating colors: {ex.Message}");
+                            }
+                        });
+                    }
+                    else
+                    {
+                        _ = UpdateTextViewer();
+                        
+                        // Restore scroll position after background change
+                        if (scrollPosition.HasValue)
+                        {
+                            // Give it a moment to render the new content
+                            await Task.Delay(100);
+                            await SetTextScrollPosition(scrollPosition.Value);
+                        }
                     }
                 }
                 
@@ -2058,14 +2699,75 @@ namespace Uviewer
         {
             string query = SearchBox.Text;
             if (string.IsNullOrEmpty(query)) return;
-            await TextViewer.CoreWebView2.ExecuteScriptAsync($"window.find('{query}', false, false, true)").AsTask();
+            if (_useVirtualTextViewer)
+            {
+                try
+                {
+                    // Simple forward search in virtualized lines
+                    int index = -1;
+                    for (int i = 0; i < _virtualTextLines.Count; i++)
+                    {
+                        if (_virtualTextLines[i].Contains(query, StringComparison.OrdinalIgnoreCase))
+                        {
+                            index = i;
+                            break;
+                        }
+                    }
+                    if (index >= 0)
+                    {
+                        // Scroll to the item
+                        if (_virtualScrollViewer == null) _virtualScrollViewer = FindScrollViewer(VirtualTextListView);
+                        if (_virtualScrollViewer != null)
+                        {
+                            // Estimate offset by item index * avg line height
+                            double lineHeight = _textFontSize * 1.8;
+                            double target = Math.Max(0, index * lineHeight - (_virtualScrollViewer.ViewportHeight / 2));
+                            _virtualScrollViewer.ChangeView(null, target, null, true);
+                        }
+                    }
+                }
+                catch { }
+            }
+            else
+            {
+                await TextViewer.CoreWebView2.ExecuteScriptAsync($"window.find('{query}', false, false, true)").AsTask();
+            }
         }
 
         private async Task SearchPrev()
         {
             string query = SearchBox.Text;
             if (string.IsNullOrEmpty(query)) return;
-            await TextViewer.CoreWebView2.ExecuteScriptAsync($"window.find('{query}', false, true, true)").AsTask();
+            if (_useVirtualTextViewer)
+            {
+                try
+                {
+                    int index = -1;
+                    for (int i = _virtualTextLines.Count - 1; i >= 0; i--)
+                    {
+                        if (_virtualTextLines[i].Contains(query, StringComparison.OrdinalIgnoreCase))
+                        {
+                            index = i;
+                            break;
+                        }
+                    }
+                    if (index >= 0)
+                    {
+                        if (_virtualScrollViewer == null) _virtualScrollViewer = FindScrollViewer(VirtualTextListView);
+                        if (_virtualScrollViewer != null)
+                        {
+                            double lineHeight = _textFontSize * 1.8;
+                            double target = Math.Max(0, index * lineHeight - (_virtualScrollViewer.ViewportHeight / 2));
+                            _virtualScrollViewer.ChangeView(null, target, null, true);
+                        }
+                    }
+                }
+                catch { }
+            }
+            else
+            {
+                await TextViewer.CoreWebView2.ExecuteScriptAsync($"window.find('{query}', false, true, true)").AsTask();
+            }
         }
 
         private async void SearchNext_Click(object sender, RoutedEventArgs e) => await SearchNext();
@@ -2077,7 +2779,28 @@ namespace Uviewer
             if (int.TryParse(PageJumpBox.Text, out int page))
             {
                 // Jump to approximate position
-                await TextViewer.CoreWebView2.ExecuteScriptAsync($"window.scrollTo(0, {(page - 1) * 800})").AsTask();
+                if (_useVirtualTextViewer)
+                {
+                    try
+                    {
+                        if (_virtualScrollViewer == null) _virtualScrollViewer = FindScrollViewer(VirtualTextListView);
+                        if (_virtualScrollViewer != null)
+                        {
+                            double viewport = _virtualScrollViewer.ViewportHeight;
+                            double target = Math.Max(0, (page - 1) * viewport);
+                            _virtualScrollViewer.ChangeView(null, target, null, true);
+                        }
+                    }
+                    catch { }
+                }
+                else
+                {
+                    try
+                    {
+                        await TextViewer.CoreWebView2.ExecuteScriptAsync($"window.scrollTo(0, {(page - 1) * 800})").AsTask();
+                    }
+                    catch { }
+                }
             }
             PageJumpOverlay.Visibility = Visibility.Collapsed;
         }

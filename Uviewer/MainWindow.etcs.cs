@@ -330,9 +330,36 @@ namespace Uviewer
                 int defaultX = (screenWidth - defaultWidth) / 2;
                 int defaultY = (screenHeight - defaultHeight) / 2;
 
+                bool windowSettingsLoaded = false;
+
                 if (File.Exists(_windowSettingsFile))
                 {
                     var lines = File.ReadAllLines(_windowSettingsFile);
+                    System.Diagnostics.Debug.WriteLine($"Settings file loaded: {lines.Length} lines");
+                    
+                    // Load text viewer settings FIRST (before checking other conditions)
+                    // This ensures text settings are restored even if window settings are incomplete
+                    if (lines.Length >= 9)
+                    {
+                        System.Diagnostics.Debug.WriteLine($"Loading text settings from lines {lines.Length}");
+                        if (lines.Length >= 9 && !string.IsNullOrEmpty(lines[8]))
+                        {
+                            _currentFontFamily = lines[8].Trim();
+                            System.Diagnostics.Debug.WriteLine($"Loaded font family: {_currentFontFamily}");
+                        }
+                        if (lines.Length >= 10 && !string.IsNullOrEmpty(lines[9]))
+                        {
+                            _textBgColor = lines[9].Trim();
+                            System.Diagnostics.Debug.WriteLine($"Loaded background color: {_textBgColor}");
+                        }
+                        if (lines.Length >= 11 && double.TryParse(lines[10].Trim(), out double fontSize))
+                        {
+                            _textFontSize = fontSize;
+                            System.Diagnostics.Debug.WriteLine($"Loaded font size: {_textFontSize}");
+                        }
+                    }
+                    
+                    // Now load window settings
                     if (lines.Length >= 4 &&
                         int.TryParse(lines[0], out int x) &&
                         int.TryParse(lines[1], out int y) &&
@@ -370,23 +397,32 @@ namespace Uviewer
                         if (lines.Length >= 7 && lines[6].Trim() == "1") _isSideBySideMode = true;
                         if (lines.Length >= 8 && lines[7].Trim() == "0") _nextImageOnRight = false;
 
-                        // Load text viewer settings
-                        if (lines.Length >= 9) _currentFontFamily = lines[8].Trim();
-                        if (lines.Length >= 10) _textBgColor = lines[9].Trim();
-                        if (lines.Length >= 11 && double.TryParse(lines[10].Trim(), out double fontSize)) 
-                            _textFontSize = fontSize;
-
-                        UpdateSharpenButtonState();
-                        UpdateSideBySideButtonState();
-                        UpdateNextImageSideButtonState();
-
-                        return true;
+                        windowSettingsLoaded = true;
+                        System.Diagnostics.Debug.WriteLine("Window settings loaded successfully");
+                    }
+                    else
+                    {
+                        System.Diagnostics.Debug.WriteLine("Window settings format invalid or incomplete");
                     }
                 }
+                else
+                {
+                    System.Diagnostics.Debug.WriteLine("Settings file does not exist, using defaults");
+                }
 
-                // 파일이 없거나 읽기 실패 시 기본값(70%)으로 설정
-                _lastNonMaximizedRect = new Windows.Graphics.RectInt32(defaultX, defaultY, defaultWidth, defaultHeight);
-                appWindow.MoveAndResize(_lastNonMaximizedRect);
+                // If window settings were not loaded, apply defaults
+                if (!windowSettingsLoaded)
+                {
+                    System.Diagnostics.Debug.WriteLine("Applying default window settings");
+                    _lastNonMaximizedRect = new Windows.Graphics.RectInt32(defaultX, defaultY, defaultWidth, defaultHeight);
+                    appWindow.MoveAndResize(_lastNonMaximizedRect);
+                }
+
+                UpdateSharpenButtonState();
+                UpdateSideBySideButtonState();
+                UpdateNextImageSideButtonState();
+
+                return windowSettingsLoaded;
             }
             catch (Exception ex)
             {
@@ -466,6 +502,19 @@ namespace Uviewer
                 File.WriteAllLines(_windowSettingsFile, settings);
                 System.Diagnostics.Debug.WriteLine($"Window settings saved: Max={isMaximized}, RestoreRect={saveX},{saveY},{saveWidth}x{saveHeight}");
                 System.Diagnostics.Debug.WriteLine($"Text settings saved: Font={_currentFontFamily}, Bg={_textBgColor}, Size={_textFontSize}");
+                System.Diagnostics.Debug.WriteLine($"Settings file path: {_windowSettingsFile}");
+                System.Diagnostics.Debug.WriteLine($"Settings file exists: {File.Exists(_windowSettingsFile)}");
+                if (File.Exists(_windowSettingsFile))
+                {
+                    var content = File.ReadAllLines(_windowSettingsFile);
+                    System.Diagnostics.Debug.WriteLine($"Settings file content lines: {content.Length}");
+                    if (content.Length >= 11)
+                    {
+                        System.Diagnostics.Debug.WriteLine($"Line 8 (Font): {content[8]}");
+                        System.Diagnostics.Debug.WriteLine($"Line 9 (BgColor): {content[9]}");
+                        System.Diagnostics.Debug.WriteLine($"Line 10 (FontSize): {content[10]}");
+                    }
+                }
             }
             catch (Exception ex)
             {

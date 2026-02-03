@@ -323,6 +323,31 @@
                     <WebView2 x:Name="TextViewer" Source="about:blank" HorizontalAlignment="Stretch" VerticalAlignment="Stretch"
                                KeyDown="TextViewer_KeyDown" IsTabStop="False" IsHitTestVisible="False"/>
 
+                    <!-- Virtualized ListView for large plain text files -->
+                    <ListView x:Name="VirtualTextListView" Visibility="Collapsed"
+                              HorizontalAlignment="Stretch" VerticalAlignment="Stretch"
+                              IsItemClickEnabled="False"
+                              SelectionMode="None"
+                              Margin="0"
+                              PointerPressed="VirtualTextListView_PointerPressed"
+                              IsDoubleTapEnabled="False"
+                              IsRightTapEnabled="False"
+                              >
+                        <ListView.Resources>
+                            <x:Double x:Key="ItemMaxWidth">800</x:Double>
+                        </ListView.Resources>
+                        <ListView.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <VirtualizingStackPanel />
+                            </ItemsPanelTemplate>
+                        </ListView.ItemsPanel>
+                        <ListView.ItemTemplate>
+                            <DataTemplate>
+                                <TextBlock Text="{Binding}" TextWrapping="Wrap" TextTrimming="None"/>
+                            </DataTemplate>
+                        </ListView.ItemTemplate>
+                    </ListView>
+
                     <!-- Search Overlay (F) -->
                     <Grid x:Name="SearchOverlay" Visibility="Collapsed" VerticalAlignment="Top" HorizontalAlignment="Right" Margin="24" 
                           Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" 
