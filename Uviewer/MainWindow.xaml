@@ -329,9 +329,6 @@
                               IsItemClickEnabled="False"
                               SelectionMode="None"
                               Margin="0"
-                              PointerPressed="VirtualTextListView_PointerPressed"
-                              IsDoubleTapEnabled="False"
-                              IsRightTapEnabled="False"
                               >
                         <ListView.Resources>
                             <x:Double x:Key="ItemMaxWidth">800</x:Double>
@@ -343,7 +340,7 @@
                         </ListView.ItemsPanel>
                         <ListView.ItemTemplate>
                             <DataTemplate>
-                                <TextBlock Text="{Binding}" TextWrapping="Wrap" TextTrimming="None"/>
+                                <TextBlock Text="{Binding}" TextWrapping="Wrap" FontSize="18" TextTrimming="None" FontFamily="Yu Mincho"/>
                             </DataTemplate>
                         </ListView.ItemTemplate>
                     </ListView>

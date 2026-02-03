@@ -78,7 +78,6 @@ namespace Uviewer
         private string _currentFontFamily = "Yu Mincho";
         private double _textFontSize = 18;
         private string _textBgColor = "#F4ECD8";
-        private bool _isTextSideBySide = false;
 
         // File item for ListView
         public class FileItem
