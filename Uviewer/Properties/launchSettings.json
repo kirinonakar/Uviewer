@@ -1,0 +1,10 @@
+{
+  "profiles": {
+    "Uviewer (Package)": {
+      "commandName": "MsixPackage"
+    },
+    "Uviewer (Unpackaged)": {
+      "commandName": "Project"
+    }
+  }
+}

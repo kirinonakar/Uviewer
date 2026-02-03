@@ -1,0 +1,390 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Window
+    x:Class="Uviewer.MainWindow"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:local="using:Uviewer"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:canvas="using:Microsoft.Graphics.Canvas.UI.Xaml"
+    xmlns:controls="using:CommunityToolkit.WinUI.Controls"
+    mc:Ignorable="d"
+    Title="Uviewer - Image Viewer">
+
+    <Window.SystemBackdrop>
+        <MicaBackdrop />
+    </Window.SystemBackdrop>
+
+    <Grid x:Name="RootGrid" AllowDrop="True"
+          DragOver="Grid_DragOver" Drop="Grid_Drop"
+          PointerMoved="RootGrid_PointerMoved"
+          PointerExited="RootGrid_PointerExited">
+
+        <Grid.Resources>
+            <ThemeShadow x:Name="SharedShadow" />
+        </Grid.Resources>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- Fullscreen Hover Triggers (on top of content, but below UI panels) -->
+        <Rectangle x:Name="TopHoverTrigger" Fill="Transparent" Height="40" VerticalAlignment="Top" Grid.RowSpan="3"
+                   PointerMoved="RootGrid_PointerMoved" IsHitTestVisible="True" Canvas.ZIndex="500" Visibility="Collapsed"/>
+        <Rectangle x:Name="LeftHoverTrigger" Fill="Transparent" Width="40" HorizontalAlignment="Left" Grid.RowSpan="3"
+                   PointerMoved="RootGrid_PointerMoved" IsHitTestVisible="True" Canvas.ZIndex="500" Visibility="Collapsed"/>
+
+        <!-- Title Bar & Toolbar -->
+        <Grid x:Name="ToolbarGrid" Grid.Row="0" Padding="12,8" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" Canvas.ZIndex="1000">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+
+            <!-- App Title -->
+            <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                <FontIcon Glyph="&#xE8B9;" FontSize="20"/>
+                <TextBlock Text="Uviewer" FontWeight="SemiBold" FontSize="16" VerticalAlignment="Center"/>
+            </StackPanel>
+
+            <!-- Toolbar -->
+            <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="4">
+                <Button x:Name="ToggleSidebarButton" Click="ToggleSidebarButton_Click" ToolTipService.ToolTip="사이드바 토글(Ctrl+B)">
+                    <FontIcon Glyph="&#xE8A0;" FontSize="14"/>
+                </Button>
+
+                <AppBarSeparator/>
+
+                <Button x:Name="OpenFileButton" Click="OpenFileButton_Click" ToolTipService.ToolTip="이미지 열기(Ctrl+O)">
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                        <FontIcon Glyph="&#xE8E5;" FontSize="14"/>
+                    </StackPanel>
+                </Button>
+
+                <Button x:Name="OpenFolderButton" Click="OpenFolderButton_Click" ToolTipService.ToolTip="폴더 열기">
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                        <FontIcon Glyph="&#xE8DA;" FontSize="14"/>
+                    </StackPanel>
+                </Button>
+
+                <AppBarSeparator/>
+
+                <Button x:Name="ZoomOutButton" Click="ZoomOutButton_Click" ToolTipService.ToolTip="축소(-)">
+                    <FontIcon Glyph="&#xE71F;" FontSize="14"/>
+                </Button>
+
+                <TextBlock x:Name="ZoomLevelText" Text="100%" Width="50" TextAlignment="Center" 
+                           VerticalAlignment="Center" FontSize="12"/>
+
+                <Button x:Name="ZoomInButton" Click="ZoomInButton_Click" ToolTipService.ToolTip="확대(+)">
+                    <FontIcon Glyph="&#xE8A3;" FontSize="14"/>
+                </Button>
+
+                <Button x:Name="ZoomFitButton" Click="ZoomFitButton_Click" ToolTipService.ToolTip="맞춤">
+                    <FontIcon Glyph="&#xE9A6;" FontSize="14"/>
+                </Button>
+
+                <Button x:Name="ZoomActualButton" Click="ZoomActualButton_Click" ToolTipService.ToolTip="원본 크기">
+                    <TextBlock Text="1:1" FontSize="12" FontWeight="SemiBold"/>
+                </Button>
+
+                <AppBarSeparator/>
+
+                <ToggleButton x:Name="SharpenButton" Click="SharpenButton_Click" ToolTipService.ToolTip="샤프닝(S)">
+                    <ToggleButton.Resources>
+                        <StaticResource x:Key="ToggleButtonForegroundPointerOver" ResourceKey="ToggleButtonForeground" />
+                        <StaticResource x:Key="ToggleButtonForegroundCheckedPointerOver" ResourceKey="ToggleButtonForegroundChecked" />
+                    </ToggleButton.Resources>
+                    <FontIcon x:Name="SharpenIcon" Glyph="S" FontSize="14" FontFamily="Segoe UI" />
+                </ToggleButton>
+
+                <AppBarSeparator/>
+
+                <Button x:Name="SideBySideButton" Click="SideBySideButton_Click" ToolTipService.ToolTip="좌우 보기(Space)">
+                    <TextBlock x:Name="SideBySideText" Text="1" FontSize="14" FontWeight="SemiBold" Width="14" TextAlignment="Center"/>
+                </Button>
+
+                <Button x:Name="NextImageSideButton" Click="NextImageSideButton_Click" ToolTipService.ToolTip="다음 그림 위치">
+                    <TextBlock x:Name="NextImageSideText" Text="→" FontSize="12" FontWeight="SemiBold"/>
+                </Button>
+
+                <Button x:Name="TextOptionsButton" Visibility="Visible" ToolTipService.ToolTip="텍스트모드 메뉴">
+                    <FontIcon Glyph="&#xE70F;" FontSize="14"/>
+                    <Button.Flyout>
+                        <MenuFlyout x:Name="TextOptionsFlyout">
+                            <MenuFlyoutItem Text="글꼴 변경" Click="ChangeFont_Click"/>
+                            <MenuFlyoutSubItem Text="배경색">
+                                <MenuFlyoutItem Text="흰색 (White)" Click="ChangeBg_Click" Tag="White"/>
+                                <MenuFlyoutItem Text="베이지 (Beige)" Click="ChangeBg_Click" Tag="#F4ECD8"/>
+                                <MenuFlyoutItem Text="다크 (Dark)" Click="ChangeBg_Click" Tag="#1E1E1E"/>
+                            </MenuFlyoutSubItem>
+                            <MenuFlyoutSeparator/>
+                            <MenuFlyoutItem Text="찾기 (F)" Click="SearchMenu_Click"/>
+                            <MenuFlyoutItem Text="이동 (G)" Click="PageJumpMenu_Click"/>
+                        </MenuFlyout>
+                    </Button.Flyout>
+                </Button>
+
+                <AppBarSeparator x:Name="TextSeparator" Visibility="Visible"/>
+
+                <Button x:Name="FullscreenButton" Click="FullscreenButton_Click" ToolTipService.ToolTip="전체화면(F11)">
+                    <FontIcon x:Name="FullscreenIcon" Glyph="&#xE740;" FontSize="18"/>
+                </Button>
+
+                <Button x:Name="CloseWindowButton" Click="CloseWindowButton_Click" ToolTipService.ToolTip="닫기(Esc)">
+                    <FontIcon Glyph="&#xE711;" FontSize="18"/>
+                </Button>
+            </StackPanel>
+        </Grid>
+
+        <!-- Main Content Area -->
+        <Grid Grid.Row="1" Background="{ThemeResource SolidBackgroundFillColorBaseBrush}">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition x:Name="SidebarColumn" Width="320"/>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+
+            <!-- Sidebar - Folder Explorer -->
+            <Grid x:Name="SidebarGrid" Grid.Column="0" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                  BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="0,0,1,0" Canvas.ZIndex="1000">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                </Grid.RowDefinitions>
+
+                <!-- Sidebar Header -->
+                <Grid Grid.Row="0" Padding="12,8" Background="{ThemeResource CardBackgroundFillColorSecondaryBrush}">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+
+                    <Button Grid.Column="0" x:Name="ParentFolderButton" Click="ParentFolderButton_Click"
+                             ToolTipService.ToolTip="상위 폴더로 가기(Backspace)" Padding="6" Margin="0,0,8,0">
+                        <FontIcon Glyph="&#xE110;" FontSize="16"/>
+                    </Button>
+
+                    <Button Grid.Column="1" x:Name="RecentButton" Click="RecentButton_Click"
+                              ToolTipService.ToolTip="최근 이미지" Padding="6" Margin="0,0,8,0">
+                        <FontIcon Glyph="&#xE823;" FontSize="16"/>
+                        <Button.Flyout>
+                            <Flyout x:Name="RecentFlyout" Placement="Bottom">
+                                <ScrollViewer MaxHeight="400" Width="400" 
+                                             HorizontalScrollBarVisibility="Disabled" 
+                                             VerticalScrollBarVisibility="Auto">
+                                    <StackPanel x:Name="RecentPanel" Spacing="2">
+                                        <!-- Recent items will be added dynamically -->
+                                    </StackPanel>
+                                </ScrollViewer>
+                            </Flyout>
+                        </Button.Flyout>
+                    </Button>
+
+                    <Button Grid.Column="2" x:Name="FavoritesButton" Click="FavoritesButton_Click"
+                             ToolTipService.ToolTip="즐겨찾기" Padding="6" Margin="0,0,8,0">
+                        <FontIcon Glyph="&#xE734;" FontSize="16"/>
+                        <Button.Flyout>
+                            <Flyout x:Name="FavoritesFlyout" Placement="Bottom">
+                                <ScrollViewer MaxHeight="400" Width="400" 
+                                             HorizontalScrollBarVisibility="Disabled" 
+                                             VerticalScrollBarVisibility="Auto">
+                                    <StackPanel x:Name="FavoritesPanel" Spacing="2">
+                                        <Button Content="➕ 즐겨찾기 추가" Click="AddToFavoritesMenuItem_Click" 
+                                                HorizontalAlignment="Stretch" HorizontalContentAlignment="Left"
+                                                Background="Transparent" BorderThickness="0"/>
+                                        <Border Height="1" Background="{ThemeResource DividerStrokeColorDefaultBrush}" Margin="0,4"/>
+                                        <!-- Favorites will be added dynamically -->
+                                    </StackPanel>
+                                </ScrollViewer>
+                            </Flyout>
+                        </Button.Flyout>
+                    </Button>
+
+                    <Button Grid.Column="3" Click="BrowseFolderButton_Click" 
+                             ToolTipService.ToolTip="폴더 찾아보기" Padding="6">
+                        <FontIcon Glyph="&#xED25;" FontSize="16"/>
+                    </Button>
+                </Grid>
+
+                <!-- Current Path -->
+                <Grid Grid.Row="1">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+
+                    <TextBlock x:Name="CurrentPathText" Grid.Row="0" 
+                               Text="폴더를 선택하세요" 
+                               Padding="12,8" FontSize="11"
+                               Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                               TextTrimming="CharacterEllipsis"/>
+
+                    <!-- File List -->
+                    <ListView x:Name="FileListView" Grid.Row="1" 
+                               SelectionMode="Single"
+                               SelectionChanged="FileListView_SelectionChanged">
+                        <ListView.ItemTemplate>
+                            <DataTemplate>
+                                <Grid Padding="4,6" ColumnSpacing="8">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+
+                                    <FontIcon Grid.Column="0" Glyph="{Binding Icon}" FontSize="14"
+                                              Foreground="{Binding IconColor}"/>
+                                    <TextBlock Grid.Column="1" Text="{Binding Name}" 
+                                               VerticalAlignment="Center"
+                                               TextTrimming="CharacterEllipsis"
+                                               />
+                                </Grid>
+                            </DataTemplate>
+                        </ListView.ItemTemplate>
+                    </ListView>
+                </Grid>
+            </Grid>
+
+            <controls:GridSplitter 
+                x:Name="SplitterGrid"
+                Grid.Column="1"
+                Width="8"
+                Background="Transparent"
+                Foreground="{ThemeResource CardStrokeColorDefaultBrush}"
+                ResizeBehavior="BasedOnAlignment"
+                ResizeDirection="Columns" />
+
+            <!-- Image Area with Win2D CanvasControl -->
+            <Grid Grid.Column="2" x:Name="ImageArea" Background="{ThemeResource SolidBackgroundFillColorBaseBrush}"
+                  SizeChanged="ImageArea_SizeChanged"
+                  PointerWheelChanged="ImageArea_PointerWheelChanged"
+                  PointerPressed="ImageArea_PointerPressed">
+                <!-- Empty State -->
+                <StackPanel x:Name="EmptyStatePanel" HorizontalAlignment="Center" VerticalAlignment="Center" 
+                            Spacing="16" Visibility="Visible">
+                    <FontIcon Glyph="&#xE8B9;" FontSize="64" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                    <TextBlock Text="이미지를 여기로 드래그하거나" 
+                               FontSize="18" Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                               HorizontalAlignment="Center"/>
+                    <TextBlock Text="'열기' 버튼을 클릭하세요" 
+                               FontSize="14" Foreground="{ThemeResource TextFillColorTertiaryBrush}"
+                               HorizontalAlignment="Center"/>
+                    <Button Content="이미지 열기" Click="OpenFileButton_Click" 
+                            Style="{StaticResource AccentButtonStyle}" HorizontalAlignment="Center" Margin="0,8,0,0"/>
+                </StackPanel>
+
+                <Grid x:Name="FastNavOverlay"
+								Canvas.ZIndex="999"
+								IsHitTestVisible="False"
+								Visibility="Collapsed"
+								Background="#80000000"
+								HorizontalAlignment="Stretch"
+								VerticalAlignment="Stretch">
+                    <TextBlock x:Name="FastNavText"
+											Foreground="White"
+											FontSize="28"
+											FontWeight="SemiBold"
+											HorizontalAlignment="Center"
+											VerticalAlignment="Center"
+											Text="빠른 탐색 중... (1/1)" />
+                </Grid>
+
+                <!-- Single Image Display with Win2D -->
+                <canvas:CanvasControl x:Name="MainCanvas" 
+                                     Draw="MainCanvas_Draw"
+                                     Visibility="Collapsed"
+                                     CreateResources="MainCanvas_CreateResources"/>
+
+                <!-- Side-by-Side Image Display with Win2D -->
+                <Grid x:Name="SideBySideGrid" Visibility="Collapsed">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+
+                    <canvas:CanvasControl x:Name="LeftCanvas" 
+                                         Grid.Column="0"
+                                         Draw="LeftCanvas_Draw"
+                                         CreateResources="LeftCanvas_CreateResources"/>
+
+                    <canvas:CanvasControl x:Name="RightCanvas" 
+                                          Grid.Column="1"
+                                          Draw="RightCanvas_Draw"
+                                          CreateResources="RightCanvas_CreateResources"/>
+                </Grid>
+
+                <!-- Text Viewer Area -->
+                <Grid x:Name="TextViewerArea" Visibility="Collapsed" Background="White">
+                    <WebView2 x:Name="TextViewer" Source="about:blank" HorizontalAlignment="Stretch" VerticalAlignment="Stretch"
+                               KeyDown="TextViewer_KeyDown" IsTabStop="False" IsHitTestVisible="False"/>
+
+                    <!-- Search Overlay (F) -->
+                    <Grid x:Name="SearchOverlay" Visibility="Collapsed" VerticalAlignment="Top" HorizontalAlignment="Right" Margin="24" 
+                          Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" 
+                          BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1"
+                          CornerRadius="8" Padding="12">
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <TextBox x:Name="SearchBox" Width="200" PlaceholderText="검색어 입력..." KeyDown="SearchBox_KeyDown"/>
+                            <Button x:Name="SearchPrevButton" Click="SearchPrev_Click" >
+                                <FontIcon Glyph="&#xE74A;" FontSize="12"/>
+                            </Button>
+                            <Button x:Name="SearchNextButton" Click="SearchNext_Click" >
+                                <FontIcon Glyph="&#xE74B;" FontSize="12"/>
+                            </Button>
+                            <Button Click="CloseSearch_Click" >
+                                <FontIcon Glyph="&#xE711;" FontSize="12"/>
+                            </Button>
+                        </StackPanel>
+                    </Grid>
+
+                    <!-- Page Jump Overlay (G) -->
+                    <Grid x:Name="PageJumpOverlay" Visibility="Collapsed" VerticalAlignment="Center" HorizontalAlignment="Center" 
+                          Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" 
+                          BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1"
+                          CornerRadius="12" Padding="24">
+                        <StackPanel Spacing="16">
+                            <TextBlock Text="페이지 이동" FontWeight="SemiBold" FontSize="18"/>
+                            <TextBox x:Name="PageJumpBox" Width="160" PlaceholderText="페이지 번호..." KeyDown="PageJumpBox_KeyDown"/>
+                            <Button Content="이동" Click="PageJump_Click" HorizontalAlignment="Stretch" Style="{StaticResource AccentButtonStyle}"/>
+                        </StackPanel>
+                    </Grid>
+                </Grid>
+            </Grid>
+        </Grid>
+
+        <!-- Status Bar -->
+        <Grid x:Name="StatusBarGrid" Grid.Row="2" Padding="12,8" 
+              Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" Canvas.ZIndex="1000">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+
+            <TextBlock x:Name="FileNameText" Grid.Column="0" 
+                       Text="이미지를 선택해주세요" 
+                       FontSize="12" 
+                       Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                       VerticalAlignment="Center"
+                       TextTrimming="CharacterEllipsis"/>
+
+            <TextBlock x:Name="ImageInfoText" Grid.Column="1" 
+                       Text="" 
+                       FontSize="12" 
+                       Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                       VerticalAlignment="Center"
+                       Margin="16,0"/>
+
+            <TextBlock x:Name="ImageIndexText" Grid.Column="2" 
+                       Text="" 
+                       FontSize="12" 
+                       Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                       VerticalAlignment="Center"/>
+        </Grid>
+    </Grid>
+</Window>
