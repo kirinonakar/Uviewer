@@ -19,6 +19,14 @@
           DragOver="Grid_DragOver" Drop="Grid_Drop"
           PointerMoved="RootGrid_PointerMoved"
           PointerExited="RootGrid_PointerExited">
+        <Grid.Resources>
+            <DataTemplate x:Key="TextItemTemplate">
+                <TextBlock TextWrapping="Wrap" HorizontalAlignment="Left" Margin="0,0,0,4"/>
+            </DataTemplate>
+            <DataTemplate x:Key="AozoraItemTemplate">
+                <RichTextBlock IsTextSelectionEnabled="False" TextWrapping="Wrap" HorizontalAlignment="Left" Margin="0,0,0,10" />
+            </DataTemplate>
+        </Grid.Resources>
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
@@ -105,6 +113,10 @@
 
                 <!-- Text Toolbar -->
                 <StackPanel x:Name="TextToolbarPanel" Orientation="Horizontal" Spacing="4" Visibility="Collapsed">
+                    <ToggleButton x:Name="AozoraToggleButton" Click="AozoraToggleButton_Click" ToolTipService.ToolTip="Aozora(A)">
+                        <TextBlock Text="A" FontSize="14" FontWeight="Bold"/>
+                    </ToggleButton>
+                    
                     <Button x:Name="FontToggleButton" Click="FontToggleButton_Click" ToolTipService.ToolTip="폰트 변경(F)">
                         <TextBlock Text="F" FontSize="14" FontWeight="Bold"/>
                     </Button>
@@ -371,15 +383,11 @@
                                VerticalScrollBarVisibility="Hidden"
                                SizeChanged="TextScrollViewer_SizeChanged"
                                ViewChanged="TextScrollViewer_ViewChanged">
-                     <ItemsRepeater x:Name="TextItemsRepeater" ElementPrepared="TextItemsRepeater_ElementPrepared">
+                     <ItemsRepeater x:Name="TextItemsRepeater" ElementPrepared="TextItemsRepeater_ElementPrepared" 
+                                    ItemTemplate="{StaticResource TextItemTemplate}">
                          <ItemsRepeater.Layout>
                              <StackLayout Spacing="0"/>
                          </ItemsRepeater.Layout>
-                         <ItemsRepeater.ItemTemplate>
-                             <DataTemplate>
-                                 <TextBlock TextWrapping="Wrap" HorizontalAlignment="Left" Margin="0,0,0,4"/>
-                             </DataTemplate>
-                         </ItemsRepeater.ItemTemplate>
                      </ItemsRepeater>
                  </ScrollViewer>
                  

@@ -18,6 +18,7 @@ namespace Uviewer
     public sealed partial class MainWindow
     {
         private List<TextLine> _textLines = new();
+        private string _currentTextContent = ""; // Stores raw text for mode switching
         private double _textFontSize = 18;
         private string _textFontFamily = "Yu Gothic Medium";
         private int _themeIndex = 0; // 0: White, 1: Beige, 2: Dark
@@ -142,14 +143,30 @@ namespace Uviewer
 
         private void DisplayLoadedText(string content, string name)
         {
+            _currentTextContent = content; // Save for reload
+
             string ext = System.IO.Path.GetExtension(name).ToLower();
             if (ext == ".html" || ext == ".htm")
             {
                 content = ParseHtml(content);
+                _currentTextContent = content;
             }
             
-            _textLines = SplitTextToLines(content);
-            RefreshTextDisplay();
+            if (_isAozoraMode)
+            {
+                PrepareAozoraDisplay(content);
+            }
+            else
+            {
+                // Ensure default template
+                if (TextItemsRepeater != null && RootGrid.Resources.TryGetValue("TextItemTemplate", out var template))
+                {
+                     TextItemsRepeater.ItemTemplate = (DataTemplate)template;
+                }
+                
+                _textLines = SplitTextToLines(content);
+                RefreshTextDisplay();
+            }
             
             // Reset to top immediately
             if (TextScrollViewer != null) TextScrollViewer.ChangeView(null, 0, null, true);
@@ -157,7 +174,9 @@ namespace Uviewer
             // Restore scroll position from recent items if exists
             _ = RestoreTextPositionAsync(name);
             
-            UpdateTextStatusBar(name, _textLines.Count, 1);
+            // Update Text Status
+            int lineCount = _isAozoraMode ? _aozoraBlocks.Count : _textLines.Count;
+            UpdateTextStatusBar(name, lineCount, 1);
         }
 
         private async Task RestoreTextPositionAsync(string name)
@@ -242,6 +261,8 @@ namespace Uviewer
                 System.Diagnostics.Debug.WriteLine($"Error loading text settings: {ex.Message}");
             }
             
+            LoadAozoraSettings(); // Load Aozora settings
+
             // Validate
             if (_textFontSize < 8) _textFontSize = 8;
             if (_textFontSize > 72) _textFontSize = 72;
@@ -323,34 +344,326 @@ namespace Uviewer
             var htmlCharset = DetectHtmlCharset(bytes);
             if (htmlCharset != null) return htmlCharset;
 
-            // 1. Try Valid EUC-KR (Strict) - Prioritize Korean
+            // 1. Try Valid EUC-KR (Strict) FIRST - most common Korean encoding
             if (IsStrictEucKr(bytes)) return Encoding.GetEncoding(51949);
 
             // 2. Try Valid SJIS (Strict)
             if (IsStrictSjis(bytes)) return Encoding.GetEncoding(932);
 
-            // 3. Heuristic Fallback for "Dirty" Files
-            // If strict checks failed (e.g. invalid bytes present), check for distinct SJIS high-bytes [0x81-0x9F].
-            // These are NEVER valid in EUC-KR (where high bytes are 0xA1-0xFE).
-            // This strongly implies SJIS (or CP932) even if some bytes are malformed.
-            if (ContainsSjisHighBytes(bytes)) return Encoding.GetEncoding(932);
+            // 3. Try Valid Johab (Strict) - only if EUC-KR and SJIS failed
+            // Johab is rare, so check after more common encodings
+            if (IsStrictJohab(bytes)) return Encoding.GetEncoding(1361);
 
-            // 4. Default Fallbacks
+            // 4. Heuristic Fallback for "Dirty" Files
+            // Check for EUC-KR/CP949 Hangul patterns FIRST.
+            if (ContainsEucKrHangulPattern(bytes)) return Encoding.GetEncoding(949);
+            
+            // Then check for valid SJIS 2-byte sequences.
+            if (ContainsSjisPattern(bytes)) return Encoding.GetEncoding(932);
+
+            // 5. Try Johab (Korean Combination, CP1361) - heuristic fallback
+            // Only if file has Johab-specific patterns
+            if (ContainsJohabPattern(bytes)) return Encoding.GetEncoding(1361);
+
+            // 5. Default Fallbacks
             try { return Encoding.GetEncoding(51949); } catch { }
             try { return Encoding.GetEncoding(932); } catch { }
 
             return Encoding.Default;
         }
 
-        private bool ContainsSjisHighBytes(byte[] bytes)
+        private bool ContainsSjisPattern(byte[] bytes)
         {
-            // Look for bytes in range [0x81, 0x9F].
-            // These denote SJIS 2-byte characters in the first partition.
-            // EUC-KR high-bytes strictly start at 0xA1.
-            foreach (var b in bytes)
+            // Look for valid SJIS 2-byte sequences.
+            // SJIS first byte: 0x81-0x9F or 0xE0-0xFC
+            // SJIS second byte: 0x40-0x7E or 0x80-0xFC
+            //
+            // We specifically look for bytes in 0x81-0x84 range (symbols/punctuation)
+            // or 0x82-0x83 range (hiragana/katakana) which are distinctly Japanese.
+            int sjisCount = 0;
+            int i = 0;
+            int len = bytes.Length;
+            
+            while (i < len)
             {
-                if (b >= 0x81 && b <= 0x9F) return true;
+                byte b = bytes[i];
+                
+                // ASCII - skip
+                if (b < 0x80)
+                {
+                    i++;
+                    continue;
+                }
+                
+                // Need 2 bytes
+                if (i + 1 >= len) break;
+                
+                byte b2 = bytes[i + 1];
+                
+                // Check for SJIS first byte in 0x81-0x84 range (distinctly Japanese symbols/kana)
+                // This range is used for punctuation, hiragana, katakana in SJIS
+                if (b >= 0x81 && b <= 0x84)
+                {
+                    // Valid SJIS second byte: 0x40-0x7E or 0x80-0xFC
+                    bool validSecond = (b2 >= 0x40 && b2 <= 0x7E) || (b2 >= 0x80 && b2 <= 0xFC);
+                    if (validSecond)
+                    {
+                        sjisCount++;
+                        i += 2;
+                        if (sjisCount >= 3) return true;
+                        continue;
+                    }
+                }
+                
+                // Skip other high bytes as 2-byte
+                if (b >= 0x81)
+                {
+                    if ((b2 >= 0x40 && b2 <= 0xFC) && b2 != 0x7F)
+                    {
+                        i += 2;
+                        continue;
+                    }
+                }
+                
+                i++;
             }
+            
+            return false;
+        }
+
+        private bool ContainsEucKrHangulPattern(byte[] bytes)
+        {
+            // Check for EUC-KR/CP949 Hangul byte patterns.
+            // 
+            // EUC-KR Hangul syllables (가-힣):
+            // - First byte: 0xB0-0xC8 (standard Hangul block)
+            // - Second byte: 0xA1-0xFE
+            // 
+            // CP949 extended Hangul:
+            // - First byte: 0x81-0xA0
+            // - Second byte: 0x41-0x5A, 0x61-0x7A, 0x81-0xFE
+            // 
+            // Also check for Korean punctuation/symbols in 0xA1-0xAF range
+            
+            int koreanPairCount = 0;
+            int i = 0;
+            int len = bytes.Length;
+            
+            while (i < len)
+            {
+                byte b1 = bytes[i];
+                
+                // ASCII - skip
+                if (b1 < 0x80)
+                {
+                    i++;
+                    continue;
+                }
+                
+                // Need 2 bytes
+                if (i + 1 >= len) break;
+                
+                byte b2 = bytes[i + 1];
+                
+                // Standard EUC-KR Hangul: 0xB0-0xC8 first, 0xA1-0xFE second
+                if (b1 >= 0xB0 && b1 <= 0xC8 && b2 >= 0xA1 && b2 <= 0xFE)
+                {
+                    koreanPairCount++;
+                    i += 2;
+                    if (koreanPairCount >= 2) return true;
+                    continue;
+                }
+                
+                // EUC-KR symbols/punctuation: 0xA1-0xAF first, 0xA1-0xFE second
+                // These include 『』, quotation marks, etc.
+                if (b1 >= 0xA1 && b1 <= 0xAF && b2 >= 0xA1 && b2 <= 0xFE)
+                {
+                    koreanPairCount++;
+                    i += 2;
+                    if (koreanPairCount >= 2) return true;
+                    continue;
+                }
+                
+                // CP949 extended: 0x81-0xA0 first, specific second byte ranges
+                // BUT we need to be careful not to match SJIS here
+                // Only count if second byte is in CP949-specific range: 0x41-0x5A or 0x61-0x7A
+                // (these are uppercase/lowercase ASCII which SJIS also uses, so skip this check)
+                
+                // Skip as 2-byte if it looks like a valid multibyte
+                if (b1 >= 0x81 && b1 <= 0xFE)
+                {
+                    if ((b2 >= 0x41 && b2 <= 0xFE) && b2 != 0x7F)
+                    {
+                        i += 2;
+                        continue;
+                    }
+                }
+                
+                i++;
+            }
+            
+            return false;
+        }
+
+        private bool ContainsJohabPattern(byte[] bytes)
+        {
+            // Check for Korean Johab (조합형) encoding patterns.
+            // 
+            // IMPORTANT: CP949 (Korean Windows codepage) also uses first bytes 0x81-0xA0
+            // for extended Hangul characters! This overlaps with Johab.
+            // 
+            // Johab (CP1361):
+            // - First byte: 0x84-0xD3
+            // - Second byte: 0x41-0x7E, 0x81-0xFE
+            // 
+            // CP949 extended characters:
+            // - First byte: 0x81-0xA0  
+            // - Second byte: 0x41-0x5A (A-Z), 0x61-0x7A (a-z), 0x81-0xFE
+            // 
+            // KEY DIFFERENCE: Johab uses 0x5B-0x60 and 0x7B-0x7E as second bytes,
+            // but CP949 does NOT use these ranges.
+            // 
+            // Strategy: Only detect Johab if we find second bytes in 0x5B-0x60 or 0x7B-0x7E
+            // (ranges used by Johab but not by CP949)
+            
+            int johabOnlyPairCount = 0;
+            int i = 0;
+            int len = bytes.Length;
+            
+            while (i < len)
+            {
+                byte b = bytes[i];
+                
+                // ASCII byte - just skip and continue
+                if (b < 0x80)
+                {
+                    i++;
+                    continue;
+                }
+                
+                // Need at least 2 bytes for multibyte character
+                if (i + 1 >= len) break;
+                
+                byte b2 = bytes[i + 1];
+                
+                // Check for Johab-ONLY patterns:
+                // First byte 0x84-0xD3, second byte in ranges CP949 doesn't use
+                if (b >= 0x84 && b <= 0xD3)
+                {
+                    // Johab-only second byte ranges: 0x5B-0x60, 0x7B-0x7E
+                    // These are NOT used by CP949 extended characters
+                    bool johabOnlySecond = (b2 >= 0x5B && b2 <= 0x60) || (b2 >= 0x7B && b2 <= 0x7E);
+                    if (johabOnlySecond)
+                    {
+                        johabOnlyPairCount++;
+                        i += 2;
+                        
+                        // If we found enough Johab-only pairs, it's definitely Johab
+                        if (johabOnlyPairCount >= 2) return true;
+                        continue;
+                    }
+                }
+                
+                // For any high byte, skip as 2-byte sequence to maintain alignment
+                if (b >= 0x81)
+                {
+                    if ((b2 >= 0x41 && b2 <= 0x7E) || (b2 >= 0x81 && b2 <= 0xFE))
+                    {
+                        i += 2;
+                        continue;
+                    }
+                }
+                
+                // Unknown byte pattern, advance by 1
+                i++;
+            }
+            
+            return false;
+        }
+
+        private bool IsStrictJohab(byte[] bytes)
+        {
+            // Detect Johab encoding by looking for Johab-specific first byte patterns.
+            // 
+            // KEY INSIGHT: The ONLY reliable way to distinguish Johab from EUC-KR/CP949 is:
+            // - Johab uses first bytes 0x84-0xA0 (EUC-KR uses 0xA1+)
+            // 
+            // We DON'T count second byte patterns because they can cause false positives
+            // due to byte alignment issues.
+            
+            int i = 0;
+            int len = bytes.Length;
+            int johabFirstByteCount = 0;  // Count of first bytes in 0x84-0xA0 range
+            int totalMultibyte = 0;
+            
+            while (i < len)
+            {
+                byte b = bytes[i];
+                
+                // ASCII - skip
+                if (b < 0x80)
+                {
+                    i++;
+                    continue;
+                }
+                
+                // Single byte in 0x80-0x83 range - skip
+                if (b >= 0x80 && b <= 0x83)
+                {
+                    i++;
+                    continue;
+                }
+                
+                // Need 2 bytes for multibyte
+                if (i + 1 >= len)
+                {
+                    i++;
+                    continue;
+                }
+                
+                byte b2 = bytes[i + 1];
+                totalMultibyte++;
+                
+                // First byte 0x84-0xA0: Johab-only range (EUC-KR doesn't use this for first byte)
+                if (b >= 0x84 && b <= 0xA0)
+                {
+                    // Valid Johab second byte: 0x41-0x7E or 0x81-0xFE
+                    if ((b2 >= 0x41 && b2 <= 0x7E) || (b2 >= 0x81 && b2 <= 0xFE))
+                    {
+                        johabFirstByteCount++;
+                        i += 2;
+                        continue;
+                    }
+                    // Invalid second byte - skip as single
+                    i++;
+                    continue;
+                }
+                
+                // First byte 0xA1-0xFE: Could be EUC-KR or Johab - skip as 2-byte
+                if (b >= 0xA1 && b <= 0xFE)
+                {
+                    if ((b2 >= 0x41 && b2 <= 0xFE) && b2 != 0x7F)
+                    {
+                        i += 2;
+                        continue;
+                    }
+                    i++;
+                    continue;
+                }
+                
+                // Other bytes - skip
+                i++;
+            }
+            
+            // VERY STRICT criteria: Only detect as Johab if we have MANY Johab-only first bytes
+            // This is extremely conservative to avoid false positives with EUC-KR/CP949 files
+            // Since IsStrictEucKr runs before this, we only get here if EUC-KR validation failed
+            // Require at least 50 Johab-specific first bytes, or 15% of total multibyte chars
+            if (johabFirstByteCount >= 50)
+                return true;
+            if (totalMultibyte >= 100 && johabFirstByteCount >= (totalMultibyte * 15 / 100)) // At least 15%
+                return true;
+                
             return false;
         }
 
@@ -620,6 +933,20 @@ namespace Uviewer
 
         private void RefreshTextDisplay()
         {
+            if (_isAozoraMode && !string.IsNullOrEmpty(_currentTextContent))
+            {
+                PrepareAozoraDisplay(_currentTextContent); // Re-run to apply font/theme changes to properties
+                // Actually TextItemsRepeater_ElementPrepared handles styles, so we just need to trigger update.
+                // Re-setting ItemsSource works.
+                TextItemsRepeater.ItemsSource = null;
+                TextItemsRepeater.ItemsSource = _aozoraBlocks;
+                
+                 if (StatusBarGrid != null)
+                     TextArea.Background = GetThemeBackground();
+                     
+                return;
+            }
+
             // Apply current settings to all lines
             var brush = GetThemeForeground();
             var bg = GetThemeBackground();
@@ -798,6 +1125,11 @@ namespace Uviewer
                  else DecreaseTextSize();
                  e.Handled = true;
              }
+             else if (e.Key == Windows.System.VirtualKey.A)
+             {
+                 ToggleAozoraMode();
+                 e.Handled = true;
+             }
              else if (e.Key == Windows.System.VirtualKey.F)
              {
                  if (_isEpubMode) ToggleEpubFont();
@@ -864,6 +1196,15 @@ namespace Uviewer
         // --- Element Prepared (Bold Logic) ---
         private void TextItemsRepeater_ElementPrepared(ItemsRepeater sender, ItemsRepeaterElementPreparedEventArgs args)
         {
+            if (_isAozoraMode)
+            {
+                if (args.Element is RichTextBlock rtb)
+                {
+                     PrepareAozoraElement(rtb, args.Index);
+                }
+                return;
+            }
+
             if (args.Element is TextBlock tb && _textLines.Count > args.Index)
             {
                 var line = _textLines[args.Index];
