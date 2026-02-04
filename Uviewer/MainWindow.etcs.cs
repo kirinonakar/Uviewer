@@ -248,7 +248,7 @@ namespace Uviewer
                         {
                             await LoadImagesFromArchiveAsync(file.Path);
                         }
-                        else if (SupportedImageExtensions.Contains(ext))
+                        else if (SupportedImageExtensions.Contains(ext) || SupportedTextExtensions.Contains(ext))
                         {
                             await LoadImageFromFileAsync(file);
                         }

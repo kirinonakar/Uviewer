@@ -520,6 +520,11 @@ namespace Uviewer
             double y = pt.Position.Y;
 
             bool inTopZone = y < FullscreenTopHoverZone;
+            if (ToolbarGrid.Visibility == Visibility.Visible && y < ToolbarGrid.ActualHeight)
+            {
+                inTopZone = true;
+            }
+
             if (inTopZone)
             {
                 // Show toolbar and stop hide timer while in hover zone
@@ -546,6 +551,11 @@ namespace Uviewer
             }
 
             bool inLeftZone = x < FullscreenLeftHoverZone;
+            if (SidebarGrid.Visibility == Visibility.Visible && x < _SidebarWidth)
+            {
+                inLeftZone = true;
+            }
+
             if (inLeftZone)
             {
                 // Show sidebar and stop hide timer while in hover zone

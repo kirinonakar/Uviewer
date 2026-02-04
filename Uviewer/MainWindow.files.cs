@@ -177,7 +177,7 @@ namespace Uviewer
 
                     _imageEntries = _currentArchive.Entries
                         .Where(e => !e.IsDirectory &&
-                            SupportedFileExtensions.Contains(Path.GetExtension(e.Key ?? "").ToLowerInvariant()))
+                            SupportedImageExtensions.Contains(Path.GetExtension(e.Key ?? "").ToLowerInvariant()))
                         .OrderBy(e => e.Key, StringComparer.OrdinalIgnoreCase)
                         .Select(e => new ImageEntry
                         {

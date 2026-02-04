@@ -33,6 +33,7 @@ namespace Uviewer
             public string? ArchiveEntryKey { get; set; }
             public DateTime CreatedAt { get; set; } = DateTime.Now;
             public double? ScrollOffset { get; set; }
+            public int SavedPage { get; set; } = 0;
         }
 
         public class RecentItem
@@ -43,6 +44,7 @@ namespace Uviewer
             public string? ArchiveEntryKey { get; set; }
             public DateTime AccessedAt { get; set; } = DateTime.Now;
             public double? ScrollOffset { get; set; }
+            public int SavedPage { get; set; } = 0;
         }
 
         public class TextSettings
@@ -169,7 +171,7 @@ namespace Uviewer
                 // Create TextBlock for the favorite name with left alignment and tooltip
                 var nameTextBlock = new TextBlock
                 {
-                    Text = favorite.Name,
+                    Text = favorite.Name + (favorite.SavedPage > 0 ? $" (P.{favorite.SavedPage})" : ""),
                     VerticalAlignment = VerticalAlignment.Center,
                     HorizontalAlignment = HorizontalAlignment.Left,
                     TextTrimming = TextTrimming.CharacterEllipsis,
@@ -265,14 +267,13 @@ namespace Uviewer
                         archiveEntryKey = currentEntry.ArchiveEntryKey;
                         System.Diagnostics.Debug.WriteLine($"Archive mode: {name}");
 
-                        // Also add the archive folder as a separate bookmark
+                        // Also add the archive folder as a separate bookmark (optional, keeping original logic)
                         var archiveFolder = Path.GetDirectoryName(_currentArchivePath);
                         if (!string.IsNullOrEmpty(archiveFolder) && Directory.Exists(archiveFolder))
                         {
                             var folderName = Path.GetFileName(archiveFolder);
-                            if (string.IsNullOrEmpty(folderName))
-                                folderName = archiveFolder;
-
+                            if (string.IsNullOrEmpty(folderName)) folderName = archiveFolder;
+                            
                             // Check if folder bookmark already exists
                             var existingFolder = _favorites.FirstOrDefault(f => f.Path == archiveFolder && f.Type == "Folder");
                             if (existingFolder == null)
@@ -284,24 +285,13 @@ namespace Uviewer
                                     Type = "Folder"
                                 };
                                 _favorites.Add(folderFavorite);
-                                System.Diagnostics.Debug.WriteLine($"Added archive folder as favorite: {folderName}");
                             }
                         }
                     }
                 }
-                else if (!string.IsNullOrEmpty(_currentExplorerPath))
-                {
-                    // Folder mode - add current folder
-                    name = Path.GetFileName(_currentExplorerPath);
-                    if (string.IsNullOrEmpty(name))
-                        name = _currentExplorerPath;
-                    path = _currentExplorerPath;
-                    type = "Folder";
-                    System.Diagnostics.Debug.WriteLine($"Folder mode: {name}");
-                }
                 else if (_currentIndex >= 0 && _currentIndex < _imageEntries.Count)
                 {
-                    // File mode - add current file
+                    // File mode - add current file (Prioritize File over Folder)
                     var currentEntry = _imageEntries[_currentIndex];
                     if (!string.IsNullOrEmpty(currentEntry.FilePath))
                     {
@@ -310,6 +300,16 @@ namespace Uviewer
                         type = "File";
                         System.Diagnostics.Debug.WriteLine($"File mode: {name}");
                     }
+                }
+                else if (!string.IsNullOrEmpty(_currentExplorerPath))
+                {
+                    // Folder mode - add current folder (Only if no file is open)
+                    name = Path.GetFileName(_currentExplorerPath);
+                    if (string.IsNullOrEmpty(name))
+                        name = _currentExplorerPath;
+                    path = _currentExplorerPath;
+                    type = "Folder";
+                    System.Diagnostics.Debug.WriteLine($"Folder mode: {name}");
                 }
 
                 System.Diagnostics.Debug.WriteLine($"Final values - Name: '{name}', Path: '{path}', Type: '{type}'");
@@ -329,9 +329,8 @@ namespace Uviewer
 
                     if (existing != null)
                     {
-                        System.Diagnostics.Debug.WriteLine($"Favorite already exists: {existing.Name}");
-                        // Show message that it already exists
-                        return;
+                        System.Diagnostics.Debug.WriteLine($"Favorite already exists: {existing.Name}. Updating position.");
+                        _favorites.Remove(existing);
                     }
 
                     var favorite = new FavoriteItem
@@ -340,7 +339,9 @@ namespace Uviewer
                         Path = path,
                         Type = type,
                         ArchiveEntryKey = archiveEntryKey,
-                        ScrollOffset = (_isTextMode && TextScrollViewer != null) ? TextScrollViewer.VerticalOffset : null
+                        ScrollOffset = (_isTextMode && TextScrollViewer != null) ? TextScrollViewer.VerticalOffset : null,
+                        SavedPage = (_isTextMode && TextScrollViewer != null && TextScrollViewer.ViewportHeight > 0) ? 
+                                    (int)(TextScrollViewer.VerticalOffset / TextScrollViewer.ViewportHeight) + 1 : 0
                     };
 
                     _favorites.Add(favorite);
@@ -393,6 +394,30 @@ namespace Uviewer
                     case "File":
                         if (File.Exists(favorite.Path))
                         {
+                            // Load explorer parent folder
+                            var parentDir = Path.GetDirectoryName(favorite.Path);
+                            if (!string.IsNullOrEmpty(parentDir) && Directory.Exists(parentDir))
+                            {
+                                 LoadExplorerFolder(parentDir);
+                                 
+                                 // Select text file in explorer
+                                 var filename = Path.GetFileName(favorite.Path);
+                                 var item = _fileItems.FirstOrDefault(f => f.Name.Equals(filename, StringComparison.OrdinalIgnoreCase));
+                                 if (item != null)
+                                 {
+                                     if (_isExplorerGrid)
+                                     {
+                                         FileGridView.SelectedItem = item;
+                                         FileGridView.ScrollIntoView(item);
+                                     }
+                                     else
+                                     {
+                                         FileListView.SelectedItem = item;
+                                         FileListView.ScrollIntoView(item);
+                                     }
+                                 }
+                            }
+                            
                             var file = await StorageFile.GetFileFromPathAsync(favorite.Path);
                             await LoadImageFromFileAsync(file);
                         }
@@ -434,9 +459,13 @@ namespace Uviewer
                 // For File Types (Text)
                 if (favorite.Type == "File" && favorite.ScrollOffset.HasValue && TextScrollViewer != null)
                 {
-                     await Task.Delay(100);
-                     TextScrollViewer.ChangeView(null, favorite.ScrollOffset.Value, null);
-                     UpdateTextStatusBar();
+                     // Wait longer to override 'RestoreFromRecent' which has 100ms delay
+                     await Task.Delay(300);
+                     if (_isTextMode)
+                     {
+                         TextScrollViewer.ChangeView(null, favorite.ScrollOffset.Value, null);
+                         UpdateTextStatusBar();
+                     }
                 }
             }
             catch (Exception ex)
@@ -554,7 +583,7 @@ namespace Uviewer
                 // Create TextBlock for the recent item name with left alignment and tooltip
                 var nameTextBlock = new TextBlock
                 {
-                    Text = recent.Name,
+                    Text = recent.Name + (recent.SavedPage > 0 ? $" (P.{recent.SavedPage})" : ""),
                     VerticalAlignment = VerticalAlignment.Center,
                     HorizontalAlignment = HorizontalAlignment.Left,
                     TextTrimming = TextTrimming.CharacterEllipsis,
@@ -631,7 +660,15 @@ namespace Uviewer
                 System.Diagnostics.Debug.WriteLine($"_currentIndex: {_currentIndex}");
                 System.Diagnostics.Debug.WriteLine($"_imageEntries.Count: {_imageEntries.Count}");
 
-                if (_currentArchive != null && !string.IsNullOrEmpty(_currentArchivePath))
+                if (_isTextMode && !string.IsNullOrEmpty(_currentTextFilePath))
+                {
+                    // Text File mode (Prioritize over folder)
+                    name = Path.GetFileName(_currentTextFilePath);
+                    path = _currentTextFilePath;
+                    type = "File";
+                    System.Diagnostics.Debug.WriteLine($"Text File mode: {name}");
+                }
+                else if (_currentArchive != null && !string.IsNullOrEmpty(_currentArchivePath))
                 {
                     // Archive mode - add current image position
                     if (_currentIndex >= 0 && _currentIndex < _imageEntries.Count)
@@ -644,6 +681,18 @@ namespace Uviewer
                         System.Diagnostics.Debug.WriteLine($"Archive mode: {name}");
                     }
                 }
+                else if (_currentIndex >= 0 && _currentIndex < _imageEntries.Count)
+                {
+                     // Image/File List mode
+                     var currentEntry = _imageEntries[_currentIndex];
+                     if (!string.IsNullOrEmpty(currentEntry.FilePath))
+                     {
+                         name = currentEntry.DisplayName;
+                         path = currentEntry.FilePath;
+                         type = "File";
+                         System.Diagnostics.Debug.WriteLine($"File mode: {name}");
+                     }
+                }
                 else if (!string.IsNullOrEmpty(_currentExplorerPath))
                 {
                     // Folder mode - add current folder
@@ -654,24 +703,12 @@ namespace Uviewer
                     type = "Folder";
                     System.Diagnostics.Debug.WriteLine($"Folder mode: {name}");
                 }
-                else if (_currentIndex >= 0 && _currentIndex < _imageEntries.Count)
-                {
-                    // File mode - add current file
-                    var currentEntry = _imageEntries[_currentIndex];
-                    if (!string.IsNullOrEmpty(currentEntry.FilePath))
-                    {
-                        name = currentEntry.DisplayName;
-                        path = currentEntry.FilePath;
-                        type = "File";
-                        System.Diagnostics.Debug.WriteLine($"File mode: {name}");
-                    }
-                }
 
                 System.Diagnostics.Debug.WriteLine($"Final values - Name: '{name}', Path: '{path}', Type: '{type}'");
 
                 if (!string.IsNullOrEmpty(name) && !string.IsNullOrEmpty(path))
                 {
-                    // Remove existing item with same path and type (for archives, also check ArchiveEntryKey)
+                    // Check for existing item
                     RecentItem? existing = null;
                     if (type == "Archive")
                     {
@@ -682,25 +719,36 @@ namespace Uviewer
                         existing = _recentItems.FirstOrDefault(r => r.Path == path && r.Type == type);
                     }
 
+                    // Preserve existing position/page if exists
+                    double? preservedOffset = null;
+                    int preservedPage = 0;
+
                     if (existing != null)
                     {
+                        preservedOffset = existing.ScrollOffset;
+                        preservedPage = existing.SavedPage;
                         _recentItems.Remove(existing);
-                        System.Diagnostics.Debug.WriteLine($"Removed existing recent item: {existing.Name}");
+                        System.Diagnostics.Debug.WriteLine($"Removed existing recent item (preserving position): {existing.Name}");
                     }
 
-                    // Add new recent item
-                    var recentItem = new RecentItem
+                    // Add new item (Access Time updated)
+                    var newItem = new RecentItem
                     {
                         Name = name,
                         Path = path,
                         Type = type,
                         ArchiveEntryKey = archiveEntryKey,
                         AccessedAt = DateTime.Now,
-                        ScrollOffset = (_isTextMode && TextScrollViewer != null) ? TextScrollViewer.VerticalOffset : null
+                        // If it existed, keep position. If new, start at 0.
+                        // We do NOT capture current TextScrollViewer status here because this methods is called 
+                        // during transition (Open File) when specific offset is typically 'start' or 'transitioning'.
+                        // Position saving should be done explicitly on Navigation/Leave.
+                        ScrollOffset = preservedOffset,
+                        SavedPage = preservedPage
                     };
-
-                    _recentItems.Add(recentItem);
-                    System.Diagnostics.Debug.WriteLine($"Added recent item: {recentItem.Name}");
+                    
+                    _recentItems.Add(newItem);
+                    System.Diagnostics.Debug.WriteLine($"Added recent item: {newItem.Name}");
 
                     // Keep only the most recent MaxRecentItems
                     while (_recentItems.Count > MaxRecentItems)
@@ -758,8 +806,40 @@ namespace Uviewer
                     case "File":
                         if (File.Exists(recent.Path))
                         {
+                            // Load explorer parent folder
+                            var parentDir = Path.GetDirectoryName(recent.Path);
+                            if (!string.IsNullOrEmpty(parentDir) && Directory.Exists(parentDir))
+                            {
+                                 LoadExplorerFolder(parentDir);
+                                 
+                                 // Select text file in explorer
+                                 var filename = Path.GetFileName(recent.Path);
+                                 var item = _fileItems.FirstOrDefault(f => f.Name.Equals(filename, StringComparison.OrdinalIgnoreCase));
+                                 if (item != null)
+                                 {
+                                     if (_isExplorerGrid)
+                                     {
+                                         FileGridView.SelectedItem = item;
+                                         FileGridView.ScrollIntoView(item);
+                                     }
+                                     else
+                                     {
+                                         FileListView.SelectedItem = item;
+                                         FileListView.ScrollIntoView(item);
+                                     }
+                                 }
+                            }
+
                             var file = await StorageFile.GetFileFromPathAsync(recent.Path);
                             await LoadImageFromFileAsync(file);
+                            
+                            // Restore text position
+                             if (recent.ScrollOffset.HasValue && _isTextMode && TextScrollViewer != null)
+                            {
+                                await Task.Delay(300);
+                                TextScrollViewer.ChangeView(null, recent.ScrollOffset.Value, null);
+                                UpdateTextStatusBar();
+                            }
                         }
                         break;
                     case "Archive":
