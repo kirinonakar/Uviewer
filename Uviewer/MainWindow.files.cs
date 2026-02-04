@@ -113,7 +113,7 @@ namespace Uviewer
             {
                 var files = await folder.GetFilesAsync();
                 _imageEntries = files
-                    .Where(f => SupportedImageExtensions.Contains(Path.GetExtension(f.Name).ToLowerInvariant()))
+                    .Where(f => SupportedFileExtensions.Contains(Path.GetExtension(f.Name).ToLowerInvariant()))
                     .OrderBy(f => f.Name, StringComparer.OrdinalIgnoreCase)
                     .Select(f => new ImageEntry
                     {
@@ -142,7 +142,7 @@ namespace Uviewer
 
             var files = await folder.GetFilesAsync();
             _imageEntries = files
-                .Where(f => SupportedImageExtensions.Contains(Path.GetExtension(f.Name).ToLowerInvariant()))
+                .Where(f => SupportedFileExtensions.Contains(Path.GetExtension(f.Name).ToLowerInvariant()))
                 .OrderBy(f => f.Name, StringComparer.OrdinalIgnoreCase)
                 .Select(f => new ImageEntry
                 {
@@ -177,7 +177,7 @@ namespace Uviewer
 
                     _imageEntries = _currentArchive.Entries
                         .Where(e => !e.IsDirectory &&
-                            SupportedImageExtensions.Contains(Path.GetExtension(e.Key ?? "").ToLowerInvariant()))
+                            SupportedFileExtensions.Contains(Path.GetExtension(e.Key ?? "").ToLowerInvariant()))
                         .OrderBy(e => e.Key, StringComparer.OrdinalIgnoreCase)
                         .Select(e => new ImageEntry
                         {
@@ -334,8 +334,9 @@ namespace Uviewer
                     var ext = Path.GetExtension(file).ToLowerInvariant();
                     var isImage = SupportedImageExtensions.Contains(ext);
                     var isArchive = SupportedArchiveExtensions.Contains(ext);
+                    var isText = SupportedTextExtensions.Contains(ext);
 
-                    if (isImage || isArchive)
+                    if (isImage || isArchive || isText)
                     {
                         _fileItems.Add(new FileItem
                         {
@@ -343,7 +344,8 @@ namespace Uviewer
                             FullPath = file,
                             IsDirectory = false,
                             IsImage = isImage,
-                            IsArchive = isArchive
+                            IsArchive = isArchive,
+                            IsText = isText
                         });
                     }
                 }
@@ -612,7 +614,7 @@ namespace Uviewer
             {
                 await LoadImagesFromArchiveAsync(item.FullPath);
             }
-            else if (item.IsImage)
+            else if (item.IsImage || item.IsText)
             {
                 var file = await StorageFile.GetFileFromPathAsync(item.FullPath);
                 await LoadImageFromFileAsync(file);

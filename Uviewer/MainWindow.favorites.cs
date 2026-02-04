@@ -32,6 +32,7 @@ namespace Uviewer
             public string Type { get; set; } = ""; // "Folder", "File", "Archive"
             public string? ArchiveEntryKey { get; set; }
             public DateTime CreatedAt { get; set; } = DateTime.Now;
+            public double? ScrollOffset { get; set; }
         }
 
         public class RecentItem
@@ -41,7 +42,21 @@ namespace Uviewer
             public string Type { get; set; } = ""; // "Folder", "File", "Archive"
             public string? ArchiveEntryKey { get; set; }
             public DateTime AccessedAt { get; set; } = DateTime.Now;
+            public double? ScrollOffset { get; set; }
         }
+
+        public class TextSettings
+        {
+             public double FontSize { get; set; } = 18;
+             public string FontFamily { get; set; } = "Yu Gothic Medium";
+             public int ThemeIndex { get; set; } = 0;
+        }
+
+        private const string TextSettingsFilePath = "text_settings.json";
+        private string GetTextSettingsFilePath() => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "Uviewer", TextSettingsFilePath);
+
+        [System.Text.Json.Serialization.JsonSerializable(typeof(TextSettings))]
+        public partial class TextSettingsContext : System.Text.Json.Serialization.JsonSerializerContext;
 
 
         #region Favorites
@@ -324,7 +339,8 @@ namespace Uviewer
                         Name = name,
                         Path = path,
                         Type = type,
-                        ArchiveEntryKey = archiveEntryKey
+                        ArchiveEntryKey = archiveEntryKey,
+                        ScrollOffset = (_isTextMode && TextScrollViewer != null) ? TextScrollViewer.VerticalOffset : null
                     };
 
                     _favorites.Add(favorite);
@@ -399,11 +415,28 @@ namespace Uviewer
                                     {
                                         _currentIndex = entryIndex;
                                         await DisplayCurrentImageAsync();
+                                        
+                                        // Restore scroll if text
+                                        if (favorite.ScrollOffset.HasValue && TextScrollViewer != null) 
+                                        {
+                                             // Wait a bit for layout
+                                             await Task.Delay(100);
+                                             TextScrollViewer.ChangeView(null, favorite.ScrollOffset.Value, null);
+                                             UpdateTextStatusBar();
+                                        }
                                     }
                                 }
                             }
                         }
                         break;
+                }
+                
+                // For File Types (Text)
+                if (favorite.Type == "File" && favorite.ScrollOffset.HasValue && TextScrollViewer != null)
+                {
+                     await Task.Delay(100);
+                     TextScrollViewer.ChangeView(null, favorite.ScrollOffset.Value, null);
+                     UpdateTextStatusBar();
                 }
             }
             catch (Exception ex)
@@ -662,7 +695,8 @@ namespace Uviewer
                         Path = path,
                         Type = type,
                         ArchiveEntryKey = archiveEntryKey,
-                        AccessedAt = DateTime.Now
+                        AccessedAt = DateTime.Now,
+                        ScrollOffset = (_isTextMode && TextScrollViewer != null) ? TextScrollViewer.VerticalOffset : null
                     };
 
                     _recentItems.Add(recentItem);
@@ -746,11 +780,25 @@ namespace Uviewer
                                     {
                                         _currentIndex = entryIndex;
                                         await DisplayCurrentImageAsync();
+                                        
+                                        if (recent.ScrollOffset.HasValue && TextScrollViewer != null)
+                                        {
+                                            await Task.Delay(100);
+                                            TextScrollViewer.ChangeView(null, recent.ScrollOffset.Value, null);
+                                            UpdateTextStatusBar();
+                                        }
                                     }
                                 }
                             }
                         }
                         break;
+                }
+
+                if (recent.Type == "File" && recent.ScrollOffset.HasValue && TextScrollViewer != null)
+                {
+                    await Task.Delay(100);
+                    TextScrollViewer.ChangeView(null, recent.ScrollOffset.Value, null);
+                    UpdateTextStatusBar();
                 }
             }
             catch (Exception ex)

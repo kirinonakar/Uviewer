@@ -47,7 +47,7 @@
 
                 <AppBarSeparator/>
 
-                <Button x:Name="OpenFileButton" Click="OpenFileButton_Click" ToolTipService.ToolTip="이미지 열기(Ctrl+O)">
+                <Button x:Name="OpenFileButton" Click="OpenFileButton_Click" ToolTipService.ToolTip="파일 열기(Ctrl+O)">
                     <StackPanel Orientation="Horizontal" Spacing="6">
                         <FontIcon Glyph="&#xE8E5;" FontSize="14"/>
                     </StackPanel>
@@ -61,44 +61,77 @@
 
                 <AppBarSeparator/>
 
-                <Button x:Name="ZoomOutButton" Click="ZoomOutButton_Click" ToolTipService.ToolTip="축소(-)">
-                    <FontIcon Glyph="&#xE71F;" FontSize="14"/>
-                </Button>
+                <!-- Image Toolbar -->
+                <StackPanel x:Name="ImageToolbarPanel" Orientation="Horizontal" Spacing="4" Visibility="Visible">
+                    <Button x:Name="ZoomOutButton" Click="ZoomOutButton_Click" ToolTipService.ToolTip="축소(-)">
+                        <FontIcon Glyph="&#xE71F;" FontSize="14"/>
+                    </Button>
 
-                <TextBlock x:Name="ZoomLevelText" Text="100%" Width="50" TextAlignment="Center" 
-                           VerticalAlignment="Center" FontSize="12"/>
+                    <TextBlock x:Name="ZoomLevelText" Text="100%" Width="50" TextAlignment="Center" 
+                               VerticalAlignment="Center" FontSize="12"/>
 
-                <Button x:Name="ZoomInButton" Click="ZoomInButton_Click" ToolTipService.ToolTip="확대(+)">
-                    <FontIcon Glyph="&#xE8A3;" FontSize="14"/>
-                </Button>
+                    <Button x:Name="ZoomInButton" Click="ZoomInButton_Click" ToolTipService.ToolTip="확대(+)">
+                        <FontIcon Glyph="&#xE8A3;" FontSize="14"/>
+                    </Button>
 
-                <Button x:Name="ZoomFitButton" Click="ZoomFitButton_Click" ToolTipService.ToolTip="맞춤">
-                    <FontIcon Glyph="&#xE9A6;" FontSize="14"/>
-                </Button>
+                    <Button x:Name="ZoomFitButton" Click="ZoomFitButton_Click" ToolTipService.ToolTip="맞춤">
+                        <FontIcon Glyph="&#xE9A6;" FontSize="14"/>
+                    </Button>
 
-                <Button x:Name="ZoomActualButton" Click="ZoomActualButton_Click" ToolTipService.ToolTip="원본 크기">
-                    <TextBlock Text="1:1" FontSize="12" FontWeight="SemiBold"/>
-                </Button>
+                    <Button x:Name="ZoomActualButton" Click="ZoomActualButton_Click" ToolTipService.ToolTip="원본 크기">
+                        <TextBlock Text="1:1" FontSize="12" FontWeight="SemiBold"/>
+                    </Button>
 
-                <AppBarSeparator/>
+                    <AppBarSeparator/>
 
-                <ToggleButton x:Name="SharpenButton" Click="SharpenButton_Click" ToolTipService.ToolTip="샤프닝(S)">
-                    <ToggleButton.Resources>
-                        <StaticResource x:Key="ToggleButtonForegroundPointerOver" ResourceKey="ToggleButtonForeground" />
-                        <StaticResource x:Key="ToggleButtonForegroundCheckedPointerOver" ResourceKey="ToggleButtonForegroundChecked" />
-                    </ToggleButton.Resources>
-                    <FontIcon x:Name="SharpenIcon" Glyph="S" FontSize="14" FontFamily="Segoe UI" />
-                </ToggleButton>
+                    <ToggleButton x:Name="SharpenButton" Click="SharpenButton_Click" ToolTipService.ToolTip="샤프닝(S)">
+                        <ToggleButton.Resources>
+                            <StaticResource x:Key="ToggleButtonForegroundPointerOver" ResourceKey="ToggleButtonForeground" />
+                            <StaticResource x:Key="ToggleButtonForegroundCheckedPointerOver" ResourceKey="ToggleButtonForegroundChecked" />
+                        </ToggleButton.Resources>
+                        <FontIcon x:Name="SharpenIcon" Glyph="S" FontSize="14" FontFamily="Segoe UI" />
+                    </ToggleButton>
 
-                <AppBarSeparator/>
+                    <AppBarSeparator/>
 
-                <Button x:Name="SideBySideButton" Click="SideBySideButton_Click" ToolTipService.ToolTip="좌우 보기(Space)">
-                    <TextBlock x:Name="SideBySideText" Text="1" FontSize="14" FontWeight="SemiBold" Width="14" TextAlignment="Center"/>
-                </Button>
+                    <Button x:Name="SideBySideButton" Click="SideBySideButton_Click" ToolTipService.ToolTip="좌우 보기(Space)">
+                        <TextBlock x:Name="SideBySideText" Text="1" FontSize="14" FontWeight="SemiBold" Width="14" TextAlignment="Center"/>
+                    </Button>
 
-                <Button x:Name="NextImageSideButton" Click="NextImageSideButton_Click" ToolTipService.ToolTip="다음 그림 위치">
-                    <TextBlock x:Name="NextImageSideText" Text="→" FontSize="12" FontWeight="SemiBold"/>
-                </Button>
+                    <Button x:Name="NextImageSideButton" Click="NextImageSideButton_Click" ToolTipService.ToolTip="다음 그림 위치">
+                        <TextBlock x:Name="NextImageSideText" Text="→" FontSize="12" FontWeight="SemiBold"/>
+                    </Button>
+                </StackPanel>
+
+                <!-- Text Toolbar -->
+                <StackPanel x:Name="TextToolbarPanel" Orientation="Horizontal" Spacing="4" Visibility="Collapsed">
+                    <Button x:Name="FontToggleButton" Click="FontToggleButton_Click" ToolTipService.ToolTip="폰트 변경(F)">
+                        <TextBlock Text="F" FontSize="14" FontWeight="Bold"/>
+                    </Button>
+                    
+                    <Button x:Name="GoToPageButton" Click="GoToPageButton_Click" ToolTipService.ToolTip="페이지 이동(G)">
+                        <TextBlock Text="G" FontSize="14" FontWeight="Bold"/>
+                    </Button>
+
+                    <AppBarSeparator/>
+
+                    <Button x:Name="TextSizeDownButton" Click="TextSizeDownButton_Click" ToolTipService.ToolTip="글자 작게(-)">
+                        <FontIcon Glyph="&#xE71F;" FontSize="14"/>
+                    </Button>
+
+                    <TextBlock x:Name="TextSizeLevelText" Text="18" Width="30" TextAlignment="Center" 
+                               VerticalAlignment="Center" FontSize="12"/>
+
+                    <Button x:Name="TextSizeUpButton" Click="TextSizeUpButton_Click" ToolTipService.ToolTip="글자 크게(+)">
+                        <FontIcon Glyph="&#xE8A3;" FontSize="14"/>
+                    </Button>
+
+                    <AppBarSeparator/>
+
+                    <Button x:Name="ThemeToggleButton" Click="ThemeToggleButton_Click" ToolTipService.ToolTip="배경색 변경(B)">
+                        <FontIcon Glyph="&#xE790;" FontSize="14"/>
+                    </Button>
+                </StackPanel>
 
                 <AppBarSeparator/>
 
@@ -327,6 +360,43 @@
                                          Grid.Column="1"
                                          Draw="RightCanvas_Draw"
                                          CreateResources="RightCanvas_CreateResources"/>
+                </Grid>
+            </Grid>
+
+            <!-- Text Display Area -->
+            <Grid Grid.Column="2" x:Name="TextArea" Visibility="Collapsed" Background="{ThemeResource SolidBackgroundFillColorBaseBrush}"
+                  PointerPressed="TextArea_PointerPressed" PointerWheelChanged="TextArea_PointerWheelChanged">
+                 <ScrollViewer x:Name="TextScrollViewer" 
+                               HorizontalScrollBarVisibility="Disabled"
+                               VerticalScrollBarVisibility="Hidden"
+                               SizeChanged="TextScrollViewer_SizeChanged"
+                               ViewChanged="TextScrollViewer_ViewChanged">
+                     <ItemsRepeater x:Name="TextItemsRepeater" ElementPrepared="TextItemsRepeater_ElementPrepared">
+                         <ItemsRepeater.Layout>
+                             <StackLayout Spacing="0"/>
+                         </ItemsRepeater.Layout>
+                         <ItemsRepeater.ItemTemplate>
+                             <DataTemplate>
+                                 <TextBlock TextWrapping="Wrap" HorizontalAlignment="Left" Margin="0,0,0,4"/>
+                             </DataTemplate>
+                         </ItemsRepeater.ItemTemplate>
+                     </ItemsRepeater>
+                 </ScrollViewer>
+                 
+                  <Grid x:Name="TextFastNavOverlay"
+                        Canvas.ZIndex="999"
+                        IsHitTestVisible="False"
+                        Visibility="Collapsed"
+                        Background="#80000000"
+                        HorizontalAlignment="Stretch"
+                        VerticalAlignment="Stretch">
+                    <TextBlock x:Name="TextFastNavText"
+                            Foreground="White"
+                            FontSize="28"
+                            FontWeight="SemiBold"
+                            HorizontalAlignment="Center"
+                            VerticalAlignment="Center"
+                            Text="페이지 이동 중..." />
                 </Grid>
             </Grid>
         </Grid>

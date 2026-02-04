@@ -67,11 +67,28 @@ namespace Uviewer
         {
             ".jpg", ".jpeg", ".png", ".bmp", ".gif", ".webp", ".avif", ".ico", ".tiff", ".tif"
         };
+        
+        private static readonly string[] SupportedTextExtensions =
+        {
+            ".txt", ".html", ".htm", ".md", ".xml"
+        };
 
         private static readonly string[] SupportedArchiveExtensions =
         {
             ".zip", ".rar", ".7z", ".tar", ".gz", ".cbz", ".cbr"
         };
+        
+        private IEnumerable<string> SupportedFileExtensions => 
+            SupportedImageExtensions.Concat(SupportedTextExtensions).Concat(SupportedArchiveExtensions);
+
+        private bool IsTextEntry(ImageEntry entry)
+        {
+            string? ext = null;
+            if (entry.FilePath != null) ext = Path.GetExtension(entry.FilePath);
+            else if (entry.ArchiveEntryKey != null) ext = Path.GetExtension(entry.ArchiveEntryKey);
+            
+            return !string.IsNullOrEmpty(ext) && SupportedTextExtensions.Contains(ext.ToLowerInvariant());
+        }
 
         // File item for ListView
         public class FileItem : INotifyPropertyChanged
@@ -81,6 +98,7 @@ namespace Uviewer
             public bool IsDirectory { get; set; }
             public bool IsArchive { get; set; }
             public bool IsImage { get; set; }
+            public bool IsText { get; set; }
             public bool IsParentDirectory { get; set; }
 
             private ImageSource? _thumbnail;
@@ -100,12 +118,14 @@ namespace Uviewer
             public string Icon => IsParentDirectory ? "\uE72B" :
                                   IsDirectory ? "\uE8B7" :
                                   IsArchive ? "\uE8D4" :
-                                  IsImage ? "\uE8B9" : "\uE7C3";
+                                  IsImage ? "\uE8B9" : 
+                                  IsText ? "\uE8C4" : "\uE7C3";
 
             public SolidColorBrush IconColor => IsDirectory || IsParentDirectory ?
                 new SolidColorBrush(Colors.Gold) :
                 IsArchive ? new SolidColorBrush(Colors.Orange) :
                 IsImage ? new SolidColorBrush(Colors.CornflowerBlue) :
+                IsText ? new SolidColorBrush(Colors.LightGreen) :
                 new SolidColorBrush(Colors.Gray);
 
             public event PropertyChangedEventHandler? PropertyChanged;
@@ -610,6 +630,17 @@ namespace Uviewer
             var token = _imageLoadingCts.Token; // <-- 이 토큰을 전달해야 함
 
             StopAnimatedWebp();
+
+            var entry = _imageEntries[_currentIndex];
+            if (IsTextEntry(entry))
+            {
+                await LoadTextEntryAsync(entry);
+                _ = AddToRecentAsync();
+                return;
+            }
+
+            SwitchToImageMode(); // Ensure Image Mode is active
+
 
             if (_isSideBySideMode)
             {
@@ -1283,7 +1314,7 @@ namespace Uviewer
                         }
                         return;
                     }
-                    else if (item.IsImage)
+                    else if (item.IsImage || item.IsText)
                     {
                         var file = await StorageFile.GetFileFromPathAsync(item.FullPath);
                         await LoadImageFromFileAsync(file);
