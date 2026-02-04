@@ -174,51 +174,18 @@ namespace Uviewer
 
         private void ZoomIn()
         {
-            if (_isTextMode)
-            {
-                ZoomTextStyle(true);
-                return;
-            }
             _zoomLevel = Math.Min(_zoomLevel + ZoomStep, MaxZoom);
             ApplyZoom();
         }
 
         private void ZoomOut()
         {
-            if (_isTextMode)
-            {
-                ZoomTextStyle(false);
-                return;
-            }
             _zoomLevel = Math.Max(_zoomLevel - ZoomStep, MinZoom);
             ApplyZoom();
         }
 
-        private async void FitToWindow()
+        private void FitToWindow()
         {
-            if (_isTextMode)
-            {
-                // Save current scroll position before resetting font size
-                double? scrollPosition = null;
-                if (TextViewer.CoreWebView2 != null)
-                {
-                    scrollPosition = await GetTextScrollPositionAsync();
-                }
-                
-                _textFontSize = 18;
-                _ = UpdateTextViewer();
-                UpdateStatusBarForText();
-                ZoomLevelText.Text = $"{_textFontSize}pt";
-                
-                // Restore scroll position after font size reset
-                if (scrollPosition.HasValue)
-                {
-                    // Give it a moment to render the new content
-                    await Task.Delay(100);
-                    await SetTextScrollPosition(scrollPosition.Value);
-                }
-                return;
-            }
             _zoomLevel = 1.0;
             ApplyZoom();
         }
@@ -281,17 +248,9 @@ namespace Uviewer
                         {
                             await LoadImagesFromArchiveAsync(file.Path);
                         }
-                        else if (ext == ".epub")
-                        {
-                            await LoadEpubFromFileAsync(file);
-                        }
                         else if (SupportedImageExtensions.Contains(ext))
                         {
                             await LoadImageFromFileAsync(file);
-                        }
-                        else if (SupportedTextExtensions.Contains(ext))
-                        {
-                            LoadTextFromFileWithDebounce(file);
                         }
 
                         // Update explorer
@@ -369,12 +328,6 @@ namespace Uviewer
                         if (lines.Length >= 6 && lines[5].Trim() == "1") _sharpenEnabled = true;
                         if (lines.Length >= 7 && lines[6].Trim() == "1") _isSideBySideMode = true;
                         if (lines.Length >= 8 && lines[7].Trim() == "0") _nextImageOnRight = false;
-
-                        // Load text viewer settings
-                        if (lines.Length >= 9) _currentFontFamily = lines[8].Trim();
-                        if (lines.Length >= 10) _textBgColor = lines[9].Trim();
-                        if (lines.Length >= 11 && double.TryParse(lines[10].Trim(), out double fontSize)) 
-                            _textFontSize = fontSize;
 
                         UpdateSharpenButtonState();
                         UpdateSideBySideButtonState();
@@ -457,15 +410,11 @@ namespace Uviewer
             isMaximized ? "1" : "0", // 상태만 현재 상태(최대화 여부)를 저장
             _sharpenEnabled ? "1" : "0",
             _isSideBySideMode ? "1" : "0",
-            _nextImageOnRight ? "1" : "0",
-            _currentFontFamily, // 폰트 종류 저장
-            _textBgColor,      // 배경색 저장
-            _textFontSize.ToString() // 폰트 크기 저장
+            _nextImageOnRight ? "1" : "0"
                 };
 
                 File.WriteAllLines(_windowSettingsFile, settings);
                 System.Diagnostics.Debug.WriteLine($"Window settings saved: Max={isMaximized}, RestoreRect={saveX},{saveY},{saveWidth}x{saveHeight}");
-                System.Diagnostics.Debug.WriteLine($"Text settings saved: Font={_currentFontFamily}, Bg={_textBgColor}, Size={_textFontSize}");
             }
             catch (Exception ex)
             {

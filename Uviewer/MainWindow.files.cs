@@ -12,6 +12,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Windows.Storage;
 using Windows.Storage.Pickers;
+using Microsoft.UI.Xaml.Media.Imaging;
 using Visibility = Microsoft.UI.Xaml.Visibility;
 
 namespace Uviewer
@@ -59,12 +60,6 @@ namespace Uviewer
                 picker.FileTypeFilter.Add(ext);
             }
 
-            // Add text extensions
-            foreach (var ext in SupportedTextExtensions)
-            {
-                picker.FileTypeFilter.Add(ext);
-            }
-
             var file = await picker.PickSingleFileAsync();
 
             if (file != null)
@@ -74,14 +69,6 @@ namespace Uviewer
                 if (SupportedArchiveExtensions.Contains(ext))
                 {
                     await LoadImagesFromArchiveAsync(file.Path);
-                }
-                else if (ext == ".epub")
-                {
-                    await LoadEpubFromFileAsync(file);
-                }
-                else if (SupportedTextExtensions.Contains(ext))
-                {
-                    LoadTextFromFileWithDebounce(file);
                 }
                 else
                 {
@@ -118,15 +105,6 @@ namespace Uviewer
 
         private async Task LoadImageFromFileAsync(StorageFile file)
         {
-            var ext = Path.GetExtension(file.Name).ToLowerInvariant();
-            
-            // Handle EPUB files separately
-            if (ext == ".epub")
-            {
-                await LoadEpubFromFileAsync(file);
-                return;
-            }
-
             CloseCurrentArchive();
 
             // Get all images in the same folder
@@ -135,14 +113,12 @@ namespace Uviewer
             {
                 var files = await folder.GetFilesAsync();
                 _imageEntries = files
-                    .Where(f => SupportedImageExtensions.Contains(Path.GetExtension(f.Name).ToLowerInvariant()) || 
-                               SupportedTextExtensions.Contains(Path.GetExtension(f.Name).ToLowerInvariant()))
+                    .Where(f => SupportedImageExtensions.Contains(Path.GetExtension(f.Name).ToLowerInvariant()))
                     .OrderBy(f => f.Name, StringComparer.OrdinalIgnoreCase)
                     .Select(f => new ImageEntry
                     {
                         DisplayName = f.Name,
-                        FilePath = f.Path,
-                        IsText = SupportedTextExtensions.Contains(Path.GetExtension(f.Name).ToLowerInvariant())
+                        FilePath = f.Path
                     })
                     .ToList();
 
@@ -166,14 +142,12 @@ namespace Uviewer
 
             var files = await folder.GetFilesAsync();
             _imageEntries = files
-                .Where(f => SupportedImageExtensions.Contains(Path.GetExtension(f.Name).ToLowerInvariant()) ||
-                           SupportedTextExtensions.Contains(Path.GetExtension(f.Name).ToLowerInvariant()))
+                .Where(f => SupportedImageExtensions.Contains(Path.GetExtension(f.Name).ToLowerInvariant()))
                 .OrderBy(f => f.Name, StringComparer.OrdinalIgnoreCase)
                 .Select(f => new ImageEntry
                 {
                     DisplayName = f.Name,
-                    FilePath = f.Path,
-                    IsText = SupportedTextExtensions.Contains(Path.GetExtension(f.Name).ToLowerInvariant())
+                    FilePath = f.Path
                 })
                 .ToList();
 
@@ -203,14 +177,12 @@ namespace Uviewer
 
                     _imageEntries = _currentArchive.Entries
                         .Where(e => !e.IsDirectory &&
-                            (SupportedImageExtensions.Contains(Path.GetExtension(e.Key ?? "").ToLowerInvariant()) ||
-                             SupportedTextExtensions.Contains(Path.GetExtension(e.Key ?? "").ToLowerInvariant())))
+                            SupportedImageExtensions.Contains(Path.GetExtension(e.Key ?? "").ToLowerInvariant()))
                         .OrderBy(e => e.Key, StringComparer.OrdinalIgnoreCase)
                         .Select(e => new ImageEntry
                         {
                             DisplayName = Path.GetFileName(e.Key ?? "Unknown"),
-                            ArchiveEntryKey = e.Key,
-                            IsText = SupportedTextExtensions.Contains(Path.GetExtension(e.Key ?? "").ToLowerInvariant())
+                            ArchiveEntryKey = e.Key
                         })
                         .ToList();
                 }
@@ -310,6 +282,8 @@ namespace Uviewer
         #endregion
 
         #region Folder Explorer
+        
+        private CancellationTokenSource? _thumbnailLoadingCts;
 
         private void LoadExplorerFolder(string path)
         {
@@ -360,10 +334,8 @@ namespace Uviewer
                     var ext = Path.GetExtension(file).ToLowerInvariant();
                     var isImage = SupportedImageExtensions.Contains(ext);
                     var isArchive = SupportedArchiveExtensions.Contains(ext);
-                    var isText = SupportedTextExtensions.Contains(ext);
-                    var isEpub = ext == ".epub";
 
-                    if (isImage || isArchive || isText || isEpub)
+                    if (isImage || isArchive)
                     {
                         _fileItems.Add(new FileItem
                         {
@@ -371,12 +343,15 @@ namespace Uviewer
                             FullPath = file,
                             IsDirectory = false,
                             IsImage = isImage,
-                            IsArchive = isArchive,
-                            IsText = isText && !isEpub, // Don't mark EPUB as regular text
-                            IsEpub = isEpub
+                            IsArchive = isArchive
                         });
                     }
                 }
+
+                // Start loading thumbnails
+                _thumbnailLoadingCts?.Cancel();
+                _thumbnailLoadingCts = new CancellationTokenSource();
+                _ = LoadThumbnailsAsync(_thumbnailLoadingCts.Token);
             }
             catch (Exception ex)
             {
@@ -384,35 +359,263 @@ namespace Uviewer
             }
         }
 
+        private async Task LoadThumbnailsAsync(CancellationToken token)
+        {
+            try
+            {
+                // Create a copy of the list to iterate safely
+                var items = _fileItems.ToList();
+
+                foreach (var item in items)
+                {
+                    if (token.IsCancellationRequested) return;
+
+                    if (item.IsImage)
+                    {
+                        try
+                        {
+                            var file = await StorageFile.GetFileFromPathAsync(item.FullPath);
+                            if (file != null)
+                            {
+                                var thumbnail = await file.GetThumbnailAsync(Windows.Storage.FileProperties.ThumbnailMode.SingleItem, 160);
+                                if (thumbnail != null)
+                                {
+                                    DispatcherQueue.TryEnqueue(() =>
+                                    {
+                                        if (token.IsCancellationRequested) return;
+                                        var bitmap = new BitmapImage();
+                                        bitmap.SetSource(thumbnail);
+                                        item.Thumbnail = bitmap;
+                                    });
+                                }
+                            }
+                        }
+                        catch { }
+                    }
+                    else if (item.IsArchive)
+                    {
+                        try
+                        {
+                            await Task.Run(async () =>
+                            {
+                                if (token.IsCancellationRequested) return;
+                                using var archive = ArchiveFactory.Open(item.FullPath);
+                                var entry = archive.Entries
+                                    .Where(e => !e.IsDirectory && 
+                                           SupportedImageExtensions.Contains(Path.GetExtension(e.Key)?.ToLowerInvariant() ?? ""))
+                                    .OrderBy(e => e.Key)
+                                    .FirstOrDefault();
+
+                                if (entry != null)
+                                {
+                                    using var entryStream = entry.OpenEntryStream();
+                                    var memStream = new MemoryStream();
+                                    await entryStream.CopyToAsync(memStream);
+                                    memStream.Position = 0;
+                                    
+                                    DispatcherQueue.TryEnqueue(() =>
+                                    {
+                                        if (token.IsCancellationRequested) return;
+                                        var bitmap = new BitmapImage();
+                                        bitmap.SetSource(memStream.AsRandomAccessStream());
+                                        item.Thumbnail = bitmap;
+                                    });
+                                }
+                            });
+                        }
+                        catch { }
+                    }
+                }
+            }
+            catch { }
+        }
+
+        private void ToggleExplorerViewButton_Click(object sender, RoutedEventArgs e)
+        {
+            _isExplorerGrid = !_isExplorerGrid;
+            UpdateExplorerView();
+        }
+
+        private void UpdateExplorerView()
+        {
+            if (FileListView == null || FileGridView == null) return;
+
+            if (_isExplorerGrid)
+            {
+                FileListView.Visibility = Visibility.Collapsed;
+                FileGridView.Visibility = Visibility.Visible;
+                
+                if (ToggleViewButton?.Content is FontIcon icon)
+                {
+                    icon.Glyph = "\uE8B9"; // List view icon (to switch back)
+                }
+                if (ToggleViewButton != null)
+                {
+                    ToolTipService.SetToolTip(ToggleViewButton, "리스트 보기");
+                }
+            }
+            else
+            {
+                FileListView.Visibility = Visibility.Visible;
+                FileGridView.Visibility = Visibility.Collapsed;
+
+                if (ToggleViewButton?.Content is FontIcon icon)
+                {
+                    icon.Glyph = "\uE80A"; // Grid view icon
+                }
+                if (ToggleViewButton != null)
+                {
+                    ToolTipService.SetToolTip(ToggleViewButton, "썸네일 보기");
+                }
+            }
+        }
+
         private async void FileListView_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
             if (FileListView.SelectedItem is FileItem item)
             {
-                if (item.IsDirectory)
+                if (IsCurrentFile(item.FullPath)) return;
+                
+                await HandleFileSelectionAsync(item);
+                // Do not clear selection so user can see what's selected
+            }
+        }
+
+        private async void FileGridView_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (FileGridView.SelectedItem is FileItem item)
+            {
+                if (IsCurrentFile(item.FullPath)) return;
+
+                await HandleFileSelectionAsync(item);
+                // Do not clear selection so user can see what's selected
+            }
+        }
+
+        private bool IsCurrentFile(string path)
+        {
+            if (_currentIndex >= 0 && _imageEntries != null && _currentIndex < _imageEntries.Count)
+            {
+                var entry = _imageEntries[_currentIndex];
+                if (entry.IsArchiveEntry)
                 {
-                    _lastSelectedExplorerFolderPath = item.FullPath;
+                    return _currentArchivePath != null && _currentArchivePath.Equals(path, StringComparison.OrdinalIgnoreCase);
+                }
+                else
+                {
+                    return entry.FilePath != null && entry.FilePath.Equals(path, StringComparison.OrdinalIgnoreCase);
+                }
+            }
+            return false;
+        }
+
+        private async void FileGridView_PreviewKeyDown(object sender, Microsoft.UI.Xaml.Input.KeyRoutedEventArgs e)
+        {
+            // If we are viewing an image (archive or file) and the sidebar is focused
+            if (_imageEntries.Count > 0)
+            {
+                // When viewing an archive (or images in a folder), 
+                // Left/Right should navigate IMAGES (override GridView default)
+                // Up/Down should navigate FILES (override GridView default)
+                
+                switch (e.Key)
+                {
+                    case Windows.System.VirtualKey.Enter:
+                        if (FileGridView.SelectedItem is FileItem item)
+                        {
+                            if (item.IsDirectory)
+                            {
+                                LoadExplorerFolder(item.FullPath);
+                            }
+                        }
+                        e.Handled = true;
+                        break;
+                    case Windows.System.VirtualKey.Left:
+                        await NavigateToPreviousAsync();
+                        e.Handled = true;
+                        break;
+                    case Windows.System.VirtualKey.Right:
+                        await NavigateToNextAsync();
+                        e.Handled = true;
+                        break;
+                    case Windows.System.VirtualKey.Up:
+                        MoveExplorerSelection(-1);
+                        e.Handled = true;
+                        break;
+                    case Windows.System.VirtualKey.Down:
+                        MoveExplorerSelection(1);
+                        e.Handled = true;
+                        break;
+                    case Windows.System.VirtualKey.Space:
+                        // Toggle Side by Side
+                        SideBySideButton_Click(sender, new RoutedEventArgs());
+                        e.Handled = true;
+                        break;
+                }
+            }
+            else
+            {
+                 // Handle Enter key for directories even if no image is loaded
+                 if (e.Key == Windows.System.VirtualKey.Enter)
+                 {
+                     if (FileGridView.SelectedItem is FileItem item && item.IsDirectory)
+                     {
+                         LoadExplorerFolder(item.FullPath);
+                         e.Handled = true;
+                     }
+                 }
+            }
+        }
+
+        private void FileListView_PreviewKeyDown(object sender, Microsoft.UI.Xaml.Input.KeyRoutedEventArgs e)
+        {
+            if (e.Key == Windows.System.VirtualKey.Enter)
+            {
+                if (FileListView.SelectedItem is FileItem item && item.IsDirectory)
+                {
                     LoadExplorerFolder(item.FullPath);
-                    FileListView.SelectedItem = null;
+                    e.Handled = true;
                 }
-                else if (item.IsArchive)
+            }
+        }
+
+        private void MoveExplorerSelection(int direction)
+        {
+            if (FileGridView.Visibility == Visibility.Visible)
+            {
+                int newIndex = FileGridView.SelectedIndex + direction;
+                if (newIndex >= 0 && newIndex < _fileItems.Count)
                 {
-                    await LoadImagesFromArchiveAsync(item.FullPath);
+                    FileGridView.SelectedIndex = newIndex;
+                    FileGridView.ScrollIntoView(FileGridView.SelectedItem);
                 }
-                else if (item.IsEpub)
+            }
+            else
+            {
+                int newIndex = FileListView.SelectedIndex + direction;
+                if (newIndex >= 0 && newIndex < _fileItems.Count)
                 {
-                    var file = await StorageFile.GetFileFromPathAsync(item.FullPath);
-                    await LoadEpubFromFileAsync(file);
+                    FileListView.SelectedIndex = newIndex;
+                    FileListView.ScrollIntoView(FileListView.SelectedItem);
                 }
-                else if (item.IsImage)
-                {
-                    var file = await StorageFile.GetFileFromPathAsync(item.FullPath);
-                    await LoadImageFromFileAsync(file);
-                }
-                else if (item.IsText)
-                {
-                    var file = await StorageFile.GetFileFromPathAsync(item.FullPath);
-                    LoadTextFromFileWithDebounce(file);
-                }
+            }
+        }
+
+        private async Task HandleFileSelectionAsync(FileItem item)
+        {
+            if (item.IsDirectory)
+            {
+                // Do not auto-navigate to folder on selection (Arrow keys/Single click)
+                // LoadExplorerFolder(item.FullPath);
+            }
+            else if (item.IsArchive)
+            {
+                await LoadImagesFromArchiveAsync(item.FullPath);
+            }
+            else if (item.IsImage)
+            {
+                var file = await StorageFile.GetFileFromPathAsync(item.FullPath);
+                await LoadImageFromFileAsync(file);
             }
         }
 
@@ -428,12 +631,9 @@ namespace Uviewer
 
         private void FavoritesButton_Click(object sender, RoutedEventArgs e)
         {
-            // The flyout will show automatically on click, but we can manually show it if needed
-            // If we want to toggle it manually:
-            if (FavoritesButton.Flyout is Flyout flyout)
-            {
-                flyout.ShowAt(FavoritesButton);
-            }
+            // Toggle the flyout
+            var flyout = FavoritesButton.Flyout as MenuFlyout;
+            flyout?.ShowAt(FavoritesButton);
         }
 
         private void AddToFavoritesMenuItem_Click(object sender, RoutedEventArgs e)
@@ -443,9 +643,16 @@ namespace Uviewer
 
         private void RecentButton_Click(object sender, RoutedEventArgs e)
         {
-            if (RecentButton.Flyout is Flyout flyout)
+            // Toggle the flyout
+            var flyout = RecentButton.Flyout as MenuFlyout;
+            flyout?.ShowAt(RecentButton);
+        }
+
+        private void FileItem_ItemClick(object sender, ItemClickEventArgs e)
+        {
+            if (e.ClickedItem is FileItem item && item.IsDirectory)
             {
-                flyout.ShowAt(RecentButton);
+                LoadExplorerFolder(item.FullPath);
             }
         }
 

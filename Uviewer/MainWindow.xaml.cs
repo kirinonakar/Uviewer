@@ -17,6 +17,8 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Windows.Storage;
+using System.ComponentModel;
+using System.Runtime.CompilerServices;
 using Visibility = Microsoft.UI.Xaml.Visibility;
 
 namespace Uviewer
@@ -33,8 +35,8 @@ namespace Uviewer
 
         // Folder explorer
         private string? _currentExplorerPath;
-        private string? _lastSelectedExplorerFolderPath;
         private ObservableCollection<FileItem> _fileItems = new();
+        private bool _isExplorerGrid = false;
 
         // Fullscreen
         private bool _isFullscreen = false;
@@ -49,7 +51,7 @@ namespace Uviewer
         private bool _sidebarHideTimerRunning = false;
         private int _SidebarWidth = 320;
 
-        private Windows.Graphics.RectInt32 _lastNonMaximizedRect = new(100, 100, 1000, 800);
+        private Windows.Graphics.RectInt32 _lastNonMaximizedRect = new(100, 100, 1200, 800);
 
         // Side-by-side view settings
         private bool _isSideBySideMode = false;
@@ -71,40 +73,46 @@ namespace Uviewer
             ".zip", ".rar", ".7z", ".tar", ".gz", ".cbz", ".cbr"
         };
 
-        private static readonly string[] SupportedTextExtensions = { ".txt", ".md", ".markdown", ".html", ".htm", ".log", ".epub" };
-
-        // Text viewer state
-        private bool _isTextMode = false;
-        private string _currentFontFamily = "Yu Mincho";
-        private double _textFontSize = 18;
-        private string _textBgColor = "#F4ECD8";
-
         // File item for ListView
-        public class FileItem
+        public class FileItem : INotifyPropertyChanged
         {
             public string Name { get; set; } = "";
             public string FullPath { get; set; } = "";
             public bool IsDirectory { get; set; }
             public bool IsArchive { get; set; }
             public bool IsImage { get; set; }
-            public bool IsText { get; set; }
-            public bool IsEpub { get; set; }
             public bool IsParentDirectory { get; set; }
+
+            private ImageSource? _thumbnail;
+            public ImageSource? Thumbnail
+            {
+                get => _thumbnail;
+                set
+                {
+                    if (_thumbnail != value)
+                    {
+                        _thumbnail = value;
+                        OnPropertyChanged();
+                    }
+                }
+            }
 
             public string Icon => IsParentDirectory ? "\uE72B" :
                                   IsDirectory ? "\uE8B7" :
                                   IsArchive ? "\uE8D4" :
-                                  IsImage ? "\uE8B9" : 
-                                  IsEpub ? "\uE8A5" :
-                                  IsText ? "\uE8A5" : "\uE7C3";
+                                  IsImage ? "\uE8B9" : "\uE7C3";
 
             public SolidColorBrush IconColor => IsDirectory || IsParentDirectory ?
                 new SolidColorBrush(Colors.Gold) :
                 IsArchive ? new SolidColorBrush(Colors.Orange) :
                 IsImage ? new SolidColorBrush(Colors.CornflowerBlue) :
-                IsEpub ? new SolidColorBrush(Colors.MediumPurple) :
-                IsText ? new SolidColorBrush(Colors.MediumSeaGreen) :
                 new SolidColorBrush(Colors.Gray);
+
+            public event PropertyChangedEventHandler? PropertyChanged;
+            private void OnPropertyChanged([CallerMemberName] string? propertyName = null)
+            {
+                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+            }
         }
 
         // Represents an image entry (either file or archive entry)
@@ -114,7 +122,6 @@ namespace Uviewer
             public string? FilePath { get; set; }
             public string? ArchiveEntryKey { get; set; }
             public bool IsArchiveEntry => ArchiveEntryKey != null;
-            public bool IsText { get; set; }
         }
 
 
@@ -140,17 +147,11 @@ namespace Uviewer
             {
                 try
                 {
-                    launchFilePath = Path.GetFullPath(launchFilePath);
                     if (File.Exists(launchFilePath))
                     {
                         // First navigate to the folder
                         var fileFolder = Path.GetDirectoryName(launchFilePath);
-                        if (string.IsNullOrEmpty(fileFolder))
-                        {
-                            fileFolder = Directory.GetCurrentDirectory();
-                        }
-
-                        if (Directory.Exists(fileFolder))
+                        if (!string.IsNullOrEmpty(fileFolder) && Directory.Exists(fileFolder))
                         {
                             LoadExplorerFolder(fileFolder);
                             System.Diagnostics.Debug.WriteLine($"Loaded file folder: {fileFolder}");
@@ -162,22 +163,15 @@ namespace Uviewer
                                 var extension = Path.GetExtension(launchFilePath).ToLowerInvariant();
                                 var archiveExtensions = new[] { ".zip", ".rar", ".7z", ".tar", ".gz" };
 
-                                if (SupportedArchiveExtensions.Contains(extension))
+                                if (archiveExtensions.Contains(extension))
                                 {
                                     // For archive files, load the archive
                                     await LoadImagesFromArchiveAsync(launchFilePath);
                                     System.Diagnostics.Debug.WriteLine($"Loaded archive file: {launchFilePath}");
                                 }
-                                else if (extension == ".epub")
+                                else
                                 {
-                                    // For EPUB files, load as EPUB
-                                    var file = await StorageFile.GetFileFromPathAsync(launchFilePath);
-                                    await LoadEpubFromFileAsync(file);
-                                    System.Diagnostics.Debug.WriteLine($"Loaded EPUB file: {launchFilePath}");
-                                }
-                                else if (SupportedTextExtensions.Contains(extension) || SupportedImageExtensions.Contains(extension))
-                                {
-                                    // For regular image or text files, load with neighbors
+                                    // For regular image files, load the image
                                     var file = await StorageFile.GetFileFromPathAsync(launchFilePath);
                                     await LoadImageFromFileAsync(file);
                                     System.Diagnostics.Debug.WriteLine($"Loaded launch file: {launchFilePath}");
@@ -223,7 +217,6 @@ namespace Uviewer
         public MainWindow(string? launchFilePath = null)
         {
             InitializeComponent();
-            System.Text.Encoding.RegisterProvider(System.Text.CodePagesEncodingProvider.Instance);
 
             try
             {
@@ -259,7 +252,7 @@ namespace Uviewer
                 if (!hasLoadedSettings)
                 {
                     // 설정 파일이 없으면 기본 사이즈 적용 및 변수 초기화
-                    var defaultSize = new Windows.Graphics.SizeInt32(1000, 800);
+                    var defaultSize = new Windows.Graphics.SizeInt32(1200, 800);
                     appWindow2.Resize(defaultSize);
 
                     // 현재 위치와 크기를 초기값으로 저장
@@ -279,6 +272,7 @@ namespace Uviewer
 
                 // Initialize file list
                 FileListView.ItemsSource = _fileItems;
+                FileGridView.ItemsSource = _fileItems;
 
                 // 화면 UI(RootGrid)가 로드된 후에 초기화 작업을 시작합니다.
                 RootGrid.Loaded += async (s, e) =>
@@ -460,8 +454,6 @@ namespace Uviewer
                 }
                 FullscreenIcon.Glyph = "\uE740"; // Fullscreen icon
                 _isFullscreen = false;
-                TopHoverTrigger.Visibility = Visibility.Collapsed;
-                LeftHoverTrigger.Visibility = Visibility.Collapsed;
             }
             else
             {
@@ -478,8 +470,6 @@ namespace Uviewer
                 SplitterGrid.Visibility = Visibility.Collapsed;  // Hide splitter in fullscreen
                 FullscreenIcon.Glyph = "\uE73F"; // Exit fullscreen icon
                 _isFullscreen = true;
-                TopHoverTrigger.Visibility = Visibility.Visible;
-                LeftHoverTrigger.Visibility = Visibility.Visible;
                 StopFullscreenHoverTimers();
             }
         }
@@ -619,46 +609,52 @@ namespace Uviewer
             _imageLoadingCts = new CancellationTokenSource();
             var token = _imageLoadingCts.Token; // <-- 이 토큰을 전달해야 함
 
-            var entry = _imageEntries[_currentIndex];
-            
-            if (entry.IsText && entry.FilePath != null)
+            StopAnimatedWebp();
+
+            if (_isSideBySideMode)
             {
-                // Mode switch to Text (local file)
-                StopAnimatedWebp();
-                var file = await StorageFile.GetFileFromPathAsync(entry.FilePath);
-                LoadTextFromFileWithDebounce(file);
-            }
-            else if (entry.IsText && entry.IsArchiveEntry && entry.ArchiveEntryKey != null)
-            {
-                // Mode switch to Text (archive entry)
-                StopAnimatedWebp();
-                await LoadTextFromArchiveEntryAsync(entry.ArchiveEntryKey);
+                await DisplaySideBySideImagesAsync(token); // <-- token 전달
             }
             else
             {
-                // Mode switch to Image (if we were in text mode)
-                if (_isTextMode)
-                {
-                    HideTextUI();
-                    _isTextMode = false;
-                }
-
-                StopAnimatedWebp();
-
-                if (_isSideBySideMode)
-                {
-                    await DisplaySideBySideImagesAsync(token);
-                }
-                else
-                {
-                    await DisplaySingleImageAsync(token);
-                }
+                await DisplaySingleImageAsync(token); // <-- token 전달
             }
 
-            // Update file list selection
-            UpdateFileListSelection();
-
             _ = AddToRecentAsync();
+        }
+
+        private void SyncSidebarSelection(ImageEntry entry)
+        {
+            try
+            {
+                if (_fileItems == null || _fileItems.Count == 0) return;
+
+                string targetPath = entry.IsArchiveEntry ? (_currentArchivePath ?? "") : (entry.FilePath ?? "");
+                if (string.IsNullOrEmpty(targetPath)) return;
+
+                // Find item in file list
+                var item = _fileItems.FirstOrDefault(f => f.FullPath.Equals(targetPath, StringComparison.OrdinalIgnoreCase));
+                if (item != null)
+                {
+                    if (_isExplorerGrid)
+                    {
+                        if (FileGridView.SelectedItem != item)
+                        {
+                            FileGridView.SelectedItem = item;
+                            FileGridView.ScrollIntoView(item);
+                        }
+                    }
+                    else
+                    {
+                        if (FileListView.SelectedItem != item)
+                        {
+                            FileListView.SelectedItem = item;
+                            FileListView.ScrollIntoView(item);
+                        }
+                    }
+                }
+            }
+            catch { }
         }
 
         // 매개변수 추가
@@ -697,6 +693,9 @@ namespace Uviewer
                     UpdateStatusBar(entry, _currentBitmap);
                     UpdateSharpenButtonState();
                     MainCanvas.Invalidate();
+                    
+                    // Sync sidebar selection (using our new safe method)
+                    SyncSidebarSelection(entry);
                 }
                 else
                 {
@@ -820,6 +819,7 @@ namespace Uviewer
                 FitToWindow();
                 ShowImageUI();
                 UpdateStatusBar(rightEntry, _currentBitmap!);
+                SyncSidebarSelection(rightEntry); // Sync to the "primary" image
             }
             catch (Exception ex)
             {
@@ -960,11 +960,6 @@ namespace Uviewer
 
         private void SideBySideButton_Click(object sender, RoutedEventArgs e)
         {
-            if (_isTextMode)
-            {
-                // Text mode: 2-column view disabled, always use 1-column
-                return;
-            }
             _isSideBySideMode = !_isSideBySideMode;
             UpdateSideBySideButtonState();
             SaveWindowSettings();
@@ -984,8 +979,7 @@ namespace Uviewer
 
         private void UpdateSideBySideButtonState()
         {
-            bool isSbs = _isTextMode ? false : _isSideBySideMode;
-            if (isSbs)
+            if (_isSideBySideMode)
             {
                 SideBySideText.Text = "2";
                 if (Application.Current.Resources.TryGetValue("AccentFillColorDefaultBrush", out var accent) && accent is Microsoft.UI.Xaml.Media.Brush brush)
@@ -1066,7 +1060,6 @@ namespace Uviewer
 
         private void ShowImageUI()
         {
-            HideTextUI(); // Ensure text viewer is hidden when switching to images
             EmptyStatePanel.Visibility = Visibility.Collapsed;
 
             if (_isSideBySideMode)
@@ -1113,56 +1106,23 @@ namespace Uviewer
             var properties = e.GetCurrentPoint(ImageArea).Properties;
             var wheelDelta = properties.MouseWheelDelta;
 
-            // Check if we're in text mode
-            if (_isTextMode)
+            // Scroll down = next image, Scroll up = previous image
+            if (wheelDelta < 0)
             {
-                // Text mode: use mouse wheel for page navigation
-                if (wheelDelta < 0)
+                // Scroll down - next image
+                if (_currentIndex < _imageEntries.Count - 1)
                 {
-                    // Scroll down - next page
-                    if (_isEpubMode)
-                    {
-                        _ = NavigateToNextEpubPageAsync();
-                    }
-                    else
-                    {
-                        _ = ScrollTextPage(true);
-                    }
-                }
-                else if (wheelDelta > 0)
-                {
-                    // Scroll up - previous page
-                    if (_isEpubMode)
-                    {
-                        _ = NavigateToPreviousEpubPageAsync();
-                    }
-                    else
-                    {
-                        _ = ScrollTextPage(false);
-                    }
+                    _currentIndex++;
+                    await DisplayCurrentImageAsync();
                 }
             }
-            else
+            else if (wheelDelta > 0)
             {
-                // Image mode: navigate between images
-                // Scroll down = next image, Scroll up = previous image
-                if (wheelDelta < 0)
+                // Scroll up - previous image
+                if (_currentIndex > 0)
                 {
-                    // Scroll down - next image
-                    if (_currentIndex < _imageEntries.Count - 1)
-                    {
-                        _currentIndex++;
-                        await DisplayCurrentImageAsync();
-                    }
-                }
-                else if (wheelDelta > 0)
-                {
-                    // Scroll up - previous image
-                    if (_currentIndex > 0)
-                    {
-                        _currentIndex--;
-                        await DisplayCurrentImageAsync();
-                    }
+                    _currentIndex--;
+                    await DisplayCurrentImageAsync();
                 }
             }
 
@@ -1171,55 +1131,21 @@ namespace Uviewer
 
         private async void ImageArea_PointerPressed(object sender, PointerRoutedEventArgs e)
         {
+            if (_imageEntries.Count <= 1)
+                return;
+
             var pt = e.GetCurrentPoint(ImageArea);
             if (!pt.Properties.IsLeftButtonPressed)
                 return;
 
             double half = ImageArea.ActualWidth * 0.5;
-            
-            // Check if we're in text mode
-            if (_isTextMode)
+            if (pt.Position.X < half)
             {
-                // Text mode: use click for page navigation
-                if (pt.Position.X < half)
-                {
-                    // Left half - previous page
-                    if (_isEpubMode)
-                    {
-                        _ = NavigateToPreviousEpubPageAsync();
-                    }
-                    else
-                    {
-                        _ = ScrollTextPage(false);
-                    }
-                }
-                else
-                {
-                    // Right half - next page
-                    if (_isEpubMode)
-                    {
-                        _ = NavigateToNextEpubPageAsync();
-                    }
-                    else
-                    {
-                        _ = ScrollTextPage(true);
-                    }
-                }
+                await NavigateToPreviousAsync();
             }
             else
             {
-                // Image mode: navigate between images (only if there are multiple images)
-                if (_imageEntries.Count <= 1)
-                    return;
-
-                if (pt.Position.X < half)
-                {
-                    await NavigateToPreviousAsync();
-                }
-                else
-                {
-                    await NavigateToNextAsync();
-                }
+                await NavigateToNextAsync();
             }
 
             e.Handled = true;
@@ -1288,51 +1214,6 @@ namespace Uviewer
             }
         }
 
-        private void UpdateFileListSelection()
-        {
-            if (string.IsNullOrEmpty(_currentExplorerPath) || _fileItems.Count == 0)
-                return;
-
-            // Find current file/archive in the list
-            string? currentPath = null;
-            if (_currentArchive != null && !string.IsNullOrEmpty(_currentArchivePath))
-            {
-                currentPath = _currentArchivePath;
-            }
-            else if (_imageEntries.Count > 0 && _currentIndex >= 0 && _currentIndex < _imageEntries.Count)
-            {
-                currentPath = _imageEntries[_currentIndex].FilePath;
-            }
-            
-            // Fallback for text mode - use current text file path
-            if (string.IsNullOrEmpty(currentPath) && !string.IsNullOrEmpty(_currentTextFilePath))
-            {
-                // For archive text files, extract the archive path
-                if (_currentArchive != null && !string.IsNullOrEmpty(_currentArchivePath))
-                {
-                    currentPath = _currentArchivePath;
-                }
-                else
-                {
-                    currentPath = _currentTextFilePath;
-                }
-            }
-
-            if (string.IsNullOrEmpty(currentPath))
-                return;
-
-            // Find and select the item in the file list
-            for (int i = 0; i < _fileItems.Count; i++)
-            {
-                if (_fileItems[i].FullPath.Equals(currentPath, StringComparison.OrdinalIgnoreCase))
-                {
-                    FileListView.SelectedItem = _fileItems[i];
-                    FileListView.ScrollIntoView(_fileItems[i]);
-                    break;
-                }
-            }
-        }
-
         private async Task NavigateToFileAsync(bool isNext)
         {
             if (string.IsNullOrEmpty(_currentExplorerPath))
@@ -1353,20 +1234,6 @@ namespace Uviewer
             else if (_imageEntries.Count > 0 && _currentIndex >= 0 && _currentIndex < _imageEntries.Count)
             {
                 currentPath = _imageEntries[_currentIndex].FilePath;
-            }
-            
-            // Fallback for text mode - use current text file path
-            if (string.IsNullOrEmpty(currentPath) && !string.IsNullOrEmpty(_currentTextFilePath))
-            {
-                // For archive text files, extract the archive path
-                if (_currentArchive != null && !string.IsNullOrEmpty(_currentArchivePath))
-                {
-                    currentPath = _currentArchivePath;
-                }
-                else
-                {
-                    currentPath = _currentTextFilePath;
-                }
             }
 
             if (string.IsNullOrEmpty(currentPath))
@@ -1404,8 +1271,16 @@ namespace Uviewer
                         await LoadImagesFromArchiveAsync(item.FullPath);
 
                         // Select in sidebar
-                        FileListView.SelectedItem = item;
-                        FileListView.ScrollIntoView(item);
+                        if (_isExplorerGrid)
+                        {
+                            FileGridView.SelectedItem = item;
+                            FileGridView.ScrollIntoView(item);
+                        }
+                        else
+                        {
+                            FileListView.SelectedItem = item;
+                            FileListView.ScrollIntoView(item);
+                        }
                         return;
                     }
                     else if (item.IsImage)
@@ -1414,18 +1289,16 @@ namespace Uviewer
                         await LoadImageFromFileAsync(file);
 
                         // Select in sidebar
-                        FileListView.SelectedItem = item;
-                        FileListView.ScrollIntoView(item);
-                        return;
-                    }
-                    else if (item.IsText)
-                    {
-                        var file = await StorageFile.GetFileFromPathAsync(item.FullPath);
-                        LoadTextFromFileWithDebounce(file);
-
-                        // Select in sidebar
-                        FileListView.SelectedItem = item;
-                        FileListView.ScrollIntoView(item);
+                        if (_isExplorerGrid)
+                        {
+                            FileGridView.SelectedItem = item;
+                            FileGridView.ScrollIntoView(item);
+                        }
+                        else
+                        {
+                            FileListView.SelectedItem = item;
+                            FileListView.ScrollIntoView(item);
+                        }
                         return;
                     }
                 }
@@ -1639,24 +1512,6 @@ namespace Uviewer
                     _preloadedImages.Remove(key);
                 }
             }
-        }
-
-        private void ShowTextMode()
-        {
-            // Show text viewer and hide image viewer
-            MainCanvas.Visibility = Visibility.Collapsed;
-            SideBySideGrid.Visibility = Visibility.Collapsed;
-            TextViewerArea.Visibility = Visibility.Visible;
-            EmptyStatePanel.Visibility = Visibility.Collapsed;
-            _isTextMode = true;
-            
-            // Hide image-specific UI elements
-            SharpenButton.Visibility = Visibility.Collapsed;
-            SideBySideButton.Visibility = Visibility.Collapsed;
-            
-            // Show text-specific UI elements
-            TextOptionsButton.Visibility = Visibility.Visible;
-            TextSeparator.Visibility = Visibility.Visible;
         }
 
         #endregion

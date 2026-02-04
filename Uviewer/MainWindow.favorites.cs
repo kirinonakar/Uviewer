@@ -31,7 +31,6 @@ namespace Uviewer
             public string Path { get; set; } = "";
             public string Type { get; set; } = ""; // "Folder", "File", "Archive"
             public string? ArchiveEntryKey { get; set; }
-            public double? TextPosition { get; set; }
             public DateTime CreatedAt { get; set; } = DateTime.Now;
         }
 
@@ -41,7 +40,6 @@ namespace Uviewer
             public string Path { get; set; } = "";
             public string Type { get; set; } = ""; // "Folder", "File", "Archive"
             public string? ArchiveEntryKey { get; set; }
-            public double? TextPosition { get; set; }
             public DateTime AccessedAt { get; set; } = DateTime.Now;
         }
 
@@ -227,21 +225,9 @@ namespace Uviewer
                 string type = "";
                 string? archiveEntryKey = null;
 
-                FileItem? selectedExplorerItem = null;
-                try
-                {
-                    selectedExplorerItem = FileListView?.SelectedItem as FileItem;
-                }
-                catch
-                {
-                    selectedExplorerItem = null;
-                }
-
                 System.Diagnostics.Debug.WriteLine($"_currentArchive: {_currentArchive != null}");
                 System.Diagnostics.Debug.WriteLine($"_currentArchivePath: {_currentArchivePath}");
                 System.Diagnostics.Debug.WriteLine($"_currentExplorerPath: {_currentExplorerPath}");
-                System.Diagnostics.Debug.WriteLine($"_isTextMode: {_isTextMode}");
-                System.Diagnostics.Debug.WriteLine($"_currentTextFilePath: '{_currentTextFilePath}'");
                 System.Diagnostics.Debug.WriteLine($"_currentIndex: {_currentIndex}");
                 System.Diagnostics.Debug.WriteLine($"_imageEntries.Count: {_imageEntries.Count}");
 
@@ -288,62 +274,6 @@ namespace Uviewer
                         }
                     }
                 }
-                else if (_isTextMode && !string.IsNullOrEmpty(_currentTextFilePath))
-                {
-                    var fileName = Path.GetFileName(_currentTextFilePath);
-                    var folderPath = Path.GetDirectoryName(_currentTextFilePath);
-                    var folderName = !string.IsNullOrEmpty(folderPath) ? Path.GetFileName(folderPath) : "";
-
-                    if (_isEpubMode)
-                    {
-                        // EPUB mode - use book title and store scroll position
-                        name = string.IsNullOrEmpty(_currentEpubMetadata?.Title) ? fileName : _currentEpubMetadata.Title;
-                        path = _currentTextFilePath;
-                        type = "Epub";
-                        System.Diagnostics.Debug.WriteLine($"EPUB mode: {name}");
-                    }
-                    else
-                    {
-                        // Regular text file
-                        name = string.IsNullOrEmpty(folderName) ? fileName : $"{folderName} - {fileName}";
-                        path = _currentTextFilePath;
-                        type = "Text";
-                        System.Diagnostics.Debug.WriteLine($"Text mode: {name}");
-                    }
-
-                    // Also add the folder as a separate bookmark
-                    if (!string.IsNullOrEmpty(folderPath) && Directory.Exists(folderPath))
-                    {
-                        var existingFolder = _favorites.FirstOrDefault(f => f.Path == folderPath && f.Type == "Folder");
-                        if (existingFolder == null)
-                        {
-                            var folderFavorite = new FavoriteItem
-                            {
-                                Name = string.IsNullOrEmpty(folderName) ? folderPath : folderName,
-                                Path = folderPath,
-                                Type = "Folder"
-                            };
-                            _favorites.Add(folderFavorite);
-                            System.Diagnostics.Debug.WriteLine($"Added text/EPUB file folder as favorite: {folderName}");
-                        }
-                    }
-                }
-                else if (selectedExplorerItem != null && selectedExplorerItem.IsDirectory && !selectedExplorerItem.IsParentDirectory)
-                {
-                    name = string.IsNullOrEmpty(selectedExplorerItem.Name) ? selectedExplorerItem.FullPath : selectedExplorerItem.Name;
-                    path = selectedExplorerItem.FullPath;
-                    type = "Folder";
-                    System.Diagnostics.Debug.WriteLine($"Folder selection mode: {name}");
-                }
-                else if (!string.IsNullOrEmpty(_lastSelectedExplorerFolderPath) && Directory.Exists(_lastSelectedExplorerFolderPath))
-                {
-                    name = Path.GetFileName(_lastSelectedExplorerFolderPath);
-                    if (string.IsNullOrEmpty(name))
-                        name = _lastSelectedExplorerFolderPath;
-                    path = _lastSelectedExplorerFolderPath;
-                    type = "Folder";
-                    System.Diagnostics.Debug.WriteLine($"Last selected folder mode: {name}");
-                }
                 else if (!string.IsNullOrEmpty(_currentExplorerPath))
                 {
                     // Folder mode - add current folder
@@ -385,87 +315,8 @@ namespace Uviewer
                     if (existing != null)
                     {
                         System.Diagnostics.Debug.WriteLine($"Favorite already exists: {existing.Name}");
-                        
-                        // For text mode, update the bookmark with new position if page has changed
-                        if (type == "Text")
-                        {
-                            var currentPosition = await GetTextScrollPositionAsync();
-                            
-                            // Check if the position has significantly changed (more than 100 pixels difference)
-                            if (!existing.TextPosition.HasValue || 
-                                Math.Abs((existing.TextPosition.Value - (currentPosition ?? 0))) > 100)
-                            {
-                                System.Diagnostics.Debug.WriteLine($"Updating text bookmark position from {existing.TextPosition} to {currentPosition}");
-                                
-                                // Remove the old bookmark
-                                _favorites.Remove(existing);
-                                
-                                // Create new bookmark with updated position
-                                var updatedFavorite = new FavoriteItem
-                                {
-                                    Name = name,
-                                    Path = path,
-                                    Type = type,
-                                    ArchiveEntryKey = archiveEntryKey,
-                                    TextPosition = currentPosition,
-                                    CreatedAt = DateTime.Now // Update creation time
-                                };
-
-                                _favorites.Add(updatedFavorite);
-                                System.Diagnostics.Debug.WriteLine($"Updated text bookmark: {updatedFavorite.Name} at position {currentPosition}");
-                                await SaveFavorites();
-                                UpdateFavoritesMenu();
-                                System.Diagnostics.Debug.WriteLine("Text bookmark updated successfully");
-                                return;
-                            }
-                            else
-                            {
-                                System.Diagnostics.Debug.WriteLine("Text bookmark position hasn't changed significantly, keeping existing");
-                                return;
-                            }
-                        }
-                        // For EPUB mode, update the bookmark with new position if page has changed
-                        else if (type == "Epub")
-                        {
-                            var currentPosition = await GetEpubScrollPositionAsync();
-                            
-                            // Check if the position has significantly changed (more than 100 pixels difference)
-                            if (!existing.TextPosition.HasValue || 
-                                Math.Abs((existing.TextPosition.Value - (currentPosition ?? 0))) > 100)
-                            {
-                                System.Diagnostics.Debug.WriteLine($"Updating EPUB bookmark position from {existing.TextPosition} to {currentPosition}");
-                                
-                                // Remove the old bookmark
-                                _favorites.Remove(existing);
-                                
-                                // Create new bookmark with updated position
-                                var updatedFavorite = new FavoriteItem
-                                {
-                                    Name = name,
-                                    Path = path,
-                                    Type = type,
-                                    TextPosition = currentPosition,
-                                    CreatedAt = DateTime.Now // Update creation time
-                                };
-
-                                _favorites.Add(updatedFavorite);
-                                System.Diagnostics.Debug.WriteLine($"Updated EPUB bookmark: {updatedFavorite.Name} at position {currentPosition}");
-                                await SaveFavorites();
-                                UpdateFavoritesMenu();
-                                System.Diagnostics.Debug.WriteLine("EPUB bookmark updated successfully");
-                                return;
-                            }
-                            else
-                            {
-                                System.Diagnostics.Debug.WriteLine("EPUB bookmark position hasn't changed significantly, keeping existing");
-                                return;
-                            }
-                        }
-                        else
-                        {
-                            // For non-text modes, show message that it already exists
-                            return;
-                        }
+                        // Show message that it already exists
+                        return;
                     }
 
                     var favorite = new FavoriteItem
@@ -473,9 +324,7 @@ namespace Uviewer
                         Name = name,
                         Path = path,
                         Type = type,
-                        ArchiveEntryKey = archiveEntryKey,
-                        TextPosition = type == "Text" ? (await GetTextScrollPositionAsync()) : 
-                                       type == "Epub" ? (await GetEpubScrollPositionAsync()) : null
+                        ArchiveEntryKey = archiveEntryKey
                     };
 
                     _favorites.Add(favorite);
@@ -530,59 +379,6 @@ namespace Uviewer
                         {
                             var file = await StorageFile.GetFileFromPathAsync(favorite.Path);
                             await LoadImageFromFileAsync(file);
-                        }
-                        break;
-                    case "Text":
-                        if (File.Exists(favorite.Path))
-                        {
-                            var file = await StorageFile.GetFileFromPathAsync(favorite.Path);
-                            LoadTextFromFileWithDebounce(file);
-                            
-                            // Update explorer to show the file's folder
-                            var folder = Path.GetDirectoryName(favorite.Path);
-                            if (folder != null && folder != _currentExplorerPath)
-                            {
-                                LoadExplorerFolder(folder);
-                                // Give the explorer a moment to load the folder
-                                await Task.Delay(100);
-                            }
-                            
-                            // Update file list selection to highlight the specific text file
-                            UpdateFileListSelection();
-                            
-                            if (favorite.TextPosition.HasValue)
-                            {
-                                // Give it a moment to load
-                                await Task.Delay(500);
-                                await SetTextScrollPosition(favorite.TextPosition.Value);
-                            }
-                        }
-                        break;
-                    case "Epub":
-                        if (File.Exists(favorite.Path))
-                        {
-                            var file = await StorageFile.GetFileFromPathAsync(favorite.Path);
-                            await LoadEpubFromFileAsync(file);
-                            
-                            // Update explorer to show the file's folder
-                            var folder = Path.GetDirectoryName(favorite.Path);
-                            if (folder != null && folder != _currentExplorerPath)
-                            {
-                                LoadExplorerFolder(folder);
-                                // Give the explorer a moment to load the folder
-                                await Task.Delay(100);
-                            }
-                            
-                            // Update file list selection to highlight the specific EPUB file
-                            UpdateFileListSelection();
-                            
-                            // Restore scroll position if available
-                            if (favorite.TextPosition.HasValue)
-                            {
-                                // Give it a moment to load the content
-                                await Task.Delay(1000);
-                                await SetEpubScrollPositionAsync(favorite.TextPosition.Value);
-                            }
                         }
                         break;
                     case "Archive":
@@ -698,7 +494,7 @@ namespace Uviewer
             {
                 var emptyText = new TextBlock
                 {
-                    Text = "최근 파일 없음",
+                    Text = "최근 이미지 없음",
                     Foreground = new SolidColorBrush(Microsoft.UI.Colors.Gray),
                     Margin = new Thickness(12, 8, 12, 8),
                     FontSize = 13
@@ -825,30 +621,6 @@ namespace Uviewer
                     type = "Folder";
                     System.Diagnostics.Debug.WriteLine($"Folder mode: {name}");
                 }
-                else if (_isTextMode && !string.IsNullOrEmpty(_currentTextFilePath))
-                {
-                    var fileName = Path.GetFileName(_currentTextFilePath);
-                    var folderPath = Path.GetDirectoryName(_currentTextFilePath);
-                    var folderName = !string.IsNullOrEmpty(folderPath) ? Path.GetFileName(folderPath) : "";
-
-                    if (_isEpubMode)
-                    {
-                        // EPUB mode - use book title and store chapter index
-                        name = string.IsNullOrEmpty(_currentEpubMetadata?.Title) ? fileName : _currentEpubMetadata.Title;
-                        path = _currentTextFilePath;
-                        type = "Epub";
-                        archiveEntryKey = _currentEpubChapterIndex.ToString();
-                        System.Diagnostics.Debug.WriteLine($"EPUB mode: {name} (Chapter {_currentEpubChapterIndex + 1})");
-                    }
-                    else
-                    {
-                        // Regular text file
-                        name = string.IsNullOrEmpty(folderName) ? fileName : $"{folderName} - {fileName}";
-                        path = _currentTextFilePath;
-                        type = "Text";
-                        System.Diagnostics.Debug.WriteLine($"Text mode: {name}");
-                    }
-                }
                 else if (_currentIndex >= 0 && _currentIndex < _imageEntries.Count)
                 {
                     // File mode - add current file
@@ -890,7 +662,6 @@ namespace Uviewer
                         Path = path,
                         Type = type,
                         ArchiveEntryKey = archiveEntryKey,
-                        TextPosition = type == "Text" ? (await GetTextScrollPositionAsync()) : null,
                         AccessedAt = DateTime.Now
                     };
 
@@ -955,46 +726,6 @@ namespace Uviewer
                         {
                             var file = await StorageFile.GetFileFromPathAsync(recent.Path);
                             await LoadImageFromFileAsync(file);
-                        }
-                        break;
-                    case "Text":
-                        if (File.Exists(recent.Path))
-                        {
-                            var file = await StorageFile.GetFileFromPathAsync(recent.Path);
-                            LoadTextFromFileWithDebounce(file);
-                            var folder = Path.GetDirectoryName(recent.Path);
-                            if (folder != null && folder != _currentExplorerPath)
-                            {
-                                LoadExplorerFolder(folder);
-                            }
-                            if (recent.TextPosition.HasValue)
-                            {
-                                await Task.Delay(500);
-                                await SetTextScrollPosition(recent.TextPosition.Value);
-                            }
-                        }
-                        break;
-                    case "Epub":
-                        if (File.Exists(recent.Path))
-                        {
-                            var file = await StorageFile.GetFileFromPathAsync(recent.Path);
-                            await LoadEpubFromFileAsync(file);
-                            
-                            // Update explorer to show the file's folder
-                            var folder = Path.GetDirectoryName(recent.Path);
-                            if (folder != null && folder != _currentExplorerPath)
-                            {
-                                LoadExplorerFolder(folder);
-                            }
-                            
-                            // Navigate to specific chapter if stored in ArchiveEntryKey
-                            if (!string.IsNullOrEmpty(recent.ArchiveEntryKey) && int.TryParse(recent.ArchiveEntryKey, out int chapterIndex))
-                            {
-                                if (chapterIndex >= 0 && chapterIndex < _epubChapters.Count)
-                                {
-                                    await LoadEpubChapterAsync(chapterIndex);
-                                }
-                            }
                         }
                         break;
                     case "Archive":

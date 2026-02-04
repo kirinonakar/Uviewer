@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <Window
     x:Class="Uviewer.MainWindow"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
@@ -19,24 +19,14 @@
           DragOver="Grid_DragOver" Drop="Grid_Drop"
           PointerMoved="RootGrid_PointerMoved"
           PointerExited="RootGrid_PointerExited">
-
-        <Grid.Resources>
-            <ThemeShadow x:Name="SharedShadow" />
-        </Grid.Resources>
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
-        <!-- Fullscreen Hover Triggers (on top of content, but below UI panels) -->
-        <Rectangle x:Name="TopHoverTrigger" Fill="Transparent" Height="40" VerticalAlignment="Top" Grid.RowSpan="3"
-                   PointerMoved="RootGrid_PointerMoved" IsHitTestVisible="True" Canvas.ZIndex="500" Visibility="Collapsed"/>
-        <Rectangle x:Name="LeftHoverTrigger" Fill="Transparent" Width="40" HorizontalAlignment="Left" Grid.RowSpan="3"
-                   PointerMoved="RootGrid_PointerMoved" IsHitTestVisible="True" Canvas.ZIndex="500" Visibility="Collapsed"/>
-
         <!-- Title Bar & Toolbar -->
-        <Grid x:Name="ToolbarGrid" Grid.Row="0" Padding="12,8" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" Canvas.ZIndex="1000">
+        <Grid x:Name="ToolbarGrid" Grid.Row="0" Padding="12,8" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="Auto"/>
                 <ColumnDefinition Width="*"/>
@@ -110,24 +100,7 @@
                     <TextBlock x:Name="NextImageSideText" Text="→" FontSize="12" FontWeight="SemiBold"/>
                 </Button>
 
-                <Button x:Name="TextOptionsButton" Visibility="Visible" ToolTipService.ToolTip="텍스트모드 메뉴">
-                    <FontIcon Glyph="&#xE70F;" FontSize="14"/>
-                    <Button.Flyout>
-                        <MenuFlyout x:Name="TextOptionsFlyout">
-                            <MenuFlyoutItem Text="글꼴 변경" Click="ChangeFont_Click"/>
-                            <MenuFlyoutSubItem Text="배경색">
-                                <MenuFlyoutItem Text="흰색 (White)" Click="ChangeBg_Click" Tag="White"/>
-                                <MenuFlyoutItem Text="베이지 (Beige)" Click="ChangeBg_Click" Tag="#F4ECD8"/>
-                                <MenuFlyoutItem Text="다크 (Dark)" Click="ChangeBg_Click" Tag="#1E1E1E"/>
-                            </MenuFlyoutSubItem>
-                            <MenuFlyoutSeparator/>
-                            <MenuFlyoutItem Text="찾기 (F)" Click="SearchMenu_Click"/>
-                            <MenuFlyoutItem Text="이동 (G)" Click="PageJumpMenu_Click"/>
-                        </MenuFlyout>
-                    </Button.Flyout>
-                </Button>
-
-                <AppBarSeparator x:Name="TextSeparator" Visibility="Visible"/>
+                <AppBarSeparator/>
 
                 <Button x:Name="FullscreenButton" Click="FullscreenButton_Click" ToolTipService.ToolTip="전체화면(F11)">
                     <FontIcon x:Name="FullscreenIcon" Glyph="&#xE740;" FontSize="18"/>
@@ -149,15 +122,15 @@
 
             <!-- Sidebar - Folder Explorer -->
             <Grid x:Name="SidebarGrid" Grid.Column="0" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
-                  BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="0,0,1,0" Canvas.ZIndex="1000">
+                  BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="0,0,1,0">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto"/>
                     <RowDefinition Height="*"/>
                 </Grid.RowDefinitions>
 
-                <!-- Sidebar Header -->
                 <Grid Grid.Row="0" Padding="12,8" Background="{ThemeResource CardBackgroundFillColorSecondaryBrush}">
                     <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto"/>
                         <ColumnDefinition Width="Auto"/>
                         <ColumnDefinition Width="Auto"/>
                         <ColumnDefinition Width="Auto"/>
@@ -165,13 +138,18 @@
                         <ColumnDefinition Width="*"/>
                     </Grid.ColumnDefinitions>
 
-                    <Button Grid.Column="0" x:Name="ParentFolderButton" Click="ParentFolderButton_Click"
-                             ToolTipService.ToolTip="상위 폴더로 가기(Backspace)" Padding="6" Margin="0,0,8,0">
+                    <Button Grid.Column="0" x:Name="ToggleViewButton" Click="ToggleExplorerViewButton_Click"
+                            ToolTipService.ToolTip="썸네일 보기" Padding="6" Margin="0,0,8,0">
+                        <FontIcon Glyph="&#xE80A;" FontSize="16"/>
+                    </Button>
+
+                    <Button Grid.Column="1" x:Name="ParentFolderButton" Click="ParentFolderButton_Click"
+                            ToolTipService.ToolTip="상위 폴더로 가기(Backspace)" Padding="6" Margin="0,0,8,0">
                         <FontIcon Glyph="&#xE110;" FontSize="16"/>
                     </Button>
 
-                    <Button Grid.Column="1" x:Name="RecentButton" Click="RecentButton_Click"
-                              ToolTipService.ToolTip="최근 이미지" Padding="6" Margin="0,0,8,0">
+                    <Button Grid.Column="2" x:Name="RecentButton" Click="RecentButton_Click"
+                            ToolTipService.ToolTip="최근 이미지" Padding="6" Margin="0,0,8,0">
                         <FontIcon Glyph="&#xE823;" FontSize="16"/>
                         <Button.Flyout>
                             <Flyout x:Name="RecentFlyout" Placement="Bottom">
@@ -186,8 +164,8 @@
                         </Button.Flyout>
                     </Button>
 
-                    <Button Grid.Column="2" x:Name="FavoritesButton" Click="FavoritesButton_Click"
-                             ToolTipService.ToolTip="즐겨찾기" Padding="6" Margin="0,0,8,0">
+                    <Button Grid.Column="3" x:Name="FavoritesButton" Click="FavoritesButton_Click"
+                            ToolTipService.ToolTip="즐겨찾기" Padding="6" Margin="0,0,8,0">
                         <FontIcon Glyph="&#xE734;" FontSize="16"/>
                         <Button.Flyout>
                             <Flyout x:Name="FavoritesFlyout" Placement="Bottom">
@@ -206,8 +184,8 @@
                         </Button.Flyout>
                     </Button>
 
-                    <Button Grid.Column="3" Click="BrowseFolderButton_Click" 
-                             ToolTipService.ToolTip="폴더 찾아보기" Padding="6">
+                    <Button Grid.Column="4" Click="BrowseFolderButton_Click" 
+                            ToolTipService.ToolTip="폴더 찾아보기" Padding="6">
                         <FontIcon Glyph="&#xED25;" FontSize="16"/>
                     </Button>
                 </Grid>
@@ -227,8 +205,11 @@
 
                     <!-- File List -->
                     <ListView x:Name="FileListView" Grid.Row="1" 
-                               SelectionMode="Single"
-                               SelectionChanged="FileListView_SelectionChanged">
+                              SelectionMode="Single"
+                              SelectionChanged="FileListView_SelectionChanged"
+                              IsItemClickEnabled="True"
+                              ItemClick="FileItem_ItemClick"
+                              PreviewKeyDown="FileListView_PreviewKeyDown">
                         <ListView.ItemTemplate>
                             <DataTemplate>
                                 <Grid Padding="4,6" ColumnSpacing="8">
@@ -242,11 +223,41 @@
                                     <TextBlock Grid.Column="1" Text="{Binding Name}" 
                                                VerticalAlignment="Center"
                                                TextTrimming="CharacterEllipsis"
-                                               />
+                                               ToolTipService.ToolTip="{Binding Name}"/>
                                 </Grid>
                             </DataTemplate>
                         </ListView.ItemTemplate>
                     </ListView>
+
+                    <GridView x:Name="FileGridView" Grid.Row="1"
+                              SelectionMode="Single"
+                              SelectionChanged="FileGridView_SelectionChanged"
+                              PreviewKeyDown="FileGridView_PreviewKeyDown"
+                              IsItemClickEnabled="True"
+                              ItemClick="FileItem_ItemClick"
+                              Visibility="Collapsed"
+                              Padding="4">
+                        <GridView.ItemTemplate>
+                            <DataTemplate>
+                                <Grid Width="100" Height="120" Padding="4" Background="Transparent" CornerRadius="4">
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="*"/>
+                                        <RowDefinition Height="Auto"/>
+                                    </Grid.RowDefinitions>
+                                    
+                                    <Grid Grid.Row="0">
+                                        <FontIcon Glyph="{Binding Icon}" FontSize="48" Foreground="{Binding IconColor}" 
+                                                  HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                        <Image Source="{Binding Thumbnail}" Stretch="Uniform" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                    </Grid>
+
+                                    <TextBlock Grid.Row="1" Text="{Binding Name}" FontSize="11" 
+                                               TextTrimming="CharacterEllipsis" HorizontalAlignment="Center" 
+                                               MaxLines="2" TextAlignment="Center" Margin="0,4,0,0"/>
+                                </Grid>
+                            </DataTemplate>
+                        </GridView.ItemTemplate>
+                    </GridView>
                 </Grid>
             </Grid>
 
@@ -268,7 +279,7 @@
                 <StackPanel x:Name="EmptyStatePanel" HorizontalAlignment="Center" VerticalAlignment="Center" 
                             Spacing="16" Visibility="Visible">
                     <FontIcon Glyph="&#xE8B9;" FontSize="64" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
-                    <TextBlock Text="이미지를 여기로 드래그하거나" 
+                    <TextBlock Text="이미지를 여기에 드래그하거나" 
                                FontSize="18" Foreground="{ThemeResource TextFillColorSecondaryBrush}"
                                HorizontalAlignment="Center"/>
                     <TextBlock Text="'열기' 버튼을 클릭하세요" 
@@ -313,75 +324,16 @@
                                          CreateResources="LeftCanvas_CreateResources"/>
 
                     <canvas:CanvasControl x:Name="RightCanvas" 
-                                          Grid.Column="1"
-                                          Draw="RightCanvas_Draw"
-                                          CreateResources="RightCanvas_CreateResources"/>
-                </Grid>
-
-                <!-- Text Viewer Area -->
-                <Grid x:Name="TextViewerArea" Visibility="Collapsed" Background="White">
-                    <WebView2 x:Name="TextViewer" Source="about:blank" HorizontalAlignment="Stretch" VerticalAlignment="Stretch"
-                               KeyDown="TextViewer_KeyDown" IsTabStop="False" IsHitTestVisible="False"/>
-
-                    <!-- Virtualized ListView for large plain text files -->
-                    <ListView x:Name="VirtualTextListView" Visibility="Collapsed"
-                              HorizontalAlignment="Stretch" VerticalAlignment="Stretch"
-                              IsItemClickEnabled="False"
-                              SelectionMode="None"
-                              Margin="0"
-                              >
-                        <ListView.Resources>
-                            <x:Double x:Key="ItemMaxWidth">800</x:Double>
-                        </ListView.Resources>
-                        <ListView.ItemsPanel>
-                            <ItemsPanelTemplate>
-                                <VirtualizingStackPanel />
-                            </ItemsPanelTemplate>
-                        </ListView.ItemsPanel>
-                        <ListView.ItemTemplate>
-                            <DataTemplate>
-                                <TextBlock Text="{Binding}" TextWrapping="Wrap" FontSize="18" TextTrimming="None" FontFamily="Yu Mincho"/>
-                            </DataTemplate>
-                        </ListView.ItemTemplate>
-                    </ListView>
-
-                    <!-- Search Overlay (F) -->
-                    <Grid x:Name="SearchOverlay" Visibility="Collapsed" VerticalAlignment="Top" HorizontalAlignment="Right" Margin="24" 
-                          Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" 
-                          BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1"
-                          CornerRadius="8" Padding="12">
-                        <StackPanel Orientation="Horizontal" Spacing="8">
-                            <TextBox x:Name="SearchBox" Width="200" PlaceholderText="검색어 입력..." KeyDown="SearchBox_KeyDown"/>
-                            <Button x:Name="SearchPrevButton" Click="SearchPrev_Click" >
-                                <FontIcon Glyph="&#xE74A;" FontSize="12"/>
-                            </Button>
-                            <Button x:Name="SearchNextButton" Click="SearchNext_Click" >
-                                <FontIcon Glyph="&#xE74B;" FontSize="12"/>
-                            </Button>
-                            <Button Click="CloseSearch_Click" >
-                                <FontIcon Glyph="&#xE711;" FontSize="12"/>
-                            </Button>
-                        </StackPanel>
-                    </Grid>
-
-                    <!-- Page Jump Overlay (G) -->
-                    <Grid x:Name="PageJumpOverlay" Visibility="Collapsed" VerticalAlignment="Center" HorizontalAlignment="Center" 
-                          Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" 
-                          BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1"
-                          CornerRadius="12" Padding="24">
-                        <StackPanel Spacing="16">
-                            <TextBlock Text="페이지 이동" FontWeight="SemiBold" FontSize="18"/>
-                            <TextBox x:Name="PageJumpBox" Width="160" PlaceholderText="페이지 번호..." KeyDown="PageJumpBox_KeyDown"/>
-                            <Button Content="이동" Click="PageJump_Click" HorizontalAlignment="Stretch" Style="{StaticResource AccentButtonStyle}"/>
-                        </StackPanel>
-                    </Grid>
+                                         Grid.Column="1"
+                                         Draw="RightCanvas_Draw"
+                                         CreateResources="RightCanvas_CreateResources"/>
                 </Grid>
             </Grid>
         </Grid>
 
         <!-- Status Bar -->
         <Grid x:Name="StatusBarGrid" Grid.Row="2" Padding="12,8" 
-              Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" Canvas.ZIndex="1000">
+              Background="{ThemeResource CardBackgroundFillColorDefaultBrush}">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*"/>
                 <ColumnDefinition Width="Auto"/>
