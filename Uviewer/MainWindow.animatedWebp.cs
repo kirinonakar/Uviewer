@@ -102,8 +102,8 @@ namespace Uviewer
                     finalEffect = new SharpenEffect
                     {
                         Source = sharpenEffect1, // 첫 번째 샤프닝 결과를 소스로 사용
-                        Amount = currentSharpenAmount, // 동일하게 10.0f 적용
-                        Threshold = currentThreshold
+                        Amount = 5.0f,
+                        Threshold = 0.03f
                     };
                 }
 

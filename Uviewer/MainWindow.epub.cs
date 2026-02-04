@@ -650,7 +650,14 @@ namespace Uviewer
             
             // Use TranslateTransform to push the entire Ruby block down relative to the baseline
             // Push down slightly more to match baseline
-            grid.RenderTransform = new TranslateTransform { Y = _epubFontSize * 0.30 }; 
+            if (_epubFontFamily == "Yu Mincho")
+            {
+                grid.RenderTransform = new TranslateTransform { Y = _epubFontSize * 0.60 }; 
+            }
+            else
+            {
+                grid.RenderTransform = new TranslateTransform { Y = _epubFontSize * 0.30 }; 
+            }
 
             return new InlineUIContainer { Child = grid };
         }
