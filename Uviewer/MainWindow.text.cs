@@ -330,14 +330,14 @@ namespace Uviewer
 
         private Brush GetThemeForeground()
         {
-            if (_themeIndex == 2) return new SolidColorBrush(Colors.White); // Dark theme
+            if (_themeIndex == 2) return new SolidColorBrush(Microsoft.UI.ColorHelper.FromArgb(255, 204, 204, 204)); // Dark theme
             return new SolidColorBrush(Colors.Black);
         }
         
         private Brush GetThemeBackground()
         {
              if (_themeIndex == 0) return new SolidColorBrush(Colors.White);
-             if (_themeIndex == 1) return new SolidColorBrush(Microsoft.UI.ColorHelper.FromArgb(255, 245, 245, 220)); // Beige
+             if (_themeIndex == 1) return new SolidColorBrush(Microsoft.UI.ColorHelper.FromArgb(255, 255, 249, 235)); // Beige
              return new SolidColorBrush(Microsoft.UI.ColorHelper.FromArgb(255, 30, 30, 30)); // Dark
         }
 
