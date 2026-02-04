@@ -196,11 +196,13 @@ namespace Uviewer
         private void SwitchToTextMode()
         {
             _isTextMode = true;
+            _isEpubMode = false; // Reset Epub mode
             _isSideBySideMode = false; // Disable SbS
 
             // Toggle Visibility
             ImageArea.Visibility = Visibility.Collapsed;
             TextArea.Visibility = Visibility.Visible;
+            EpubArea.Visibility = Visibility.Collapsed; // Ensure Epub area is hidden
             
             // Toggle Toolbars
             ImageToolbarPanel.Visibility = Visibility.Collapsed;
@@ -281,8 +283,10 @@ namespace Uviewer
         private void SwitchToImageMode()
         {
             _isTextMode = false;
+            _isEpubMode = false; // Reset Epub mode
             ImageArea.Visibility = Visibility.Visible;
             TextArea.Visibility = Visibility.Collapsed;
+            EpubArea.Visibility = Visibility.Collapsed;
             
             ImageToolbarPanel.Visibility = Visibility.Visible;
             TextToolbarPanel.Visibility = Visibility.Collapsed;
@@ -773,21 +777,13 @@ namespace Uviewer
              else if (e.Key == Windows.System.VirtualKey.Up)
              {
                  // Move to previous file
-                 if (_currentIndex > 0)
-                 {
-                     _currentIndex--;
-                     _ = DisplayCurrentImageAsync();
-                 }
+                 _ = NavigateToFileAsync(false);
                  e.Handled = true;
              }
              else if (e.Key == Windows.System.VirtualKey.Down)
              {
                  // Move to next file
-                 if (_currentIndex < _imageEntries.Count - 1)
-                 {
-                     _currentIndex++;
-                     _ = DisplayCurrentImageAsync();
-                 }
+                 _ = NavigateToFileAsync(true);
                  e.Handled = true;
              }
              else if (e.Key == Windows.System.VirtualKey.Add || e.Key == (Windows.System.VirtualKey)187) // +

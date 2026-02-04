@@ -440,6 +440,8 @@ namespace Uviewer
         {
             if (args.DidPositionChange || args.DidSizeChange)
             {
+                if (args.DidSizeChange) TriggerEpubResize();
+
                 if (sender.Presenter is OverlappedPresenter overlapped)
                 {
                     // [수정] Restored 상태여야 함은 물론, 
@@ -1323,6 +1325,17 @@ namespace Uviewer
 
             if (currentItemIndex == -1) return;
 
+            // Determine current file type strictness
+            bool isCurrentEpub = false;
+            bool isCurrentText = false;
+            
+            if (_imageEntries.Count > 0 && _currentIndex >= 0 && _currentIndex < _imageEntries.Count)
+            {
+                 var currentEntry = _imageEntries[_currentIndex];
+                 isCurrentEpub = IsEpubEntry(currentEntry);
+                 isCurrentText = IsTextEntry(currentEntry);
+            }
+
             // Find next/prev navigable file
             int newIndex = currentItemIndex;
             while (true)
@@ -1336,41 +1349,39 @@ namespace Uviewer
                 if (item.IsDirectory || item.IsParentDirectory)
                     continue; // Skip directories
 
+                // strict navigation: if currently epub, only find epub. if text, only text.
+                if (isCurrentEpub && !item.IsEpub) continue;
+                if (isCurrentText && !item.IsText) continue;
+
                 try
                 {
                     if (item.IsArchive)
                     {
                         await LoadImagesFromArchiveAsync(item.FullPath);
-
-                        // Select in sidebar
-                        if (_isExplorerGrid)
-                        {
-                            FileGridView.SelectedItem = item;
-                            FileGridView.ScrollIntoView(item);
-                        }
-                        else
-                        {
-                            FileListView.SelectedItem = item;
-                            FileListView.ScrollIntoView(item);
-                        }
+                        SyncExplorerSelection(item);
+                        return;
+                    }
+                    else if (item.IsEpub)
+                    {
+                        var file = await StorageFile.GetFileFromPathAsync(item.FullPath);
+                        await LoadEpubFileAsync(file); // Or LoadImageFromFileAsync(file) if we want to reset context? 
+                        // Actually LoadEpubFileAsync is fine as it switches mode, but context remains if we don't clear _imageEntries.
+                        // But since we are navigating using _fileItems (Explorer), we strictly load the file.
+                        // To keep "Up/Down" working within the new file's context if it was "LoadImageFromFile", we might want that.
+                        // But here we are just opening the file.
+                        
+                        // NOTE: If we want to maintain the "playlist" feel, LoadImageFromFileAsync works better?
+                        // But NavigateToFileAsync typically implies sidebar navigation.
+                        // Let's stick to direct load as it's explicit.
+                        
+                        SyncExplorerSelection(item);
                         return;
                     }
                     else if (item.IsImage || item.IsText)
                     {
                         var file = await StorageFile.GetFileFromPathAsync(item.FullPath);
                         await LoadImageFromFileAsync(file);
-
-                        // Select in sidebar
-                        if (_isExplorerGrid)
-                        {
-                            FileGridView.SelectedItem = item;
-                            FileGridView.ScrollIntoView(item);
-                        }
-                        else
-                        {
-                            FileListView.SelectedItem = item;
-                            FileListView.ScrollIntoView(item);
-                        }
+                        SyncExplorerSelection(item);
                         return;
                     }
                 }
@@ -1380,6 +1391,20 @@ namespace Uviewer
                     // If error, continue to next file
                 }
             }
+        }
+
+        private void SyncExplorerSelection(FileItem item)
+        {
+             if (_isExplorerGrid)
+             {
+                 FileGridView.SelectedItem = item;
+                 FileGridView.ScrollIntoView(item);
+             }
+             else
+             {
+                 FileListView.SelectedItem = item;
+                 FileListView.ScrollIntoView(item);
+             }
         }
 
         #endregion

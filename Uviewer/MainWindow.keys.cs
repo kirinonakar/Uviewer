@@ -10,6 +10,16 @@ namespace Uviewer
 
         private void RootGrid_PreviewKeyDown(object sender, KeyRoutedEventArgs e)
         {
+            // Disable specific keys in Text/Epub mode if needed, or prevent interference
+            if (_isEpubMode || _isTextMode)
+            {
+                if (e.Key == Windows.System.VirtualKey.Space || e.Key == Windows.System.VirtualKey.S)
+                {
+                    e.Handled = true;
+                    return;
+                }
+            }
+
             // Handle Space key in PreviewKeyDown to prevent toolbar buttons from capturing it
             if (e.Key == Windows.System.VirtualKey.Space)
             {
