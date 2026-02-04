@@ -77,9 +77,14 @@ namespace Uviewer
         {
             ".zip", ".rar", ".7z", ".tar", ".gz", ".cbz", ".cbr"
         };
+
+        private static readonly string[] SupportedEpubExtensions =
+        {
+            ".epub"
+        };
         
         private IEnumerable<string> SupportedFileExtensions => 
-            SupportedImageExtensions.Concat(SupportedTextExtensions).Concat(SupportedArchiveExtensions);
+            SupportedImageExtensions.Concat(SupportedTextExtensions).Concat(SupportedArchiveExtensions).Concat(SupportedEpubExtensions);
 
         private bool IsTextEntry(ImageEntry entry)
         {
@@ -88,6 +93,15 @@ namespace Uviewer
             else if (entry.ArchiveEntryKey != null) ext = Path.GetExtension(entry.ArchiveEntryKey);
             
             return !string.IsNullOrEmpty(ext) && SupportedTextExtensions.Contains(ext.ToLowerInvariant());
+        }
+
+        private bool IsEpubEntry(ImageEntry entry)
+        {
+            string? ext = null;
+            if (entry.FilePath != null) ext = Path.GetExtension(entry.FilePath);
+            else if (entry.ArchiveEntryKey != null) ext = Path.GetExtension(entry.ArchiveEntryKey);
+
+            return !string.IsNullOrEmpty(ext) && SupportedEpubExtensions.Contains(ext.ToLowerInvariant());
         }
 
         // File item for ListView
@@ -99,6 +113,7 @@ namespace Uviewer
             public bool IsArchive { get; set; }
             public bool IsImage { get; set; }
             public bool IsText { get; set; }
+            public bool IsEpub { get; set; }
             public bool IsParentDirectory { get; set; }
 
             private ImageSource? _thumbnail;
@@ -118,12 +133,14 @@ namespace Uviewer
             public string Icon => IsParentDirectory ? "\uE72B" :
                                   IsDirectory ? "\uE8B7" :
                                   IsArchive ? "\uE8D4" :
+                                  IsEpub ? "\uE82D" : // Book icon
                                   IsImage ? "\uE8B9" : 
                                   IsText ? "\uE8C4" : "\uE7C3";
 
             public SolidColorBrush IconColor => IsDirectory || IsParentDirectory ?
                 new SolidColorBrush(Colors.Gold) :
                 IsArchive ? new SolidColorBrush(Colors.Orange) :
+                IsEpub ? new SolidColorBrush(Colors.MediumPurple) :
                 IsImage ? new SolidColorBrush(Colors.CornflowerBlue) :
                 IsText ? new SolidColorBrush(Colors.LightGreen) :
                 new SolidColorBrush(Colors.Gray);
@@ -182,12 +199,20 @@ namespace Uviewer
                                 // Check if it's an archive file
                                 var extension = Path.GetExtension(launchFilePath).ToLowerInvariant();
                                 var archiveExtensions = new[] { ".zip", ".rar", ".7z", ".tar", ".gz" };
+                                var epubExtensions = new[] { ".epub" };
 
                                 if (archiveExtensions.Contains(extension))
                                 {
                                     // For archive files, load the archive
                                     await LoadImagesFromArchiveAsync(launchFilePath);
                                     System.Diagnostics.Debug.WriteLine($"Loaded archive file: {launchFilePath}");
+                                }
+                                else if (epubExtensions.Contains(extension))
+                                {
+                                     // For EPUB files
+                                     var file = await StorageFile.GetFileFromPathAsync(launchFilePath);
+                                     await LoadEpubFileAsync(file);
+                                     System.Diagnostics.Debug.WriteLine($"Loaded epub file: {launchFilePath}");
                                 }
                                 else
                                 {
@@ -293,122 +318,122 @@ namespace Uviewer
                 // Initialize file list
                 FileListView.ItemsSource = _fileItems;
                 FileGridView.ItemsSource = _fileItems;
-
-                // 화면 UI(RootGrid)가 로드된 후에 초기화 작업을 시작합니다.
-                RootGrid.Loaded += async (s, e) =>
-                {
-                    // Win2D 캔버스 디바이스가 초기화될 시간을 아주 잠깐 확보 (안전장치)
-                    await Task.Delay(50);
-                    await InitializeAsync(launchFilePath);
-                };
-
-
-                // Subscribe to window closed event to save settings
-                this.Closed += (s, e) =>
-                {
-                    try
-                    {
-                        // Stop all timers
-                        _fullscreenToolbarHideTimer?.Stop();
-                        _fullscreenSidebarHideTimer?.Stop();
-                        _animatedWebpTimer?.Stop();
-                        _fastNavOverlayTimer?.Stop();
-
-                        // Cancel any ongoing operations
-                        _imageLoadingCts?.Cancel();
-                        _fastNavigationResetCts?.Cancel();
-
-                        // Clean up archive resources
-                        if (_currentArchive != null)
-                        {
-                            try
-                            {
-                                _currentArchive.Dispose();
-                                _currentArchive = null;
-                            }
-                            catch { }
-                        }
-
-                        // Clean up cached bitmaps
-                        _currentBitmap?.Dispose();
-                        _currentBitmap = null;
-                        _leftBitmap?.Dispose();
-                        _leftBitmap = null;
-                        _rightBitmap?.Dispose();
-                        _rightBitmap = null;
-
-                        lock (_preloadedImages)
-                        {
-                            foreach (var img in _preloadedImages.Values)
-                            {
-                                img?.Dispose();
-                            }
-                            _preloadedImages.Clear();
-                        }
-
-                        lock (_sharpenedImageCache)
-                        {
-                            foreach (var img in _sharpenedImageCache.Values)
-                            {
-                                img?.Dispose();
-                            }
-                            _sharpenedImageCache.Clear();
-                        }
-
-                        // Save settings
-                        SaveWindowSettings();
-                        _ = SaveRecentItems(); // Save recent items on exit
-
-                        // Dispose semaphore
-                        _archiveLock.Dispose();
-
-                        // Dispose cancellation tokens
-                        _imageLoadingCts?.Dispose();
-                        _fastNavigationResetCts?.Dispose();
-                    }
-                    catch (Exception ex)
-                    {
-                        System.Diagnostics.Debug.WriteLine($"Error during cleanup: {ex.Message}");
-                    }
-                };
-
-                // Initialize fullscreen timers with proper settings
-                _fullscreenToolbarHideTimer = DispatcherQueue.GetForCurrentThread().CreateTimer();
-                _fullscreenToolbarHideTimer.Interval = TimeSpan.FromMilliseconds(FullscreenHideDelayMs);
-                _fullscreenToolbarHideTimer.IsRepeating = false;
-                _fullscreenToolbarHideTimer.Tick += (s, e) =>
-                {
-                    _toolbarHideTimerRunning = false;
-                    if (_isFullscreen)
-                    {
-                        ToolbarGrid.Visibility = Visibility.Collapsed;
-                        System.Diagnostics.Debug.WriteLine("✓ Toolbar hidden by timer");
-                    }
-                };
-
-                _fullscreenSidebarHideTimer = DispatcherQueue.GetForCurrentThread().CreateTimer();
-                _fullscreenSidebarHideTimer.Interval = TimeSpan.FromMilliseconds(FullscreenHideDelayMs);
-                _fullscreenSidebarHideTimer.IsRepeating = false;
-                _fullscreenSidebarHideTimer.Tick += (s, e) =>
-                {
-                    _sidebarHideTimerRunning = false;
-                    if (_isFullscreen)
-                    {
-                        SidebarGrid.Visibility = Visibility.Collapsed;
-                        SidebarColumn.Width = new GridLength(0);
-                        System.Diagnostics.Debug.WriteLine("✓ Sidebar hidden by timer");
-                    }
-                };
-
-                // Initialize animated WebP timer
-                _animatedWebpTimer = DispatcherQueue.GetForCurrentThread().CreateTimer();
-                _animatedWebpTimer.Interval = TimeSpan.FromMilliseconds(100);
-                _animatedWebpTimer.Tick += AnimatedWebpTimer_Tick;
             }
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"Error initializing MainWindow: {ex.Message}");
             }
+            
+             // 화면 UI(RootGrid)가 로드된 후에 초기화 작업을 시작합니다.
+            RootGrid.Loaded += async (s, e) =>
+            {
+                // Win2D 캔버스 디바이스가 초기화될 시간을 아주 잠깐 확보 (안전장치)
+                await Task.Delay(50);
+                await InitializeAsync(launchFilePath);
+            };
+
+
+            // Subscribe to window closed event to save settings
+            this.Closed += (s, e) =>
+            {
+                try
+                {
+                    // Stop all timers
+                    _fullscreenToolbarHideTimer?.Stop();
+                    _fullscreenSidebarHideTimer?.Stop();
+                    _animatedWebpTimer?.Stop();
+                    _fastNavOverlayTimer?.Stop();
+
+                    // Cancel any ongoing operations
+                    _imageLoadingCts?.Cancel();
+                    _fastNavigationResetCts?.Cancel();
+
+                    // Clean up archive resources
+                    if (_currentArchive != null)
+                    {
+                        try
+                        {
+                            _currentArchive.Dispose();
+                            _currentArchive = null;
+                        }
+                        catch { }
+                    }
+
+                    // Clean up cached bitmaps
+                    _currentBitmap?.Dispose();
+                    _currentBitmap = null;
+                    _leftBitmap?.Dispose();
+                    _leftBitmap = null;
+                    _rightBitmap?.Dispose();
+                    _rightBitmap = null;
+
+                    lock (_preloadedImages)
+                    {
+                        foreach (var img in _preloadedImages.Values)
+                        {
+                            img?.Dispose();
+                        }
+                        _preloadedImages.Clear();
+                    }
+
+                    lock (_sharpenedImageCache)
+                    {
+                        foreach (var img in _sharpenedImageCache.Values)
+                        {
+                            img?.Dispose();
+                        }
+                        _sharpenedImageCache.Clear();
+                    }
+
+                    // Save settings
+                    SaveWindowSettings();
+                    _ = SaveRecentItems(); // Save recent items on exit
+                    
+                    // Dispose semaphore
+                    _archiveLock.Dispose();
+
+                    // Dispose cancellation tokens
+                    _imageLoadingCts?.Dispose();
+                    _fastNavigationResetCts?.Dispose();
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"Error during cleanup: {ex.Message}");
+                }
+            };
+
+            // Initialize fullscreen timers with proper settings
+            _fullscreenToolbarHideTimer = DispatcherQueue.GetForCurrentThread().CreateTimer();
+            _fullscreenToolbarHideTimer.Interval = TimeSpan.FromMilliseconds(FullscreenHideDelayMs);
+            _fullscreenToolbarHideTimer.IsRepeating = false;
+            _fullscreenToolbarHideTimer.Tick += (s, e) =>
+            {
+                _toolbarHideTimerRunning = false;
+                if (_isFullscreen)
+                {
+                    ToolbarGrid.Visibility = Visibility.Collapsed;
+                    System.Diagnostics.Debug.WriteLine("✓ Toolbar hidden by timer");
+                }
+            };
+
+            _fullscreenSidebarHideTimer = DispatcherQueue.GetForCurrentThread().CreateTimer();
+            _fullscreenSidebarHideTimer.Interval = TimeSpan.FromMilliseconds(FullscreenHideDelayMs);
+            _fullscreenSidebarHideTimer.IsRepeating = false;
+            _fullscreenSidebarHideTimer.Tick += (s, e) =>
+            {
+                _sidebarHideTimerRunning = false;
+                if (_isFullscreen)
+                {
+                    SidebarGrid.Visibility = Visibility.Collapsed;
+                    SidebarColumn.Width = new GridLength(0);
+                    System.Diagnostics.Debug.WriteLine("✓ Sidebar hidden by timer");
+                }
+            };
+
+            // Initialize animated WebP timer
+            _animatedWebpTimer = DispatcherQueue.GetForCurrentThread().CreateTimer();
+            _animatedWebpTimer.Interval = TimeSpan.FromMilliseconds(100);
+            _animatedWebpTimer.Tick += AnimatedWebpTimer_Tick;
         }
 
         private void AppWindow_Changed(AppWindow sender, AppWindowChangedEventArgs args)
@@ -645,6 +670,12 @@ namespace Uviewer
             if (IsTextEntry(entry))
             {
                 await LoadTextEntryAsync(entry);
+                _ = AddToRecentAsync();
+                return;
+            }
+            else if (IsEpubEntry(entry))
+            {
+                await LoadEpubEntryAsync(entry);
                 _ = AddToRecentAsync();
                 return;
             }

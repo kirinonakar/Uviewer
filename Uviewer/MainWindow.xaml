@@ -399,6 +399,32 @@
                             Text="페이지 이동 중..." />
                 </Grid>
             </Grid>
+            
+            <!-- Epub Display Area -->
+            <Grid Grid.Column="2" x:Name="EpubArea" Visibility="Collapsed" Background="{ThemeResource SolidBackgroundFillColorBaseBrush}">
+                <FlipView x:Name="EpubFlipView" SelectionChanged="EpubFlipView_SelectionChanged">
+                    <FlipView.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <StackPanel Orientation="Horizontal" />
+                        </ItemsPanelTemplate>
+                    </FlipView.ItemsPanel>
+                </FlipView>
+                 <Grid x:Name="EpubFastNavOverlay"
+                        Canvas.ZIndex="999"
+                        IsHitTestVisible="False"
+                        Visibility="Collapsed"
+                        Background="#80000000"
+                        HorizontalAlignment="Stretch"
+                        VerticalAlignment="Stretch">
+                    <TextBlock x:Name="EpubFastNavText"
+                            Foreground="White"
+                            FontSize="28"
+                            FontWeight="SemiBold"
+                            HorizontalAlignment="Center"
+                            VerticalAlignment="Center"
+                            Text="챕터 이동 중..." />
+                </Grid>
+            </Grid>
         </Grid>
 
         <!-- Status Bar -->

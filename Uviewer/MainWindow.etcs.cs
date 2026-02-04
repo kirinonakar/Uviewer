@@ -248,6 +248,10 @@ namespace Uviewer
                         {
                             await LoadImagesFromArchiveAsync(file.Path);
                         }
+                        else if (SupportedEpubExtensions.Contains(ext))
+                        {
+                            await LoadEpubFileAsync(file);
+                        }
                         else if (SupportedImageExtensions.Contains(ext) || SupportedTextExtensions.Contains(ext))
                         {
                             await LoadImageFromFileAsync(file);

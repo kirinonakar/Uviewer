@@ -657,7 +657,10 @@ namespace Uviewer
 
         private void FontToggleButton_Click(object sender, RoutedEventArgs e)
         {
-            ToggleFont();
+            if (_isEpubMode)
+                ToggleEpubFont();
+            else
+                ToggleFont();
         }
         
         private void ToggleFont()
@@ -673,7 +676,10 @@ namespace Uviewer
 
         private void TextSizeUpButton_Click(object sender, RoutedEventArgs e)
         {
-            IncreaseTextSize();
+            if (_isEpubMode)
+                IncreaseEpubSize();
+            else
+                IncreaseTextSize();
         }
         
         private void IncreaseTextSize()
@@ -687,7 +693,10 @@ namespace Uviewer
 
         private void TextSizeDownButton_Click(object sender, RoutedEventArgs e)
         {
-            DecreaseTextSize();
+            if (_isEpubMode)
+                DecreaseEpubSize();
+            else
+                DecreaseTextSize();
         }
 
         private void DecreaseTextSize()
@@ -701,7 +710,10 @@ namespace Uviewer
 
         private void ThemeToggleButton_Click(object sender, RoutedEventArgs e)
         {
-            ToggleTheme();
+            if (_isEpubMode)
+                ToggleEpubTheme();
+            else
+                ToggleTheme();
         }
         
         private void ToggleTheme()
@@ -780,22 +792,26 @@ namespace Uviewer
              }
              else if (e.Key == Windows.System.VirtualKey.Add || e.Key == (Windows.System.VirtualKey)187) // +
              {
-                 IncreaseTextSize();
+                 if (_isEpubMode) IncreaseEpubSize();
+                 else IncreaseTextSize();
                  e.Handled = true;
              }
              else if (e.Key == Windows.System.VirtualKey.Subtract || e.Key == (Windows.System.VirtualKey)189) // -
              {
-                 DecreaseTextSize();
+                 if (_isEpubMode) DecreaseEpubSize();
+                 else DecreaseTextSize();
                  e.Handled = true;
              }
              else if (e.Key == Windows.System.VirtualKey.F)
              {
-                 ToggleFont();
+                 if (_isEpubMode) ToggleEpubFont();
+                 else ToggleFont();
                  e.Handled = true;
              }
              else if (e.Key == Windows.System.VirtualKey.B)
              {
-                 ToggleTheme();
+                 if (_isEpubMode) ToggleEpubTheme();
+                 else ToggleTheme();
                  e.Handled = true;
              }
         }

@@ -60,6 +60,12 @@ namespace Uviewer
                 picker.FileTypeFilter.Add(ext);
             }
 
+            // Add epub extensions
+            foreach (var ext in SupportedEpubExtensions)
+            {
+                 picker.FileTypeFilter.Add(ext);
+            }
+
             var file = await picker.PickSingleFileAsync();
 
             if (file != null)
@@ -69,6 +75,10 @@ namespace Uviewer
                 if (SupportedArchiveExtensions.Contains(ext))
                 {
                     await LoadImagesFromArchiveAsync(file.Path);
+                }
+                else if (SupportedEpubExtensions.Contains(ext))
+                {
+                    await LoadEpubFileAsync(file);
                 }
                 else
                 {
@@ -335,8 +345,9 @@ namespace Uviewer
                     var isImage = SupportedImageExtensions.Contains(ext);
                     var isArchive = SupportedArchiveExtensions.Contains(ext);
                     var isText = SupportedTextExtensions.Contains(ext);
+                    var isEpub = SupportedEpubExtensions.Contains(ext);
 
-                    if (isImage || isArchive || isText)
+                    if (isImage || isArchive || isText || isEpub)
                     {
                         _fileItems.Add(new FileItem
                         {
@@ -345,7 +356,8 @@ namespace Uviewer
                             IsDirectory = false,
                             IsImage = isImage,
                             IsArchive = isArchive,
-                            IsText = isText
+                            IsText = isText,
+                            IsEpub = isEpub
                         });
                     }
                 }
@@ -426,6 +438,11 @@ namespace Uviewer
                             });
                         }
                         catch { }
+                    }
+                    else if (item.IsEpub)
+                    {
+                        // Use default icon or try to extract cover?
+                        // For now, let the icon font handle it unless we wanna parse cover
                     }
                 }
             }
@@ -613,6 +630,11 @@ namespace Uviewer
             else if (item.IsArchive)
             {
                 await LoadImagesFromArchiveAsync(item.FullPath);
+            }
+            else if (item.IsEpub && SupportedEpubExtensions.Contains(Path.GetExtension(item.FullPath).ToLowerInvariant()))
+            {
+                var file = await StorageFile.GetFileFromPathAsync(item.FullPath);
+                await LoadEpubFileAsync(file);
             }
             else if (item.IsImage || item.IsText)
             {

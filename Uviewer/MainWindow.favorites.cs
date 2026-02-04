@@ -34,6 +34,7 @@ namespace Uviewer
             public DateTime CreatedAt { get; set; } = DateTime.Now;
             public double? ScrollOffset { get; set; }
             public int SavedPage { get; set; } = 0;
+            public int ChapterIndex { get; set; } = 0;
         }
 
         public class RecentItem
@@ -45,6 +46,7 @@ namespace Uviewer
             public DateTime AccessedAt { get; set; } = DateTime.Now;
             public double? ScrollOffset { get; set; }
             public int SavedPage { get; set; } = 0;
+            public int ChapterIndex { get; set; } = 0;
         }
 
         public class TextSettings
@@ -171,7 +173,7 @@ namespace Uviewer
                 // Create TextBlock for the favorite name with left alignment and tooltip
                 var nameTextBlock = new TextBlock
                 {
-                    Text = favorite.Name + (favorite.SavedPage > 0 ? $" (P.{favorite.SavedPage})" : ""),
+                    Text = favorite.Name + (favorite.SavedPage > 0 || favorite.ChapterIndex > 0 ? $" ({(favorite.ChapterIndex > 0 ? $"Ch.{favorite.ChapterIndex + 1} " : "")}P.{favorite.SavedPage})" : ""),
                     VerticalAlignment = VerticalAlignment.Center,
                     HorizontalAlignment = HorizontalAlignment.Left,
                     TextTrimming = TextTrimming.CharacterEllipsis,
@@ -301,6 +303,14 @@ namespace Uviewer
                         System.Diagnostics.Debug.WriteLine($"File mode: {name}");
                     }
                 }
+                else if (_isEpubMode && !string.IsNullOrEmpty(_currentEpubFilePath))
+                {
+                    // Epub Mode
+                    name = Path.GetFileName(_currentEpubFilePath);
+                    path = _currentEpubFilePath;
+                    type = "File"; 
+                    System.Diagnostics.Debug.WriteLine($"Epub mode: {name}");
+                }
                 else if (!string.IsNullOrEmpty(_currentExplorerPath))
                 {
                     // Folder mode - add current folder (Only if no file is open)
@@ -341,7 +351,9 @@ namespace Uviewer
                         ArchiveEntryKey = archiveEntryKey,
                         ScrollOffset = (_isTextMode && TextScrollViewer != null) ? TextScrollViewer.VerticalOffset : null,
                         SavedPage = (_isTextMode && TextScrollViewer != null && TextScrollViewer.ViewportHeight > 0) ? 
-                                    (int)(TextScrollViewer.VerticalOffset / TextScrollViewer.ViewportHeight) + 1 : 0
+                                    (int)(TextScrollViewer.VerticalOffset / TextScrollViewer.ViewportHeight) + 1 : 
+                                    (_isEpubMode ? CurrentEpubPageIndex : 0),
+                        ChapterIndex = _isEpubMode ? CurrentEpubChapterIndex : 0
                     };
 
                     _favorites.Add(favorite);
@@ -456,16 +468,24 @@ namespace Uviewer
                         break;
                 }
                 
-                // For File Types (Text)
-                if (favorite.Type == "File" && favorite.ScrollOffset.HasValue && TextScrollViewer != null)
+                // For File Types
+                if (favorite.Type == "File")
                 {
-                     // Wait longer to override 'RestoreFromRecent' which has 100ms delay
-                     await Task.Delay(300);
-                     if (_isTextMode)
-                     {
-                         TextScrollViewer.ChangeView(null, favorite.ScrollOffset.Value, null);
-                         UpdateTextStatusBar();
-                     }
+                    if (favorite.Path.EndsWith(".epub", StringComparison.OrdinalIgnoreCase))
+                    {
+                         // Restore Epub
+                         await RestoreEpubStateAsync(favorite.ChapterIndex, favorite.SavedPage);
+                    }
+                    else if (favorite.ScrollOffset.HasValue && TextScrollViewer != null)
+                    {
+                         // Wait longer to override 'RestoreFromRecent' which has 100ms delay
+                         await Task.Delay(300);
+                         if (_isTextMode)
+                         {
+                             TextScrollViewer.ChangeView(null, favorite.ScrollOffset.Value, null);
+                             UpdateTextStatusBar();
+                         }
+                    }
                 }
             }
             catch (Exception ex)
@@ -583,7 +603,7 @@ namespace Uviewer
                 // Create TextBlock for the recent item name with left alignment and tooltip
                 var nameTextBlock = new TextBlock
                 {
-                    Text = recent.Name + (recent.SavedPage > 0 ? $" (P.{recent.SavedPage})" : ""),
+                    Text = recent.Name + (recent.SavedPage > 0 || recent.ChapterIndex > 0 ? $" ({(recent.ChapterIndex > 0 ? $"Ch.{recent.ChapterIndex + 1} " : "")}P.{recent.SavedPage})" : ""),
                     VerticalAlignment = VerticalAlignment.Center,
                     HorizontalAlignment = HorizontalAlignment.Left,
                     TextTrimming = TextTrimming.CharacterEllipsis,
@@ -668,6 +688,14 @@ namespace Uviewer
                     type = "File";
                     System.Diagnostics.Debug.WriteLine($"Text File mode: {name}");
                 }
+                else if (_isEpubMode && !string.IsNullOrEmpty(_currentEpubFilePath))
+                {
+                    // Epub Mode
+                    name = Path.GetFileName(_currentEpubFilePath);
+                    path = _currentEpubFilePath;
+                    type = "File";
+                    System.Diagnostics.Debug.WriteLine($"Epub mode: {name}");
+                }
                 else if (_currentArchive != null && !string.IsNullOrEmpty(_currentArchivePath))
                 {
                     // Archive mode - add current image position
@@ -722,11 +750,13 @@ namespace Uviewer
                     // Preserve existing position/page if exists
                     double? preservedOffset = null;
                     int preservedPage = 0;
+                    int preservedChapterIndex = 0;
 
                     if (existing != null)
                     {
                         preservedOffset = existing.ScrollOffset;
                         preservedPage = existing.SavedPage;
+                        preservedChapterIndex = existing.ChapterIndex;
                         _recentItems.Remove(existing);
                         System.Diagnostics.Debug.WriteLine($"Removed existing recent item (preserving position): {existing.Name}");
                     }
@@ -744,8 +774,22 @@ namespace Uviewer
                         // during transition (Open File) when specific offset is typically 'start' or 'transitioning'.
                         // Position saving should be done explicitly on Navigation/Leave.
                         ScrollOffset = preservedOffset,
-                        SavedPage = preservedPage
+                        SavedPage = preservedPage,
+                        ChapterIndex = preservedChapterIndex
                     };
+                    
+                    // Capture current state if active
+                    if (_isEpubMode)
+                    {
+                        newItem.SavedPage = CurrentEpubPageIndex;
+                        newItem.ChapterIndex = CurrentEpubChapterIndex;
+                    }
+                    else if (_isTextMode && TextScrollViewer != null)
+                    {
+                        newItem.ScrollOffset = TextScrollViewer.VerticalOffset;
+                        newItem.SavedPage = (TextScrollViewer.ViewportHeight > 0) ? 
+                                           (int)(TextScrollViewer.VerticalOffset / TextScrollViewer.ViewportHeight) + 1 : 0;
+                    }
                     
                     _recentItems.Add(newItem);
                     System.Diagnostics.Debug.WriteLine($"Added recent item: {newItem.Name}");
@@ -874,11 +918,18 @@ namespace Uviewer
                         break;
                 }
 
-                if (recent.Type == "File" && recent.ScrollOffset.HasValue && TextScrollViewer != null)
+                if (recent.Type == "File")
                 {
-                    await Task.Delay(100);
-                    TextScrollViewer.ChangeView(null, recent.ScrollOffset.Value, null);
-                    UpdateTextStatusBar();
+                    if (recent.Path.EndsWith(".epub", StringComparison.OrdinalIgnoreCase))
+                    {
+                        await RestoreEpubStateAsync(recent.ChapterIndex, recent.SavedPage);
+                    }
+                    else if (recent.ScrollOffset.HasValue && TextScrollViewer != null)
+                    {
+                        await Task.Delay(100);
+                        TextScrollViewer.ChangeView(null, recent.ScrollOffset.Value, null);
+                        UpdateTextStatusBar();
+                    }
                 }
             }
             catch (Exception ex)
