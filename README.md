@@ -41,9 +41,9 @@
 
 | Key | Context | Action |
 |-----|---------|--------|
-| **Arrow Left / Right** | Image | Previous / Next Image |
+| **← / →** | Image | Previous / Next Image |
 | | Text | Previous / Next Page |
-| **Arrow Up / Down** | Global | Previous / Next File (Same Type) |
+| **↑ / ↓** | Global | Previous / Next File (Same Type) |
 | **Home / End** | Image | First / Last Image |
 | | Text | First / Last Page |
 | **Space** | Image | Toggle 2-Page View (Side-by-Side) |
