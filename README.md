@@ -63,6 +63,11 @@
 
 ## 🚀 Installation
 
+### 📥 Download
+You can download the latest version from the [Releases Page](https://github.com/kirinonakar/Uviewer/releases).
+Unzip the file and run `Uviewer.exe`.
+
+
 ### From Source
 1. Clone the repository:
    ```bash
