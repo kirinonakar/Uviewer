@@ -2,12 +2,12 @@
 
 > Created with Vibe Coding 🚀
 
-**Uviewer** is a versatile, integrated viewer for Windows, designed to handle Images, Text, and EPUB documents seamlessy. Built with **WinUI 3** and **.NET 10**, it offers a modern, high-performance experience with advanced features like Aozora Bunko support and smart encoding detection.
+**Uviewer** is a versatile, integrated viewer for Windows, designed to handle Images, Text, and EPUB documents seamlessy. Built with **WinUI 3** and **.NET 10**, it offers a modern, high-performance experience with advanced features like Aozora Bunko, Markdown support and smart encoding detection.
 
 ## ✨ Key Features
 
 ### 🖼️ Image Viewing
-- **Broad Format Support**: JPEG, PNG, GIF, BMP, TIFF, ICO, SVG, and **Animated WebP**.
+- **Broad Format Support**: JPEG, PNG, GIF, BMP, TIFF, ICO, SVG, WebP, AVIF and **Animated WebP**.
 - **High-Performance Rendering**: Powered by **Win2D** (Direct2D) for smooth zooming and panning.
 - **Smart Scaling**: Customizable zoom levels (0.1x to 10x), fit-to-window, and actual size.
 - **Tools**: Sharpening filter, Side-by-Side view mode, and Fast Navigation overlay.
@@ -16,8 +16,8 @@
 - **Advanced Text Engine**: 
   - **Aozora Bunko Support**: Native rendering of Ruby text (Furigana), emphasis, and indentation.
   - **Markdown Support**: Custom-built Markdown rendering including tables, code blocks, and inline formatting.
-  - **Smart Encoding Detection**: Automatically detects and handles various encodings (UTF-8, Unicode, **EUC-KR**, **Shift-JIS**, **Johab**) to prevent mojibake.
-- **Reading Comfort**: Adjustable font size, font family, and background themes (Light/Beige/Dark).
+  - **Smart Encoding Detection**: Automatically detects and handles various encodings (UTF-8, Unicode, **EUC-KR**, **Shift-JIS**, **Johab**).
+- **Reading Comfort**: Adjustable font size, font family (Yu Gothic Medium/Yu Mincho), and background themes (Light/Beige/Dark).
 - **Navigation**: "Go to Page" (G), percentage-based navigation, and persistent reading progress.
 
 ### 📖 EPUB Reader
@@ -26,9 +26,8 @@
 
 ### 📂 File Management
 - **Integrated Explorer**: Sidebar with Folder/Thumbnail views for easy navigation.
-- **Archive Support**: Read images and text directly from compressed archives (`.zip`, `.rar`, `.7z`, etc.) using **SharpCompress**.
+- **Archive Support**: Read images directly from compressed archives (`.zip`, `.rar`, `.7z`, etc.) using **SharpCompress**.
 - **Organization**: "Favorites" and "Recent Files" management.
-- **Sync**: Explorer selection syncs automatically with the current viewer content.
 
 ### 🌍 Localization
 - **Multi-language Support**: Automatically detects and switches between **English** and **Korean** based on system settings.
