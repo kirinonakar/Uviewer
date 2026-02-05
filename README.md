@@ -14,6 +14,7 @@
 
 ### 📝 Text & Novel Viewing
 - **Advanced Text Engine**: 
+  - **Immediate loading of large text files**
   - **Aozora Bunko Support**: Native rendering of Ruby text (Furigana), emphasis, and indentation.
   - **Markdown Support**: Custom-built Markdown rendering including tables, code blocks, and inline formatting.
   - **Smart Encoding Detection**: Automatically detects and handles various encodings (UTF-8, Unicode, **EUC-KR**, **Shift-JIS**, **Johab**).
@@ -54,13 +55,17 @@
 | **Ctrl + O** | Global | Open File |
 | **Ctrl + B** | Global | Toggle Sidebar |
 | **Ctrl + F** | Global | Toggle Favorites |
-| **G** | Text/EPUB | Go to Page |
+| **G** | Text/EPUB | Go to Line |
 | **+ / -** | Global | Zoom In/Out / Font Size Up/Down |
 | **0** | Image | Reset Zoom to 100% |
 | **S** | Image | Toggle Sharpening |
 | **A** | Text | Toggle Simple text / Advanved rendering (Aozora, Markdown) mode |
 | **B** | Text | Change Background Theme |
 | **F** | Text | Change Font |
+
+## Mouse & Touch Navigation
+- **Click/Touch Left Side**: Previous Page / Image
+- **Click/Touch Right Side**: Next Page / Image
 
 ## 🚀 Installation
 
