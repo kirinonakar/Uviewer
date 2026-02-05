@@ -149,7 +149,7 @@ namespace Uviewer
             {
                 var emptyText = new TextBlock
                 {
-                    Text = "즐겨찾기 없음",
+                    Text = Strings.NoFavorites,
                     Foreground = new SolidColorBrush(Microsoft.UI.Colors.Gray),
                     Margin = new Thickness(12, 8, 12, 8),
                     FontSize = 13
@@ -660,7 +660,7 @@ namespace Uviewer
             {
                 var emptyText = new TextBlock
                 {
-                    Text = "최근 이미지 없음",
+                    Text = Strings.NoRecentFiles,
                     Foreground = new SolidColorBrush(Microsoft.UI.Colors.Gray),
                     Margin = new Thickness(12, 8, 12, 8),
                     FontSize = 13

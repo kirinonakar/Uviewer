@@ -470,7 +470,7 @@ namespace Uviewer
                 }
                 if (ToggleViewButton != null)
                 {
-                    ToolTipService.SetToolTip(ToggleViewButton, "리스트 보기");
+                    ToolTipService.SetToolTip(ToggleViewButton, Strings.ListViewTooltip);
                 }
             }
             else
@@ -484,7 +484,7 @@ namespace Uviewer
                 }
                 if (ToggleViewButton != null)
                 {
-                    ToolTipService.SetToolTip(ToggleViewButton, "썸네일 보기");
+                    ToolTipService.SetToolTip(ToggleViewButton, Strings.ToggleViewTooltip);
                 }
             }
         }
