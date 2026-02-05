@@ -19,7 +19,8 @@
   - **Markdown Support**: Custom-built Markdown rendering including tables, code blocks, and inline formatting.
   - **Smart Encoding Detection**: Automatically detects and handles various encodings (UTF-8, Unicode, **EUC-KR**, **Shift-JIS**, **Johab**).
 - **Reading Comfort**: Adjustable font size, font family (Yu Gothic Medium/Yu Mincho), and background themes (Light/Beige/Dark).
-- **Navigation**: "Go to Page" (G), percentage-based navigation, and persistent reading progress.
+- **Go to Line**: Jump directly to a specific line (G).
+- **Line Bookmark**: Save your reading progress (Line number) to Favorites and resume exactly where you left off.
 
 ### 📖 EPUB Reader
 - **Full EPUB Support**: Page-based navigation with chapter tracking.
