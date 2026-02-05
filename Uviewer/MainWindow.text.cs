@@ -344,25 +344,26 @@ namespace Uviewer
             var htmlCharset = DetectHtmlCharset(bytes);
             if (htmlCharset != null) return htmlCharset;
 
-            // 1. Try Valid EUC-KR (Strict) FIRST - most common Korean encoding
-            if (IsStrictEucKr(bytes)) return Encoding.GetEncoding(51949);
-
-            // 2. Try Valid SJIS (Strict)
-            if (IsStrictSjis(bytes)) return Encoding.GetEncoding(932);
-
-            // 3. Try Valid Johab (Strict) - only if EUC-KR and SJIS failed
-            // Johab is rare, so check after more common encodings
-            if (IsStrictJohab(bytes)) return Encoding.GetEncoding(1361);
-
-            // 4. Heuristic Fallback for "Dirty" Files
-            // Check for EUC-KR/CP949 Hangul patterns FIRST.
-            if (ContainsEucKrHangulPattern(bytes)) return Encoding.GetEncoding(949);
+            // 1. Heuristic Scoring Comparison
+            // Compare scores for EUC-KR, SJIS, and Johab.
+            // Johab needs to be in the competition because it overlaps with both (CP949 Ext & SJIS).
+            int eucKrScore = GetEucKrScore(bytes);
+            int sjisScore = GetSjisScore(bytes);
+            int johabScore = GetJohabScore(bytes);
             
-            // Then check for valid SJIS 2-byte sequences.
-            if (ContainsSjisPattern(bytes)) return Encoding.GetEncoding(932);
+            // Winner takes all
+            if (sjisScore > eucKrScore && sjisScore > johabScore && sjisScore > 0) return Encoding.GetEncoding(932);
+            if (eucKrScore > sjisScore && eucKrScore > johabScore && eucKrScore > 0) return Encoding.GetEncoding(949);
+            if (johabScore > sjisScore && johabScore > eucKrScore && johabScore > 0) return Encoding.GetEncoding(1361);
+            
+            // Default preference if scores match
+            // Johab is rarest, so lowest priority in tie-break
+            if (eucKrScore > 0 && eucKrScore >= sjisScore) return Encoding.GetEncoding(949);
+            if (sjisScore > 0) return Encoding.GetEncoding(932);
+            if (johabScore > 0) return Encoding.GetEncoding(1361);
 
             // 5. Try Johab (Korean Combination, CP1361) - heuristic fallback
-            // Only if file has Johab-specific patterns
+            // (Redundant with scoring, but serves as final check)
             if (ContainsJohabPattern(bytes)) return Encoding.GetEncoding(1361);
 
             // 5. Default Fallbacks
@@ -372,15 +373,13 @@ namespace Uviewer
             return Encoding.Default;
         }
 
-        private bool ContainsSjisPattern(byte[] bytes)
+        private int GetSjisScore(byte[] bytes)
         {
-            // Look for valid SJIS 2-byte sequences.
-            // SJIS first byte: 0x81-0x9F or 0xE0-0xFC
-            // SJIS second byte: 0x40-0x7E or 0x80-0xFC
-            //
-            // We specifically look for bytes in 0x81-0x84 range (symbols/punctuation)
-            // or 0x82-0x83 range (hiragana/katakana) which are distinctly Japanese.
-            int sjisCount = 0;
+            // Calculate a score for likelihood of SJIS.
+            // +2 for Kana (strong signal)
+            // +1 for Kanji
+            
+            int score = 0;
             int i = 0;
             int len = bytes.Length;
             
@@ -395,31 +394,33 @@ namespace Uviewer
                     continue;
                 }
                 
+                // Half-width Katakana (0xA1-0xDF)
+                // This overlaps with EUC-KR first byte.
+                // But if followed by ASCII, it's a strong SJIS signal.
+                if (b >= 0xA1 && b <= 0xDF)
+                {
+                     if (i + 1 < len && bytes[i + 1] < 0x80) score += 1;
+                     i++;
+                     continue;
+                }
+                
                 // Need 2 bytes
                 if (i + 1 >= len) break;
                 
                 byte b2 = bytes[i + 1];
                 
-                // Check for SJIS first byte in 0x81-0x84 range (distinctly Japanese symbols/kana)
-                // This range is used for punctuation, hiragana, katakana in SJIS
-                if (b >= 0x81 && b <= 0x84)
+                // SJIS First Byte: 0x81-0x9F, 0xE0-0xFC
+                // Includes Level 1 Kanji (0x81-0x9F) and Level 2 (0xE0-0xFC)
+                if ((b >= 0x81 && b <= 0x9F) || (b >= 0xE0 && b <= 0xFC))
                 {
                     // Valid SJIS second byte: 0x40-0x7E or 0x80-0xFC
                     bool validSecond = (b2 >= 0x40 && b2 <= 0x7E) || (b2 >= 0x80 && b2 <= 0xFC);
                     if (validSecond)
                     {
-                        sjisCount++;
-                        i += 2;
-                        if (sjisCount >= 3) return true;
-                        continue;
-                    }
-                }
-                
-                // Skip other high bytes as 2-byte
-                if (b >= 0x81)
-                {
-                    if ((b2 >= 0x40 && b2 <= 0xFC) && b2 != 0x7F)
-                    {
+                        // 0x82, 0x83 are Hiragana and Katakana - VERY strong signal for Japanese
+                        if (b == 0x82 || b == 0x83) score += 5;
+                        else score += 1;
+                        
                         i += 2;
                         continue;
                     }
@@ -428,24 +429,16 @@ namespace Uviewer
                 i++;
             }
             
-            return false;
+            return score;
         }
 
-        private bool ContainsEucKrHangulPattern(byte[] bytes)
+        private int GetEucKrScore(byte[] bytes)
         {
-            // Check for EUC-KR/CP949 Hangul byte patterns.
-            // 
-            // EUC-KR Hangul syllables (가-힣):
-            // - First byte: 0xB0-0xC8 (standard Hangul block)
-            // - Second byte: 0xA1-0xFE
-            // 
-            // CP949 extended Hangul:
-            // - First byte: 0x81-0xA0
-            // - Second byte: 0x41-0x5A, 0x61-0x7A, 0x81-0xFE
-            // 
-            // Also check for Korean punctuation/symbols in 0xA1-0xAF range
+            // Calculate a score for likelihood of EUC-KR.
+            // +2 for Standard Hangul (0xB0-0xC8) - strong signal
+            // +1 for Symbols or CP949 Extended
             
-            int koreanPairCount = 0;
+            int score = 0;
             int i = 0;
             int len = bytes.Length;
             
@@ -466,34 +459,69 @@ namespace Uviewer
                 byte b2 = bytes[i + 1];
                 
                 // Standard EUC-KR Hangul: 0xB0-0xC8 first, 0xA1-0xFE second
+                // This is the strongest signal for Korean text.
                 if (b1 >= 0xB0 && b1 <= 0xC8 && b2 >= 0xA1 && b2 <= 0xFE)
                 {
-                    koreanPairCount++;
+                    score += 2;
                     i += 2;
-                    if (koreanPairCount >= 2) return true;
                     continue;
                 }
                 
-                // EUC-KR symbols/punctuation: 0xA1-0xAF first, 0xA1-0xFE second
-                // These include 『』, quotation marks, etc.
-                if (b1 >= 0xA1 && b1 <= 0xAF && b2 >= 0xA1 && b2 <= 0xFE)
+                // NOTE: We specifically DO NOT count CP949 Extended Range (0x81-0xA0) here.
+                // NOTE: We ALSO removed 0xA1-0xAF (Symbols) because it overlaps with SJIS Half-width Katakana.
+                // This makes EUC-KR detection purely based on Standard Hangul (0xB0+), which is safest.
+                
+                // NOTE: We specifically DO NOT count CP949 Extended Range (0x81-0xA0) here.
+                // Reason: This range completely overlaps with SJIS (Lev 1 Kanji & Kana) and Johab.
+                
+                i++;
+            }
+            
+            return score;
+        }
+
+        private int GetJohabScore(byte[] bytes)
+        {
+            // Calculate a score for likelihood of Johab.
+            // +5 for Johab-ONLY second bytes (smoking gun)
+            // +1 for valid Johab sequences
+            
+            int score = 0;
+            int i = 0;
+            int len = bytes.Length;
+            
+            while (i < len)
+            {
+                byte b = bytes[i];
+                
+                // ASCII - skip
+                if (b < 0x80)
                 {
-                    koreanPairCount++;
-                    i += 2;
-                    if (koreanPairCount >= 2) return true;
+                    i++;
                     continue;
                 }
                 
-                // CP949 extended: 0x81-0xA0 first, specific second byte ranges
-                // BUT we need to be careful not to match SJIS here
-                // Only count if second byte is in CP949-specific range: 0x41-0x5A or 0x61-0x7A
-                // (these are uppercase/lowercase ASCII which SJIS also uses, so skip this check)
+                // Need 2 bytes
+                if (i + 1 >= len) break;
                 
-                // Skip as 2-byte if it looks like a valid multibyte
-                if (b1 >= 0x81 && b1 <= 0xFE)
+                byte b2 = bytes[i + 1];
+                
+                // Johab First Byte: 0x84-0xD3
+                if (b >= 0x84 && b <= 0xD3)
                 {
-                    if ((b2 >= 0x41 && b2 <= 0xFE) && b2 != 0x7F)
+                    // Check for Johab-ONLY second byte ranges: 0x5B-0x60, 0x7B-0x7E
+                    // These are NOT used in CP949 or standard SJIS
+                    if ((b2 >= 0x5B && b2 <= 0x60) || (b2 >= 0x7B && b2 <= 0x7E))
                     {
+                        score += 3; // Reduced from 5 to avoid false positives with SJIS Kanji
+                        i += 2;
+                        continue;
+                    }
+                    
+                    // Normal Johab second byte: 0x41-0x7E or 0x81-0xFE
+                    if ((b2 >= 0x41 && b2 <= 0x7E) || (b2 >= 0x81 && b2 <= 0xFE))
+                    {
+                        score += 1;
                         i += 2;
                         continue;
                     }
@@ -501,8 +529,7 @@ namespace Uviewer
                 
                 i++;
             }
-            
-            return false;
+            return score;
         }
 
         private bool ContainsJohabPattern(byte[] bytes)
@@ -1163,10 +1190,10 @@ namespace Uviewer
 
              var dialog = new ContentDialog
              {
-                 Title = "페이지 이동",
+                 Title = Strings.DialogTitle,
                  Content = input,
-                 PrimaryButtonText = "이동",
-                 CloseButtonText = "취소",
+                 PrimaryButtonText = Strings.DialogPrimary,
+                 CloseButtonText = Strings.DialogClose,
                  XamlRoot = this.Content.XamlRoot
              };
 
@@ -1250,18 +1277,13 @@ namespace Uviewer
         
         private void TextArea_PointerPressed(object sender, PointerRoutedEventArgs e)
         {
-             // Left/Right click zones
-             var ptr = e.GetCurrentPoint(TextArea);
+             // Use unified touch handler (Next/Prev + Fullscreen Edge UI)
+             var ptr = e.GetCurrentPoint(RootGrid);
              if (ptr.Properties.IsLeftButtonPressed)
              {
-                 if (ptr.Position.X < TextArea.ActualWidth / 2)
-                 {
-                     NavigateTextPage(-1);
-                 }
-                 else
-                 {
-                     NavigateTextPage(1);
-                 }
+                 HandleSmartTouchNavigation(e, 
+                    () => NavigateTextPage(-1), 
+                    () => NavigateTextPage(1));
              }
         }
         

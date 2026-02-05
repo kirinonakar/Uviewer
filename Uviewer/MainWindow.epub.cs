@@ -107,7 +107,7 @@ namespace Uviewer
             }
             catch (Exception ex)
             {
-                FileNameText.Text = $"EPUB 로드 실패: {ex.Message}";
+                FileNameText.Text = Strings.EpubLoadError(ex.Message);
             }
         }
 
@@ -213,7 +213,7 @@ namespace Uviewer
              }
              catch (Exception ex)
              {
-                 FileNameText.Text = $"EPUB 파싱 오류: {ex.Message}";
+                 FileNameText.Text = Strings.EpubParseError(ex.Message);
              }
         }
 
@@ -339,7 +339,7 @@ namespace Uviewer
                 // Current Page / Total Pages (in chapter) + Chapter Info
                 int currentPage = (EpubFlipView?.SelectedIndex ?? 0) + 1;
                 int totalPages = EpubFlipView?.Items.Count ?? 0;
-                ImageInfoText.Text = $"Page {currentPage} / {totalPages}  (Chapter {_currentEpubChapterIndex + 1} / {_epubSpine.Count})";
+                ImageInfoText.Text = Strings.EpubPageInfo(currentPage, totalPages, _currentEpubChapterIndex + 1, _epubSpine.Count);
             }
         }
 
@@ -437,24 +437,19 @@ namespace Uviewer
 
 
 
-        // Mouse/Touch Navigation Handler
         private void EpubPage_PointerPressed(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
         {
              if (!_isEpubMode) return;
 
              var ptr = e.GetCurrentPoint(RootGrid);
-             var width = RootGrid.ActualWidth;
-             
-             if (ptr.Position.X < width / 2)
+             if (ptr.Properties.IsLeftButtonPressed)
              {
-                 _ = NavigateEpubAsync(-1);
+                 HandleSmartTouchNavigation(e, 
+                    () => _ = NavigateEpubAsync(-1), 
+                    () => _ = NavigateEpubAsync(1));
+                 
+                 e.Handled = true;
              }
-             else
-             {
-                 _ = NavigateEpubAsync(1);
-             }
-             
-             e.Handled = true;
         }
 
         private async Task<UIElement?> CreateImagePageAsync(string imgTag, string currentPath)
@@ -648,9 +643,9 @@ namespace Uviewer
 
              var dialog = new ContentDialog
              {
-                 Title = "페이지 이동",
-                 PrimaryButtonText = "이동",
-                 CloseButtonText = "취소",
+                 Title = Strings.DialogTitle,
+                 PrimaryButtonText = Strings.DialogPrimary,
+                 CloseButtonText = Strings.DialogClose,
                  DefaultButton = ContentDialogButton.Primary,
                  XamlRoot = RootGrid.XamlRoot
              };

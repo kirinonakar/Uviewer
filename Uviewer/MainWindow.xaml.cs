@@ -318,6 +318,9 @@ namespace Uviewer
                 // Initialize file list
                 FileListView.ItemsSource = _fileItems;
                 FileGridView.ItemsSource = _fileItems;
+
+                // Apply Localization
+                ApplyLocalization();
             }
             catch (Exception ex)
             {
@@ -434,6 +437,54 @@ namespace Uviewer
             _animatedWebpTimer = DispatcherQueue.GetForCurrentThread().CreateTimer();
             _animatedWebpTimer.Interval = TimeSpan.FromMilliseconds(100);
             _animatedWebpTimer.Tick += AnimatedWebpTimer_Tick;
+        }
+
+        private void ApplyLocalization()
+        {
+            // Tooltips
+            ToolTipService.SetToolTip(ToggleSidebarButton, Strings.ToggleSidebarTooltip);
+            ToolTipService.SetToolTip(OpenFileButton, Strings.OpenFileTooltip);
+            ToolTipService.SetToolTip(OpenFolderButton, Strings.OpenFolderTooltip);
+            ToolTipService.SetToolTip(ZoomOutButton, Strings.ZoomOutTooltip);
+            ToolTipService.SetToolTip(ZoomInButton, Strings.ZoomInTooltip);
+            ToolTipService.SetToolTip(ZoomFitButton, Strings.ZoomFitTooltip);
+            ToolTipService.SetToolTip(ZoomActualButton, Strings.ZoomActualTooltip);
+            ToolTipService.SetToolTip(SharpenButton, Strings.SharpenTooltip);
+            ToolTipService.SetToolTip(SideBySideButton, Strings.SideBySideTooltip);
+            ToolTipService.SetToolTip(NextImageSideButton, Strings.NextImageSideTooltip);
+            ToolTipService.SetToolTip(AozoraToggleButton, Strings.AozoraTooltip);
+            ToolTipService.SetToolTip(FontToggleButton, Strings.FontTooltip);
+            ToolTipService.SetToolTip(GoToPageButton, Strings.GoToPageTooltip);
+            ToolTipService.SetToolTip(TextSizeDownButton, Strings.TextSizeDownTooltip);
+            ToolTipService.SetToolTip(TextSizeUpButton, Strings.TextSizeUpTooltip);
+            ToolTipService.SetToolTip(ThemeToggleButton, Strings.ThemeTooltip);
+            ToolTipService.SetToolTip(FullscreenButton, Strings.FullscreenTooltip);
+            ToolTipService.SetToolTip(CloseWindowButton, Strings.CloseWindowTooltip);
+            ToolTipService.SetToolTip(ToggleViewButton, Strings.ToggleViewTooltip);
+            ToolTipService.SetToolTip(ParentFolderButton, Strings.ParentFolderTooltip);
+            ToolTipService.SetToolTip(RecentButton, Strings.RecentTooltip);
+            ToolTipService.SetToolTip(FavoritesButton, Strings.FavoritesTooltip);
+            ToolTipService.SetToolTip(BrowseFolderButton, Strings.BrowseFolderTooltip);
+
+            // Texts
+            CurrentPathText.Text = Strings.CurrentPathPlaceholder;
+            FileNameText.Text = Strings.FileSelectPlaceholder;
+            
+            // Empty State
+            if (EmptyStatePanel.Children.Count >= 3)
+            {
+                if (EmptyStatePanel.Children[1] is TextBlock tb1) tb1.Text = Strings.EmptyStateDrag;
+                if (EmptyStatePanel.Children[2] is TextBlock tb2) tb2.Text = Strings.EmptyStateClick;
+                if (EmptyStatePanel.Children.Count >= 4 && EmptyStatePanel.Children[3] is Button btn) btn.Content = Strings.EmptyStateButton; 
+            }
+            
+            // Overlay Texts
+            FastNavText.Text = Strings.FastNavText;
+            TextFastNavText.Text = Strings.TextFastNavText;
+            EpubFastNavText.Text = Strings.EpubFastNavText;
+            
+            // Menus
+            if (AddToFavoritesButton != null) AddToFavoritesButton.Content = Strings.AddToFavorites;
         }
 
         private void AppWindow_Changed(AppWindow sender, AppWindowChangedEventArgs args)
@@ -650,6 +701,51 @@ namespace Uviewer
             _fullscreenSidebarHideTimer?.Start();
             System.Diagnostics.Debug.WriteLine($"▶ Sidebar hide timer STARTED (will hide in {FullscreenHideDelayMs}ms)");
         }
+        
+        // Unified Touch Handler for Text, Aozora, and Epub modes
+        private void HandleSmartTouchNavigation(PointerRoutedEventArgs e, Action prevAction, Action nextAction)
+        {
+            var pt = e.GetCurrentPoint(RootGrid);
+            double x = pt.Position.X;
+            double y = pt.Position.Y;
+            
+            // 1. Edge Detection (Fullscreen only)
+            if (_isFullscreen)
+            {
+                // Top Edge -> Show Toolbar
+                if (y < FullscreenTopHoverZone) 
+                {
+                     if (ToolbarGrid.Visibility != Visibility.Visible)
+                     {
+                        ToolbarGrid.Visibility = Visibility.Visible;
+                     }
+                     StartOrRestartFullscreenToolbarHideTimer();
+                     return; 
+                }
+                
+                // Left Edge -> Show Sidebar
+                if (x < FullscreenLeftHoverZone)
+                {
+                     if (SidebarGrid.Visibility != Visibility.Visible)
+                     {
+                        SidebarColumn.Width = new GridLength(_SidebarWidth);
+                        SidebarGrid.Visibility = Visibility.Visible;
+                     }
+                     StartOrRestartFullscreenSidebarHideTimer();
+                     return;
+                }
+            }
+            
+            // 2. Navigation Zones (Screen Half)
+            if (x < RootGrid.ActualWidth / 2)
+            {
+                prevAction?.Invoke();
+            }
+            else
+            {
+                nextAction?.Invoke();
+            }
+        }
 
         #endregion
 
@@ -773,7 +869,7 @@ namespace Uviewer
                 }
                 else
                 {
-                    FileNameText.Text = "이미지를 불러올 수 없습니다.";
+                    FileNameText.Text = Strings.LoadImageError;
                     return;
                 }
 

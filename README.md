@@ -2,152 +2,94 @@
 
 > Created with Vibe Coding 🚀
 
-A versatile Windows application for viewing images, text files, and EPUB documents built with WinUI and .NET.
+**Uviewer** is a versatile, integrated viewer for Windows, designed to handle Images, Text, and EPUB documents seamlessy. Built with **WinUI 3** and **.NET 10**, it offers a modern, high-performance experience with advanced features like Aozora Bunko support and smart encoding detection.
 
-## Features
+## ✨ Key Features
 
-### Image Viewing
-- Support for multiple image formats including animated WebP
-- Zoom and pan functionality with customizable zoom levels (0.1x to 10x)
-- Fullscreen mode with auto-hiding toolbar and sidebar
-- Image navigation through folders and archives
+### 🖼️ Image Viewing
+- **Broad Format Support**: JPEG, PNG, GIF, BMP, TIFF, ICO, SVG, and **Animated WebP**.
+- **High-Performance Rendering**: Powered by **Win2D** (Direct2D) for smooth zooming and panning.
+- **Smart Scaling**: Customizable zoom levels (0.1x to 10x), fit-to-window, and actual size.
+- **Tools**: Sharpening filter, Side-by-Side view mode, and Fast Navigation overlay.
 
-### Text File Viewing
-- Support for various text file formats
-- Markdown rendering with Markdig
-- Syntax highlighting and text preprocessing
-- Page navigation for large text files
+### 📝 Text & Novel Viewing
+- **Advanced Text Engine**: 
+  - **Aozora Bunko Support**: Native rendering of Ruby text (Furigana), emphasis, and indentation.
+  - **Markdown Support**: Custom-built Markdown rendering including tables, code blocks, and inline formatting.
+  - **Smart Encoding Detection**: Automatically detects and handles various encodings (UTF-8, Unicode, **EUC-KR**, **Shift-JIS**, **Johab**) to prevent mojibake.
+- **Reading Comfort**: Adjustable font size, font family, and background themes (Light/Beige/Dark).
+- **Navigation**: "Go to Page" (G), percentage-based navigation, and persistent reading progress.
 
-### EPUB Reader
-- Complete EPUB document support
-- Page-based navigation system
-- WebView2 integration for rich content rendering
-- Table of contents and chapter navigation
+### 📖 EPUB Reader
+- **Full EPUB Support**: Page-based navigation with chapter tracking.
+- **Customization**: Adjustable font settings (font family/size) and background colors.
 
-### File Management
-- Built-in file explorer for easy navigation
-- Support for compressed archives (using SharpCompress)
-- Favorites system for quick access to frequently used files
-- Drag-and-drop file support
+### 📂 File Management
+- **Integrated Explorer**: Sidebar with Folder/Thumbnail views for easy navigation.
+- **Archive Support**: Read images and text directly from compressed archives (`.zip`, `.rar`, `.7z`, etc.) using **SharpCompress**.
+- **Organization**: "Favorites" and "Recent Files" management.
+- **Sync**: Explorer selection syncs automatically with the current viewer content.
 
-### User Interface
-- Modern WinUI 3 interface with Windows App SDK
-- Responsive design with sidebar and toolbar
-- Keyboard shortcuts for efficient navigation
-- Customizable themes and appearance
+### 🌍 Localization
+- **Multi-language Support**: Automatically detects and switches between **English** and **Korean** based on system settings.
 
-## System Requirements
+## 🛠️ System Requirements
+- **OS**: Windows 10 (Version 19041+) or Windows 11.
+- **Runtime**: .NET 10.0 (Preview) / .NET 9.0 (check project config).
+- **Framework**: Windows App SDK 1.8+.
 
-- Windows 10 version 19041 or higher
-- Windows 11 (recommended)
-- .NET 10.0 runtime
-- Windows App SDK 1.8 or later
-- WebView2 runtime (included with Windows)
+## ⌨️ Keyboard Shortcuts
 
-## Installation
+| Key | Context | Action |
+|-----|---------|--------|
+| **Arrow Left / Right** | Image | Previous / Next Image |
+| | Text | Previous / Next Page |
+| **Arrow Up / Down** | Global | Previous / Next File (Same Type) |
+| **Home / End** | Image | First / Last Image |
+| | Text | First / Last Page |
+| **Space** | Image | Toggle 2-Page View (Side-by-Side) |
+| **Backspace** | Global | Go to Parent Folder |
+| **Esc** | Global | Close Window / Exit Fullscreen |
+| **F11** | Global | Toggle Fullscreen |
+| **Ctrl + O** | Global | Open File |
+| **Ctrl + B** | Global | Toggle Sidebar |
+| **Ctrl + F** | Global | Toggle Favorites |
+| **G** | Text/EPUB | Go to Page |
+| **+ / -** | Global | Zoom In/Out / Font Size Up/Down |
+| **0** | Image | Reset Zoom to 100% |
+| **S** | Image | Toggle Sharpening |
+| **A** | Text | Toggle Simple text / Advanved rendering (Aozora, Markdown) mode |
+| **B** | Text | Change Background Theme |
+| **F** | Text | Change Font |
+
+## 🚀 Installation
 
 ### From Source
-1. Clone this repository:
+1. Clone the repository:
    ```bash
    git clone https://github.com/kirinonakar/Uviewer.git
    cd Uviewer
    ```
+2. Open `Uviewer.sln` in **Visual Studio 2022**.
+   - Required workloads: **.NET Desktop Development**.
+   - Required extension: **Windows App SDK**.
+3. Build and Run:
+   - Select `x64` or `arm64`.
+   - Press **F5**.
 
-2. Open the solution in Visual Studio 2022:
-   - Ensure you have the .NET desktop development workload
-   - Install the Windows App SDK extension if not already installed
-
-3. Build and run the project:
-   - Select your desired platform (x64, x86, or ARM64)
-   - Press F5 or click "Start Debugging"
-
-### Build from Command Line
+### Build via Command Line
 ```bash
-dotnet build Uviewer.sln
-dotnet run --project Uviewer/Uviewer.csproj
+dotnet build Uviewer.sln -c Release
 ```
 
-## Usage
+## 🏗️ Architecture
+- **WinUI 3**: Modern UI framework.
+- **Win2D**: Hardware-accelerated 2D graphics for images.
+- **ImageSharp**: Cross-platform image processing.
+- **SharpCompress**: Archive extraction.
 
-### Opening Files
-- **Drag and Drop**: Simply drag files onto the Uviewer window
-- **File Menu**: Use File > Open to browse for files
-- **Command Line**: Launch with file path as argument
-- **File Explorer**: Double-click supported file types
-
-### Navigation
-- **Images**: Use arrow keys or toolbar buttons to navigate between images
-- **Text Files**: Scroll through content or use page navigation
-- **EPUB**: Navigate chapters using the table of contents or page controls
-
-### Keyboard Shortcuts
-- `Space` or `Enter`: Next file/page
-- `Backspace`: Previous file/page
-- `F11`: Toggle fullscreen mode
-- `Ctrl+O`: Open file dialog
-- `Ctrl+F`: Toggle favorites sidebar
-- `Ctrl+E`: Toggle file explorer
-- `+/-`: Zoom in/out
-- `0`: Reset zoom to 100%
-
-### Supported Formats
-
-#### Image Formats
-- JPEG, PNG, GIF, BMP, TIFF
-- WebP (including animated WebP)
-- ICO, SVG
-- RAW formats (via ImageSharp)
-
-#### Text Formats
-- Plain text (.txt)
-- Markdown (.md, .markdown)
-- Source code files (.cs, .js, .html, .css, etc.)
-- Configuration files (.json, .xml, .yaml, etc.)
-
-#### Document Formats
-- EPUB (.epub)
-- Compressed archives containing supported formats
-
-## Architecture
-
-The application is built using:
-- **.NET 10.0** with WinUI 3
-- **Windows App SDK** for modern Windows development
-- **ImageSharp** for image processing
-- **Markdig** for Markdown rendering
-- **SharpCompress** for archive support
-- **WebView2** for rich content display
-
-The codebase is organized into partial classes:
-- `MainWindow.xaml.cs`: Core window functionality
-- `MainWindow.files.cs`: File management and navigation
-- `MainWindow.text.cs`: Text file handling
-- `MainWindow.epub.cs`: EPUB document support
-- `MainWindow.animatedWebp.cs`: Animated image support
-- `MainWindow.favorites.cs`: Favorites system
-- `MainWindow.keys.cs`: Keyboard shortcuts
-- `MainWindow.etcs.cs`: Additional utilities
-
-## Contributing
-
-1. Fork the repository
-2. Create a feature branch: `git checkout -b feature-name`
-3. Make your changes and test thoroughly
-4. Commit your changes: `git commit -am 'Add feature'`
-5. Push to the branch: `git push origin feature-name`
-6. Submit a pull request
-
-## License
-
+## 📝 License
 This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
 
-## Author
-
+## 👤 Author
 **kirinonakar** - *Initial work* - [kirinonakar](https://github.com/kirinonakar)
-
-## Acknowledgments
-
-- Microsoft for Windows App SDK and WinUI 3
-- ImageSharp team for excellent image processing library
-- Markdig contributors for Markdown parsing
-- SharpCompress team for archive support

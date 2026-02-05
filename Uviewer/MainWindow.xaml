@@ -113,7 +113,7 @@
 
                 <!-- Text Toolbar -->
                 <StackPanel x:Name="TextToolbarPanel" Orientation="Horizontal" Spacing="4" Visibility="Collapsed">
-                    <ToggleButton x:Name="AozoraToggleButton" Click="AozoraToggleButton_Click" ToolTipService.ToolTip="Aozora(A)">
+                    <ToggleButton x:Name="AozoraToggleButton" Click="AozoraToggleButton_Click" ToolTipService.ToolTip="Aozora/md(A)">
                         <TextBlock Text="A" FontSize="14" FontWeight="Bold"/>
                     </ToggleButton>
                     
@@ -218,7 +218,7 @@
                                              HorizontalScrollBarVisibility="Disabled" 
                                              VerticalScrollBarVisibility="Auto">
                                     <StackPanel x:Name="FavoritesPanel" Spacing="2">
-                                        <Button Content="➕ 즐겨찾기 추가" Click="AddToFavoritesMenuItem_Click" 
+                                        <Button x:Name="AddToFavoritesButton" Content="➕ 즐겨찾기 추가" Click="AddToFavoritesMenuItem_Click" 
                                                 HorizontalAlignment="Stretch" HorizontalContentAlignment="Left"
                                                 Background="Transparent" BorderThickness="0"/>
                                         <Border Height="1" Background="{ThemeResource DividerStrokeColorDefaultBrush}" Margin="0,4"/>
@@ -229,7 +229,7 @@
                         </Button.Flyout>
                     </Button>
 
-                    <Button Grid.Column="4" Click="BrowseFolderButton_Click" 
+                    <Button Grid.Column="4" x:Name="BrowseFolderButton" Click="BrowseFolderButton_Click" 
                             ToolTipService.ToolTip="폴더 찾아보기" Padding="6">
                         <FontIcon Glyph="&#xED25;" FontSize="16"/>
                     </Button>
