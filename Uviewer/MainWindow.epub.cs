@@ -888,6 +888,7 @@ namespace Uviewer
                 FontSize = _epubFontSize * 0.5,
                 HorizontalAlignment = HorizontalAlignment.Center,
                 Foreground = GetThemeForeground(),
+                FontFamily = new FontFamily(_epubFontFamily),
                 Opacity = 0.8,
                 Margin = new Thickness(0, 0, 0, _epubFontFamily == "Yu Mincho" ? -7 : -5) // Tighten gap even more (Extra tight for Yu Mincho)
             };
@@ -898,6 +899,7 @@ namespace Uviewer
                 FontSize = _epubFontSize,
                 HorizontalAlignment = HorizontalAlignment.Center,
                 Foreground = GetThemeForeground(),
+                FontFamily = new FontFamily(_epubFontFamily),
                 Margin = new Thickness(0, _epubFontFamily == "Yu Mincho" ? 2 : 4, 0, 0) 
             };
             
@@ -1111,6 +1113,7 @@ namespace Uviewer
                                                      if (child is TextBlock rubytb)
                                                      {
                                                          rubytb.Foreground = fg;
+                                                         rubytb.FontFamily = new FontFamily(_epubFontFamily);
                                                      }
                                                  }
                                             }
