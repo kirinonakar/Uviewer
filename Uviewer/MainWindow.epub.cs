@@ -421,7 +421,7 @@ namespace Uviewer
         {
             var pages = new List<UIElement>();
             
-            _epubTextWidth = 40 * _epubFontSize; 
+            _epubTextWidth = 42 * _epubFontSize; 
             
             // Regex to split by img/image tags
             // Use a capture group to keep the tag in the result array

@@ -155,82 +155,107 @@ namespace Uviewer
                 return;
             }
 
-            foreach (var favorite in _favorites.OrderByDescending<FavoriteItem, DateTime>(f => f.CreatedAt))
+            var fileFavorites = _favorites.Where(f => f.Type != "Folder").OrderByDescending(f => f.CreatedAt).ToList();
+            var folderFavorites = _favorites.Where(f => f.Type == "Folder").OrderByDescending(f => f.CreatedAt).ToList();
+
+            foreach (var fav in fileFavorites)
             {
-                // Capture the favorite for lambda closures
-                var currentFavorite = favorite;
-
-                // Create a Grid to hold the name and delete button
-                var itemGrid = new Grid
-                {
-                    Margin = new Thickness(0, 1, 0, 1),
-                    Background = new SolidColorBrush(Microsoft.UI.Colors.Transparent),
-                    MinHeight = 36
-                };
-                itemGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-                itemGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-
-                // Create TextBlock for the favorite name with left alignment and tooltip
-                var nameTextBlock = new TextBlock
-                {
-                    Text = favorite.Name + (favorite.SavedPage > 0 || favorite.ChapterIndex > 0 ? $" ({(favorite.ChapterIndex > 0 ? $"Ch.{favorite.ChapterIndex + 1} " : "")}P.{favorite.SavedPage})" : ""),
-                    VerticalAlignment = VerticalAlignment.Center,
-                    HorizontalAlignment = HorizontalAlignment.Left,
-                    TextTrimming = TextTrimming.CharacterEllipsis,
-                    TextWrapping = TextWrapping.NoWrap,
-                    MaxWidth = 340, // Reserve space for delete button (400 - 12 left margin - 8 right margin - 40 for button)
-                    Margin = new Thickness(12, 0, 8, 0),
-                    FontSize = 13
-                };
-                ToolTipService.SetToolTip(nameTextBlock, favorite.Name);
-
-                // Create a transparent button overlay for clicking
-                var nameButton = new Button
-                {
-                    Background = new SolidColorBrush(Microsoft.UI.Colors.Transparent),
-                    BorderThickness = new Thickness(0, 0, 0, 0),
-                    Padding = new Thickness(0, 0, 0, 0),
-                    HorizontalAlignment = HorizontalAlignment.Stretch,
-                    VerticalAlignment = VerticalAlignment.Stretch
-                };
-                nameButton.Click += async (s, e) =>
-                {
-                    FavoritesFlyout.Hide();
-                    await NavigateToFavoriteAsync(currentFavorite);
-                };
-
-                // Add both to a container grid in the first column
-                var nameContainer = new Grid();
-                nameContainer.Children.Add(nameTextBlock);
-                nameContainer.Children.Add(nameButton);
-
-                Grid.SetColumn(nameContainer, 0);
-                itemGrid.Children.Add(nameContainer);
-
-                // Create delete button with X icon - right aligned
-                var deleteButton = new Button
-                {
-                    Content = new FontIcon { Glyph = "\uE711", FontSize = 14 }, // X icon
-                    Width = 32,
-                    Height = 32,
-                    Background = new SolidColorBrush(Microsoft.UI.Colors.Transparent),
-                    BorderThickness = new Thickness(0, 0, 0, 0),
-                    Padding = new Thickness(0, 0, 0, 0),
-                    Margin = new Thickness(0, 0, 4, 0),
-                    VerticalAlignment = VerticalAlignment.Center,
-                    HorizontalAlignment = HorizontalAlignment.Right
-                };
-                ToolTipService.SetToolTip(deleteButton, "삭제");
-                deleteButton.Click += async (s, e) =>
-                {
-                    System.Diagnostics.Debug.WriteLine($"Delete button clicked for: {currentFavorite.Name}");
-                    await RemoveFavoriteAsync(currentFavorite);
-                };
-                Grid.SetColumn(deleteButton, 1);
-                itemGrid.Children.Add(deleteButton);
-
-                FavoritesPanel.Children.Add(itemGrid);
+                FavoritesPanel.Children.Add(CreateFavoriteItemControl(fav));
             }
+
+            if (fileFavorites.Count > 0 && folderFavorites.Count > 0)
+            {
+                // Add Separator
+                var separator = new Border
+                {
+                    Height = 1,
+                    Background = new SolidColorBrush(Microsoft.UI.Colors.Gray) { Opacity = 0.3 },
+                    Margin = new Thickness(12, 4, 12, 4),
+                    HorizontalAlignment = HorizontalAlignment.Stretch
+                };
+                FavoritesPanel.Children.Add(separator);
+            }
+
+            foreach (var fav in folderFavorites)
+            {
+                FavoritesPanel.Children.Add(CreateFavoriteItemControl(fav));
+            }
+        }
+
+        private Grid CreateFavoriteItemControl(FavoriteItem favorite)
+        {
+            var currentFavorite = favorite;
+
+            // Create a Grid to hold the name and delete button
+            var itemGrid = new Grid
+            {
+                Margin = new Thickness(0, 1, 0, 1),
+                Background = new SolidColorBrush(Microsoft.UI.Colors.Transparent),
+                MinHeight = 36
+            };
+            itemGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            itemGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+            // Create TextBlock for the favorite name with left alignment and tooltip
+            var nameTextBlock = new TextBlock
+            {
+                Text = favorite.Name + (favorite.SavedPage > 0 || favorite.ChapterIndex > 0 ? $" ({(favorite.ChapterIndex > 0 ? $"Ch.{favorite.ChapterIndex + 1} " : "")}P.{favorite.SavedPage})" : ""),
+                VerticalAlignment = VerticalAlignment.Center,
+                HorizontalAlignment = HorizontalAlignment.Left,
+                TextTrimming = TextTrimming.CharacterEllipsis,
+                TextWrapping = TextWrapping.NoWrap,
+                MaxWidth = 340, // Reserve space for delete button (400 - 12 left margin - 8 right margin - 40 for button)
+                Margin = new Thickness(12, 0, 8, 0),
+                FontSize = 13
+            };
+            ToolTipService.SetToolTip(nameTextBlock, favorite.Name);
+
+            // Create a transparent button overlay for clicking
+            var nameButton = new Button
+            {
+                Background = new SolidColorBrush(Microsoft.UI.Colors.Transparent),
+                BorderThickness = new Thickness(0, 0, 0, 0),
+                Padding = new Thickness(0, 0, 0, 0),
+                HorizontalAlignment = HorizontalAlignment.Stretch,
+                VerticalAlignment = VerticalAlignment.Stretch
+            };
+            nameButton.Click += async (s, e) =>
+            {
+                FavoritesFlyout.Hide();
+                await NavigateToFavoriteAsync(currentFavorite);
+            };
+
+            // Add both to a container grid in the first column
+            var nameContainer = new Grid();
+            nameContainer.Children.Add(nameTextBlock);
+            nameContainer.Children.Add(nameButton);
+
+            Grid.SetColumn(nameContainer, 0);
+            itemGrid.Children.Add(nameContainer);
+
+            // Create delete button with X icon - right aligned
+            var deleteButton = new Button
+            {
+                Content = new FontIcon { Glyph = "\uE711", FontSize = 14 }, // X icon
+                Width = 32,
+                Height = 32,
+                Background = new SolidColorBrush(Microsoft.UI.Colors.Transparent),
+                BorderThickness = new Thickness(0, 0, 0, 0),
+                Padding = new Thickness(0, 0, 0, 0),
+                Margin = new Thickness(0, 0, 4, 0),
+                VerticalAlignment = VerticalAlignment.Center,
+                HorizontalAlignment = HorizontalAlignment.Right
+            };
+            ToolTipService.SetToolTip(deleteButton, "삭제");
+            deleteButton.Click += async (s, e) =>
+            {
+                System.Diagnostics.Debug.WriteLine($"Delete button clicked for: {currentFavorite.Name}");
+                await RemoveFavoriteAsync(currentFavorite);
+            };
+            Grid.SetColumn(deleteButton, 1);
+            itemGrid.Children.Add(deleteButton);
+
+            return itemGrid;
         }
 
         private async Task AddToFavoritesAsync()
@@ -257,7 +282,23 @@ namespace Uviewer
                     System.Diagnostics.Debug.WriteLine($"  - {fav.Name} ({fav.Type}): {fav.Path}");
                 }
 
-                if (_currentArchive != null && !string.IsNullOrEmpty(_currentArchivePath))
+                if (_isTextMode && !string.IsNullOrEmpty(_currentTextFilePath))
+                {
+                    // Text File mode
+                    name = Path.GetFileName(_currentTextFilePath);
+                    path = _currentTextFilePath;
+                    type = "File";
+                    CheckAndAddFolderToFavorites(Path.GetDirectoryName(path));
+                }
+                else if (_isEpubMode && !string.IsNullOrEmpty(_currentEpubFilePath))
+                {
+                    // Epub Mode
+                    name = Path.GetFileName(_currentEpubFilePath);
+                    path = _currentEpubFilePath;
+                    type = "File";
+                    CheckAndAddFolderToFavorites(Path.GetDirectoryName(path));
+                }
+                else if (_currentArchive != null && !string.IsNullOrEmpty(_currentArchivePath))
                 {
                     // Archive mode - add current image position
                     if (_currentIndex >= 0 && _currentIndex < _imageEntries.Count)
@@ -267,49 +308,23 @@ namespace Uviewer
                         path = _currentArchivePath;
                         type = "Archive";
                         archiveEntryKey = currentEntry.ArchiveEntryKey;
-                        System.Diagnostics.Debug.WriteLine($"Archive mode: {name}");
 
-                        // Also add the archive folder as a separate bookmark (optional, keeping original logic)
-                        var archiveFolder = Path.GetDirectoryName(_currentArchivePath);
-                        if (!string.IsNullOrEmpty(archiveFolder) && Directory.Exists(archiveFolder))
-                        {
-                            var folderName = Path.GetFileName(archiveFolder);
-                            if (string.IsNullOrEmpty(folderName)) folderName = archiveFolder;
-                            
-                            // Check if folder bookmark already exists
-                            var existingFolder = _favorites.FirstOrDefault(f => f.Path == archiveFolder && f.Type == "Folder");
-                            if (existingFolder == null)
-                            {
-                                var folderFavorite = new FavoriteItem
-                                {
-                                    Name = folderName,
-                                    Path = archiveFolder,
-                                    Type = "Folder"
-                                };
-                                _favorites.Add(folderFavorite);
-                            }
-                        }
+                        // Also add the archive folder as a separate bookmark
+                        CheckAndAddFolderToFavorites(Path.GetDirectoryName(_currentArchivePath));
                     }
                 }
                 else if (_currentIndex >= 0 && _currentIndex < _imageEntries.Count)
                 {
                     // File mode - add current file (Prioritize File over Folder)
+                    // Note: This often covers Image files in the list
                     var currentEntry = _imageEntries[_currentIndex];
                     if (!string.IsNullOrEmpty(currentEntry.FilePath))
                     {
                         name = currentEntry.DisplayName;
                         path = currentEntry.FilePath;
                         type = "File";
-                        System.Diagnostics.Debug.WriteLine($"File mode: {name}");
+                        CheckAndAddFolderToFavorites(Path.GetDirectoryName(path));
                     }
-                }
-                else if (_isEpubMode && !string.IsNullOrEmpty(_currentEpubFilePath))
-                {
-                    // Epub Mode
-                    name = Path.GetFileName(_currentEpubFilePath);
-                    path = _currentEpubFilePath;
-                    type = "File"; 
-                    System.Diagnostics.Debug.WriteLine($"Epub mode: {name}");
                 }
                 else if (!string.IsNullOrEmpty(_currentExplorerPath))
                 {
@@ -319,7 +334,6 @@ namespace Uviewer
                         name = _currentExplorerPath;
                     path = _currentExplorerPath;
                     type = "Folder";
-                    System.Diagnostics.Debug.WriteLine($"Folder mode: {name}");
                 }
 
                 System.Diagnostics.Debug.WriteLine($"Final values - Name: '{name}', Path: '{path}', Type: '{type}'");
@@ -491,6 +505,27 @@ namespace Uviewer
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"Error navigating to favorite: {ex.Message}");
+            }
+        }
+
+        private void CheckAndAddFolderToFavorites(string? folderPath)
+        {
+            if (string.IsNullOrEmpty(folderPath) || !Directory.Exists(folderPath)) return;
+
+            var folderName = Path.GetFileName(folderPath);
+            if (string.IsNullOrEmpty(folderName)) folderName = folderPath;
+
+            // Check if folder bookmark already exists
+            var existingFolder = _favorites.FirstOrDefault(f => f.Path == folderPath && f.Type == "Folder");
+            if (existingFolder == null)
+            {
+                var folderFavorite = new FavoriteItem
+                {
+                    Name = folderName,
+                    Path = folderPath,
+                    Type = "Folder"
+                };
+                _favorites.Add(folderFavorite);
             }
         }
 

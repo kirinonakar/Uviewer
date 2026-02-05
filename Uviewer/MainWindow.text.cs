@@ -921,10 +921,10 @@ namespace Uviewer
 
         private double GetUrlMaxWidth()
         {
-            // "Text width max 40 chars"
-            // With Consolas/Monospace it is easy. With variable width, 40 * FontSize is approximation (em).
+            // "Text width max 42 chars"
+            // With Consolas/Monospace it is easy. With variable width, 42 * FontSize is approximation (em).
             // Actually, for Japanese 'em' is full width.
-            return 40 * _textFontSize; 
+            return 42 * _textFontSize; 
         }
 
         private Brush GetThemeForeground()
