@@ -196,10 +196,12 @@ namespace Uviewer
             itemGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
             itemGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
 
+            string pageInfo = favorite.SavedPage > 0 || favorite.ChapterIndex > 0 ? $" ({(favorite.ChapterIndex > 0 ? $"Ch.{favorite.ChapterIndex + 1} " : "")}P.{favorite.SavedPage})" : "";
+            
             // Create TextBlock for the favorite name with left alignment and tooltip
             var nameTextBlock = new TextBlock
             {
-                Text = favorite.Name + (favorite.SavedPage > 0 || favorite.ChapterIndex > 0 ? $" ({(favorite.ChapterIndex > 0 ? $"Ch.{favorite.ChapterIndex + 1} " : "")}P.{favorite.SavedPage})" : ""),
+                Text = favorite.Name + pageInfo,
                 VerticalAlignment = VerticalAlignment.Center,
                 HorizontalAlignment = HorizontalAlignment.Left,
                 TextTrimming = TextTrimming.CharacterEllipsis,
@@ -208,7 +210,9 @@ namespace Uviewer
                 Margin = new Thickness(12, 0, 8, 0),
                 FontSize = 13
             };
-            ToolTipService.SetToolTip(nameTextBlock, favorite.Name);
+            
+            string tooltipText = favorite.Path + (string.IsNullOrEmpty(pageInfo) ? "" : $"\n{pageInfo.Trim()}");
+            ToolTipService.SetToolTip(nameTextBlock, tooltipText);
 
             // Create a transparent button overlay for clicking
             var nameButton = new Button
@@ -219,6 +223,8 @@ namespace Uviewer
                 HorizontalAlignment = HorizontalAlignment.Stretch,
                 VerticalAlignment = VerticalAlignment.Stretch
             };
+            ToolTipService.SetToolTip(nameButton, tooltipText); // Set tooltip on button too
+            
             nameButton.Click += async (s, e) =>
             {
                 FavoritesFlyout.Hide();
@@ -357,6 +363,20 @@ namespace Uviewer
                         _favorites.Remove(existing);
                     }
 
+                    int savedPage = 0;
+                    if (_isEpubMode)
+                    {
+                        savedPage = CurrentEpubPageIndex;
+                    }
+                    else if (_isAozoraMode)
+                    {
+                        savedPage = _currentAozoraPageIndex + 1;
+                    }
+                    else if (_isTextMode && TextScrollViewer != null && TextScrollViewer.ViewportHeight > 0)
+                    {
+                        savedPage = (int)(TextScrollViewer.VerticalOffset / TextScrollViewer.ViewportHeight) + 1;
+                    }
+
                     var favorite = new FavoriteItem
                     {
                         Name = name,
@@ -364,9 +384,7 @@ namespace Uviewer
                         Type = type,
                         ArchiveEntryKey = archiveEntryKey,
                         ScrollOffset = (_isTextMode && TextScrollViewer != null) ? TextScrollViewer.VerticalOffset : null,
-                        SavedPage = (_isTextMode && TextScrollViewer != null && TextScrollViewer.ViewportHeight > 0) ? 
-                                    (int)(TextScrollViewer.VerticalOffset / TextScrollViewer.ViewportHeight) + 1 : 
-                                    (_isEpubMode ? CurrentEpubPageIndex : 0),
+                        SavedPage = savedPage,
                         ChapterIndex = _isEpubMode ? CurrentEpubChapterIndex : 0
                     };
 
@@ -490,15 +508,29 @@ namespace Uviewer
                          // Restore Epub
                          await RestoreEpubStateAsync(favorite.ChapterIndex, favorite.SavedPage);
                     }
-                    else if (favorite.ScrollOffset.HasValue && TextScrollViewer != null)
+                    else 
                     {
-                         // Wait longer to override 'RestoreFromRecent' which has 100ms delay
-                         await Task.Delay(300);
-                         if (_isTextMode)
-                         {
-                             TextScrollViewer.ChangeView(null, favorite.ScrollOffset.Value, null);
-                             UpdateTextStatusBar();
-                         }
+                        // Wait longer to override 'RestoreFromRecent' which has 100ms delay
+                        await Task.Delay(300);
+
+                        if (_isAozoraMode && favorite.SavedPage > 0)
+                        {
+                            int targetIndex = Math.Min(favorite.SavedPage - 1, _aozoraPages.Count - 1);
+                            if (targetIndex >= 0)
+                            {
+                                _currentAozoraPageIndex = targetIndex;
+                                RenderCurrentAozoraPage();
+                                UpdateAozoraStatusBar();
+                            }
+                        }
+                        else if (!favorite.Path.EndsWith(".epub", StringComparison.OrdinalIgnoreCase) && favorite.ScrollOffset.HasValue && TextScrollViewer != null)
+                        {
+                             if (_isTextMode)
+                             {
+                                 TextScrollViewer.ChangeView(null, favorite.ScrollOffset.Value, null);
+                                 UpdateTextStatusBar();
+                             }
+                        }
                     }
                 }
             }
@@ -635,10 +667,12 @@ namespace Uviewer
                 itemGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
                 itemGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
 
+                string pageInfo = recent.SavedPage > 0 || recent.ChapterIndex > 0 ? $" ({(recent.ChapterIndex > 0 ? $"Ch.{recent.ChapterIndex + 1} " : "")}P.{recent.SavedPage})" : "";
+                
                 // Create TextBlock for the recent item name with left alignment and tooltip
                 var nameTextBlock = new TextBlock
                 {
-                    Text = recent.Name + (recent.SavedPage > 0 || recent.ChapterIndex > 0 ? $" ({(recent.ChapterIndex > 0 ? $"Ch.{recent.ChapterIndex + 1} " : "")}P.{recent.SavedPage})" : ""),
+                    Text = recent.Name + pageInfo,
                     VerticalAlignment = VerticalAlignment.Center,
                     HorizontalAlignment = HorizontalAlignment.Left,
                     TextTrimming = TextTrimming.CharacterEllipsis,
@@ -647,7 +681,9 @@ namespace Uviewer
                     Margin = new Thickness(12, 0, 8, 0),
                     FontSize = 13
                 };
-                ToolTipService.SetToolTip(nameTextBlock, recent.Name);
+                
+                string tooltipText = recent.Path + (string.IsNullOrEmpty(pageInfo) ? "" : $"\n{pageInfo.Trim()}");
+                ToolTipService.SetToolTip(nameTextBlock, tooltipText);
 
                 // Create a transparent button overlay for clicking
                 var nameButton = new Button
@@ -658,6 +694,8 @@ namespace Uviewer
                     HorizontalAlignment = HorizontalAlignment.Stretch,
                     VerticalAlignment = VerticalAlignment.Stretch
                 };
+                ToolTipService.SetToolTip(nameButton, tooltipText); // Tooltip on button
+                
                 nameButton.Click += async (s, e) =>
                 {
                     RecentFlyout.Hide();

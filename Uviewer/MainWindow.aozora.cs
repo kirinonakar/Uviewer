@@ -13,9 +13,19 @@ namespace Uviewer
 {
     public sealed partial class MainWindow
     {
-        private bool _isAozoraMode = false;
+        private bool _isAozoraMode = true;
         private bool _isMarkdownRenderMode = false;
         private List<AozoraBindingModel> _aozoraBlocks = new();
+        private List<AozoraPageModel> _aozoraPages = new();
+        private int _aozoraTotalLineCount = 0;
+
+        // Page model for Aozora mode - each item = 1 page
+        public class AozoraPageModel
+        {
+            public List<AozoraBindingModel> Blocks { get; set; } = new();
+            public int StartLine { get; set; } = 0; // First line number on this page
+            public int EndLine { get; set; } = 0;   // Last line number on this page
+        }
 
         public class AozoraBindingModel
         {
@@ -30,6 +40,7 @@ namespace Uviewer
             public string? FontFamily { get; set; } = null; // Override font family (e.g. for code)
             public bool IsTable { get; set; } = false;
             public List<List<string>> TableRows { get; set; } = new();
+            public int SourceLineNumber { get; set; } = 0; // Original line number in source text
         }
 
         public class AozoraBold { public string Text { get; set; } = ""; }
@@ -151,20 +162,362 @@ namespace Uviewer
                 _aozoraBlocks = ParseAozoraContent(rawContent);
             }
 
-            if (TextItemsRepeater != null)
+            // Calculate pages based on screen size
+            _aozoraTotalLineCount = _aozoraBlocks.Count;
+            _aozoraPages = CalculateAozoraPages(_aozoraBlocks);
+            _currentAozoraPageIndex = 0;
+            
+            // Use simple container for virtualized rendering
+            // Only the current page is rendered at any time
+            if (AozoraPageContainer != null)
             {
-                // Update ItemTemplate
-                if (RootGrid.Resources.TryGetValue("AozoraItemTemplate", out var template))
-                {
-                    TextItemsRepeater.ItemTemplate = (DataTemplate)template;
-                }
-                TextItemsRepeater.ItemsSource = _aozoraBlocks;
+                AozoraPageContainer.Background = GetThemeBackground();
+                AozoraPageContainer.Visibility = Visibility.Visible;
+                
+                // Render first page
+                RenderCurrentAozoraPage();
             }
+            
+            // Hide ScrollViewer-based TextArea
+            if (TextScrollViewer != null) TextScrollViewer.Visibility = Visibility.Collapsed;
             
             if (TextArea != null)
             {
                 TextArea.Background = GetThemeBackground();
             }
+            
+            // Update status bar
+            UpdateAozoraStatusBar();
+        }
+        
+        // Current page index for virtualized navigation
+        private int _currentAozoraPageIndex = 0;
+        private double _lastAozoraContainerHeight = 0;
+        private double _lastAozoraContainerWidth = 0;
+        private System.Threading.CancellationTokenSource? _aozoraResizeCts;
+        
+        private void AozoraPageContainer_SizeChanged(object sender, SizeChangedEventArgs e)
+        {
+            HandleAozoraContainerResize(e.NewSize.Width, e.NewSize.Height);
+        }
+        
+        private void TextArea_SizeChanged(object sender, SizeChangedEventArgs e)
+        {
+            // Also handle TextArea resize for window drag resizing
+            if (!_isAozoraMode) return;
+            HandleAozoraContainerResize(e.NewSize.Width, e.NewSize.Height);
+        }
+        
+        private void HandleAozoraContainerResize(double newWidth, double newHeight)
+        {
+            if (!_isTextMode || !_isAozoraMode) return;
+            if (_aozoraBlocks.Count == 0) return;
+            
+            // Debounce: Only recalculate after size change settles
+            // Check both width and height changes (width affects text wrapping)
+            bool heightChanged = Math.Abs(newHeight - _lastAozoraContainerHeight) >= 10;
+            bool widthChanged = Math.Abs(newWidth - _lastAozoraContainerWidth) >= 10;
+            
+            if (!heightChanged && !widthChanged) return; // Ignore small changes
+            
+            _lastAozoraContainerHeight = newHeight;
+            _lastAozoraContainerWidth = newWidth;
+            
+            // Cancel previous resize task
+            _aozoraResizeCts?.Cancel();
+            _aozoraResizeCts = new System.Threading.CancellationTokenSource();
+            var token = _aozoraResizeCts.Token;
+            
+            // Delay recalculation to avoid excessive updates during drag
+            _ = RecalculateAozoraPagesDelayedAsync(token);
+        }
+        
+        private async Task RecalculateAozoraPagesDelayedAsync(System.Threading.CancellationToken token)
+        {
+            try
+            {
+                await Task.Delay(300, token); // Wait for resize to settle
+                if (token.IsCancellationRequested) return;
+                
+                // Remember current reading position (by line number)
+                int currentStartLine = 0;
+                if (_currentAozoraPageIndex >= 0 && _currentAozoraPageIndex < _aozoraPages.Count)
+                {
+                    currentStartLine = _aozoraPages[_currentAozoraPageIndex].StartLine;
+                }
+                
+                // Recalculate pages
+                _aozoraPages = CalculateAozoraPages(_aozoraBlocks);
+                
+                // Find page containing the previous start line
+                _currentAozoraPageIndex = 0;
+                for (int i = 0; i < _aozoraPages.Count; i++)
+                {
+                    if (_aozoraPages[i].StartLine <= currentStartLine && _aozoraPages[i].EndLine >= currentStartLine)
+                    {
+                        _currentAozoraPageIndex = i;
+                        break;
+                    }
+                }
+                _currentAozoraPageIndex = Math.Min(_currentAozoraPageIndex, _aozoraPages.Count - 1);
+                
+                // Re-render current page
+                RenderCurrentAozoraPage();
+                UpdateAozoraStatusBar();
+            }
+            catch (TaskCanceledException) { }
+        }
+        
+        private void RenderCurrentAozoraPage()
+        {
+            if (_currentAozoraPageIndex < 0 || _currentAozoraPageIndex >= _aozoraPages.Count) return;
+            if (AozoraPageContent == null) return;
+            
+            var page = _aozoraPages[_currentAozoraPageIndex];
+            
+            // Clear and rebuild content
+            AozoraPageContent.Blocks.Clear();
+            AozoraPageContent.FontFamily = new FontFamily(_textFontFamily);
+            AozoraPageContent.FontSize = _textFontSize;
+            AozoraPageContent.Foreground = GetThemeForeground();
+            AozoraPageContent.MaxWidth = _isMarkdownRenderMode ? double.PositiveInfinity : GetUrlMaxWidth();
+            
+            foreach (var block in page.Blocks)
+            {
+                if (block.IsTable)
+                {
+                    var tablePara = new Paragraph();
+                    tablePara.Inlines.Add(CreateTableInline(block.TableRows));
+                    AozoraPageContent.Blocks.Add(tablePara);
+                    continue;
+                }
+                
+                var p = new Paragraph();
+                p.LineHeight = _textFontSize * block.FontSizeScale * 1.8;
+                p.LineStackingStrategy = LineStackingStrategy.BlockLineHeight;
+                p.Margin = new Thickness(0, block.Margin.Top, 0, block.Margin.Bottom);
+                p.TextAlignment = block.Alignment;
+                
+                foreach (var item in block.Inlines)
+                {
+                    if (item is string text)
+                    {
+                        p.Inlines.Add(new Run 
+                        { 
+                            Text = text,
+                            FontSize = _textFontSize * block.FontSizeScale
+                        });
+                    }
+                    else if (item is AozoraBold bold)
+                    {
+                        p.Inlines.Add(new Run 
+                        { 
+                            Text = bold.Text, 
+                            FontWeight = Microsoft.UI.Text.FontWeights.Bold,
+                            FontSize = _textFontSize * block.FontSizeScale
+                        });
+                    }
+                    else if (item is AozoraItalic italic)
+                    {
+                        p.Inlines.Add(new Run 
+                        { 
+                            Text = italic.Text, 
+                            FontStyle = Windows.UI.Text.FontStyle.Italic,
+                            FontSize = _textFontSize * block.FontSizeScale
+                        });
+                    }
+                    else if (item is AozoraLineBreak)
+                    {
+                        p.Inlines.Add(new LineBreak());
+                    }
+                    else if (item is AozoraCode code)
+                    {
+                        p.Inlines.Add(new Run 
+                        { 
+                            Text = code.Text, 
+                            FontFamily = new FontFamily("Consolas, Courier New, Monospace"), 
+                            Foreground = new SolidColorBrush(Colors.DarkSlateGray),
+                            FontSize = _textFontSize * block.FontSizeScale
+                        });
+                    }
+                    else if (item is AozoraRuby ruby)
+                    {
+                        p.Inlines.Add(CreateRubyInline(ruby.BaseText, ruby.RubyText, _textFontSize * block.FontSizeScale));
+                    }
+                }
+                
+                AozoraPageContent.Blocks.Add(p);
+            }
+            
+            // Scroll to top of page
+            if (AozoraPageScroll != null)
+            {
+                AozoraPageScroll.ChangeView(null, 0, null, true);
+            }
+        }
+        
+        private List<AozoraPageModel> CalculateAozoraPages(List<AozoraBindingModel> blocks)
+        {
+            var pages = new List<AozoraPageModel>();
+            if (blocks.Count == 0) return pages;
+            
+            // Get available height from the actual container
+            double availableHeight = AozoraPageContainer?.ActualHeight ?? TextArea?.ActualHeight ?? RootGrid.ActualHeight;
+            
+            // If container not yet measured, use RootGrid with UI element offset
+            if (availableHeight < 100)
+            {
+                availableHeight = RootGrid.ActualHeight;
+                if (!_isFullscreen)
+                {
+                    availableHeight -= 60; // Toolbar + StatusBar
+                }
+            }
+            
+            // Container padding (matches XAML Padding="20") + Safety Buffer
+            availableHeight -= 60;
+            
+            if (availableHeight < 200) availableHeight = 600; // Fallback
+            
+            // Consistent line height: FontSize * 1.8 (to accommodate ruby text)
+            double lineHeight = _textFontSize * 1.8;
+            double maxWidth = GetUrlMaxWidth();
+            
+            double currentHeight = 0;
+            var currentPage = new AozoraPageModel();
+            int lineNum = 1;
+            
+            foreach (var block in blocks)
+            {
+                block.SourceLineNumber = lineNum;
+                
+                double blockHeight = EstimateBlockHeight(block, lineHeight, maxWidth);
+                
+                // Check if we need new page
+                if (currentHeight + blockHeight > availableHeight && currentPage.Blocks.Count > 0)
+                {
+                    currentPage.EndLine = lineNum - 1;
+                    pages.Add(currentPage);
+                    currentPage = new AozoraPageModel { StartLine = lineNum };
+                    currentHeight = 0;
+                }
+                
+                if (currentPage.Blocks.Count == 0)
+                {
+                    currentPage.StartLine = lineNum;
+                }
+                
+                currentPage.Blocks.Add(block);
+                currentHeight += blockHeight;
+                lineNum++;
+            }
+            
+            // Add last page
+            if (currentPage.Blocks.Count > 0)
+            {
+                currentPage.EndLine = lineNum - 1;
+                pages.Add(currentPage);
+            }
+            
+            return pages;
+        }
+        
+        private double EstimateBlockHeight(AozoraBindingModel block, double lineHeight, double maxWidth)
+        {
+            if (block.IsTable)
+            {
+                // Tables: estimate based on rows
+                int rows = block.TableRows.Count;
+                return rows * lineHeight + 20; // +20 for padding
+            }
+            
+            // Calculate character count
+            int charCount = 0;
+            foreach (var item in block.Inlines)
+            {
+                if (item is string str) charCount += str.Length;
+                else if (item is AozoraBold bold) charCount += bold.Text.Length;
+                else if (item is AozoraItalic italic) charCount += italic.Text.Length;
+                else if (item is AozoraCode code) charCount += code.Text.Length;
+                else if (item is AozoraRuby ruby) charCount += ruby.BaseText.Length;
+                else if (item is AozoraLineBreak) charCount += 50; // Force new line estimate
+            }
+            
+            // Estimate lines based on character count and font size
+            double effectiveFontSize = _textFontSize * block.FontSizeScale;
+            double charsPerLine = (maxWidth / effectiveFontSize) * 0.95; // Safety factor for wrapping
+            if (charsPerLine < 1) charsPerLine = 40;
+            
+            double estimatedLines = Math.Ceiling(charCount / charsPerLine);
+            if (estimatedLines < 1) estimatedLines = 1;
+            
+            // Block vertical margins
+            double margins = block.Margin.Top + block.Margin.Bottom + block.Padding.Top + block.Padding.Bottom;
+            
+            return (estimatedLines * lineHeight * block.FontSizeScale) + margins;
+        }
+        
+        private void AozoraPageContainer_PointerPressed(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
+        {
+            if (!_isTextMode || !_isAozoraMode) return;
+            
+            var ptr = e.GetCurrentPoint(RootGrid);
+            if (ptr.Properties.IsLeftButtonPressed)
+            {
+                HandleSmartTouchNavigation(e,
+                    () => NavigateAozoraPage(-1),
+                    () => NavigateAozoraPage(1));
+                
+                e.Handled = true;
+            }
+        }
+        
+        private void AozoraPageContainer_PointerWheelChanged(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
+        {
+            if (!_isTextMode || !_isAozoraMode) return;
+            
+            var ptr = e.GetCurrentPoint(AozoraPageContainer);
+            var delta = ptr.Properties.MouseWheelDelta;
+            
+            if (delta > 0) NavigateAozoraPage(-1);
+            else NavigateAozoraPage(1);
+            
+            e.Handled = true;
+        }
+        
+        private void NavigateAozoraPage(int direction)
+        {
+            int newIndex = _currentAozoraPageIndex + direction;
+            
+            if (newIndex >= 0 && newIndex < _aozoraPages.Count)
+            {
+                _currentAozoraPageIndex = newIndex;
+                RenderCurrentAozoraPage();
+                UpdateAozoraStatusBar();
+            }
+        }
+        
+        private void UpdateAozoraStatusBar()
+        {
+            if (!_isTextMode || !_isAozoraMode) return;
+            
+            int currentPage = _currentAozoraPageIndex + 1;
+            int totalPages = _aozoraPages.Count;
+            
+            // Get current page's line range
+            int startLine = 1;
+            int endLine = _aozoraTotalLineCount;
+            
+            if (_currentAozoraPageIndex >= 0 && _currentAozoraPageIndex < _aozoraPages.Count)
+            {
+                var page = _aozoraPages[_currentAozoraPageIndex];
+                startLine = page.StartLine;
+                endLine = page.EndLine;
+            }
+            
+            // Update status bar
+            ImageIndexText.Text = $"{currentPage} / {totalPages}";
+            ImageInfoText.Text = $"Line {startLine}-{endLine} / {_aozoraTotalLineCount}";
         }
 
         private List<AozoraBindingModel> ParseAozoraContent(string text)

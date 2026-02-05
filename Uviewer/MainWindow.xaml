@@ -377,7 +377,8 @@
 
             <!-- Text Display Area -->
             <Grid Grid.Column="2" x:Name="TextArea" Visibility="Collapsed" Background="{ThemeResource SolidBackgroundFillColorBaseBrush}"
-                  PointerPressed="TextArea_PointerPressed" PointerWheelChanged="TextArea_PointerWheelChanged">
+                  PointerPressed="TextArea_PointerPressed" PointerWheelChanged="TextArea_PointerWheelChanged"
+                  SizeChanged="TextArea_SizeChanged">
                  <ScrollViewer x:Name="TextScrollViewer" 
                                HorizontalScrollBarVisibility="Disabled"
                                VerticalScrollBarVisibility="Hidden"
@@ -390,6 +391,23 @@
                          </ItemsRepeater.Layout>
                      </ItemsRepeater>
                  </ScrollViewer>
+                 
+                 <!-- Simple container for virtualized Aozora page rendering -->
+                 <Grid x:Name="AozoraPageContainer" 
+                       Visibility="Collapsed"
+                       Padding="20"
+                       PointerPressed="AozoraPageContainer_PointerPressed"
+                       PointerWheelChanged="AozoraPageContainer_PointerWheelChanged"
+                       SizeChanged="AozoraPageContainer_SizeChanged">
+                     <ScrollViewer x:Name="AozoraPageScroll"
+                                   VerticalScrollBarVisibility="Hidden"
+                                   HorizontalScrollBarVisibility="Disabled">
+                         <RichTextBlock x:Name="AozoraPageContent"
+                                        IsTextSelectionEnabled="False"
+                                        TextWrapping="Wrap"
+                                        HorizontalAlignment="Left"/>
+                     </ScrollViewer>
+                 </Grid>
                  
                   <Grid x:Name="TextFastNavOverlay"
                         Canvas.ZIndex="999"

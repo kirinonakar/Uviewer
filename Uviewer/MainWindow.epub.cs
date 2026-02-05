@@ -170,7 +170,17 @@ namespace Uviewer
             }
             else if (e.Key == Windows.System.VirtualKey.B)
             {
-                 ToggleEpubTheme();
+                 var ctrlPressed = Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(
+                     Windows.System.VirtualKey.Control).HasFlag(Windows.UI.Core.CoreVirtualKeyStates.Down);
+                 
+                 if (ctrlPressed)
+                 {
+                     ToggleSidebar();
+                 }
+                 else
+                 {
+                     ToggleEpubTheme();
+                 }
                  e.Handled = true;
             }
             else if (e.Key == Windows.System.VirtualKey.Home)
@@ -363,6 +373,10 @@ namespace Uviewer
                 int totalPages = EpubFlipView?.Items.Count ?? 0;
                 ImageInfoText.Text = Strings.EpubPageInfo(currentPage, totalPages, _currentEpubChapterIndex + 1, _epubSpine.Count);
             }
+            if (ImageIndexText != null)
+            {
+                ImageIndexText.Text = ""; // Clear residual text from other modes
+            }
         }
 
         // --- Core Rendering Logic ---
@@ -543,21 +557,24 @@ namespace Uviewer
             
             // Dynamic Chunking based on estimated length
             // Improved Pagination based on precise pixel height
-            double availableHeight = RootGrid.ActualHeight;
+            double availableHeight = EpubArea?.ActualHeight ?? RootGrid.ActualHeight;
 
-            // Subtract UI elements
-            if (!_isFullscreen)
+            // If not actively displayed/measured yet, fallback to Root calculation
+            if (availableHeight < 100)
             {
-                 availableHeight -= 48; // Toolbar approx
-                 availableHeight -= 32; // StatusBar approx
+               availableHeight = RootGrid.ActualHeight;
+               if (!_isFullscreen)
+               {
+                    availableHeight -= 80; // Toolbar + StatusBar
+               }
             }
 
             // Subtract Container Margin/Padding
             // AddTextPage adds 20px top/bottom padding to Grid
             availableHeight -= 40; 
             
-            // Safety buffer
-            availableHeight -= 20;
+            // Safety buffer removed
+            // availableHeight -= 20;
 
             if (availableHeight < 200) availableHeight = 800; // Fallback for initial load
             
@@ -628,7 +645,7 @@ namespace Uviewer
                  FontSize = _epubFontSize,
                  Foreground = GetEpubThemeForeground(),
                  MaxWidth = Math.Min(45 * _epubFontSize, 1800), 
-                 HorizontalAlignment = HorizontalAlignment.Center,
+                 HorizontalAlignment = HorizontalAlignment.Left,
                  TextAlignment = TextAlignment.Left,
                  Padding = new Thickness(0, 0, 0, 10) // Minimal padding bottom
              };
