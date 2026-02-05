@@ -9,7 +9,7 @@
 
   <Identity
     Name="407f1f0a-0987-40f1-9ee4-3fab7a5cddbc"
-    Publisher="CN=totor"
+    Publisher="kirinonakar"
     Version="1.0.0.0" />
 
   <mp:PhoneIdentity PhoneProductId="407f1f0a-0987-40f1-9ee4-3fab7a5cddbc" PhonePublisherId="00000000-0000-0000-0000-000000000000"/>

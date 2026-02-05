@@ -570,6 +570,16 @@ namespace Uviewer
                         SideBySideButton_Click(sender, new RoutedEventArgs());
                         e.Handled = true;
                         break;
+                    case Windows.System.VirtualKey.Home:
+                        _currentIndex = 0;
+                        await DisplayCurrentImageAsync();
+                        e.Handled = true;
+                        break;
+                    case Windows.System.VirtualKey.End:
+                        _currentIndex = _imageEntries.Count - 1;
+                        await DisplayCurrentImageAsync();
+                        e.Handled = true;
+                        break;
                 }
             }
             else
@@ -586,8 +596,26 @@ namespace Uviewer
             }
         }
 
-        private void FileListView_PreviewKeyDown(object sender, Microsoft.UI.Xaml.Input.KeyRoutedEventArgs e)
+        private async void FileListView_PreviewKeyDown(object sender, Microsoft.UI.Xaml.Input.KeyRoutedEventArgs e)
         {
+            if (_imageEntries.Count > 0)
+            {
+                if (e.Key == Windows.System.VirtualKey.Home)
+                {
+                    _currentIndex = 0;
+                    await DisplayCurrentImageAsync();
+                    e.Handled = true;
+                    return;
+                }
+                else if (e.Key == Windows.System.VirtualKey.End)
+                {
+                    _currentIndex = _imageEntries.Count - 1;
+                    await DisplayCurrentImageAsync();
+                    e.Handled = true;
+                    return;
+                }
+            }
+
             if (e.Key == Windows.System.VirtualKey.Enter)
             {
                 if (FileListView.SelectedItem is FileItem item && item.IsDirectory)

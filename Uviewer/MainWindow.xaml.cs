@@ -171,6 +171,12 @@ namespace Uviewer
 
         public async Task InitializeAsync(string? launchFilePath = null)
         {
+            // Subscribe to global PreviewKeyDown to intercept navigation keys
+            if (RootGrid != null)
+            {
+                RootGrid.PreviewKeyDown += RootGrid_Global_PreviewKeyDown;
+            }
+
             // Load favorites
             await LoadFavorites();
             UpdateFavoritesMenu();

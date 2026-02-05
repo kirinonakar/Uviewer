@@ -44,8 +44,9 @@
 | **← / →** | Image | Previous / Next Image |
 | | Text | Previous / Next Page |
 | **↑ / ↓** | Global | Previous / Next File (Same Type) |
-| **Home / End** | Image | First / Last Image |
+| **Home / End** | Image / Archive | First / Last Image |
 | | Text | First / Last Page |
+| | EPUB | Previous / Next Chapter |
 | **Space** | Image | Toggle 2-Page View (Side-by-Side) |
 | **Backspace** | Global | Go to Parent Folder |
 | **Esc** | Global | Close Window / Exit Fullscreen |

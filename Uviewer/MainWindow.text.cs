@@ -23,6 +23,7 @@ namespace Uviewer
         private string _textFontFamily = "Yu Gothic Medium";
         private int _themeIndex = 0; // 0: White, 1: Beige, 2: Dark
         private bool _isTextMode = false;
+
         
         
         // SupportedTextExtensions is defined in MainWindow.xaml.cs
@@ -186,28 +187,9 @@ namespace Uviewer
                 // Wait for layout update
                 await Task.Delay(100);
                 
-                // Find in recent items
-                // Note: FilePath check is better but here we might only have name in some contexts? 
-                // Using current image entry path is safer.
-                string? path = null;
-                if (_currentIndex >= 0 && _currentIndex < _imageEntries.Count)
-                {
-                    path = _imageEntries[_currentIndex].FilePath;
-                }
-                
-                if (!string.IsNullOrEmpty(path))
-                {
-                    var recent = _recentItems.FirstOrDefault(r => r.Path == path);
-                    if (recent != null && recent.ScrollOffset.HasValue)
-                    {
-                         TextScrollViewer.ChangeView(null, recent.ScrollOffset.Value, null);
-                         UpdateTextStatusBar();
-                         return;
-                    }
-                }
-                
-                // If no saved position, ensure we start at top
+                // Always start from the top (First line)
                 TextScrollViewer.ChangeView(null, 0, null);
+                UpdateTextStatusBar();
             }
             catch { }
         }
@@ -1284,6 +1266,8 @@ namespace Uviewer
                  HandleSmartTouchNavigation(e, 
                     () => NavigateTextPage(-1), 
                     () => NavigateTextPage(1));
+                 
+                 e.Handled = true;
              }
         }
         
@@ -1304,16 +1288,25 @@ namespace Uviewer
             
             double current = TextScrollViewer.VerticalOffset;
             double viewport = TextScrollViewer.ViewportHeight;
-            // Overlap slightly to prevent reading issues
-            double scrollAmount = viewport * 0.9;
+            
+            // Calculate scroll amount based on LineHeight approximation (FontSize * 1.5)
+            // Instead of 10% overlap, we overlap by roughly one line to maintain context
+            // while minimizing visual redundancy ("overlap").
+            // We ensure at least 1 line overlap to handle partial rendering at edges.
+            double overlap = _textFontSize * 1.5;
+            
+            // Safety check for very small viewports
+            if (overlap > viewport * 0.5) overlap = viewport * 0.2;
+            
+            double scrollAmount = viewport - overlap;
             
             if (direction > 0)
             {
-                TextScrollViewer.ChangeView(null, current + scrollAmount, null);
+                TextScrollViewer.ChangeView(null, current + scrollAmount, null, true);
             }
             else
             {
-                TextScrollViewer.ChangeView(null, current - scrollAmount, null);
+                TextScrollViewer.ChangeView(null, current - scrollAmount, null, true);
             }
             UpdateTextStatusBar();
         }

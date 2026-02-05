@@ -138,13 +138,15 @@ namespace Uviewer
             }
             else if (e.Key == Windows.System.VirtualKey.Up)
             {
-                // Previous File (managed by Main but captured here if we want specific behavior)
-                 e.Handled = false; // Let Main handle file navigation
+                 // Previous File
+                 _ = NavigateToFileAsync(false);
+                 e.Handled = true;
             }
             else if (e.Key == Windows.System.VirtualKey.Down)
             {
-                // Next File
-                e.Handled = false; // Let Main handle file navigation
+                 // Next File
+                 _ = NavigateToFileAsync(true);
+                 e.Handled = true;
             }
             else if (e.Key == Windows.System.VirtualKey.G)
             {
@@ -169,6 +171,26 @@ namespace Uviewer
             else if (e.Key == Windows.System.VirtualKey.B)
             {
                  ToggleEpubTheme();
+                 e.Handled = true;
+            }
+            else if (e.Key == Windows.System.VirtualKey.Home)
+            {
+                 // Previous Chapter
+                 if (_currentEpubChapterIndex > 0)
+                 {
+                     _currentEpubChapterIndex--;
+                     _ = LoadEpubChapterAsync(_currentEpubChapterIndex);
+                 }
+                 e.Handled = true;
+            }
+            else if (e.Key == Windows.System.VirtualKey.End)
+            {
+                 // Next Chapter
+                 if (_currentEpubChapterIndex < _epubSpine.Count - 1)
+                 {
+                     _currentEpubChapterIndex++;
+                     _ = LoadEpubChapterAsync(_currentEpubChapterIndex);
+                 }
                  e.Handled = true;
             }
             else if (e.Key == Windows.System.VirtualKey.Space || e.Key == Windows.System.VirtualKey.S)

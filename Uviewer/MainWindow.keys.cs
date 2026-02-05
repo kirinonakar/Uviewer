@@ -1,4 +1,5 @@
 using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
 
 namespace Uviewer
@@ -136,5 +137,44 @@ namespace Uviewer
 
         #endregion
 
+        private void RootGrid_Global_PreviewKeyDown(object sender, KeyRoutedEventArgs e)
+        {
+            // Global handler to intercept navigation keys when in specific modes
+            // This prevents controls like ListView from consuming Home/End keys when we want to navigate images.
+
+            // 1. Text/Epub Mode should be handled by their specific logic (or we can block here)
+            // But they usually have their own PreviewKeyDown handlers attached to RootGrid possibly.
+            // If they handled it, e.Handled might be true? 
+            // NOTE: PreviewKeyDown tunnels. We are at RootGrid.
+            // If we set Handled=true, children won't get it (e.g. Textbox).
+            
+            // Allow text boxes to funciton
+            if (e.OriginalSource is TextBox || e.OriginalSource is PasswordBox) return;
+
+            if (_isTextMode || _isEpubMode) return; 
+
+            // Image Mode (Archive or Folder with images)
+            if (_imageEntries != null && _imageEntries.Count > 0)
+            {
+                if (e.Key == Windows.System.VirtualKey.Home)
+                {
+                    if (_currentIndex != 0)
+                    {
+                        _currentIndex = 0;
+                        _ = DisplayCurrentImageAsync();
+                    }
+                    e.Handled = true;
+                }
+                else if (e.Key == Windows.System.VirtualKey.End)
+                {
+                    if (_currentIndex != _imageEntries.Count - 1)
+                    {
+                        _currentIndex = _imageEntries.Count - 1;
+                        _ = DisplayCurrentImageAsync();
+                    }
+                    e.Handled = true;
+                }
+            }
+        }
     }
 }
