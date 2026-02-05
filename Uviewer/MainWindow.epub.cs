@@ -41,6 +41,13 @@ namespace Uviewer
              public int ThemeIndex { get; set; } = 0;
         }
 
+        public class EpubPageInfoTag
+        {
+            public int StartLine { get; set; }
+            public int LineCount { get; set; }
+            public int TotalLinesInChapter { get; set; }
+        }
+
         private const string EpubSettingsFilePath = "epub_settings.json";
         private string GetEpubSettingsFilePath() => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "Uviewer", EpubSettingsFilePath);
 
@@ -150,7 +157,7 @@ namespace Uviewer
             }
             else if (e.Key == Windows.System.VirtualKey.G)
             {
-                _ = ShowEpubGoToPageDialog();
+                _ = ShowEpubGoToLineDialog();
                 e.Handled = true;
             }
             else if (e.Key == Windows.System.VirtualKey.F)
@@ -366,16 +373,34 @@ namespace Uviewer
 
         private void UpdateEpubStatus()
         {
+            if (!_isEpubMode) return;
+            
+            int currentPage = (EpubFlipView?.SelectedIndex ?? 0) + 1;
+            int totalPages = EpubFlipView?.Items.Count ?? 0;
+            if (totalPages == 0) totalPages = 1;
+
+            int currentLine = 1;
+            int totalLines = 1;
+
+            if (EpubFlipView?.SelectedItem is Grid g && g.Tag is EpubPageInfoTag tag)
+            {
+                currentLine = tag.StartLine;
+                totalLines = tag.TotalLinesInChapter;
+            }
+
             if (ImageInfoText != null)
             {
-                // Current Page / Total Pages (in chapter) + Chapter Info
-                int currentPage = (EpubFlipView?.SelectedIndex ?? 0) + 1;
-                int totalPages = EpubFlipView?.Items.Count ?? 0;
-                ImageInfoText.Text = Strings.EpubPageInfo(currentPage, totalPages, _currentEpubChapterIndex + 1, _epubSpine.Count);
+                ImageInfoText.Text = Strings.EpubPageInfo(currentPage, totalPages, currentLine, totalLines, _currentEpubChapterIndex + 1, _epubSpine.Count);
             }
-            if (ImageIndexText != null)
+            
+            if (ImageIndexText != null && _epubSpine.Count > 0)
             {
-                ImageIndexText.Text = ""; // Clear residual text from other modes
+                double chapterProgress = (double)_currentEpubChapterIndex / _epubSpine.Count;
+                double pageProgressInChapter = (double)(currentPage - 1) / totalPages / _epubSpine.Count;
+                double totalProgress = (chapterProgress + pageProgressInChapter) * 100.0;
+                if (totalProgress > 100) totalProgress = 100;
+                
+                ImageIndexText.Text = $"{totalProgress:F1}%";
             }
         }
 
@@ -555,130 +580,140 @@ namespace Uviewer
 
             List<UIElement> textPages = new List<UIElement>();
             
-            // Dynamic Chunking based on estimated length
-            // Improved Pagination based on precise pixel height
-            double availableHeight = EpubArea?.ActualHeight ?? RootGrid.ActualHeight;
-
-            // If not actively displayed/measured yet, fallback to Root calculation
-            if (availableHeight < 100)
+            // Get available dimensions
+            double availableWidth = EpubArea?.ActualWidth ?? 800;
+            if (availableWidth < 100) availableWidth = RootGrid.ActualWidth - (SidebarColumn?.ActualWidth ?? 320);
+            
+            double availableHeight = EpubArea?.ActualHeight ?? 800;
+            if (availableHeight < 200) 
             {
                availableHeight = RootGrid.ActualHeight;
-               if (!_isFullscreen)
-               {
-                    availableHeight -= 80; // Toolbar + StatusBar
-               }
-            }
-
-            // Subtract Container Margin/Padding
-            // AddTextPage adds 20px top/bottom padding to Grid
-            availableHeight -= 40; 
-            
-            // Safety buffer removed
-            // availableHeight -= 20;
-
-            if (availableHeight < 200) availableHeight = 800; // Fallback for initial load
-            
-            double currentHeight = 0;
-            List<Block> currentBlocks = new List<Block>();
-            
-            // Layout constants
-            // Use a consistent line height for ALL lines to prevent "jagged" spacing.
-            // 1.8 roughly accommodates base text (1.0) + ruby (0.5) + gaps.
-            double lineHeight = _epubFontSize * 1.8; 
-            double maxWidth = Math.Min(45 * _epubFontSize, 1800); 
-
-            foreach (var block in blocks)
-            {
-                double blockH = 0;
-                
-                if (block is Paragraph p)
-                {
-                    // Calculate height of paragraph
-                    double charLen = p.Inlines.Sum(i => i is Run r ? r.Text.Length : (i is InlineUIContainer ? 2 : 0)); 
-                    
-                    // Always use uniform line height for consistency
-                    double effectiveLineHeight = lineHeight; 
-                    
-                    // Estimate lines
-                    double estimatedLines = Math.Ceiling((charLen * _epubFontSize) / maxWidth);
-                    if (estimatedLines < 1) estimatedLines = 1;
-                    
-                    // Calculate total block height
-                    blockH = (estimatedLines * effectiveLineHeight) + p.Margin.Bottom + p.Margin.Top;
-                }
-                
-                // Check if adding this block fits
-                if (currentHeight + blockH > availableHeight)
-                {
-                    // If the block is massive (larger than a page), we have to split it or just add it alone.
-                    // For simplicity, if currentBlocks has content, we flush first.
-                    if (currentBlocks.Count > 0)
-                    {
-                        AddTextPage(textPages, currentBlocks);
-                        currentBlocks.Clear();
-                        currentHeight = 0;
-                    }
-
-                    // If the block itself is larger than the page, we still add it to the NEW page
-                    // The ScrollViewer will handle it, effectively making a "long page" which is unavoidable without cutting text mid-sentence.
-                    // But we try to fit what we can.
-                }
-                
-                currentBlocks.Add(block);
-                currentHeight += blockH;
+               if (!_isFullscreen) availableHeight -= 120;
             }
             
-            if (currentBlocks.Count > 0)
+            // Text Area Width (subtracting 20 padding each side)
+            double textPadding = 20;
+            double targetWidth = Math.Min(availableWidth - (textPadding * 2), 45 * _epubFontSize);
+            if (targetWidth < 200) targetWidth = 600;
+
+            // Reserved height (subtracting 20 padding each side + small safety buffer)
+            // 40 for padding + 4 for rounding safety
+            double targetHeight = availableHeight - 44; 
+            if (targetHeight < 200) targetHeight = 800; 
+
+            // 1. Create Master RichTextBlock
+            var rtb = new RichTextBlock 
+            { 
+                IsTextSelectionEnabled = false,
+                FontFamily = new FontFamily(_epubFontFamily),
+                FontSize = _epubFontSize,
+                Foreground = GetEpubThemeForeground(),
+                Width = targetWidth,
+                Height = targetHeight,
+                HorizontalAlignment = HorizontalAlignment.Left,
+                TextAlignment = TextAlignment.Left,
+                Margin = new Thickness(0),
+                Padding = new Thickness(0),
+                LineStackingStrategy = LineStackingStrategy.BlockLineHeight,
+                LineHeight = _epubFontSize * 1.8,
+                TextWrapping = TextWrapping.Wrap
+            };
+
+            foreach (var b in blocks) rtb.Blocks.Add(b);
+
+            var page1Grid = new Grid 
+            { 
+                Background = GetEpubThemeBackground(), 
+                Padding = new Thickness(20)
+            };
+            page1Grid.Children.Add(rtb);
+            page1Grid.PointerPressed += EpubPage_PointerPressed;
+            textPages.Add(page1Grid);
+            
+            // Force measure
+            rtb.Measure(new Windows.Foundation.Size((float)targetWidth, (float)targetHeight));
+
+            int linesPerPage = (int)(targetHeight / (_epubFontSize * 1.8));
+            if (linesPerPage < 1) linesPerPage = 1;
+            
+            int cumulativeLines = linesPerPage;
+            page1Grid.Tag = new EpubPageInfoTag { StartLine = 1, LineCount = linesPerPage };
+
+            // Chain Overflow
+            FrameworkElement lastLinked = rtb;
+            int maxPages = 2000;
+            int pageCount = 1;
+
+            while (pageCount < maxPages)
             {
-                 AddTextPage(textPages, currentBlocks);
+                bool hasOverflow = false;
+                if (lastLinked is RichTextBlock m && m.HasOverflowContent) hasOverflow = true;
+                else if (lastLinked is RichTextBlockOverflow o && o.HasOverflowContent) hasOverflow = true;
+
+                if (!hasOverflow) break;
+
+                var overflow = new RichTextBlockOverflow
+                {
+                    Width = targetWidth,
+                    Height = targetHeight,
+                    HorizontalAlignment = HorizontalAlignment.Left,
+                    Margin = new Thickness(0),
+                    Padding = new Thickness(0)
+                };
+
+                if (lastLinked is RichTextBlock master) master.OverflowContentTarget = overflow;
+                else if (lastLinked is RichTextBlockOverflow ov) ov.OverflowContentTarget = overflow;
+
+                var pageGrid = new Grid 
+                { 
+                    Background = GetEpubThemeBackground(), 
+                    Padding = new Thickness(20)
+                };
+                pageGrid.Children.Add(overflow);
+                pageGrid.PointerPressed += EpubPage_PointerPressed;
+                textPages.Add(pageGrid);
+
+                overflow.Measure(new Windows.Foundation.Size((float)targetWidth, (float)targetHeight));
+                
+                pageGrid.Tag = new EpubPageInfoTag { StartLine = cumulativeLines + 1, LineCount = linesPerPage };
+                cumulativeLines += linesPerPage;
+
+                lastLinked = overflow;
+                pageCount++;
+            }
+            
+            // Set total lines in chapter for each page tag
+            foreach (var page in textPages)
+            {
+                if (page is Grid g && g.Tag is EpubPageInfoTag tag)
+                {
+                    tag.TotalLinesInChapter = cumulativeLines;
+                }
             }
             
             return textPages;
         }
 
-        private void AddTextPage(List<UIElement> pages, List<Block> pageBlocks)
+        private void AddTextPage(List<UIElement> pages, List<Block> pageBlocks, double width)
         {
-             var rtb = new RichTextBlock 
-             { 
-                 IsTextSelectionEnabled = false,
-                 FontFamily = new FontFamily(_epubFontFamily),
-                 FontSize = _epubFontSize,
-                 Foreground = GetEpubThemeForeground(),
-                 MaxWidth = Math.Min(45 * _epubFontSize, 1800), 
-                 HorizontalAlignment = HorizontalAlignment.Left,
-                 TextAlignment = TextAlignment.Left,
-                 Padding = new Thickness(0, 0, 0, 10) // Minimal padding bottom
-             };
-             
-             foreach (var b in pageBlocks) rtb.Blocks.Add(b);
-             
-             // Ensure line height is consistent with calculation
-             // Note: RichTextBlock LineHeight property applies to all lines
-             // But we set it on Paragraphs in ParseHtmlToBlocks. 
-             // We should ensure consistency. 
-             // Actually, ParseHtmlToBlocks sets p.LineHeight. Let's rely on that.
-             
-             var scroll = new ScrollViewer 
-             { 
-                 VerticalScrollBarVisibility = ScrollBarVisibility.Hidden,
-                 HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
-                 Content = rtb
-             };
-
-             var grid = new Grid 
-             { 
-                  Background = GetEpubThemeBackground(), 
-                  Padding = new Thickness(20, 20, 20, 20) // Container padding
-             };
-             grid.Children.Add(scroll);
-             grid.PointerPressed += EpubPage_PointerPressed;
-             
-             pages.Add(grid);
+            // This method is now obsolete as pagination is handled inline in CreateTextPages
+            // to ensure accurate container measurement.
         }
 
-        private async Task ShowEpubGoToPageDialog()
+        private async Task ShowEpubGoToLineDialog()
         {
-             if (EpubFlipView == null || EpubFlipView.Items.Count == 0) return;
+             int totalLines = 1;
+             int currentLine = 1;
+             if (EpubFlipView.SelectedItem is Grid cg && cg.Tag is EpubPageInfoTag ctag)
+             {
+                 currentLine = ctag.StartLine;
+                 totalLines = ctag.TotalLinesInChapter;
+             }
+             else if (EpubFlipView.Items.Count > 0)
+             {
+                 totalLines = EpubFlipView.Items.Count; // Page fallback if no tag
+                 currentLine = EpubFlipView.SelectedIndex + 1;
+             }
 
              var dialog = new ContentDialog
              {
@@ -691,18 +726,59 @@ namespace Uviewer
 
              var input = new TextBox 
              { 
-                 PlaceholderText = $"1 - {EpubFlipView.Items.Count}",
+                 PlaceholderText = $"1 - {totalLines}",
+                 Text = currentLine.ToString(),
                  InputScope = new InputScope { Names = { new InputScopeName { NameValue = InputScopeNameValue.Number } } }
              };
+             
+             input.SelectAll();
              dialog.Content = input;
+
+             void PerformGoToLine()
+             {
+                 if (int.TryParse(input.Text, out int targetLine))
+                 {
+                     // Find page that contains this line
+                     for (int i = 0; i < EpubFlipView.Items.Count; i++)
+                     {
+                         if (EpubFlipView.Items[i] is Grid pg && pg.Tag is EpubPageInfoTag ptag)
+                         {
+                             if (targetLine >= ptag.StartLine && targetLine < ptag.StartLine + ptag.LineCount)
+                             {
+                                 EpubFlipView.SelectedIndex = i;
+                                 return;
+                             }
+                             // Last page safety or exact chapter end
+                             if (i == EpubFlipView.Items.Count - 1 && targetLine >= ptag.StartLine)
+                             {
+                                 EpubFlipView.SelectedIndex = i;
+                                 return;
+                             }
+                         }
+                     }
+                     
+                     // Fallback to page-based indexing if tags missing or out of bounds
+                     int pageIndex = targetLine - 1;
+                     if (pageIndex >= 0 && pageIndex < EpubFlipView.Items.Count)
+                     {
+                         EpubFlipView.SelectedIndex = pageIndex;
+                     }
+                 }
+             }
+
+             input.KeyDown += (s, e) => 
+             {
+                 if (e.Key == Windows.System.VirtualKey.Enter)
+                 {
+                     dialog.Hide();
+                     PerformGoToLine();
+                 }
+             };
 
              var result = await dialog.ShowAsync();
              if (result == ContentDialogResult.Primary)
              {
-                 if (int.TryParse(input.Text, out int page) && page >= 1 && page <= EpubFlipView.Items.Count)
-                 {
-                     EpubFlipView.SelectedIndex = page - 1;
-                 }
+                 PerformGoToLine();
              }
         }
 
@@ -762,14 +838,7 @@ namespace Uviewer
                 if (string.IsNullOrWhiteSpace(trimmed)) continue;
                 
                 var p = new Paragraph();
-                p.Margin = new Thickness(0, 0, 0, _epubFontSize * 1.0); // Use 1.0 line height for explicit paragraph separation? 
-                // User asked for "1 line". 0.5 is half line. 
-                // Maybe they want explicit separation.
-                // But "Some are 2, some are 1".
-                // If I skip empty lines, I am enforcing "1 paragraph margin" everywhere.
-                // Let's stick to consistent margin. 
-                
-                // Let's set it to 0.6 to be safe, but the skipping logic is the real fix for "variable" gaps.
+                p.TextAlignment = TextAlignment.Left;
                 p.Margin = new Thickness(0, 0, 0, _epubFontSize * 0.5); 
                 p.LineHeight = _epubFontSize * 1.8; // Consistent line height (enforced)
                 p.LineStackingStrategy = LineStackingStrategy.BlockLineHeight; // Force rigid line height

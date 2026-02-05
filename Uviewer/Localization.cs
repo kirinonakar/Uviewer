@@ -33,7 +33,7 @@ namespace Uviewer
         public static string NextImageSideTooltip => S("다음 그림 위치", "Next Image Position");
         public static string AozoraTooltip => "Aozora/md(A)"; // Same
         public static string FontTooltip => S("폰트 변경(F)", "Change Font (F)");
-        public static string GoToPageTooltip => S("페이지 이동(G)", "Go to Page (G)");
+        public static string GoToPageTooltip => S("줄 이동(G)", "Go to Line (G)");
         public static string TextSizeDownTooltip => S("글자 작게(-)", "Text Smaller (-)");
         public static string TextSizeUpTooltip => S("글자 크게(+)", "Text Larger (+)");
         public static string ThemeTooltip => S("배경색 변경(B)", "Change Background (B)");
@@ -59,11 +59,13 @@ namespace Uviewer
         
         public static string EpubLoadError(string msg) => S($"EPUB 로드 실패: {msg}", $"EPUB Load Failed: {msg}");
         public static string EpubParseError(string msg) => S($"EPUB 파싱 오류: {msg}", $"EPUB Parse Error: {msg}");
-        public static string EpubPageInfo(int p, int tp, int c, int tc) => $"Page {p} / {tp}  (Chapter {c} / {tc})";
+        public static string EpubPageInfo(int p, int tp, int l, int tl, int c, int tc) => 
+            S($"페이지 {p}/{tp} 줄 {l}/{tl} (챕터 {c}/{tc})", 
+              $"Page {p}/{tp} Line {l}/{tl} (Ch.{c}/{tc})");
 
         // Dialogs & Menus
         public static string AddToFavorites => S("➕ 즐겨찾기 추가", "➕ Add to Favorites");
-        public static string DialogTitle => S("페이지 이동", "Go to Page");
+        public static string DialogTitle => S("줄 이동", "Go to Line");
         public static string DialogPrimary => S("이동", "Go");
         public static string DialogClose => S("취소", "Cancel");
     }

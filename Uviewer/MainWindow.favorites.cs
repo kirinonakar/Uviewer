@@ -35,6 +35,8 @@ namespace Uviewer
             public double? ScrollOffset { get; set; }
             public int SavedPage { get; set; } = 0;
             public int ChapterIndex { get; set; } = 0;
+            public int SavedLine { get; set; } = 1;
+            public bool IsAozoraMode { get; set; } = false;
         }
 
         public class RecentItem
@@ -47,6 +49,7 @@ namespace Uviewer
             public double? ScrollOffset { get; set; }
             public int SavedPage { get; set; } = 0;
             public int ChapterIndex { get; set; } = 0;
+            public int SavedLine { get; set; } = 1;
         }
 
         public class TextSettings
@@ -196,12 +199,19 @@ namespace Uviewer
             itemGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
             itemGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
 
-            string pageInfo = favorite.SavedPage > 0 || favorite.ChapterIndex > 0 ? $" ({(favorite.ChapterIndex > 0 ? $"Ch.{favorite.ChapterIndex + 1} " : "")}P.{favorite.SavedPage})" : "";
-            
+            string posString = "";
+            if (favorite.Path.EndsWith(".epub", StringComparison.OrdinalIgnoreCase))
+            {
+                posString = $" (Ch.{favorite.ChapterIndex + 1} P.{favorite.SavedPage + 1} L.{favorite.SavedLine})";
+            }
+            else if (favorite.SavedLine > 1) posString = $" (Line {favorite.SavedLine})";
+            else if (favorite.SavedPage > 0 || favorite.ChapterIndex > 0) 
+                posString = $" ({(favorite.ChapterIndex > 0 ? $"Ch.{favorite.ChapterIndex + 1} " : "")}Line {favorite.SavedPage + 1})";
+
             // Create TextBlock for the favorite name with left alignment and tooltip
             var nameTextBlock = new TextBlock
             {
-                Text = favorite.Name + pageInfo,
+                Text = favorite.Name + posString,
                 VerticalAlignment = VerticalAlignment.Center,
                 HorizontalAlignment = HorizontalAlignment.Left,
                 TextTrimming = TextTrimming.CharacterEllipsis,
@@ -211,7 +221,7 @@ namespace Uviewer
                 FontSize = 13
             };
             
-            string tooltipText = favorite.Path + (string.IsNullOrEmpty(pageInfo) ? "" : $"\n{pageInfo.Trim()}");
+            string tooltipText = favorite.Path + (string.IsNullOrEmpty(posString) ? "" : $"\n{posString.Trim(' ', '(', ')')}");
             ToolTipService.SetToolTip(nameTextBlock, tooltipText);
 
             // Create a transparent button overlay for clicking
@@ -364,17 +374,25 @@ namespace Uviewer
                     }
 
                     int savedPage = 0;
+                    int savedLine = 1;
                     if (_isEpubMode)
                     {
                         savedPage = CurrentEpubPageIndex;
+                        if (EpubFlipView?.SelectedItem is Grid g && g.Tag is EpubPageInfoTag tag)
+                        {
+                            savedLine = tag.StartLine;
+                        }
                     }
                     else if (_isAozoraMode)
                     {
-                        savedPage = _currentAozoraPageIndex + 1;
+                        savedPage = 0; 
+                        if (_aozoraBlocks.Count > 0 && _currentAozoraStartBlockIndex >= 0 && _currentAozoraStartBlockIndex < _aozoraBlocks.Count)
+                            savedLine = _aozoraBlocks[_currentAozoraStartBlockIndex].SourceLineNumber;
                     }
-                    else if (_isTextMode && TextScrollViewer != null && TextScrollViewer.ViewportHeight > 0)
+                    else if (_isTextMode && TextScrollViewer != null)
                     {
-                        savedPage = (int)(TextScrollViewer.VerticalOffset / TextScrollViewer.ViewportHeight) + 1;
+                        double lineH = _textFontSize * 1.8;
+                        savedLine = (int)(TextScrollViewer.VerticalOffset / lineH) + 1;
                     }
 
                     var favorite = new FavoriteItem
@@ -385,7 +403,9 @@ namespace Uviewer
                         ArchiveEntryKey = archiveEntryKey,
                         ScrollOffset = (_isTextMode && TextScrollViewer != null) ? TextScrollViewer.VerticalOffset : null,
                         SavedPage = savedPage,
-                        ChapterIndex = _isEpubMode ? CurrentEpubChapterIndex : 0
+                        SavedLine = savedLine,
+                        ChapterIndex = _isEpubMode ? CurrentEpubChapterIndex : 0,
+                        IsAozoraMode = _isAozoraMode
                     };
 
                     _favorites.Add(favorite);
@@ -438,28 +458,30 @@ namespace Uviewer
                     case "File":
                         if (File.Exists(favorite.Path))
                         {
+                            // Set pending target line BEFORE loading triggers
+                            bool isAozora = favorite.IsAozoraMode;
+                            
+                            // Check if force switch Aozora is needed
+                            if (isAozora)
+                            {
+                                _isAozoraMode = true;
+                                if (AozoraToggleButton != null) AozoraToggleButton.IsChecked = true;
+                                SaveAozoraSettings(); // Persist the switch
+                                
+                                // Set pending target line 
+                                _aozoraPendingTargetLine = favorite.SavedLine > 0 ? favorite.SavedLine : 1;
+                            }
+                            else if (_isAozoraMode)
+                            {
+                                // If already in Aozora mode (but favorite is generic file or old bookmark), try to honor line
+                                _aozoraPendingTargetLine = favorite.SavedLine > 1 ? favorite.SavedLine : (favorite.SavedPage > 0 ? -favorite.SavedPage : 1);
+                            }
+
                             // Load explorer parent folder
                             var parentDir = Path.GetDirectoryName(favorite.Path);
                             if (!string.IsNullOrEmpty(parentDir) && Directory.Exists(parentDir))
                             {
                                  LoadExplorerFolder(parentDir);
-                                 
-                                 // Select text file in explorer
-                                 var filename = Path.GetFileName(favorite.Path);
-                                 var item = _fileItems.FirstOrDefault(f => f.Name.Equals(filename, StringComparison.OrdinalIgnoreCase));
-                                 if (item != null)
-                                 {
-                                     if (_isExplorerGrid)
-                                     {
-                                         FileGridView.SelectedItem = item;
-                                         FileGridView.ScrollIntoView(item);
-                                     }
-                                     else
-                                     {
-                                         FileListView.SelectedItem = item;
-                                         FileListView.ScrollIntoView(item);
-                                     }
-                                 }
                             }
                             
                             var file = await StorageFile.GetFileFromPathAsync(favorite.Path);
@@ -510,26 +532,21 @@ namespace Uviewer
                     }
                     else 
                     {
-                        // Wait longer to override 'RestoreFromRecent' which has 100ms delay
-                        await Task.Delay(300);
-
-                        if (_isAozoraMode && favorite.SavedPage > 0)
+                        if (_isAozoraMode)
                         {
-                            int targetIndex = Math.Min(favorite.SavedPage - 1, _aozoraPages.Count - 1);
-                            if (targetIndex >= 0)
-                            {
-                                _currentAozoraPageIndex = targetIndex;
-                                RenderCurrentAozoraPage();
-                                UpdateAozoraStatusBar();
-                            }
+                            // Already handled via pending target line
                         }
-                        else if (!favorite.Path.EndsWith(".epub", StringComparison.OrdinalIgnoreCase) && favorite.ScrollOffset.HasValue && TextScrollViewer != null)
+                        else if (favorite.SavedLine > 1 && TextScrollViewer != null)
                         {
-                             if (_isTextMode)
-                             {
-                                 TextScrollViewer.ChangeView(null, favorite.ScrollOffset.Value, null);
-                                 UpdateTextStatusBar();
-                             }
+                             // Normal text mode: use line offset
+                             double lineH = _textFontSize * 1.8;
+                             TextScrollViewer.ChangeView(null, (favorite.SavedLine - 1) * lineH, null);
+                             UpdateTextStatusBar();
+                        }
+                        else if (favorite.ScrollOffset.HasValue && TextScrollViewer != null)
+                        {
+                             TextScrollViewer.ChangeView(null, favorite.ScrollOffset.Value, null);
+                             UpdateTextStatusBar();
                         }
                     }
                 }
@@ -667,22 +684,29 @@ namespace Uviewer
                 itemGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
                 itemGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
 
-                string pageInfo = recent.SavedPage > 0 || recent.ChapterIndex > 0 ? $" ({(recent.ChapterIndex > 0 ? $"Ch.{recent.ChapterIndex + 1} " : "")}P.{recent.SavedPage})" : "";
+                string posString = "";
+                if (recent.Path.EndsWith(".epub", StringComparison.OrdinalIgnoreCase))
+                {
+                    posString = $" (Ch.{recent.ChapterIndex + 1} P.{recent.SavedPage + 1} L.{recent.SavedLine})";
+                }
+                else if (recent.SavedLine > 1) posString = $" (Line {recent.SavedLine})";
+                else if (recent.SavedPage > 0 || recent.ChapterIndex > 0) 
+                    posString = $" ({(recent.ChapterIndex > 0 ? $"Ch.{recent.ChapterIndex + 1} " : "")}Line {recent.SavedPage + 1})";
                 
                 // Create TextBlock for the recent item name with left alignment and tooltip
                 var nameTextBlock = new TextBlock
                 {
-                    Text = recent.Name + pageInfo,
+                    Text = recent.Name + posString,
                     VerticalAlignment = VerticalAlignment.Center,
                     HorizontalAlignment = HorizontalAlignment.Left,
                     TextTrimming = TextTrimming.CharacterEllipsis,
                     TextWrapping = TextWrapping.NoWrap,
-                    MaxWidth = 340, // Reserve space for delete button (400 - 12 left margin - 8 right margin - 40 for button)
+                    MaxWidth = 340, 
                     Margin = new Thickness(12, 0, 8, 0),
                     FontSize = 13
                 };
                 
-                string tooltipText = recent.Path + (string.IsNullOrEmpty(pageInfo) ? "" : $"\n{pageInfo.Trim()}");
+                string tooltipText = recent.Path + (string.IsNullOrEmpty(posString) ? "" : $"\n{posString.Trim(' ', '(', ')')}");
                 ToolTipService.SetToolTip(nameTextBlock, tooltipText);
 
                 // Create a transparent button overlay for clicking
@@ -856,12 +880,22 @@ namespace Uviewer
                     {
                         newItem.SavedPage = CurrentEpubPageIndex;
                         newItem.ChapterIndex = CurrentEpubChapterIndex;
+                        if (EpubFlipView?.SelectedItem is Grid g && g.Tag is EpubPageInfoTag tag)
+                        {
+                            newItem.SavedLine = tag.StartLine;
+                        }
                     }
                     else if (_isTextMode && TextScrollViewer != null)
                     {
                         newItem.ScrollOffset = TextScrollViewer.VerticalOffset;
-                        newItem.SavedPage = (TextScrollViewer.ViewportHeight > 0) ? 
-                                           (int)(TextScrollViewer.VerticalOffset / TextScrollViewer.ViewportHeight) + 1 : 0;
+                        double lineH = _textFontSize * 1.8;
+                        newItem.SavedLine = (int)(TextScrollViewer.VerticalOffset / lineH) + 1;
+                        
+                        if (_isAozoraMode && _aozoraBlocks.Count > 0 && _currentAozoraStartBlockIndex >= 0 && _currentAozoraStartBlockIndex < _aozoraBlocks.Count)
+                        {
+                            newItem.SavedLine = _aozoraBlocks[_currentAozoraStartBlockIndex].SourceLineNumber;
+                            newItem.SavedPage = 0;
+                        }
                     }
                     
                     _recentItems.Add(newItem);
@@ -923,6 +957,12 @@ namespace Uviewer
                     case "File":
                         if (File.Exists(recent.Path))
                         {
+                            // Set pending target line BEFORE loading triggers
+                            if (_isAozoraMode)
+                            {
+                                _aozoraPendingTargetLine = recent.SavedLine > 1 ? recent.SavedLine : (recent.SavedPage > 0 ? -recent.SavedPage : 1);
+                            }
+
                             // Load explorer parent folder
                             var parentDir = Path.GetDirectoryName(recent.Path);
                             if (!string.IsNullOrEmpty(parentDir) && Directory.Exists(parentDir))
@@ -997,7 +1037,7 @@ namespace Uviewer
                     {
                         await RestoreEpubStateAsync(recent.ChapterIndex, recent.SavedPage);
                     }
-                    else if (recent.ScrollOffset.HasValue && TextScrollViewer != null)
+                    else if (!_isAozoraMode && recent.ScrollOffset.HasValue && TextScrollViewer != null)
                     {
                         await Task.Delay(100);
                         TextScrollViewer.ChangeView(null, recent.ScrollOffset.Value, null);

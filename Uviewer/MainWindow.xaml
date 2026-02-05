@@ -21,7 +21,7 @@
           PointerExited="RootGrid_PointerExited">
         <Grid.Resources>
             <DataTemplate x:Key="TextItemTemplate">
-                <TextBlock TextWrapping="Wrap" HorizontalAlignment="Left" Margin="0,0,0,4"/>
+                <TextBlock TextWrapping="Wrap" HorizontalAlignment="Left" />
             </DataTemplate>
             <DataTemplate x:Key="AozoraItemTemplate">
                 <RichTextBlock IsTextSelectionEnabled="False" TextWrapping="Wrap" HorizontalAlignment="Left" Margin="0,0,0,10" />

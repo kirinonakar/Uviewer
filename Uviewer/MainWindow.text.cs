@@ -71,8 +71,8 @@ namespace Uviewer
                  if (existing != null)
                  {
                      existing.ScrollOffset = TextScrollViewer.VerticalOffset;
-                     existing.SavedPage = (TextScrollViewer.ViewportHeight > 0) ? 
-                                          (int)(TextScrollViewer.VerticalOffset / TextScrollViewer.ViewportHeight) + 1 : 0;
+                     double lineH = _textFontSize * 1.5;
+                     existing.SavedLine = (int)(TextScrollViewer.VerticalOffset / lineH) + 1;
                      await SaveRecentItems(); // Ensure we save to disk
                  }
             }
@@ -84,7 +84,7 @@ namespace Uviewer
             {
                 SwitchToTextMode();
                 string content = await ReadTextFileWithEncodingAsync(file);
-                DisplayLoadedText(content, file.Name);
+                await DisplayLoadedText(content, file.Name);
                 
                 SyncSidebarSelection(new ImageEntry { FilePath = file.Path, DisplayName = file.Name });
             }
@@ -133,7 +133,7 @@ namespace Uviewer
                  }
                  finally { _archiveLock.Release(); }
                  
-                 DisplayLoadedText(content, entry.DisplayName);
+                 await DisplayLoadedText(content, entry.DisplayName);
                  SyncSidebarSelection(entry);
              }
              catch (Exception ex) 
@@ -142,7 +142,7 @@ namespace Uviewer
              }
         }
 
-        private void DisplayLoadedText(string content, string name)
+        private async Task DisplayLoadedText(string content, string name)
         {
             _currentTextContent = content; // Save for reload
 
@@ -155,14 +155,26 @@ namespace Uviewer
             
             if (_isAozoraMode)
             {
-                // Use page-based container display
-                PrepareAozoraDisplay(content);
+                // Priority: Use pending target (from explicit bookmark/recent click) if available
+                int targetLine = 1;
+                if (_aozoraPendingTargetLine != 1)
+                {
+                    targetLine = _aozoraPendingTargetLine;
+                    _aozoraPendingTargetLine = 1; // Reset
+                }
+                else
+                {
+                    // Fallback to automatic restoration from recent items
+                    targetLine = GetSavedStartLine(name);
+                }
+
+                // Use page-based container display with target line restoration
+                await PrepareAozoraDisplayAsync(content, targetLine);
                 
                 // Show Container, hide ScrollViewer
                 if (TextScrollViewer != null) TextScrollViewer.Visibility = Visibility.Collapsed;
                 if (AozoraPageContainer != null) AozoraPageContainer.Visibility = Visibility.Visible;
                 
-                // Status bar is updated in PrepareAozoraDisplay
                 FileNameText.Text = name;
             }
             else
@@ -178,7 +190,7 @@ namespace Uviewer
                 }
                 
                 _textLines = SplitTextToLines(content);
-                RefreshTextDisplay(true); // Reset scroll for new file
+                await RefreshTextDisplay(true); // Reset scroll for new file
                 
                 // Reset to top immediately
                 if (TextScrollViewer != null) TextScrollViewer.ChangeView(null, 0, null, true);
@@ -191,29 +203,56 @@ namespace Uviewer
             _ = RestoreTextPositionAsync(name);
         }
 
-        private async Task RestoreTextPositionAsync(string name)
+        private int GetSavedStartLine(string name)
         {
             try
             {
-                // Wait for layout update
+                // Find in recent items by name (simple fallback) or path
+                var recent = _recentItems.OrderByDescending(r => r.AccessedAt)
+                                         .FirstOrDefault(r => r.Name == name || r.Path == _currentTextFilePath);
+                
+                if (recent != null)
+                {
+                    if (recent.SavedLine > 1) return recent.SavedLine;
+                    if (recent.SavedPage > 0) return -recent.SavedPage; // Legacy support
+                    return 1;
+                }
+
+                // If not in recent, check favorites
+                var favorite = _favorites.FirstOrDefault(f => f.Name == name || f.Path == _currentTextFilePath);
+                if (favorite != null)
+                {
+                    if (favorite.SavedLine > 1) return favorite.SavedLine;
+                    if (favorite.SavedPage > 0) return -favorite.SavedPage;
+                }
+            }
+            catch { }
+            return 1; // Default to start
+        }
+
+        private async Task RestoreTextPositionAsync(string name)
+        {
+            // For Aozora mode, position is now restored progressively via targetLine in PrepareAozoraDisplayAsync
+            if (_isAozoraMode) return;
+
+            try
+            {
+                // Wait for layout update for normal mode
                 await Task.Delay(100);
                 
-                if (_isAozoraMode)
+                if (TextScrollViewer != null)
                 {
-                    // Aozora mode: Start at page 0
-                    _currentAozoraPageIndex = 0;
-                    RenderCurrentAozoraPage();
-                    UpdateAozoraStatusBar();
-                }
-                else
-                {
-                    // Normal mode: Scroll to top
-                    if (TextScrollViewer != null)
+                    var recent = _recentItems.OrderByDescending(r => r.AccessedAt).FirstOrDefault(r => r.Name == name);
+                    if (recent != null && recent.ScrollOffset.HasValue)
+                    {
+                        TextScrollViewer.ChangeView(null, recent.ScrollOffset.Value, null);
+                    }
+                    else
                     {
                         TextScrollViewer.ChangeView(null, 0, null);
                     }
-                    UpdateTextStatusBar();
                 }
+                UpdateTextStatusBar();
             }
             catch { }
         }
@@ -225,6 +264,7 @@ namespace Uviewer
             _isSideBySideMode = false; // Disable SbS
 
             // Toggle Visibility
+            if (EmptyStatePanel != null) EmptyStatePanel.Visibility = Visibility.Collapsed;
             ImageArea.Visibility = Visibility.Collapsed;
             TextArea.Visibility = Visibility.Visible;
             EpubArea.Visibility = Visibility.Collapsed; // Ensure Epub area is hidden
@@ -964,26 +1004,24 @@ namespace Uviewer
              return new SolidColorBrush(Microsoft.UI.ColorHelper.FromArgb(255, 30, 30, 30)); // Dark
         }
 
-        private void RefreshTextDisplay(bool resetScroll = false)
+        private async Task RefreshTextDisplay(bool resetScroll = false)
         {
             if (_isAozoraMode && !string.IsNullOrEmpty(_currentTextContent))
             {
-                // Re-calculate pages with new font size/settings
-                int savedPageIndex = _currentAozoraPageIndex;
-                
-                PrepareAozoraDisplay(_currentTextContent);
-                
-                // Try to restore page position (may need adjustment if page count changed)
-                if (_aozoraPages.Count > 0)
+                // Capture current line to preserve position
+                int currentLine = 1;
+                if (!resetScroll && _aozoraBlocks.Count > 0 && _currentAozoraStartBlockIndex >= 0 && _currentAozoraStartBlockIndex < _aozoraBlocks.Count)
                 {
-                    _currentAozoraPageIndex = Math.Min(savedPageIndex, _aozoraPages.Count - 1);
-                    _currentAozoraPageIndex = Math.Max(0, _currentAozoraPageIndex);
-                    RenderCurrentAozoraPage();
+                    currentLine = _aozoraBlocks[_currentAozoraStartBlockIndex].SourceLineNumber;
                 }
                 
+                // Re-calculate pages with new font size/settings
+                await PrepareAozoraDisplayAsync(_currentTextContent, currentLine);
+                
+                // Content is already rendered progressively by PrepareAozoraDisplayAsync
                 if (TextArea != null)
                     TextArea.Background = GetThemeBackground();
-                     
+                      
                 return;
             }
 
@@ -992,12 +1030,20 @@ namespace Uviewer
             var bg = GetThemeBackground();
             var maxW = GetUrlMaxWidth();
             
-            foreach (var line in _textLines)
+            var sw = System.Diagnostics.Stopwatch.StartNew();
+            for (int i = 0; i < _textLines.Count; i++)
             {
+                var line = _textLines[i];
                 line.FontSize = _textFontSize;
                 line.FontFamily = _textFontFamily;
                 line.Foreground = brush;
                 line.MaxWidth = maxW;
+
+                if (i % 1000 == 0 && sw.ElapsedMilliseconds > 16)
+                {
+                    await Task.Yield();
+                    sw.Restart();
+                }
             }
             
             // Store current scroll ratio
@@ -1051,7 +1097,7 @@ namespace Uviewer
                 ToggleFont();
         }
         
-        private void ToggleFont()
+        private async void ToggleFont()
         {
             if (_textFontFamily == "Yu Gothic Medium")
                 _textFontFamily = "Yu Mincho";
@@ -1059,7 +1105,7 @@ namespace Uviewer
                 _textFontFamily = "Yu Gothic Medium";
                 
             SaveTextSettings();
-            RefreshTextDisplay();
+            await RefreshTextDisplay();
         }
 
         private void TextSizeUpButton_Click(object sender, RoutedEventArgs e)
@@ -1070,13 +1116,13 @@ namespace Uviewer
                 IncreaseTextSize();
         }
         
-        private void IncreaseTextSize()
+        private async void IncreaseTextSize()
         {
             _textFontSize += 2;
             if (_textFontSize > 72) _textFontSize = 72;
             TextSizeLevelText.Text = _textFontSize.ToString();
             SaveTextSettings();
-            RefreshTextDisplay();
+            await RefreshTextDisplay();
         }
 
         private void TextSizeDownButton_Click(object sender, RoutedEventArgs e)
@@ -1087,13 +1133,13 @@ namespace Uviewer
                 DecreaseTextSize();
         }
 
-        private void DecreaseTextSize()
+        private async void DecreaseTextSize()
         {
             _textFontSize -= 2;
             if (_textFontSize < 8) _textFontSize = 8;
             TextSizeLevelText.Text = _textFontSize.ToString();
             SaveTextSettings();
-            RefreshTextDisplay();
+            await RefreshTextDisplay();
         }
 
         private void ThemeToggleButton_Click(object sender, RoutedEventArgs e)
@@ -1104,16 +1150,16 @@ namespace Uviewer
                 ToggleTheme();
         }
         
-        private void ToggleTheme()
+        private async void ToggleTheme()
         {
             _themeIndex = (_themeIndex + 1) % 3;
             SaveTextSettings();
-            RefreshTextDisplay();
+            await RefreshTextDisplay();
         }
         
         private void GoToPageButton_Click(object sender, RoutedEventArgs e)
         {
-            _ = ShowGoToPageDialog();
+            _ = ShowGoToLineDialog();
         }
 
         private void RootGrid_Text_PreviewKeyDown(object sender, KeyRoutedEventArgs e)
@@ -1134,10 +1180,10 @@ namespace Uviewer
              
               if (e.Key == Windows.System.VirtualKey.Home)
               {
-                   if (_isAozoraMode && _aozoraPages.Count > 0)
+                   if (_isAozoraMode && _aozoraBlocks.Count > 0)
                    {
-                       _currentAozoraPageIndex = 0;
-                       RenderCurrentAozoraPage();
+                       _aozoraNavHistory.Clear();
+                       RenderAozoraDynamicPage(0);
                        UpdateAozoraStatusBar();
                    }
                    else if (TextScrollViewer != null)
@@ -1148,10 +1194,12 @@ namespace Uviewer
               }
               else if (e.Key == Windows.System.VirtualKey.End)
               {
-                   if (_isAozoraMode && _aozoraPages.Count > 0)
+                   if (_isAozoraMode && _aozoraBlocks.Count > 0)
                    {
-                       _currentAozoraPageIndex = _aozoraPages.Count - 1;
-                       RenderCurrentAozoraPage();
+                       _aozoraNavHistory.Clear();
+                       // Start rendering from slightly before the end to fill the last page
+                       int lastIdx = Math.Max(0, _aozoraBlocks.Count - 5);
+                       RenderAozoraDynamicPage(lastIdx);
                        UpdateAozoraStatusBar();
                    }
                    else if (TextScrollViewer != null)
@@ -1162,7 +1210,7 @@ namespace Uviewer
               }
               else if (e.Key == Windows.System.VirtualKey.G)
               {
-                  _ = ShowGoToPageDialog();
+                  _ = ShowGoToLineDialog();
                   e.Handled = true;
               }
              else if (e.Key == Windows.System.VirtualKey.Left)
@@ -1242,28 +1290,31 @@ namespace Uviewer
              }
         }
 
-        private async Task ShowGoToPageDialog()
+        private async Task ShowGoToLineDialog()
         {
-             int currentPage = 1;
-             int totalPages = 1;
+             int currentLine = 1;
+             int totalLines = 1;
              
-             if (_isAozoraMode)
+             if (_isAozoraMode && _aozoraBlocks.Count > 0)
              {
-                 currentPage = _currentAozoraPageIndex + 1;
-                 totalPages = _aozoraPages.Count;
+                 totalLines = _aozoraTotalLineCount;
+                 currentLine = _aozoraBlocks[_currentAozoraStartBlockIndex].SourceLineNumber;
              }
-             else if (TextScrollViewer != null && TextScrollViewer.ViewportHeight > 0)
+             else if (TextScrollViewer != null)
              {
-                 currentPage = (int)(TextScrollViewer.VerticalOffset / TextScrollViewer.ViewportHeight) + 1;
-                 totalPages = (int)(TextScrollViewer.ExtentHeight / TextScrollViewer.ViewportHeight);
-                 if (totalPages < 1) totalPages = 1;
+                 totalLines = _textLines.Count;
+                 // Estimate line by offset
+                 double lineH = _textFontSize * 1.8;
+                 currentLine = (int)(TextScrollViewer.VerticalOffset / lineH) + 1;
              }
+             
+             if (currentLine < 1) currentLine = 1;
 
              var input = new TextBox 
              { 
                  InputScope = new InputScope { Names = { new InputScopeName(InputScopeNameValue.Number) } }, 
-                 PlaceholderText = $"1 - {totalPages}",
-                 Text = currentPage.ToString()
+                 PlaceholderText = $"1 - {totalLines}",
+                 Text = currentLine.ToString()
              };
              
              input.SelectAll();
@@ -1276,40 +1327,49 @@ namespace Uviewer
                  CloseButtonText = Strings.DialogClose,
                  XamlRoot = this.Content.XamlRoot
              };
-
+ 
              input.KeyDown += (s, e) => 
              {
                  if (e.Key == Windows.System.VirtualKey.Enter)
                  {
                      dialog.Hide();
-                     GoToPage(input.Text);
+                     GoToLine(input.Text);
                  }
              };
-
+ 
              if (await dialog.ShowAsync() == ContentDialogResult.Primary)
              {
-                 GoToPage(input.Text);
+                 GoToLine(input.Text);
              }
         }
         
-        private void GoToPage(string pageText)
+        private void GoToLine(string lineText)
         {
-            if (!int.TryParse(pageText, out int page) || page < 1) return;
+            if (!int.TryParse(lineText, out int line) || line < 1) return;
             
-            if (_isAozoraMode)
-            {
-                int targetIndex = Math.Min(page - 1, _aozoraPages.Count - 1);
-                if (targetIndex >= 0)
-                {
-                    _currentAozoraPageIndex = targetIndex;
-                    RenderCurrentAozoraPage();
-                    UpdateAozoraStatusBar();
-                }
-            }
+             if (_isAozoraMode && _aozoraBlocks.Count > 0)
+             {
+                 // Find block by line number
+                 int targetIdx = 0;
+                 for (int i = 0; i < _aozoraBlocks.Count; i++)
+                 {
+                     if (_aozoraBlocks[i].SourceLineNumber >= line)
+                     {
+                         targetIdx = i;
+                         break;
+                     }
+                 }
+                 
+                 _aozoraNavHistory.Clear();
+                 RenderAozoraDynamicPage(targetIdx);
+                 UpdateAozoraStatusBar();
+             }
             else if (TextScrollViewer != null)
             {
-                double target = TextScrollViewer.ViewportHeight * (page - 1);
+                double lineH = _textFontSize * 1.8;
+                double target = lineH * (line - 1);
                 TextScrollViewer.ChangeView(null, target, null);
+                UpdateTextStatusBar();
             }
         }
 
@@ -1335,6 +1395,8 @@ namespace Uviewer
                 tb.Foreground = line.Foreground;
                 tb.MaxWidth = line.MaxWidth;
                 tb.TextAlignment = line.TextAlignment;
+                tb.LineHeight = line.FontSize * 1.8;
+                tb.LineStackingStrategy = LineStackingStrategy.BlockLineHeight;
                 tb.Margin = line.Margin;
                 tb.Padding = line.Padding; 
                 
@@ -1418,11 +1480,9 @@ namespace Uviewer
             double current = TextScrollViewer.VerticalOffset;
             double viewport = TextScrollViewer.ViewportHeight;
             
-            // Calculate scroll amount based on LineHeight approximation (FontSize * 1.5)
-            // Instead of 10% overlap, we overlap by roughly one line to maintain context
-            // while minimizing visual redundancy ("overlap").
-            // We ensure at least 1 line overlap to handle partial rendering at edges.
-            double overlap = _textFontSize * 1.5;
+            // Calculate scroll amount based on LineHeight (FontSize * 1.8)
+            double lineH = _textFontSize * 1.8;
+            double overlap = lineH;
             
             // Safety check for very small viewports
             if (overlap > viewport * 0.5) overlap = viewport * 0.2;
@@ -1443,19 +1503,25 @@ namespace Uviewer
         private void UpdateTextStatusBar(string? fileName = null, int? totalLines = null, int? currentPage = null)
         {
             if (!_isTextMode) return;
+            if (_isAozoraMode) { UpdateAozoraStatusBar(); return; }
 
              if (fileName != null) FileNameText.Text = fileName;
              
-             if (TextScrollViewer != null && TextScrollViewer.ViewportHeight > 0)
+             int total = totalLines ?? _textLines.Count;
+             if (total == 0) total = 1;
+
+             if (TextScrollViewer != null)
              {
-                 int cur = (int)(TextScrollViewer.VerticalOffset / TextScrollViewer.ViewportHeight) + 1;
-                 int total = (int)(TextScrollViewer.ExtentHeight / TextScrollViewer.ViewportHeight);
-                 if (total == 0) total = 1;
-                 
-                 ImageIndexText.Text = $"{cur} / {total}";
+                 double lineH = _textFontSize * 1.8;
+                 int currentLine = (int)(TextScrollViewer.VerticalOffset / lineH) + 1;
+                 if (currentLine > total) currentLine = total;
+
+                 double progress = (TextScrollViewer.ExtentHeight > 0) ? (TextScrollViewer.VerticalOffset + TextScrollViewer.ViewportHeight) * 100.0 / TextScrollViewer.ExtentHeight : 0;
+                 if (progress > 100) progress = 100;
+
+                 ImageIndexText.Text = $"{progress:F1}%";
+                 ImageInfoText.Text = $"Line {currentLine} / {total}";
              }
-             
-             if (totalLines != null) ImageInfoText.Text = $"{totalLines} Lines";
         }
         
         private void TextScrollViewer_ViewChanged(object sender, ScrollViewerViewChangedEventArgs e)
