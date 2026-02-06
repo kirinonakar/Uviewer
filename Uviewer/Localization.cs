@@ -46,6 +46,9 @@ namespace Uviewer
         public static string NoRecentFiles => S("최근 파일 없음", "No Recent Files");
         public static string FavoritesTooltip => S("즐겨찾기", "Favorites");
         public static string NoFavorites => S("즐겨찾기 없음", "No Favorites");
+        public static string TocTooltip => S("목차", "Table of Contents");
+        public static string TocTitle => S("목차", "Contents");
+        public static string NoTocContent => S("목차 없음", "No Table of Contents");
         public static string BrowseFolderTooltip => S("폴더 찾아보기", "Browse Folder");
 
         // UI Texts

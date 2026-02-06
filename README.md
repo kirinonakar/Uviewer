@@ -20,10 +20,12 @@
   - **Smart Encoding Detection**: Automatically detects and handles various encodings (UTF-8, Unicode, **EUC-KR**, **Shift-JIS**, **Johab**).
 - **Reading Comfort**: Adjustable font size, font family (Yu Gothic Medium/Yu Mincho), and background themes (Light/Beige/Dark).
 - **Go to Line**: Jump directly to a specific line (G).
+- **Table of Contents (TOC)**: Automatically extracts headings (Markdown `#` or Aozora `［＃...］` tags) for quick navigation.
 - **Line Bookmark**: Save your reading progress (Line number) to Favorites and resume exactly where you left off.
 
 ### 📖 EPUB Reader
 - **Full EPUB Support**: Page-based navigation with chapter tracking.
+- **Table of Contents**: Support for Navigation via TOC.
 - **Customization**: Adjustable font settings (font family/size) and background colors.
 
 ### 📂 File Management
@@ -103,4 +105,4 @@ dotnet build Uviewer.sln -c Release
 This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
 
 ## 👤 Author
-**kirinonakar** - *Initial work* - [kirinonakar](https://github.com/kirinonakar)
+**kirinonakar** - [kirinonakar](https://github.com/kirinonakar)

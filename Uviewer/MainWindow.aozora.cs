@@ -39,6 +39,8 @@ namespace Uviewer
             public bool IsTable { get; set; } = false;
             public List<List<string>> TableRows { get; set; } = new();
             public int SourceLineNumber { get; set; } = 0; // Original line number in source text
+            public int HeadingLevel { get; set; } = 0; // 0=None, 1=Large/H1, 2=Medium/H2, 3=Small/H3...
+            public string HeadingText { get; set; } = "";
         }
 
         public class AozoraBold { public string Text { get; set; } = ""; }
@@ -546,6 +548,25 @@ namespace Uviewer
             ImageInfoText.Text = $"Line {startLine} / {_aozoraTotalLineCount}";
         }
 
+        public void JumpToAozoraLine(int targetLine)
+        {
+            if (!_isTextMode || !_isAozoraMode || _aozoraBlocks.Count == 0) return;
+
+            int startIdx = 0;
+            for (int i = 0; i < _aozoraBlocks.Count; i++)
+            {
+                if (_aozoraBlocks[i].SourceLineNumber >= targetLine)
+                {
+                    startIdx = i;
+                    break;
+                }
+            }
+            
+            _aozoraNavHistory.Push(_currentAozoraStartBlockIndex);
+            RenderAozoraDynamicPage(startIdx);
+            UpdateAozoraStatusBar();
+        }
+
         private List<AozoraBindingModel> ParseAozoraContent(string text)
         {
             var blocks = new List<AozoraBindingModel>();
@@ -582,11 +603,15 @@ namespace Uviewer
                 {
                     model.FontSizeScale = 1.5;
                     content = content.Replace("［＃大見出し］", "").TrimStart('#', ' ');
+                    model.HeadingLevel = 1;
+                    model.HeadingText = Regex.Replace(content, @"［＃[^］]+］|\[.*?\]", "").Trim();
                 }
                 else if (content.Contains("［＃中見出し］") || content.StartsWith("## "))
                 {
                     model.FontSizeScale = 1.25;
                     content = content.Replace("［＃中見出し］", "").TrimStart('#', ' ');
+                    model.HeadingLevel = 2;
+                    model.HeadingText = Regex.Replace(content, @"［＃[^］]+］|\[.*?\]", "").Trim();
                 }
                 
                 // Alignments
@@ -786,6 +811,9 @@ namespace Uviewer
                          else blockModel.FontSizeScale = 1.1;
                          
                          content = content.Substring(level).TrimStart();
+                         blockModel.HeadingLevel = level;
+                         blockModel.HeadingText = Regex.Replace(content, @"[#\[\]]", "").Trim();
+
                          if (level == 1 || level == 2) 
                          {
                               blockModel.BorderColor = Colors.LightGray;
@@ -1113,6 +1141,192 @@ namespace Uviewer
             }
             
             return new InlineUIContainer { Child = grid };
+        }
+
+        // TOC Handlers
+
+        public class TocItem
+        {
+            public string HeadingText { get; set; } = "";
+            public int SourceLineNumber { get; set; }
+            public Thickness Margin => new Thickness((HeadingLevel - 1) * 16, 0, 0, 0);
+            public int HeadingLevel { get; set; }
+            public object? Tag { get; set; }
+        }
+
+        private async void TocButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (!_isTextMode && !_isEpubMode) return;
+
+            // Ensure TOC Title
+            if (TocFlyout.Content is Grid g && g.Children.Count > 0 && g.Children[0] is TextBlock tb)
+            {
+                tb.Text = Strings.TocTitle;
+            }
+
+            List<TocItem> items = new();
+
+            if (_isAozoraMode && _aozoraBlocks.Count > 0)
+            {
+                items = _aozoraBlocks
+                    .Where(b => b.HeadingLevel > 0)
+                    .Select(b => new TocItem 
+                    { 
+                        HeadingText = b.HeadingText, 
+                        SourceLineNumber = b.SourceLineNumber,
+                        HeadingLevel = b.HeadingLevel
+                    })
+                    .ToList();
+            }
+
+            else if (_isEpubMode)
+            {
+                 // EPUB Mode
+                 if (_epubToc != null && _epubToc.Count > 0)
+                 {
+                     items = _epubToc.Select(t => new TocItem 
+                     { 
+                         HeadingText = t.Title, 
+                         HeadingLevel = 1, // Simplify level for now
+                         SourceLineNumber = -1,
+                         Tag = t 
+                     }).ToList();
+                 }
+            }
+            else if (!string.IsNullOrEmpty(_currentTextContent))
+            {
+                 // Scan raw text on demand for Normal Mode or if blocks are empty
+                 items = await Task.Run(() => 
+                 {
+                     var list = new List<TocItem>();
+                     var lines = _textLines.Count > 0 ? _textLines : SplitTextToLines(_currentTextContent); // Prefer split lines if available
+                     
+                     // In standard mode, finding exact source line number might be tricky if _textLines is wrapped.
+                     // But _textLines usually stores 1:1 if no wrap? No, MainWindow.text.cs implementation of SplitTextToLines:
+                     // Wait, SplitTextToLines splits by wrapping width? 
+                     // Let's check SplitTextToLines implementation in MainWindow.text.cs.
+                     // If SplitTextToLines wraps connected lines, SourceLineNumber logic is complex.
+                     // A safe bet is scanning the raw source lines.
+                     var rawLines = _currentTextContent.Replace("\r\n", "\n").Replace("\r", "\n").Split('\n');
+                     
+                     for (int i = 0; i < rawLines.Length; i++)
+                     {
+                         var line = rawLines[i].Trim();
+                         int level = 0;
+                         string text = "";
+
+                         // Check Aozora
+                         if (line.Contains("［＃大見出し］") || line.StartsWith("# ")) { level = 1; text = line.Replace("［＃大見出し］", "").TrimStart('#', ' '); }
+                         else if (line.Contains("［＃中見出し］") || line.StartsWith("## ")) { level = 2; text = line.Replace("［＃中見出し］", "").TrimStart('#', ' '); }
+                         
+                         if (level > 0)
+                         {
+                             // Clean tags
+                             text = Regex.Replace(text, @"［＃[^］]+］|\[.*?\]|[#]", "").Trim();
+                             list.Add(new TocItem { HeadingText = text, SourceLineNumber = i + 1, HeadingLevel = level });
+                         }
+                     }
+                     return list;
+                 });
+            }
+
+            // Highlight current item and scroll
+            int currentIndex = -1;
+
+            if (_isEpubMode)
+            {
+                if (_currentEpubChapterIndex >= 0 && _currentEpubChapterIndex < _epubSpine.Count)
+                {
+                    string currentSpinePath = _epubSpine[_currentEpubChapterIndex];
+                    for (int i = 0; i < items.Count; i++)
+                    {
+                        if (items[i].Tag is EpubTocItem epi)
+                        {
+                            string linkPath = epi.Link;
+                            int hashIndex = linkPath.IndexOf('#');
+                            if (hashIndex >= 0) linkPath = linkPath.Substring(0, hashIndex);
+                            
+                            if (string.Equals(linkPath, currentSpinePath, StringComparison.OrdinalIgnoreCase))
+                            {
+                                currentIndex = i;
+                                // Keep searching to find the *last* matching TOC entry (e.g. sub-chapters) 
+                                // that starts at this file? No, usually TOC is ordered. 
+                                // If "Chapter 1" (chap1.html) and "Section 1.1" (chap1.html#sec1), 
+                                // we can't distinguish which one purely by file path without hash/line checking.
+                                // For now, taking the first one is safer as a "Chapter" marker.
+                                break; 
+                            }
+                        }
+                    }
+                }
+            }
+            else
+            {
+                // Text / Aozora Mode
+                int currentLine = 1;
+                if (_isAozoraMode)
+                {
+                    if (_currentAozoraStartBlockIndex >= 0 && _currentAozoraStartBlockIndex < _aozoraBlocks.Count)
+                        currentLine = _aozoraBlocks[_currentAozoraStartBlockIndex].SourceLineNumber;
+                }
+                else
+                {
+                    currentLine = GetTopVisibleLineIndex();
+                }
+
+                for (int i = 0; i < items.Count; i++)
+                {
+                    if (items[i].SourceLineNumber <= currentLine)
+                        currentIndex = i;
+                    else
+                        break;
+                }
+            }
+
+            if (currentIndex >= 0 && currentIndex < items.Count)
+            {
+                items[currentIndex].HeadingText = "→ " + items[currentIndex].HeadingText;
+            }
+
+            if (items.Count == 0)
+            {
+                items.Add(new TocItem { HeadingText = Strings.NoTocContent, SourceLineNumber = -1 });
+            }
+
+            TocListView.ItemsSource = items;
+            
+            if (currentIndex >= 0)
+            {
+                // Scroll to current item
+                TocListView.ScrollIntoView(items[currentIndex]);
+            }
+        }
+
+        private void TocListView_ItemClick(object sender, ItemClickEventArgs e)
+        {
+            if (e.ClickedItem is TocItem item)
+            {
+                TocFlyout.Hide();
+                
+                if (_isEpubMode)
+                {
+                     if (item.Tag is EpubTocItem epubItem)
+                     {
+                         JumpToEpubTocItem(epubItem);
+                     }
+                }
+                else if (item.SourceLineNumber > 0)
+                {
+                    if (_isAozoraMode)
+                    {
+                        JumpToAozoraLine(item.SourceLineNumber);
+                    }
+                    else
+                    {
+                        ScrollToLine(item.SourceLineNumber);
+                    }
+                }
+            }
         }
     }
 }

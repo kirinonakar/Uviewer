@@ -25,6 +25,7 @@ namespace Uviewer
         private List<string> _epubSpine = new();
         private int _currentEpubChapterIndex = 0;
         private string? _currentEpubFilePath;
+        private string? _epubTocPath;
         private object _epubLock = new object();
         private double _epubTextWidth = 0;
         private bool _isEpubMode = false;
@@ -40,6 +41,16 @@ namespace Uviewer
              public string FontFamily { get; set; } = "Yu Gothic Medium";
              public int ThemeIndex { get; set; } = 0;
         }
+
+        public class EpubTocItem
+        {
+            public string Title { get; set; } = "";
+            public string Link { get; set; } = "";
+            public int Level { get; set; } = 0;
+        }
+
+        private List<EpubTocItem> _epubToc = new();
+
 
         public class EpubPageInfoTag
         {
@@ -247,6 +258,9 @@ namespace Uviewer
 
                  await LoadEpubChapterAsync(_currentEpubChapterIndex);
                  
+                 // 4. Load TOC (Background)
+                 _ = ParseEpubTocAsync();
+
                  FileNameText.Text = file.Name;
                  SyncSidebarSelection(new ImageEntry { FilePath = file.Path, DisplayName = file.Name });
              }
@@ -264,6 +278,9 @@ namespace Uviewer
         {
             _isEpubMode = true;
             _isTextMode = false;
+            _isAozoraMode = false;
+            _aozoraBlocks.Clear(); // Clear text/aozora cache
+            _currentTextContent = null; // Clear raw text
             
             ImageArea.Visibility = Visibility.Collapsed;
             TextArea.Visibility = Visibility.Collapsed;
@@ -298,6 +315,8 @@ namespace Uviewer
         {
             var entry = _currentEpubArchive?.GetEntry(opfPath);
             if (entry == null) return;
+            
+            _epubTocPath = null; // Reset
 
             using var stream = entry.Open();
             using var reader = new StreamReader(stream);
@@ -326,6 +345,29 @@ namespace Uviewer
                     // Resolve relative path
                     string fullPath = string.IsNullOrEmpty(opfDir) ? href : opfDir + "/" + href;
                     _epubSpine.Add(fullPath);
+                }
+            }
+            
+            // Try to find TOC path
+            // 1. Check for EPUB 3 nav
+            var navMatch = Regex.Match(content, "<item[^>]*properties=\"[^\"]*nav[^\"]*\"[^>]*href=\"([^\"]+)\"");
+            if (navMatch.Success)
+            {
+                string href = navMatch.Groups[1].Value;
+                _epubTocPath = string.IsNullOrEmpty(opfDir) ? href : opfDir + "/" + href;
+            }
+            // 2. Check for EPUB 2 ncx in spine
+            else
+            {
+                var spineMatch = Regex.Match(content, "<spine[^>]*toc=\"([^\"]+)\"");
+                if (spineMatch.Success)
+                {
+                    string tocId = spineMatch.Groups[1].Value;
+                    if (manifest.ContainsKey(tocId))
+                    {
+                         string href = manifest[tocId];
+                         _epubTocPath = string.IsNullOrEmpty(opfDir) ? href : opfDir + "/" + href;
+                    }
                 }
             }
         }
@@ -1139,5 +1181,153 @@ namespace Uviewer
              if (_epubThemeIndex == 1) return new SolidColorBrush(Microsoft.UI.ColorHelper.FromArgb(255, 255, 249, 235)); // Beige
              return new SolidColorBrush(Microsoft.UI.ColorHelper.FromArgb(255, 30, 30, 30)); // Dark
         }
+
+        private async Task ParseEpubTocAsync()
+        {
+             _epubToc.Clear();
+             
+             // Try parsing explicit TOC
+             if (!string.IsNullOrEmpty(_epubTocPath))
+             {
+                 try
+                 {
+                     var entry = _currentEpubArchive?.GetEntry(_epubTocPath);
+                     if (entry != null)
+                     {
+                         using var stream = entry.Open();
+                         using var reader = new StreamReader(stream);
+                         string content = await reader.ReadToEndAsync();
+                         
+                         string ext = Path.GetExtension(_epubTocPath).ToLower();
+                         if (ext == ".ncx")
+                         {
+                             ParseNcxToc(content);
+                         }
+                         else if (ext == ".html" || ext == ".xhtml" || ext == ".htm")
+                         {
+                             ParseNavToc(content);
+                         }
+                     }
+                 }
+                 catch (Exception ex)
+                 {
+                     System.Diagnostics.Debug.WriteLine($"TOC Parse Error: {ex.Message}");
+                 }
+             }
+
+             // Fallback if empty
+             if (_epubToc.Count == 0 && _epubSpine.Count > 0)
+             {
+                 for (int i = 0; i < _epubSpine.Count; i++)
+                 {
+                     _epubToc.Add(new EpubTocItem 
+                     { 
+                         Title = $"Chapter {i + 1}", 
+                         Link = _epubSpine[i],
+                         Level = 1
+                     });
+                 }
+             }
+        }
+
+
+        private void ParseNcxToc(string xml)
+        {
+            // Simple Regex parsing for NCX
+            // <navPoint ...>
+            //   <navLabel><text>Title</text></navLabel>
+            //   <content src="path.html#id" />
+            
+            // This is recursive structure, but we'll try flat for now or simple level detection
+            // Regex is hard for nested, but let's try a simple loop
+            
+            // Cleanup namespaces to simplify
+            xml = Regex.Replace(xml, "xmlns=\"[^\"]*\"", "");
+            
+            // Match navPoints
+             // We can use a simple state machine or regex loop if structure is simple
+             // Let's assume flat or finding all navPoints.
+             
+             // Extract all navPoints raw
+             var matches = Regex.Matches(xml, "<navPoint[^>]*>([\\s\\S]*?)</navPoint>");
+             foreach (Match m in matches)
+             {
+                 string inner = m.Groups[1].Value;
+                 
+                 // Title
+                 string title = "";
+                 var tm = Regex.Match(inner, "<text>([^<]+)</text>");
+                 if (tm.Success) title = tm.Groups[1].Value;
+                 
+                 // Src
+                 string src = "";
+                 var cm = Regex.Match(inner, "<content[^>]*src=\"([^\"]+)\"");
+                 if (cm.Success) src = cm.Groups[1].Value;
+                 
+                 if (!string.IsNullOrEmpty(title) && !string.IsNullOrEmpty(src))
+                 {
+                     // Resolve Src relative to TOC path
+                     string fullSrc = ResolveRelativePath(_epubTocPath!, src);
+                     _epubToc.Add(new EpubTocItem { Title = title, Link = fullSrc });
+                 }
+             }
+        }
+        
+        private void ParseNavToc(string html)
+        {
+             // HTML 5 Parsing via Regex
+             // look for <nav epub:type="toc"> ... <ol> ... <li><a href="...">Title</a>
+             
+             // Extract <a> tags with href
+             var matches = Regex.Matches(html, "<a[^>]*href=\"([^\"]+)\"[^>]*>([^<]+)</a>");
+             foreach (Match m in matches)
+             {
+                 string src = m.Groups[1].Value;
+                 string title = m.Groups[2].Value.Trim();
+                 
+                 if (!string.IsNullOrEmpty(title) && !string.IsNullOrEmpty(src))
+                 {
+                     string fullSrc = ResolveRelativePath(_epubTocPath!, src);
+                     _epubToc.Add(new EpubTocItem { Title = title, Link = fullSrc });
+                 }
+             }
+        }
+
+        public async void JumpToEpubTocItem(EpubTocItem item)
+        {
+             // item.Link might contain hash: chapter.html#id
+             string path = item.Link;
+             string hash = "";
+             int hashIdx = path.IndexOf('#');
+             if (hashIdx >= 0)
+             {
+                 hash = path.Substring(hashIdx + 1);
+                 path = path.Substring(0, hashIdx);
+             }
+             
+             // Find in spine
+             // Spine stores full paths from container (OPS/chapter1.html)
+             // item.Link should already be resolved to full path
+             
+             int index = -1;
+             for (int i = 0; i < _epubSpine.Count; i++)
+             {
+                 if (_epubSpine[i].Equals(path, StringComparison.OrdinalIgnoreCase))
+                 {
+                     index = i;
+                     break;
+                 }
+             }
+             
+             if (index >= 0)
+             {
+                 _currentEpubChapterIndex = index;
+                 await LoadEpubChapterAsync(index);
+                 // If hash exists, we could theoretically scroll to it, but our rendering is page based
+                 // so mapping hash to page is hard without DOM analysis.
+                 // For now, just jump to chapter.
+             }
+        }
+
     }
 }
