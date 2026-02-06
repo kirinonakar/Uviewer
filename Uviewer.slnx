@@ -4,6 +4,9 @@
     <Platform Name="x64" />
     <Platform Name="x86" />
   </Configurations>
+  <Project Path="Uviewer setup/Uviewer setup.vdproj" Type="Installer">
+    <Build />
+  </Project>
   <Project Path="Uviewer/Uviewer.csproj">
     <Platform Solution="*|ARM64" Project="ARM64" />
     <Platform Solution="*|x64" Project="x64" />

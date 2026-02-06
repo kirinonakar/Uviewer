@@ -348,9 +348,13 @@ namespace Uviewer
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"Error loading window settings: {ex.Message}");
+                MessageBox(IntPtr.Zero, $"Window Settings Error:\n{ex.Message}", "Uviewer Warning", 0x30);
             }
             return false;
         }
+
+        [System.Runtime.InteropServices.DllImport("user32.dll", CharSet = System.Runtime.InteropServices.CharSet.Unicode)]
+        private static extern int MessageBox(IntPtr hWnd, string text, string caption, uint type);
 
         private void RestoreMaximizedStateOnce(object sender, WindowActivatedEventArgs e)
         {

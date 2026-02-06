@@ -171,19 +171,21 @@ namespace Uviewer
 
         public async Task InitializeAsync(string? launchFilePath = null)
         {
-            // Subscribe to global PreviewKeyDown to intercept navigation keys
-            if (RootGrid != null)
+            try
             {
-                RootGrid.PreviewKeyDown += RootGrid_Global_PreviewKeyDown;
-            }
+                // Subscribe to global PreviewKeyDown to intercept navigation keys
+                if (RootGrid != null)
+                {
+                    RootGrid.PreviewKeyDown += RootGrid_Global_PreviewKeyDown;
+                }
 
-            // Load favorites
-            await LoadFavorites();
-            UpdateFavoritesMenu();
+                // Load favorites
+                await LoadFavorites();
+                UpdateFavoritesMenu();
 
-            // Load recent items
-            await LoadRecentItems();
-            UpdateRecentMenu();
+                // Load recent items
+                await LoadRecentItems();
+                UpdateRecentMenu();
 
             // Handle launch file path if provided
             if (!string.IsNullOrEmpty(launchFilePath))
@@ -258,12 +260,16 @@ namespace Uviewer
                     LoadExplorerFolder(Environment.GetFolderPath(Environment.SpecialFolder.MyPictures));
                 }
             }
-            else
+            }
+            catch (Exception ex)
             {
-                // Load Pictures folder by default first
-                LoadExplorerFolder(Environment.GetFolderPath(Environment.SpecialFolder.MyPictures));
+                 System.Diagnostics.Debug.WriteLine($"Initialization Error: {ex}");
+                 if (FileNameText != null) FileNameText.Text = $"Error: {ex.Message}";
+                 MessageBox(IntPtr.Zero, $"Initialization Error:\n{ex.Message}\n{ex.StackTrace}", "Uviewer Init Error", 0x10);
             }
         }
+
+
 
         public MainWindow(string? launchFilePath = null)
         {
