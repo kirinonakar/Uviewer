@@ -540,16 +540,55 @@ namespace Uviewer
 
 
 
-        private void EpubFlipView_PointerPressed(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
+        private void EpubTouchOverlay_PointerPressed(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
         {
              if (!_isEpubMode) return;
 
-             var ptr = e.GetCurrentPoint(RootGrid);
+             var ptr = e.GetCurrentPoint(EpubArea);
              if (ptr.Properties.IsLeftButtonPressed)
              {
-                 HandleSmartTouchNavigation(e, 
-                    () => _ = NavigateEpubAsync(-1), 
-                    () => _ = NavigateEpubAsync(1));
+                 // Check for fullscreen edge zones first
+                 if (_isFullscreen)
+                 {
+                     var rootPt = e.GetCurrentPoint(RootGrid);
+                     // Top Edge -> Show Toolbar
+                     if (rootPt.Position.Y < FullscreenTopHoverZone)
+                     {
+                         if (ToolbarGrid.Visibility != Visibility.Visible)
+                         {
+                             ToolbarGrid.Visibility = Visibility.Visible;
+                         }
+                         StartOrRestartFullscreenToolbarHideTimer();
+                         e.Handled = true;
+                         return;
+                     }
+                     
+                     // Left Edge -> Show Sidebar
+                     if (rootPt.Position.X < FullscreenLeftHoverZone)
+                     {
+                         if (SidebarGrid.Visibility != Visibility.Visible)
+                         {
+                             SidebarColumn.Width = new GridLength(_SidebarWidth);
+                             SidebarGrid.Visibility = Visibility.Visible;
+                         }
+                         StartOrRestartFullscreenSidebarHideTimer();
+                         e.Handled = true;
+                         return;
+                     }
+                 }
+                 
+                 // Navigation: Left half = prev page, Right half = next page
+                 double x = ptr.Position.X;
+                 double areaWidth = EpubArea.ActualWidth;
+                 
+                 if (x < areaWidth / 2)
+                 {
+                     _ = NavigateEpubAsync(-1);
+                 }
+                 else
+                 {
+                     _ = NavigateEpubAsync(1);
+                 }
                  
                  e.Handled = true;
              }
