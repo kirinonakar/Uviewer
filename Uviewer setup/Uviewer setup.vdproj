@@ -15,13 +15,7 @@
     {
         "Entry"
         {
-        "MsmKey" = "8:_4386900F3D154BD0B48F77E31D72BF18"
-        "OwnerKey" = "8:_UNDEFINED"
-        "MsmSig" = "8:_UNDEFINED"
-        }
-        "Entry"
-        {
-        "MsmKey" = "8:_714E8CA1FFA34872BAEB29F3AE0EF7E3"
+        "MsmKey" = "8:_495CC76898C84E40960AD3D5E5935372"
         "OwnerKey" = "8:_UNDEFINED"
         "MsmSig" = "8:_UNDEFINED"
         }
@@ -33,7 +27,13 @@
         }
         "Entry"
         {
-        "MsmKey" = "8:_D9A396AB7C794F469094146F74195EAA"
+        "MsmKey" = "8:_CFE5B08215284BADACE7FB78145A6A24"
+        "OwnerKey" = "8:_UNDEFINED"
+        "MsmSig" = "8:_UNDEFINED"
+        }
+        "Entry"
+        {
+        "MsmKey" = "8:_D114C705A1534768A7F2E4AC0E1151A9"
         "OwnerKey" = "8:_UNDEFINED"
         "MsmSig" = "8:_UNDEFINED"
         }
@@ -62,6 +62,14 @@
             "PrerequisitesLocation" = "2:1"
             "Url" = "8:"
             "ComponentsUrl" = "8:"
+                "Items"
+                {
+                    "{EDC2488A-8267-493A-A98E-7D9C3B36CDF3}:.NETFramework,Version=v4.7.2"
+                    {
+                    "Name" = "8:Microsoft .NET Framework 4.7.2 (x86 and x64)"
+                    "ProductCode" = "8:.NETFramework,Version=v4.7.2"
+                    }
+                }
             }
         }
         "Release"
@@ -131,26 +139,6 @@
         }
         "File"
         {
-            "{1FB2D0AE-D3B9-43D4-B9DD-F88EC61E35DE}:_714E8CA1FFA34872BAEB29F3AE0EF7E3"
-            {
-            "SourcePath" = "8:..\\Uviewer\\bin\\Release\\net10.0-windows10.0.19041.0\\win-x64\\App.xbf"
-            "TargetName" = "8:App.xbf"
-            "Tag" = "8:"
-            "Folder" = "8:_F88BCEAFA1B14B5B8B7B443C8A9DC271"
-            "Condition" = "8:"
-            "Transitive" = "11:FALSE"
-            "Vital" = "11:TRUE"
-            "ReadOnly" = "11:FALSE"
-            "Hidden" = "11:FALSE"
-            "System" = "11:FALSE"
-            "Permanent" = "11:FALSE"
-            "SharedLegacy" = "11:FALSE"
-            "PackageAs" = "3:1"
-            "Register" = "3:1"
-            "Exclude" = "11:FALSE"
-            "IsDependency" = "11:FALSE"
-            "IsolateTo" = "8:"
-            }
             "{1FB2D0AE-D3B9-43D4-B9DD-F88EC61E35DE}:_9AA11AC4B04D42258A5290F678D554FA"
             {
             "SourcePath" = "8:..\\Uviewer\\Assets\\Uviewer.ico"
@@ -171,10 +159,30 @@
             "IsDependency" = "11:FALSE"
             "IsolateTo" = "8:"
             }
-            "{1FB2D0AE-D3B9-43D4-B9DD-F88EC61E35DE}:_D9A396AB7C794F469094146F74195EAA"
+            "{1FB2D0AE-D3B9-43D4-B9DD-F88EC61E35DE}:_CFE5B08215284BADACE7FB78145A6A24"
             {
-            "SourcePath" = "8:..\\Uviewer\\bin\\Release\\net10.0-windows10.0.19041.0\\win-x64\\MainWindow.xbf"
+            "SourcePath" = "8:..\\Uviewer\\bin\\x64\\Release\\net10.0-windows10.0.19041.0\\win-x64\\MainWindow.xbf"
             "TargetName" = "8:MainWindow.xbf"
+            "Tag" = "8:"
+            "Folder" = "8:_F88BCEAFA1B14B5B8B7B443C8A9DC271"
+            "Condition" = "8:"
+            "Transitive" = "11:FALSE"
+            "Vital" = "11:TRUE"
+            "ReadOnly" = "11:FALSE"
+            "Hidden" = "11:FALSE"
+            "System" = "11:FALSE"
+            "Permanent" = "11:FALSE"
+            "SharedLegacy" = "11:FALSE"
+            "PackageAs" = "3:1"
+            "Register" = "3:1"
+            "Exclude" = "11:FALSE"
+            "IsDependency" = "11:FALSE"
+            "IsolateTo" = "8:"
+            }
+            "{1FB2D0AE-D3B9-43D4-B9DD-F88EC61E35DE}:_D114C705A1534768A7F2E4AC0E1151A9"
+            {
+            "SourcePath" = "8:..\\Uviewer\\bin\\x64\\Release\\net10.0-windows10.0.19041.0\\win-x64\\App.xbf"
+            "TargetName" = "8:App.xbf"
             "Tag" = "8:"
             "Folder" = "8:_F88BCEAFA1B14B5B8B7B443C8A9DC271"
             "Condition" = "8:"
@@ -498,7 +506,7 @@
         }
         "Shortcut"
         {
-            "{970C0BB2-C7D0-45D7-ABFA-7EC378858BC0}:_DDA85B373A0C4D61BA29DCF36D3FDC1D"
+            "{970C0BB2-C7D0-45D7-ABFA-7EC378858BC0}:_C0C6D620A43D4BDFB74808DDF60CAF6C"
             {
             "Name" = "8:Uviewer"
             "Arguments" = "8:"
@@ -506,8 +514,22 @@
             "ShowCmd" = "3:1"
             "IconIndex" = "3:0"
             "Transitive" = "11:FALSE"
-            "Target" = "8:_4386900F3D154BD0B48F77E31D72BF18"
+            "Target" = "8:_495CC76898C84E40960AD3D5E5935372"
             "Folder" = "8:_4AC4FCB67F2D47E18DB86C2D2EEEB69A"
+            "WorkingFolder" = "8:_F88BCEAFA1B14B5B8B7B443C8A9DC271"
+            "Icon" = "8:_9AA11AC4B04D42258A5290F678D554FA"
+            "Feature" = "8:"
+            }
+            "{970C0BB2-C7D0-45D7-ABFA-7EC378858BC0}:_CD9A0317CE2945108046BE0CE1E312E0"
+            {
+            "Name" = "8:Uviewer"
+            "Arguments" = "8:"
+            "Description" = "8:"
+            "ShowCmd" = "3:1"
+            "IconIndex" = "3:0"
+            "Transitive" = "11:FALSE"
+            "Target" = "8:_495CC76898C84E40960AD3D5E5935372"
+            "Folder" = "8:_DED77C6B79B548BFACB68636401381BF"
             "WorkingFolder" = "8:_F88BCEAFA1B14B5B8B7B443C8A9DC271"
             "Icon" = "8:_9AA11AC4B04D42258A5290F678D554FA"
             "Feature" = "8:"
@@ -911,7 +933,7 @@
         }
         "ProjectOutput"
         {
-            "{5259A561-127C-4D43-A0A1-72F10C7B3BF8}:_4386900F3D154BD0B48F77E31D72BF18"
+            "{5259A561-127C-4D43-A0A1-72F10C7B3BF8}:_495CC76898C84E40960AD3D5E5935372"
             {
             "SourcePath" = "8:..\\Uviewer\\obj\\x64\\Release\\net10.0-windows10.0.19041.0\\win-x64\\apphost.exe"
             "TargetName" = "8:"
