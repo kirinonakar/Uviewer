@@ -114,7 +114,7 @@ namespace Uviewer
             ToggleAozoraMode();
         }
 
-        private async void ToggleAozoraMode()
+        private void ToggleAozoraMode()
         {
             // Capture current position BEFORE toggling logic
             int currentLine = 1;
@@ -144,18 +144,13 @@ namespace Uviewer
             
             SaveAozoraSettings();
             
-            // Optimized Reload: Use cached content if available to avoid IO delay
-            if (!string.IsNullOrEmpty(_currentTextContent) && !string.IsNullOrEmpty(_currentTextFilePath))
-            {
-                 string filename = System.IO.Path.GetFileName(_currentTextFilePath);
-                 await DisplayLoadedText(_currentTextContent, filename, _currentTextFilePath);
-            }
-            else if (_currentTextFilePath != null)
+            // Reload current content
+            if (_currentTextFilePath != null)
             {
                 var entry = _imageEntries.FirstOrDefault(x => x.FilePath == _currentTextFilePath);
                 if (entry != null)
                 {
-                    await LoadTextEntryAsync(entry);
+                    _ = LoadTextEntryAsync(entry);
                 }
             }
         }
@@ -1422,8 +1417,7 @@ namespace Uviewer
                  items = await Task.Run(() => 
                  {
                      var list = new List<TocItem>();
-                                           // var lines = _textLines.Count > 0 ? _textLines : SplitTextToLines(_currentTextContent);
-
+                     var lines = _textLines.Count > 0 ? _textLines : SplitTextToLines(_currentTextContent); // Prefer split lines if available
                      
                      // In standard mode, finding exact source line number might be tricky if _textLines is wrapped.
                      // But _textLines usually stores 1:1 if no wrap? No, MainWindow.text.cs implementation of SplitTextToLines:
