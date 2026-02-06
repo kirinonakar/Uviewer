@@ -24,6 +24,10 @@ namespace Uviewer
         private string _textFontFamily = "Yu Gothic Medium";
         private int _themeIndex = 0; // 0: White, 1: Beige, 2: Dark
         private bool _isTextMode = false;
+        private int _textTotalLineCountInSource = 0; // Total lines in source file for simple text mode
+#pragma warning disable CS0414 // Field is assigned but never used - reserved for future loading state UI
+        private bool _isTextLinesFullyLoaded = false; // Track if all lines are loaded
+#pragma warning restore CS0414
 
         
         
@@ -192,14 +196,17 @@ namespace Uviewer
                      TextItemsRepeater.ItemTemplate = (DataTemplate)template;
                 }
                 
-                _textLines = SplitTextToLines(content);
-                await RefreshTextDisplay(true); // Reset scroll for new file
+                // Progressive loading for large files - same strategy as Aozora mode
+                await LoadTextLinesProgressivelyAsync(content, targetLine);
                 
-                // Reset to top immediately
-                if (TextScrollViewer != null) TextScrollViewer.ChangeView(null, 0, null, true);
+                // Reset to top immediately (if not restoring position)
+                if (targetLine <= 1 && TextScrollViewer != null) 
+                {
+                    TextScrollViewer.ChangeView(null, 0, null, true);
+                }
                 
                 // Update Text Status
-                UpdateTextStatusBar(name, _textLines.Count, 1);
+                UpdateTextStatusBar(name, _textTotalLineCountInSource, 1);
                 
                 // Unified Scroll Restoration for General Text
                 if (targetLine > 1)
@@ -919,6 +926,112 @@ namespace Uviewer
             return Regex.Replace(textOnly, @"\n\s+\n", "\n\n");
         }
 
+        /// <summary>
+        /// Progressive loading for simple text mode - loads initial chunk first, then rest in background
+        /// </summary>
+        private async Task LoadTextLinesProgressivelyAsync(string content, int targetLine = 1)
+        {
+            var lines = content.Replace("\r\n", "\n").Replace("\r", "\n").Split('\n');
+            _textTotalLineCountInSource = lines.Length;
+            _isTextLinesFullyLoaded = false;
+            
+            // Cache common values to avoid repeated calls
+            var brush = GetThemeForeground();
+            var maxW = GetUrlMaxWidth();
+            
+            int initialLimit = 2000;
+            // Ensure we load enough to reach target line
+            if (targetLine > initialLimit - 500) initialLimit = targetLine + 500;
+            
+            if (lines.Length > initialLimit)
+            {
+                // 1. Parse initial chunk in background thread
+                var initialLines = lines.Take(initialLimit).ToArray();
+                _textLines = await Task.Run(() => ParseTextLinesChunk(initialLines, brush, maxW));
+                
+                // 2. Update UI with initial chunk
+                if (TextItemsRepeater != null)
+                {
+                    TextItemsRepeater.ItemsSource = null;
+                    TextItemsRepeater.ItemsSource = _textLines;
+                }
+                if (TextArea != null) TextArea.Background = GetThemeBackground();
+                
+                // 3. Load rest in background
+                _ = Task.Run(() =>
+                {
+                    try
+                    {
+                        var restLines = lines.Skip(initialLimit).ToArray();
+                        var restTextLines = ParseTextLinesChunk(restLines, brush, maxW);
+                        
+                        this.DispatcherQueue.TryEnqueue(() =>
+                        {
+                            if (_isAozoraMode) return; // Mode switched, abort
+                            
+                            _textLines.AddRange(restTextLines);
+                            _isTextLinesFullyLoaded = true;
+                            
+                            // Refresh ItemsSource to show all lines
+                            if (TextItemsRepeater != null)
+                            {
+                                // Use a more efficient approach - just update the source
+                                var currentSource = _textLines;
+                                TextItemsRepeater.ItemsSource = null;
+                                TextItemsRepeater.ItemsSource = currentSource;
+                            }
+                            
+                            // Recalculate pages
+                            StartPageCalculationAsync();
+                        });
+                    }
+                    catch (Exception ex)
+                    {
+                        System.Diagnostics.Debug.WriteLine($"Background text parse error: {ex.Message}");
+                    }
+                });
+            }
+            else
+            {
+                // Small file - load all at once in background
+                _textLines = await Task.Run(() => ParseTextLinesChunk(lines, brush, maxW));
+                _isTextLinesFullyLoaded = true;
+                
+                if (TextItemsRepeater != null)
+                {
+                    TextItemsRepeater.ItemsSource = null;
+                    TextItemsRepeater.ItemsSource = _textLines;
+                }
+                if (TextArea != null) TextArea.Background = GetThemeBackground();
+            }
+            
+            // Trigger background page calculation
+            StartPageCalculationAsync();
+        }
+        
+        /// <summary>
+        /// Parse a chunk of lines into TextLine objects (runs on background thread)
+        /// </summary>
+        private List<TextLine> ParseTextLinesChunk(string[] lines, Brush brush, double maxW)
+        {
+            var result = new List<TextLine>(lines.Length);
+            
+            foreach (var line in lines)
+            {
+                var textLine = new TextLine
+                {
+                    Content = line,
+                    FontSize = _textFontSize,
+                    FontFamily = _textFontFamily,
+                    Foreground = brush,
+                    MaxWidth = maxW
+                };
+                // Note: ApplyAozoraStyling is skipped for simple text mode for performance
+                result.Add(textLine);
+            }
+            return result;
+        }
+        
         private List<TextLine> SplitTextToLines(string content)
         {
             var lines = content.Replace("\r\n", "\n").Replace("\r", "\n").Split('\n');
@@ -1050,32 +1163,45 @@ namespace Uviewer
                 return;
             }
 
-            // Apply current settings to all lines
-            var brush = GetThemeForeground();
-            var bg = GetThemeBackground();
-            var maxW = GetUrlMaxWidth();
-            
-            var sw = System.Diagnostics.Stopwatch.StartNew();
-            for (int i = 0; i < _textLines.Count; i++)
-            {
-                var line = _textLines[i];
-                line.FontSize = _textFontSize;
-                line.FontFamily = _textFontFamily;
-                line.Foreground = brush;
-                line.MaxWidth = maxW;
-
-                if (i % 1000 == 0 && sw.ElapsedMilliseconds > 16)
-                {
-                    await Task.Yield();
-                    sw.Restart();
-                }
-            }
-            
-            // Store current scroll ratio
+            // Store current scroll ratio before updating
             double scrollRatio = 0;
             if (TextScrollViewer != null && TextScrollViewer.ScrollableHeight > 0)
             {
                 scrollRatio = TextScrollViewer.VerticalOffset / TextScrollViewer.ScrollableHeight;
+            }
+            
+            // Apply current settings to all lines - process in background for large files
+            var brush = GetThemeForeground();
+            var bg = GetThemeBackground();
+            var maxW = GetUrlMaxWidth();
+            var fontSize = _textFontSize;
+            var fontFamily = _textFontFamily;
+            
+            if (_textLines.Count > 1000)
+            {
+                // Large file: update in background
+                var linesToUpdate = _textLines;
+                await Task.Run(() =>
+                {
+                    foreach (var line in linesToUpdate)
+                    {
+                        line.FontSize = fontSize;
+                        line.FontFamily = fontFamily;
+                        line.Foreground = brush;
+                        line.MaxWidth = maxW;
+                    }
+                });
+            }
+            else
+            {
+                // Small file: update synchronously
+                foreach (var line in _textLines)
+                {
+                    line.FontSize = fontSize;
+                    line.FontFamily = fontFamily;
+                    line.Foreground = brush;
+                    line.MaxWidth = maxW;
+                }
             }
 
             TextArea.Background = bg;
@@ -1590,6 +1716,9 @@ namespace Uviewer
 
         private async void StartPageCalculationAsync()
         {
+            // Early exit if in Aozora mode (use Aozora's own page calculation)
+            if (_isAozoraMode) return;
+            
             _pageCalcCts?.Cancel();
             _pageCalcCts = new CancellationTokenSource();
             var token = _pageCalcCts.Token;

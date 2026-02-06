@@ -144,9 +144,15 @@ namespace Uviewer
             
             SaveAozoraSettings();
             
-            // Reload current content
-            if (_currentTextFilePath != null)
+            // Use cached content directly instead of re-reading from disk
+            if (!string.IsNullOrEmpty(_currentTextContent))
             {
+                string fileName = _currentTextFilePath != null ? System.IO.Path.GetFileName(_currentTextFilePath) : "Text";
+                _ = ReloadTextDisplayFromCacheAsync(fileName, currentLine);
+            }
+            else if (_currentTextFilePath != null)
+            {
+                // Fallback: reload from file if cache is empty
                 var entry = _imageEntries.FirstOrDefault(x => x.FilePath == _currentTextFilePath);
                 if (entry != null)
                 {
@@ -154,9 +160,70 @@ namespace Uviewer
                 }
             }
         }
+        
+        /// <summary>
+        /// Reload text display using cached content (no disk I/O)
+        /// </summary>
+        private async Task ReloadTextDisplayFromCacheAsync(string fileName, int targetLine)
+        {
+            try
+            {
+                // CRITICAL: Cancel ALL pending background calculations immediately
+                // This prevents the old mode's heavy background work from blocking UI
+                _aozoraPageCalcCts?.Cancel();
+                _pageCalcCts?.Cancel();
+                _aozoraResizeCts?.Cancel();
+                
+                // Set pending target
+                _aozoraPendingTargetLine = targetLine;
+                
+                if (_isAozoraMode)
+                {
+                    // Switch to Aozora mode display
+                    if (TextScrollViewer != null) TextScrollViewer.Visibility = Visibility.Collapsed;
+                    if (AozoraPageContainer != null) AozoraPageContainer.Visibility = Visibility.Visible;
+                    
+                    await PrepareAozoraDisplayAsync(_currentTextContent, targetLine);
+                    FileNameText.Text = fileName;
+                }
+                else
+                {
+                    // Switch to Simple Text mode display
+                    if (TextScrollViewer != null) TextScrollViewer.Visibility = Visibility.Visible;
+                    if (AozoraPageContainer != null) AozoraPageContainer.Visibility = Visibility.Collapsed;
+                    
+                    // Ensure default template
+                    if (TextItemsRepeater != null && RootGrid.Resources.TryGetValue("TextItemTemplate", out var template))
+                    {
+                         TextItemsRepeater.ItemTemplate = (DataTemplate)template;
+                    }
+                    
+                    // Progressive loading using cached content
+                    await LoadTextLinesProgressivelyAsync(_currentTextContent, targetLine);
+                    
+                    // Update Text Status
+                    UpdateTextStatusBar(fileName, _textTotalLineCountInSource, 1);
+                    
+                    // Scroll to target line
+                    if (targetLine > 1)
+                    {
+                        await Task.Delay(50);
+                        ScrollToLine(targetLine);
+                        UpdateTextStatusBar();
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"ReloadTextDisplayFromCacheAsync error: {ex.Message}");
+            }
+        }
 
         private async void StartAozoraPageCalculationAsync()
         {
+            // Early exit if not in Aozora mode
+            if (!_isAozoraMode) return;
+            
             _aozoraPageCalcCts?.Cancel();
             _aozoraPageCalcCts = new System.Threading.CancellationTokenSource();
             var token = _aozoraPageCalcCts.Token;
