@@ -11,6 +11,7 @@ using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
+using Windows.Foundation;
 using Windows.Storage;
 
 namespace Uviewer
@@ -71,8 +72,7 @@ namespace Uviewer
                  if (existing != null)
                  {
                      existing.ScrollOffset = TextScrollViewer.VerticalOffset;
-                     double lineH = _textFontSize * 1.5;
-                     existing.SavedLine = (int)(TextScrollViewer.VerticalOffset / lineH) + 1;
+                     existing.SavedLine = GetTopVisibleLineIndex();
                      await SaveRecentItems(); // Ensure we save to disk
                  }
             }
@@ -153,21 +153,21 @@ namespace Uviewer
                 _currentTextContent = content;
             }
             
+            // Unified Target Line Logic
+            int targetLine = 1;
+            if (_aozoraPendingTargetLine != 1)
+            {
+                targetLine = _aozoraPendingTargetLine;
+                _aozoraPendingTargetLine = 1; // Reset
+            }
+            else
+            {
+                // Fallback to automatic restoration from recent items
+                targetLine = GetSavedStartLine(name);
+            }
+
             if (_isAozoraMode)
             {
-                // Priority: Use pending target (from explicit bookmark/recent click) if available
-                int targetLine = 1;
-                if (_aozoraPendingTargetLine != 1)
-                {
-                    targetLine = _aozoraPendingTargetLine;
-                    _aozoraPendingTargetLine = 1; // Reset
-                }
-                else
-                {
-                    // Fallback to automatic restoration from recent items
-                    targetLine = GetSavedStartLine(name);
-                }
-
                 // Use page-based container display with target line restoration
                 await PrepareAozoraDisplayAsync(content, targetLine);
                 
@@ -197,10 +197,21 @@ namespace Uviewer
                 
                 // Update Text Status
                 UpdateTextStatusBar(name, _textLines.Count, 1);
+                
+                // Unified Scroll Restoration for General Text
+                if (targetLine > 1)
+                {
+                    // Wait slightly for layout
+                    await Task.Delay(50);
+                    ScrollToLine(targetLine);
+                    UpdateTextStatusBar();
+                }
+                else 
+                {
+                     // Restore scroll position from recent items if exists (Legacy Offset)
+                    _ = RestoreTextPositionAsync(name);
+                }
             }
-            
-            // Restore scroll position from recent items if exists
-            _ = RestoreTextPositionAsync(name);
         }
 
         private int GetSavedStartLine(string name)
@@ -243,13 +254,20 @@ namespace Uviewer
                 if (TextScrollViewer != null)
                 {
                     var recent = _recentItems.OrderByDescending(r => r.AccessedAt).FirstOrDefault(r => r.Name == name);
-                    if (recent != null && recent.ScrollOffset.HasValue)
+                    if (recent != null)
                     {
-                        TextScrollViewer.ChangeView(null, recent.ScrollOffset.Value, null);
-                    }
-                    else
-                    {
-                        TextScrollViewer.ChangeView(null, 0, null);
+                        if (recent.SavedLine > 1)
+                        {
+                            ScrollToLine(recent.SavedLine);
+                        }
+                        else if (recent.ScrollOffset.HasValue)
+                        {
+                            TextScrollViewer.ChangeView(null, recent.ScrollOffset.Value, null);
+                        }
+                        else
+                        {
+                            TextScrollViewer.ChangeView(null, 0, null);
+                        }
                     }
                 }
                 UpdateTextStatusBar();
@@ -1303,9 +1321,7 @@ namespace Uviewer
              else if (TextScrollViewer != null)
              {
                  totalLines = _textLines.Count;
-                 // Estimate line by offset
-                 double lineH = _textFontSize * 1.8;
-                 currentLine = (int)(TextScrollViewer.VerticalOffset / lineH) + 1;
+                 currentLine = GetTopVisibleLineIndex();
              }
              
              if (currentLine < 1) currentLine = 1;
@@ -1366,9 +1382,7 @@ namespace Uviewer
              }
             else if (TextScrollViewer != null)
             {
-                double lineH = _textFontSize * 1.8;
-                double target = lineH * (line - 1);
-                TextScrollViewer.ChangeView(null, target, null);
+                ScrollToLine(line);
                 UpdateTextStatusBar();
             }
         }
@@ -1512,8 +1526,7 @@ namespace Uviewer
 
              if (TextScrollViewer != null)
              {
-                 double lineH = _textFontSize * 1.8;
-                 int currentLine = (int)(TextScrollViewer.VerticalOffset / lineH) + 1;
+                 int currentLine = GetTopVisibleLineIndex();
                  if (currentLine > total) currentLine = total;
 
                  double progress = (TextScrollViewer.ExtentHeight > 0) ? (TextScrollViewer.VerticalOffset + TextScrollViewer.ViewportHeight) * 100.0 / TextScrollViewer.ExtentHeight : 0;
@@ -1532,6 +1545,82 @@ namespace Uviewer
         private void TextScrollViewer_SizeChanged(object sender, SizeChangedEventArgs e)
         {
             // Re-calc max width if needed, but it is bound to line prop.
+        }
+
+        private int GetTopVisibleLineIndex()
+        {
+            if (TextItemsRepeater == null || TextScrollViewer == null) return 1;
+            if (_textLines == null || _textLines.Count == 0) return 1;
+
+            try
+            {
+                // Use VisualTreeHelper to check realized children
+                int childCount = VisualTreeHelper.GetChildrenCount(TextItemsRepeater);
+                if (childCount == 0) return 1;
+
+                UIElement? closest = null;
+                double minDist = double.MaxValue;
+                
+                for (int i = 0; i < childCount; i++)
+                {
+                    var child = VisualTreeHelper.GetChild(TextItemsRepeater, i) as UIElement;
+                    if (child == null) continue;
+
+                    var transform = child.TransformToVisual(TextScrollViewer);
+                    var point = transform.TransformPoint(new Point(0, 0));
+                    
+                    double top = point.Y;
+                    double bottom = top + ((FrameworkElement)child).ActualHeight;
+                    
+                    // If the item covers the top edge (Top <= 0 and Bottom > 0) - this is THE reading line
+                    if (top <= 0 && bottom > 0)
+                    {
+                        int idx = TextItemsRepeater.GetElementIndex(child);
+                        if (idx >= 0) return idx + 1;
+                    }
+                    
+                    // Otherwise, find the one closest to 0
+                    if (Math.Abs(top) < minDist)
+                    {
+                        minDist = Math.Abs(top);
+                        closest = child;
+                    }
+                }
+                
+                if (closest != null)
+                {
+                    int idx = TextItemsRepeater.GetElementIndex(closest);
+                    if (idx >= 0) return idx + 1;
+                }
+            }
+            catch { }
+
+            // Fallback
+             double lineH = _textFontSize * 1.8;
+             if (lineH > 0) 
+                return (int)(TextScrollViewer.VerticalOffset / lineH) + 1;
+                
+             return 1;
+        }
+
+        private void ScrollToLine(int line)
+        {
+            if (TextItemsRepeater == null) return;
+            if (line < 1) line = 1;
+            int index = line - 1;
+             if (_textLines == null) return;
+            if (index >= _textLines.Count) index = _textLines.Count - 1;
+            if (index < 0) return;
+            
+            try
+            {
+                var element = TextItemsRepeater.GetOrCreateElement(index);
+                if (element != null)
+                {
+                    element.StartBringIntoView(new BringIntoViewOptions { VerticalAlignmentRatio = 0 });
+                }
+            }
+            catch { }
         }
     }
 }

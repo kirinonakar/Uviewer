@@ -391,8 +391,7 @@ namespace Uviewer
                     }
                     else if (_isTextMode && TextScrollViewer != null)
                     {
-                        double lineH = _textFontSize * 1.8;
-                        savedLine = (int)(TextScrollViewer.VerticalOffset / lineH) + 1;
+                        savedLine = GetTopVisibleLineIndex();
                     }
 
                     var favorite = new FavoriteItem
@@ -459,23 +458,9 @@ namespace Uviewer
                         if (File.Exists(favorite.Path))
                         {
                             // Set pending target line BEFORE loading triggers
-                            bool isAozora = favorite.IsAozoraMode;
-                            
-                            // Check if force switch Aozora is needed
-                            if (isAozora)
-                            {
-                                _isAozoraMode = true;
-                                if (AozoraToggleButton != null) AozoraToggleButton.IsChecked = true;
-                                SaveAozoraSettings(); // Persist the switch
-                                
-                                // Set pending target line 
-                                _aozoraPendingTargetLine = favorite.SavedLine > 0 ? favorite.SavedLine : 1;
-                            }
-                            else if (_isAozoraMode)
-                            {
-                                // If already in Aozora mode (but favorite is generic file or old bookmark), try to honor line
-                                _aozoraPendingTargetLine = favorite.SavedLine > 1 ? favorite.SavedLine : (favorite.SavedPage > 0 ? -favorite.SavedPage : 1);
-                            }
+                            // Unified navigation: Set pending target line for both modes
+                            // DisplayLoadedText will handle the actual scrolling/rendering
+                            _aozoraPendingTargetLine = favorite.SavedLine > 1 ? favorite.SavedLine : (favorite.SavedPage > 0 ? -favorite.SavedPage : 1);
 
                             // Load explorer parent folder
                             var parentDir = Path.GetDirectoryName(favorite.Path);
@@ -536,15 +521,9 @@ namespace Uviewer
                         {
                             // Already handled via pending target line
                         }
-                        else if (favorite.SavedLine > 1 && TextScrollViewer != null)
+                        else if (favorite.ScrollOffset.HasValue && TextScrollViewer != null && favorite.SavedLine <= 1)
                         {
-                             // Normal text mode: use line offset
-                             double lineH = _textFontSize * 1.8;
-                             TextScrollViewer.ChangeView(null, (favorite.SavedLine - 1) * lineH, null);
-                             UpdateTextStatusBar();
-                        }
-                        else if (favorite.ScrollOffset.HasValue && TextScrollViewer != null)
-                        {
+                             // Fallback to offset if no line saved
                              TextScrollViewer.ChangeView(null, favorite.ScrollOffset.Value, null);
                              UpdateTextStatusBar();
                         }

@@ -107,16 +107,26 @@ namespace Uviewer
 
         private void ToggleAozoraMode()
         {
-            // If called from Click, IsChecked is already toggled by UI.
-            // If called from Shortcut, IsChecked needs update.
-            // We use the current state of _isAozoraMode to decide.
-            
-            // However, since Click toggles IsChecked before this handler,
-            // If we came from click: IsChecked(True) -> _isAozoraMode(False) -> we want True.
-            // If we came from shortcut: IsChecked(False) -> _isAozoraMode(False) -> we want True.
-            
+            // Capture current position BEFORE toggling logic
+            int currentLine = 1;
+            if (_isAozoraMode)
+            {
+                if (_aozoraBlocks.Count > 0 && _currentAozoraStartBlockIndex >= 0 && _currentAozoraStartBlockIndex < _aozoraBlocks.Count)
+                {
+                    currentLine = _aozoraBlocks[_currentAozoraStartBlockIndex].SourceLineNumber;
+                }
+            }
+            else
+            {
+                // In Text Mode
+                currentLine = GetTopVisibleLineIndex();
+            }
+
             // Simplest way: Logic Toggle, then Force UI Sync.
             _isAozoraMode = !_isAozoraMode;
+            
+            // Set pending target for the reload
+            _aozoraPendingTargetLine = currentLine;
             
             if (AozoraToggleButton != null)
             {
