@@ -79,12 +79,13 @@ namespace Uviewer
 
             InitializeText();
             _currentTextFilePath = file.Path;
+            _aozoraPendingTargetLine = 1; // Reset pending target
 
             try
             {
                 SwitchToTextMode();
                 string content = await ReadTextFileWithEncodingAsync(file);
-                await DisplayLoadedText(content, file.Name);
+                await DisplayLoadedText(content, file.Name, file.Path);
                 
                 SyncSidebarSelection(new ImageEntry { FilePath = file.Path, DisplayName = file.Name });
             }
@@ -110,6 +111,8 @@ namespace Uviewer
         private async Task LoadTextFromArchiveEntryAsync(ImageEntry entry)
         {
              InitializeText();
+             _currentTextFilePath = null; // Clear to prevent state leakage from previous file
+             _aozoraPendingTargetLine = 1; // Reset pending target
              
              try
              {
@@ -133,7 +136,7 @@ namespace Uviewer
                  }
                  finally { _archiveLock.Release(); }
                  
-                 await DisplayLoadedText(content, entry.DisplayName);
+                 await DisplayLoadedText(content, entry.DisplayName, null);
                  SyncSidebarSelection(entry);
              }
              catch (Exception ex) 
@@ -142,7 +145,7 @@ namespace Uviewer
              }
         }
 
-        private async Task DisplayLoadedText(string content, string name)
+        private async Task DisplayLoadedText(string content, string name, string? uniquePath = null)
         {
             _currentTextContent = content; // Save for reload
 
@@ -163,7 +166,7 @@ namespace Uviewer
             else
             {
                 // Fallback to automatic restoration from recent items
-                targetLine = GetSavedStartLine(name);
+                targetLine = GetSavedStartLine(name, uniquePath);
             }
 
             if (_isAozoraMode)
@@ -214,13 +217,16 @@ namespace Uviewer
             }
         }
 
-        private int GetSavedStartLine(string name)
+        private int GetSavedStartLine(string name, string? path)
         {
             try
             {
-                // Find in recent items by name (simple fallback) or path
+                // Identify target solely by path if available, else by name AND ensure no path collision
+                // Use Case-Insensitive comparison for Windows paths
+                
                 var recent = _recentItems.OrderByDescending(r => r.AccessedAt)
-                                         .FirstOrDefault(r => r.Name == name || r.Path == _currentTextFilePath);
+                                         .FirstOrDefault(r => (path != null && string.Equals(r.Path, path, StringComparison.OrdinalIgnoreCase)) || 
+                                                              (path == null && string.Equals(r.Name, name, StringComparison.OrdinalIgnoreCase)));
                 
                 if (recent != null)
                 {
@@ -230,7 +236,8 @@ namespace Uviewer
                 }
 
                 // If not in recent, check favorites
-                var favorite = _favorites.FirstOrDefault(f => f.Name == name || f.Path == _currentTextFilePath);
+                var favorite = _favorites.FirstOrDefault(f => (path != null && string.Equals(f.Path, path, StringComparison.OrdinalIgnoreCase)) || 
+                                                              (path == null && string.Equals(f.Name, name, StringComparison.OrdinalIgnoreCase)));
                 if (favorite != null)
                 {
                     if (favorite.SavedLine > 1) return favorite.SavedLine;
@@ -1551,6 +1558,10 @@ namespace Uviewer
 
                      status += $" ({calcCurrentPage} / {totalPages})";
                  }
+                 else if (!_isPageCalculationCompleted)
+                 {
+                     status += Strings.CalculatingPages;
+                 }
 
                  ImageIndexText.Text = status;
                  ImageInfoText.Text = $"Line {currentLine} / {total}";
@@ -1588,18 +1599,29 @@ namespace Uviewer
             _cachedFontFamily = null;
             UpdateTextStatusBar(); // Reset display to just %
 
-            if (TextScrollViewer == null || _textLines.Count == 0 || TextScrollViewer.ViewportHeight <= 0) 
+            // Robust check for Viewport readiness
+            // Wait up to 5 seconds (50 * 100ms) for layout to settle
+            int retryCount = 0;
+            while (TextScrollViewer == null || TextScrollViewer.ViewportHeight <= 0 || TextScrollViewer.ViewportWidth <= 0)
             {
-                 // If viewport is not ready, wait a bit
-                 if (TextScrollViewer != null) 
+                 if (retryCount++ > 50)
                  {
-                     try { await Task.Delay(500, token); } catch { return; }
-                     if (TextScrollViewer.ViewportHeight <= 0) return;
+                     // Timeout: Fallback to ExtentHeight
+                     if (TextScrollViewer != null)
+                     {
+                         _calculatedTotalHeight = TextScrollViewer.ExtentHeight;
+                         _isPageCalculationCompleted = true;
+                         UpdateTextStatusBar();
+                     }
+                     return; 
                  }
-                 else return;
+                 try { await Task.Delay(100, token); } catch { return; }
             }
 
+            if (_textLines.Count == 0) return;
+
             double viewportWidth = TextScrollViewer.ViewportWidth;
+            if (viewportWidth <= 0) viewportWidth = TextScrollViewer.ActualWidth; // Fallback
             
             try
             {
@@ -1611,16 +1633,20 @@ namespace Uviewer
                 };
 
                 double totalH = 0;
-                int batchSize = 50; 
-                int count = 0;
-
+                
+                // Use Stopwatch for time slicing
+                var sw = System.Diagnostics.Stopwatch.StartNew();
+                
+                // Snapshot the list reference to iterate safely
+                var linesToCalc = _textLines;
+                
                 // Cache the font family if it's common
                 if (!string.IsNullOrEmpty(_textFontFamily))
                 {
                     _cachedFontFamily = new FontFamily(_textFontFamily);
                 }
 
-                foreach (var line in _textLines)
+                foreach (var line in linesToCalc)
                 {
                     if (token.IsCancellationRequested) return;
 
@@ -1644,16 +1670,27 @@ namespace Uviewer
                     
                     totalH += dummy.DesiredSize.Height;
                     
-                    count++;
-                    if (count % batchSize == 0)
+                    // Yield if we've used up our time slice (e.g., 15ms to allow ~60fps)
+                    if (sw.ElapsedMilliseconds > 15)
                     {
-                        // Yield to UI thread to keep app responsive
                         await Task.Delay(1, token);
+                        sw.Restart();
                     }
                 }
 
-                _calculatedTotalHeight = totalH;
+                if (totalH > 0)
+                {
+                    _calculatedTotalHeight = totalH;
+                }
+                else if (TextScrollViewer != null)
+                {
+                     // Fallback if calculation resulted in 0 (weird)
+                    _calculatedTotalHeight = TextScrollViewer.ExtentHeight;
+                }
+                
                 _isPageCalculationCompleted = true;
+                
+                // Final update
                 UpdateTextStatusBar();
             }
             catch (OperationCanceledException)
@@ -1663,6 +1700,13 @@ namespace Uviewer
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"Error calculating text pages: {ex.Message}");
+                // Fallback on error
+                if (TextScrollViewer != null)
+                {
+                    _calculatedTotalHeight = TextScrollViewer.ExtentHeight;
+                    _isPageCalculationCompleted = true;
+                    UpdateTextStatusBar();
+                }
             }
         }
 

@@ -234,6 +234,8 @@
                         <ColumnDefinition Width="Auto"/>
                         <ColumnDefinition Width="Auto"/>
                         <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="Auto"/>
                         <ColumnDefinition Width="*"/>
                     </Grid.ColumnDefinitions>
 
@@ -247,7 +249,43 @@
                         <FontIcon Glyph="&#xE110;" FontSize="16"/>
                     </Button>
 
-                    <Button Grid.Column="2" x:Name="BrowseFolderButton" Click="BrowseFolderButton_Click" 
+                    <Button Grid.Column="2" x:Name="SidebarFavoritesButton" Click="SidebarFavoritesButton_Click" 
+                            ToolTipService.ToolTip="즐겨찾기" Padding="6" Margin="0,0,8,0">
+                        <FontIcon Glyph="&#xE734;" FontSize="16"/>
+                        <Button.Flyout>
+                            <Flyout x:Name="SidebarFavoritesFlyout" Placement="Bottom">
+                                <ScrollViewer MaxHeight="400" Width="400" 
+                                             HorizontalScrollBarVisibility="Disabled" 
+                                             VerticalScrollBarVisibility="Auto">
+                                    <StackPanel x:Name="SidebarFavoritesPanel" Spacing="2">
+                                        <Button x:Name="SidebarAddToFavoritesButton" Content="➕ 즐겨찾기 추가" Click="AddToFavoritesMenuItem_Click" 
+                                                HorizontalAlignment="Stretch" HorizontalContentAlignment="Left"
+                                                Background="Transparent" BorderThickness="0"/>
+                                        <Border Height="1" Background="{ThemeResource DividerStrokeColorDefaultBrush}" Margin="0,4"/>
+                                        <!-- Favorites will be added dynamically -->
+                                    </StackPanel>
+                                </ScrollViewer>
+                            </Flyout>
+                        </Button.Flyout>
+                    </Button>
+                    
+                    <Button Grid.Column="3" x:Name="SidebarRecentButton" Click="SidebarRecentButton_Click" 
+                            ToolTipService.ToolTip="최근 이미지" Padding="6" Margin="0,0,8,0">
+                        <FontIcon Glyph="&#xE823;" FontSize="16"/>
+                        <Button.Flyout>
+                            <Flyout x:Name="SidebarRecentFlyout" Placement="Bottom">
+                                <ScrollViewer MaxHeight="400" Width="400" 
+                                             HorizontalScrollBarVisibility="Disabled" 
+                                             VerticalScrollBarVisibility="Auto">
+                                    <StackPanel x:Name="SidebarRecentPanel" Spacing="2">
+                                        <!-- Recent items will be added dynamically -->
+                                    </StackPanel>
+                                </ScrollViewer>
+                            </Flyout>
+                        </Button.Flyout>
+                    </Button>
+
+                    <Button Grid.Column="4" x:Name="BrowseFolderButton" Click="BrowseFolderButton_Click" 
                             ToolTipService.ToolTip="폴더 찾아보기" Padding="6">
                         <FontIcon Glyph="&#xED25;" FontSize="16"/>
                     </Button>

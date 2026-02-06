@@ -16,12 +16,19 @@ namespace Uviewer
         private bool _isAozoraMode = true;
         private bool _isMarkdownRenderMode = false;
         private List<AozoraBindingModel> _aozoraBlocks = new();
-        private int _aozoraTotalLineCount = 0;
+        private int _aozoraTotalLineCount = 0; // Total visual blocks
+        private int _aozoraTotalLineCountInSource = 0; // Total text lines in source file
 
         // On-demand rendering state
         private int _currentAozoraStartBlockIndex = 0;
         private int _currentAozoraEndBlockIndex = 0;
         private Stack<int> _aozoraNavHistory = new();
+        
+        // Page Calculation
+        private int _aozoraTotalPages = 0;
+        private bool _isAozoraPageCalcCompleted = false;
+        private System.Threading.CancellationTokenSource? _aozoraPageCalcCts;
+        private int _aozoraCalculatedCurrentPage = 1;
 
 
 
@@ -147,6 +154,123 @@ namespace Uviewer
                 }
             }
         }
+
+        private async void StartAozoraPageCalculationAsync()
+        {
+            _aozoraPageCalcCts?.Cancel();
+            _aozoraPageCalcCts = new System.Threading.CancellationTokenSource();
+            var token = _aozoraPageCalcCts.Token;
+
+            _isAozoraPageCalcCompleted = false;
+            _aozoraTotalPages = 0;
+            _aozoraCalculatedCurrentPage = 1;
+            UpdateAozoraStatusBar();
+
+            if (AozoraPageContainer == null || AozoraPageContainer.ActualHeight <= 0 || AozoraPageContainer.ActualWidth <= 0)
+            {
+                 // Wait a bit or return. PrepareAozoraDisplayAsync waits for container, so we should be good mostly.
+                 // But if resized to 0?
+                 return;
+            }
+
+            double availableHeight = AozoraPageContainer.ActualHeight;
+            if (availableHeight < 200) availableHeight = 800;
+            availableHeight -= 40; // Padding
+
+            double availableWidth = AozoraPageContainer.ActualWidth; // Approximate
+            // We need to match RenderAozoraDynamicPage width logic
+            double maxWidth = _isMarkdownRenderMode ? double.PositiveInfinity : GetUrlMaxWidth();
+            
+            try
+            {
+                var dummyRTB = new RichTextBlock
+                {
+                    FontFamily = new FontFamily(_textFontFamily),
+                    FontSize = _textFontSize,
+                    LineStackingStrategy = LineStackingStrategy.BlockLineHeight,
+                    TextWrapping = TextWrapping.Wrap,
+                    MaxWidth = maxWidth
+                };
+
+                double currentPageHeight = 0;
+                int pageCount = 1;
+                
+                // Track start indices of pages to find current page later? 
+                // Or just count total. For Current Page, we need to map _currentAozoraStartBlockIndex to a page number.
+                // We'll store a map: BlockIndex -> PageNumber
+                var blockToPageMap = new Dictionary<int, int>();
+
+                var sw = System.Diagnostics.Stopwatch.StartNew();
+
+                for (int i = 0; i < _aozoraBlocks.Count; i++)
+                {
+                    if (token.IsCancellationRequested) return;
+
+                    blockToPageMap[i] = pageCount;
+
+                    var block = _aozoraBlocks[i];
+                    
+                    // Measure Block
+                    dummyRTB.Blocks.Clear();
+                    var p = CreateParagraphFromBlock(block);
+                    dummyRTB.Blocks.Add(p);
+                    
+                    dummyRTB.Measure(new Windows.Foundation.Size((float)maxWidth, double.PositiveInfinity));
+                    double blockHeight = dummyRTB.DesiredSize.Height;
+                    
+                    if (currentPageHeight + blockHeight > availableHeight)
+                    {
+                        // New Page
+                        if (currentPageHeight > 0) // If not empty page already
+                        {
+                            pageCount++;
+                            currentPageHeight = 0;
+                            blockToPageMap[i] = pageCount; // This block starts new page
+                        }
+                    }
+                    
+                    currentPageHeight += blockHeight;
+                    
+                    // Very large single block handling?
+                    if (currentPageHeight > availableHeight)
+                    {
+                         // If a single block is taller than page, we still count it as one 'chunk' effectively in this simplified calc
+                         // Or should we count it as multiple pages? 
+                         // RenderAozoraDynamicPage cuts if > availableHeight mostly.
+                         // But for counting, let's keep it simple: it takes up the page.
+                         currentPageHeight = 0; // Force next block to new page? 
+                         // If we set to 0, next block starts fresh.
+                         pageCount++;
+                    }
+
+                    if (sw.ElapsedMilliseconds > 15)
+                    {
+                        await Task.Delay(1, token);
+                        sw.Restart();
+                    }
+                }
+
+                _aozoraTotalPages = pageCount;
+                _isAozoraPageCalcCompleted = true;
+                
+                // Find current page based on _currentAozoraStartBlockIndex
+                if (blockToPageMap.TryGetValue(_currentAozoraStartBlockIndex, out int cp))
+                {
+                    _aozoraCalculatedCurrentPage = cp;
+                }
+                else
+                {
+                    _aozoraCalculatedCurrentPage = 1;
+                }
+
+                UpdateAozoraStatusBar();
+            }
+            catch (OperationCanceledException) { }
+            catch (Exception ex)
+            {
+                 System.Diagnostics.Debug.WriteLine($"Aozora Page Calc Error: {ex}");
+            }
+        }
         
         // Current page index for virtualized navigation
 
@@ -159,6 +283,16 @@ namespace Uviewer
         {
             try
             {
+                // Reset state immediately to prevent stale index usage during async parsing
+                _currentAozoraStartBlockIndex = 0;
+                _currentAozoraEndBlockIndex = 0;
+                // Do not clear _aozoraBlocks here if we need them for transition, 
+                // but since we are replacing content, safer to clear or let it be replaced.
+                // Clearing might cause UI flicker if binding is live? 
+                // But we act on _aozoraBlocks in other threads. 
+                // Ideally, we shouldn't touch _aozoraBlocks until we have new ones.
+                // But _currentAozoraStartBlockIndex MUST be reset.
+
                 // Priority: Explicit pending target from Favorite/Recent navigation overrides automatic restoration
                 if (_aozoraPendingTargetLine != 1)
                 {
@@ -180,18 +314,64 @@ namespace Uviewer
                 {
                     _isMarkdownRenderMode = true;
                     _aozoraBlocks = await Task.Run(() => ParseMarkdownContent(rawContent));
+                    _aozoraTotalLineCountInSource = _aozoraBlocks.Count; // Markdown line count approximation
                 }
                 else
                 {
                     _isMarkdownRenderMode = false;
-                    _aozoraBlocks = await Task.Run(() => ParseAozoraContent(rawContent));
+                    
+                    // Optimized Loading for Large Files
+                    // User Request: "File first open, then TOC background calculate"
+                    // TOC is derived from _aozoraBlocks structure. Parsing creates blocks.
+                    // We split parsing: First Chunk (Immediate) -> Render -> Rest (Background)
+                    
+                    var lines = rawContent.Replace("\r\n", "\n").Replace("\r", "\n").Split('\n');
+                    _aozoraTotalLineCountInSource = lines.Length;
+
+                    if (lines.Length > 2000)
+                    {
+                        // 1. Initial Load (First 2000 lines)
+                        var initialLines = lines.Take(2000).ToArray();
+                        _aozoraBlocks = await Task.Run(() => ParseAozoraLines(initialLines, 1));
+                        
+                        // Proceed to render first page immediately below...
+                        
+                        // 2. Queue Background Load for the rest
+                        _ = Task.Run(() => 
+                        {
+                            try
+                            {
+                                var restLines = lines.Skip(2000).ToArray();
+                                var restBlocks = ParseAozoraLines(restLines, 2001);
+                                
+                                this.DispatcherQueue.TryEnqueue(() => 
+                                {
+                                    if (!_isAozoraMode) return; // Mode switched?
+                                    
+                                    _aozoraBlocks.AddRange(restBlocks);
+                                    
+                                    // Trigger status update and full page recalc
+                                    UpdateAozoraStatusBar();
+                                    StartAozoraPageCalculationAsync();
+                                });
+                            }
+                            catch (Exception ex)
+                            {
+                                System.Diagnostics.Debug.WriteLine($"Background Parse Error: {ex.Message}");
+                            }
+                        });
+                    }
+                    else
+                    {
+                        // Small file, load all
+                        _aozoraBlocks = await Task.Run(() => ParseAozoraLines(lines, 1));
+                    }
                 }
 
-                _aozoraTotalLineCount = _aozoraBlocks.Count;
-                for (int i = 0; i < _aozoraBlocks.Count; i++)
-                {
-                    _aozoraBlocks[i].SourceLineNumber = i + 1;
-                }
+                _aozoraTotalLineCount = _aozoraBlocks.Count; // Actual block count (visual lines)
+                // SourceLineNumber is already set in parsing
+                
+                // ... (Rest of function)
 
                 _aozoraNavHistory.Clear();
                 int startIdx = 0;
@@ -249,6 +429,9 @@ namespace Uviewer
                 
                 // 로딩 오버레이 제거
                 if (TextFastNavOverlay != null) TextFastNavOverlay.Visibility = Visibility.Collapsed;
+                
+                // Start background page calculation
+                StartAozoraPageCalculationAsync();
             }
             catch (Exception ex)
             {
@@ -303,6 +486,7 @@ namespace Uviewer
                 
                 // On-demand rendering: Just re-render the same starting block
                 RenderAozoraDynamicPage(_currentAozoraStartBlockIndex);
+                StartAozoraPageCalculationAsync(); // Recalc pages on resize
                 UpdateAozoraStatusBar();
             }
             catch (TaskCanceledException) { }
@@ -544,8 +728,34 @@ namespace Uviewer
             int startLine = _aozoraBlocks[_currentAozoraStartBlockIndex].SourceLineNumber;
             
             // Update status bar
-            ImageIndexText.Text = $"{progress:F1}%";
-            ImageInfoText.Text = $"Line {startLine} / {_aozoraTotalLineCount}";
+            string status = $"{progress:F1}%";
+            
+            if (_isAozoraPageCalcCompleted)
+            {
+                // Update current page if possible based on current index
+                // Note: StartAozoraPageCalculationAsync updates _aozoraCalculatedCurrentPage once. 
+                // But if we scroll, we need to update it dynamically without full recalc?
+                // We'd need the map again. 
+                // For now, let's just use the value from last Full Calc or approximate?
+                // Actually, if we scroll, we change _currentAozoraStartBlockIndex. 
+                // Re-running calculation is too expensive just for scroll.
+                // We should store the map?
+                // Let's compromise: Recalculate 'Current Page' relative to Total roughly?
+                // Or: Make BlockToPageMap a class member.
+                
+                // Re-calculating current page approximately:
+                int curPage = (int)((double)_currentAozoraStartBlockIndex / _aozoraBlocks.Count * _aozoraTotalPages) + 1;
+                if (curPage > _aozoraTotalPages) curPage = _aozoraTotalPages;
+                
+                status += $" ({curPage} / {_aozoraTotalPages})";
+            }
+            else
+            {
+                status += Strings.CalculatingPages;
+            }
+            
+            ImageIndexText.Text = status;
+            ImageInfoText.Text = $"Line {startLine} / {_aozoraTotalLineCountInSource}";
         }
 
         public void JumpToAozoraLine(int targetLine)
@@ -569,8 +779,13 @@ namespace Uviewer
 
         private List<AozoraBindingModel> ParseAozoraContent(string text)
         {
-            var blocks = new List<AozoraBindingModel>();
             var lines = text.Replace("\r\n", "\n").Replace("\r", "\n").Split('\n');
+            return ParseAozoraLines(lines, 1);
+        }
+
+        private List<AozoraBindingModel> ParseAozoraLines(string[] lines, int startLineOffset)
+        {
+            var blocks = new List<AozoraBindingModel>();
             bool lastWasEmpty = false;
 
             for (int i = 0; i < lines.Length; i++)
@@ -587,17 +802,17 @@ namespace Uviewer
                      blocks.Add(new AozoraBindingModel { 
                          Inlines = { "" }, 
                          Margin = new Thickness(0, 0, 0, _textFontSize),
-                         SourceLineNumber = i + 1
+                         SourceLineNumber = startLineOffset + i
                      });
                      lastWasEmpty = true;
                      continue;
                 }
                 lastWasEmpty = false;
 
-                var model = new AozoraBindingModel { SourceLineNumber = i + 1 };
+                var model = new AozoraBindingModel { SourceLineNumber = startLineOffset + i };
                 model.Margin = new Thickness(0);
 
-                // --- Aozora Tag Parsing ---
+                // --- Aozora Tag Parsing --- (Rest is same)
                 // Headers
                 if (content.Contains("［＃大見出し］") || content.StartsWith("# "))
                 {

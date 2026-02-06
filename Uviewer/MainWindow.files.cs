@@ -60,10 +60,15 @@ namespace Uviewer
                 picker.FileTypeFilter.Add(ext);
             }
 
-            // Add epub extensions
             foreach (var ext in SupportedEpubExtensions)
             {
                  picker.FileTypeFilter.Add(ext);
+            }
+
+            // Add text extensions
+            foreach (var ext in SupportedTextExtensions)
+            {
+                picker.FileTypeFilter.Add(ext);
             }
 
             var file = await picker.PickSingleFileAsync();
@@ -698,6 +703,16 @@ namespace Uviewer
             // Toggle the flyout
             var flyout = RecentButton.Flyout as MenuFlyout;
             flyout?.ShowAt(RecentButton);
+        }
+
+        private void SidebarFavoritesButton_Click(object sender, RoutedEventArgs e)
+        {
+            // Flyout is opened automatically by Button
+        }
+
+        private void SidebarRecentButton_Click(object sender, RoutedEventArgs e)
+        {
+            // Flyout is opened automatically by Button
         }
 
         private void FileItem_ItemClick(object sender, ItemClickEventArgs e)

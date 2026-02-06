@@ -60,6 +60,7 @@ namespace Uviewer
         public static string FastNavText => S("빠른 탐색 중...", "Fast Navigating...");
         public static string TextFastNavText => S("페이지 이동 중...", "Navigating...");
         public static string EpubFastNavText => S("챕터 이동 중...", "Navigating Chapter...");
+        public static string CalculatingPages => S(" (페이지 계산중...)", " (Calculating pages...)");
         public static string FileSelectPlaceholder => S("이미지를 선택해주세요", "Select an image");
         public static string LoadImageError => S("이미지를 불러올 수 없습니다.", "Cannot load image.");
         

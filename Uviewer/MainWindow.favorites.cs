@@ -136,13 +136,18 @@ namespace Uviewer
 
         private void UpdateFavoritesMenu()
         {
-            // Find the FavoritesPanel in the custom Flyout
-            if (FavoritesPanel == null) return;
+            UpdateFavoritesPanel(FavoritesPanel);
+            UpdateFavoritesPanel(SidebarFavoritesPanel);
+        }
+
+        private void UpdateFavoritesPanel(StackPanel panel)
+        {
+            if (panel == null) return;
 
             // Remove all dynamic items (keep only the first 2: Add button and separator)
-            while (FavoritesPanel.Children.Count > 2)
+            while (panel.Children.Count > 2)
             {
-                FavoritesPanel.Children.RemoveAt(FavoritesPanel.Children.Count - 1);
+                panel.Children.RemoveAt(panel.Children.Count - 1);
             }
 
             if (_favorites.Count == 0)
@@ -154,7 +159,7 @@ namespace Uviewer
                     Margin = new Thickness(12, 8, 12, 8),
                     FontSize = 13
                 };
-                FavoritesPanel.Children.Add(emptyText);
+                panel.Children.Add(emptyText);
                 return;
             }
 
@@ -163,7 +168,7 @@ namespace Uviewer
 
             foreach (var fav in fileFavorites)
             {
-                FavoritesPanel.Children.Add(CreateFavoriteItemControl(fav));
+                panel.Children.Add(CreateFavoriteItemControl(fav));
             }
 
             if (fileFavorites.Count > 0 && folderFavorites.Count > 0)
@@ -176,12 +181,12 @@ namespace Uviewer
                     Margin = new Thickness(12, 4, 12, 4),
                     HorizontalAlignment = HorizontalAlignment.Stretch
                 };
-                FavoritesPanel.Children.Add(separator);
+                panel.Children.Add(separator);
             }
 
             foreach (var fav in folderFavorites)
             {
-                FavoritesPanel.Children.Add(CreateFavoriteItemControl(fav));
+                panel.Children.Add(CreateFavoriteItemControl(fav));
             }
         }
 
@@ -237,7 +242,8 @@ namespace Uviewer
             
             nameButton.Click += async (s, e) =>
             {
-                FavoritesFlyout.Hide();
+                FavoritesFlyout?.Hide();
+                SidebarFavoritesFlyout?.Hide();
                 await NavigateToFavoriteAsync(currentFavorite);
             };
 
@@ -629,11 +635,16 @@ namespace Uviewer
 
         private void UpdateRecentMenu()
         {
-            // Find the RecentPanel in the custom Flyout
-            if (RecentPanel == null) return;
+            UpdateRecentPanel(RecentPanel);
+            UpdateRecentPanel(SidebarRecentPanel);
+        }
+
+        private void UpdateRecentPanel(StackPanel panel)
+        {
+            if (panel == null) return;
 
             // Remove all existing items
-            RecentPanel.Children.Clear();
+            panel.Children.Clear();
 
             if (_recentItems.Count == 0)
             {
@@ -644,7 +655,7 @@ namespace Uviewer
                     Margin = new Thickness(12, 8, 12, 8),
                     FontSize = 13
                 };
-                RecentPanel.Children.Add(emptyText);
+                panel.Children.Add(emptyText);
                 return;
             }
 
@@ -701,7 +712,8 @@ namespace Uviewer
                 
                 nameButton.Click += async (s, e) =>
                 {
-                    RecentFlyout.Hide();
+                    RecentFlyout?.Hide();
+                    SidebarRecentFlyout?.Hide();
                     await NavigateToRecentAsync(currentRecent);
                 };
 
@@ -735,7 +747,7 @@ namespace Uviewer
                 Grid.SetColumn(deleteButton, 1);
                 itemGrid.Children.Add(deleteButton);
 
-                RecentPanel.Children.Add(itemGrid);
+                panel.Children.Add(itemGrid);
             }
         }
 

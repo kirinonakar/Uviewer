@@ -475,6 +475,8 @@ namespace Uviewer
             ToolTipService.SetToolTip(ToggleViewButton, Strings.ToggleViewTooltip);
             ToolTipService.SetToolTip(ParentFolderButton, Strings.ParentFolderTooltip);
             ToolTipService.SetToolTip(RecentButton, Strings.RecentTooltip);
+            ToolTipService.SetToolTip(SidebarFavoritesButton, Strings.FavoritesTooltip);
+            ToolTipService.SetToolTip(SidebarRecentButton, Strings.RecentTooltip);
             ToolTipService.SetToolTip(FavoritesButton, Strings.FavoritesTooltip);
             ToolTipService.SetToolTip(BrowseFolderButton, Strings.BrowseFolderTooltip);
 
@@ -497,6 +499,7 @@ namespace Uviewer
             
             // Menus
             if (AddToFavoritesButton != null) AddToFavoritesButton.Content = Strings.AddToFavorites;
+            if (SidebarAddToFavoritesButton != null) SidebarAddToFavoritesButton.Content = Strings.AddToFavorites;
         }
 
         private void AppWindow_Changed(AppWindow sender, AppWindowChangedEventArgs args)
