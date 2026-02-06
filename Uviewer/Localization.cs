@@ -42,8 +42,8 @@ namespace Uviewer
         public static string ToggleViewTooltip => S("썸네일 보기", "Thumbnail View");
         public static string ListViewTooltip => S("리스트 보기", "List View");
         public static string ParentFolderTooltip => S("상위 폴더로 가기(Backspace)", "Up Level (Backspace)");
-        public static string RecentTooltip => S("최근 이미지", "Recent Files");
-        public static string NoRecentFiles => S("최근 이미지 없음", "No Recent Files");
+        public static string RecentTooltip => S("최근 파일", "Recent Files");
+        public static string NoRecentFiles => S("최근 파일 없음", "No Recent Files");
         public static string FavoritesTooltip => S("즐겨찾기", "Favorites");
         public static string NoFavorites => S("즐겨찾기 없음", "No Favorites");
         public static string BrowseFolderTooltip => S("폴더 찾아보기", "Browse Folder");

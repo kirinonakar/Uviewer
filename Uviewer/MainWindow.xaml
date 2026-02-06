@@ -53,6 +53,40 @@
                     <FontIcon Glyph="&#xE8A0;" FontSize="14"/>
                 </Button>
 
+                <Button x:Name="FavoritesButton" Click="FavoritesButton_Click" ToolTipService.ToolTip="즐겨찾기">
+                    <FontIcon Glyph="&#xE734;" FontSize="14"/>
+                    <Button.Flyout>
+                        <Flyout x:Name="FavoritesFlyout" Placement="Bottom">
+                            <ScrollViewer MaxHeight="400" Width="400" 
+                                         HorizontalScrollBarVisibility="Disabled" 
+                                         VerticalScrollBarVisibility="Auto">
+                                <StackPanel x:Name="FavoritesPanel" Spacing="2">
+                                    <Button x:Name="AddToFavoritesButton" Content="➕ 즐겨찾기 추가" Click="AddToFavoritesMenuItem_Click" 
+                                            HorizontalAlignment="Stretch" HorizontalContentAlignment="Left"
+                                            Background="Transparent" BorderThickness="0"/>
+                                    <Border Height="1" Background="{ThemeResource DividerStrokeColorDefaultBrush}" Margin="0,4"/>
+                                    <!-- Favorites will be added dynamically -->
+                                </StackPanel>
+                            </ScrollViewer>
+                        </Flyout>
+                    </Button.Flyout>
+                </Button>
+
+                <Button x:Name="RecentButton" Click="RecentButton_Click" ToolTipService.ToolTip="최근 이미지">
+                    <FontIcon Glyph="&#xE823;" FontSize="14"/>
+                    <Button.Flyout>
+                        <Flyout x:Name="RecentFlyout" Placement="Bottom">
+                            <ScrollViewer MaxHeight="400" Width="400" 
+                                         HorizontalScrollBarVisibility="Disabled" 
+                                         VerticalScrollBarVisibility="Auto">
+                                <StackPanel x:Name="RecentPanel" Spacing="2">
+                                    <!-- Recent items will be added dynamically -->
+                                </StackPanel>
+                            </ScrollViewer>
+                        </Flyout>
+                    </Button.Flyout>
+                </Button>
+
                 <AppBarSeparator/>
 
                 <Button x:Name="OpenFileButton" Click="OpenFileButton_Click" ToolTipService.ToolTip="파일 열기(Ctrl+O)">
@@ -178,8 +212,6 @@
                         <ColumnDefinition Width="Auto"/>
                         <ColumnDefinition Width="Auto"/>
                         <ColumnDefinition Width="Auto"/>
-                        <ColumnDefinition Width="Auto"/>
-                        <ColumnDefinition Width="Auto"/>
                         <ColumnDefinition Width="*"/>
                     </Grid.ColumnDefinitions>
 
@@ -193,43 +225,7 @@
                         <FontIcon Glyph="&#xE110;" FontSize="16"/>
                     </Button>
 
-                    <Button Grid.Column="2" x:Name="RecentButton" Click="RecentButton_Click"
-                            ToolTipService.ToolTip="최근 이미지" Padding="6" Margin="0,0,8,0">
-                        <FontIcon Glyph="&#xE823;" FontSize="16"/>
-                        <Button.Flyout>
-                            <Flyout x:Name="RecentFlyout" Placement="Bottom">
-                                <ScrollViewer MaxHeight="400" Width="400" 
-                                             HorizontalScrollBarVisibility="Disabled" 
-                                             VerticalScrollBarVisibility="Auto">
-                                    <StackPanel x:Name="RecentPanel" Spacing="2">
-                                        <!-- Recent items will be added dynamically -->
-                                    </StackPanel>
-                                </ScrollViewer>
-                            </Flyout>
-                        </Button.Flyout>
-                    </Button>
-
-                    <Button Grid.Column="3" x:Name="FavoritesButton" Click="FavoritesButton_Click"
-                            ToolTipService.ToolTip="즐겨찾기" Padding="6" Margin="0,0,8,0">
-                        <FontIcon Glyph="&#xE734;" FontSize="16"/>
-                        <Button.Flyout>
-                            <Flyout x:Name="FavoritesFlyout" Placement="Bottom">
-                                <ScrollViewer MaxHeight="400" Width="400" 
-                                             HorizontalScrollBarVisibility="Disabled" 
-                                             VerticalScrollBarVisibility="Auto">
-                                    <StackPanel x:Name="FavoritesPanel" Spacing="2">
-                                        <Button x:Name="AddToFavoritesButton" Content="➕ 즐겨찾기 추가" Click="AddToFavoritesMenuItem_Click" 
-                                                HorizontalAlignment="Stretch" HorizontalContentAlignment="Left"
-                                                Background="Transparent" BorderThickness="0"/>
-                                        <Border Height="1" Background="{ThemeResource DividerStrokeColorDefaultBrush}" Margin="0,4"/>
-                                        <!-- Favorites will be added dynamically -->
-                                    </StackPanel>
-                                </ScrollViewer>
-                            </Flyout>
-                        </Button.Flyout>
-                    </Button>
-
-                    <Button Grid.Column="4" x:Name="BrowseFolderButton" Click="BrowseFolderButton_Click" 
+                    <Button Grid.Column="2" x:Name="BrowseFolderButton" Click="BrowseFolderButton_Click" 
                             ToolTipService.ToolTip="폴더 찾아보기" Padding="6">
                         <FontIcon Glyph="&#xED25;" FontSize="16"/>
                     </Button>
