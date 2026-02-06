@@ -1097,11 +1097,16 @@ namespace Uviewer
                                  double newOffset = scrollRatio * TextScrollViewer.ScrollableHeight;
                                  TextScrollViewer.ChangeView(null, newOffset, null, true);
                              }
-                         });
+                     });
                      });
                  }
             }
+
+            // Trigger background page calculation
+            StartPageCalculationAsync();
         }
+
+
 
         // --- Toolbar Handlers ---
 
@@ -1532,7 +1537,22 @@ namespace Uviewer
                  double progress = (TextScrollViewer.ExtentHeight > 0) ? (TextScrollViewer.VerticalOffset + TextScrollViewer.ViewportHeight) * 100.0 / TextScrollViewer.ExtentHeight : 0;
                  if (progress > 100) progress = 100;
 
-                 ImageIndexText.Text = $"{progress:F1}%";
+                 string status = $"{progress:F1}%";
+
+                 // Append Page Info if calculated
+                 if (_isPageCalculationCompleted && _calculatedTotalHeight > 0 && TextScrollViewer.ViewportHeight > 0)
+                 {
+                     int totalPages = (int)Math.Ceiling(_calculatedTotalHeight / TextScrollViewer.ViewportHeight);
+                     int calcCurrentPage = (int)Math.Floor(TextScrollViewer.VerticalOffset / TextScrollViewer.ViewportHeight) + 1;
+                     
+                     if (totalPages < 1) totalPages = 1;
+                     if (calcCurrentPage > totalPages) calcCurrentPage = totalPages;
+                     if (calcCurrentPage < 1) calcCurrentPage = 1;
+
+                     status += $" ({calcCurrentPage} / {totalPages})";
+                 }
+
+                 ImageIndexText.Text = status;
                  ImageInfoText.Text = $"Line {currentLine} / {total}";
              }
         }
@@ -1545,6 +1565,105 @@ namespace Uviewer
         private void TextScrollViewer_SizeChanged(object sender, SizeChangedEventArgs e)
         {
             // Re-calc max width if needed, but it is bound to line prop.
+            if (_isTextMode && !_isAozoraMode)
+            {
+                StartPageCalculationAsync();
+            }
+        }
+
+        // --- Page Calculation Logic ---
+        private double _calculatedTotalHeight = 0;
+        private bool _isPageCalculationCompleted = false;
+        private CancellationTokenSource? _pageCalcCts;
+        private FontFamily? _cachedFontFamily = null;
+
+        private async void StartPageCalculationAsync()
+        {
+            _pageCalcCts?.Cancel();
+            _pageCalcCts = new CancellationTokenSource();
+            var token = _pageCalcCts.Token;
+
+            _isPageCalculationCompleted = false;
+            _calculatedTotalHeight = 0;
+            _cachedFontFamily = null;
+            UpdateTextStatusBar(); // Reset display to just %
+
+            if (TextScrollViewer == null || _textLines.Count == 0 || TextScrollViewer.ViewportHeight <= 0) 
+            {
+                 // If viewport is not ready, wait a bit
+                 if (TextScrollViewer != null) 
+                 {
+                     try { await Task.Delay(500, token); } catch { return; }
+                     if (TextScrollViewer.ViewportHeight <= 0) return;
+                 }
+                 else return;
+            }
+
+            double viewportWidth = TextScrollViewer.ViewportWidth;
+            
+            try
+            {
+                // Dummy TextBlock for measurement
+                var dummy = new TextBlock
+                {
+                    TextWrapping = TextWrapping.Wrap,
+                    LineStackingStrategy = LineStackingStrategy.BlockLineHeight
+                };
+
+                double totalH = 0;
+                int batchSize = 50; 
+                int count = 0;
+
+                // Cache the font family if it's common
+                if (!string.IsNullOrEmpty(_textFontFamily))
+                {
+                    _cachedFontFamily = new FontFamily(_textFontFamily);
+                }
+
+                foreach (var line in _textLines)
+                {
+                    if (token.IsCancellationRequested) return;
+
+                    // Apply properties matching TextItemsRepeater_ElementPrepared logic
+                    dummy.FontSize = line.FontSize;
+                    if (_cachedFontFamily != null && line.FontFamily == _textFontFamily)
+                        dummy.FontFamily = _cachedFontFamily;
+                    else
+                        dummy.FontFamily = new FontFamily(line.FontFamily);
+
+                    dummy.Text = line.Content;
+                    dummy.MaxWidth = line.MaxWidth;
+                    dummy.Margin = line.Margin;
+                    dummy.Padding = line.Padding;
+                    dummy.LineHeight = line.FontSize * 1.8;
+                    dummy.TextAlignment = line.TextAlignment;
+
+                    // Measure
+                    // Constraint width is ViewportWidth, height is Infinite
+                    dummy.Measure(new Size(viewportWidth, double.PositiveInfinity));
+                    
+                    totalH += dummy.DesiredSize.Height;
+                    
+                    count++;
+                    if (count % batchSize == 0)
+                    {
+                        // Yield to UI thread to keep app responsive
+                        await Task.Delay(1, token);
+                    }
+                }
+
+                _calculatedTotalHeight = totalH;
+                _isPageCalculationCompleted = true;
+                UpdateTextStatusBar();
+            }
+            catch (OperationCanceledException)
+            {
+                // Expected on new calculation start
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error calculating text pages: {ex.Message}");
+            }
         }
 
         private int GetTopVisibleLineIndex()
