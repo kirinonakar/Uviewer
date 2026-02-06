@@ -280,7 +280,7 @@ namespace Uviewer
             _isTextMode = false;
             _isAozoraMode = false;
             _aozoraBlocks.Clear(); // Clear text/aozora cache
-            _currentTextContent = null; // Clear raw text
+            _currentTextContent = ""; // Clear raw text
             
             ImageArea.Visibility = Visibility.Collapsed;
             TextArea.Visibility = Visibility.Collapsed;
