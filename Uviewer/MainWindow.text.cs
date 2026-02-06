@@ -79,7 +79,7 @@ namespace Uviewer
 
             InitializeText();
             _currentTextFilePath = file.Path;
-            _aozoraPendingTargetLine = 1; // Reset pending target
+            // No reset here, DisplayLoadedText will handle it after using the value
 
             try
             {
@@ -112,7 +112,7 @@ namespace Uviewer
         {
              InitializeText();
              _currentTextFilePath = null; // Clear to prevent state leakage from previous file
-             _aozoraPendingTargetLine = 1; // Reset pending target
+             // No reset here, DisplayLoadedText will handle it
              
              try
              {
@@ -152,7 +152,7 @@ namespace Uviewer
             string ext = System.IO.Path.GetExtension(name).ToLower();
             if (ext == ".html" || ext == ".htm")
             {
-                content = ParseHtml(content);
+                content = await Task.Run(() => ParseHtml(content));
                 _currentTextContent = content;
             }
             
@@ -192,7 +192,14 @@ namespace Uviewer
                      TextItemsRepeater.ItemTemplate = (DataTemplate)template;
                 }
                 
-                _textLines = SplitTextToLines(content);
+                // Capture UI properties before background task
+                double fontSize = _textFontSize;
+                string fontFamily = _textFontFamily;
+                double maxWidth = GetUrlMaxWidth();
+                
+                // Background processing: Split text into lines
+                _textLines = await Task.Run(() => SplitTextToLines(content, fontSize, fontFamily, maxWidth));
+                
                 await RefreshTextDisplay(true); // Reset scroll for new file
                 
                 // Reset to top immediately
@@ -299,7 +306,7 @@ namespace Uviewer
             TextToolbarPanel.Visibility = Visibility.Visible;
             
             // Update Title
-            Title = "Uviewer - Text Viewer";
+            Title = "Uviewer - Image & Text Viewer";
             
             // Set Opaque Status Bar
             if (StatusBarGrid != null)
@@ -919,18 +926,33 @@ namespace Uviewer
             return Regex.Replace(textOnly, @"\n\s+\n", "\n\n");
         }
 
-        private List<TextLine> SplitTextToLines(string content)
+        private List<TextLine> SplitTextToLines(string content, double fontSize, string fontFamily, double maxWidth)
         {
-            var lines = content.Replace("\r\n", "\n").Replace("\r", "\n").Split('\n');
-            var result = new List<TextLine>();
+            // Use efficient split that handles all line endings without multiple Replace calls
+            var lines = content.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.None);
+            var result = new List<TextLine>(lines.Length);
             
-            foreach (var line in lines)
+            foreach (var lineContent in lines)
             {
-                result.Add(CreateTextLine(line)); // We bind logic late or created here
+                var line = new TextLine
+                {
+                    Content = lineContent,
+                    FontSize = fontSize,
+                    FontFamily = fontFamily,
+                    MaxWidth = maxWidth
+                };
+                
+                // Only parse if it looks like Aozora tags are present (quick filter)
+                if (lineContent.Contains("［＃"))
+                {
+                    ApplyAozoraStyling(line, fontSize);
+                }
+                
+                result.Add(line);
             }
             return result;
         }
-        
+
         private TextLine CreateTextLine(string content)
         {
             var line = new TextLine
@@ -942,13 +964,11 @@ namespace Uviewer
                 MaxWidth = GetUrlMaxWidth()
             };
             
-            // Parse Aozora tags
-            ApplyAozoraStyling(line);
-            
+            ApplyAozoraStyling(line, _textFontSize);
             return line;
         }
         
-        private void ApplyAozoraStyling(TextLine line)
+        private void ApplyAozoraStyling(TextLine line, double baseFontSize)
         {
             // Simple Parsing for Aozora Bunko Tags
             // ［＃大見出し］ -> Heading 1
@@ -963,12 +983,12 @@ namespace Uviewer
             
             if (content.Contains("［＃大見出し］"))
             {
-                line.FontSize = _textFontSize * 1.5;
+                line.FontSize = baseFontSize * 1.5;
                 content = content.Replace("［＃大見出し］", "");
             }
             if (content.Contains("［＃中見出し］"))
             {
-                line.FontSize = _textFontSize * 1.25;
+                line.FontSize = baseFontSize * 1.25;
                 content = content.Replace("［＃中見出し］", "");
             }
             if (content.Contains("［＃センター］"))
@@ -998,7 +1018,7 @@ namespace Uviewer
             }
              if (content.Contains("［＃ここから２段階小さな文字］"))
             {
-                line.FontSize = Math.Max(8, _textFontSize * 0.7);
+                line.FontSize = Math.Max(8, baseFontSize * 0.7);
                 content = content.Replace("［＃ここから２段階小さな文字］", "");
             }
 
@@ -1418,7 +1438,7 @@ namespace Uviewer
                 // Binding Properties
                 tb.FontSize = line.FontSize;
                 tb.FontFamily = new FontFamily(line.FontFamily);
-                tb.Foreground = line.Foreground;
+                tb.Foreground = line.Foreground ?? GetThemeForeground();
                 tb.MaxWidth = line.MaxWidth;
                 tb.TextAlignment = line.TextAlignment;
                 tb.LineHeight = line.FontSize * 1.8;

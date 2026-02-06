@@ -36,7 +36,6 @@ namespace Uviewer
             public int SavedPage { get; set; } = 0;
             public int ChapterIndex { get; set; } = 0;
             public int SavedLine { get; set; } = 1;
-            public bool IsAozoraMode { get; set; } = false;
         }
 
         public class RecentItem
@@ -409,8 +408,7 @@ namespace Uviewer
                         ScrollOffset = (_isTextMode && TextScrollViewer != null) ? TextScrollViewer.VerticalOffset : null,
                         SavedPage = savedPage,
                         SavedLine = savedLine,
-                        ChapterIndex = _isEpubMode ? CurrentEpubChapterIndex : 0,
-                        IsAozoraMode = _isAozoraMode
+                        ChapterIndex = _isEpubMode ? CurrentEpubChapterIndex : 0
                     };
 
                     _favorites.Add(favorite);
@@ -949,10 +947,7 @@ namespace Uviewer
                         if (File.Exists(recent.Path))
                         {
                             // Set pending target line BEFORE loading triggers
-                            if (_isAozoraMode)
-                            {
-                                _aozoraPendingTargetLine = recent.SavedLine > 1 ? recent.SavedLine : (recent.SavedPage > 0 ? -recent.SavedPage : 1);
-                            }
+                            _aozoraPendingTargetLine = recent.SavedLine > 1 ? recent.SavedLine : (recent.SavedPage > 0 ? -recent.SavedPage : 1);
 
                             // Load explorer parent folder
                             var parentDir = Path.GetDirectoryName(recent.Path);

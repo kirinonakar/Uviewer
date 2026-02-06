@@ -216,7 +216,7 @@ namespace Uviewer
                     _ = Task.Run(PreloadNextImagesAsync);
 
                     // Update title to show archive name
-                    Title = $"Uviewer - {Path.GetFileName(archivePath)}";
+                    Title = "Uviewer - Image & Text Viewer";
                 }
                 else
                 {
@@ -273,7 +273,7 @@ namespace Uviewer
             // 메인 UI 스레드에서 타이틀 변경 (안전하게 처리)
             DispatcherQueue.TryEnqueue(() =>
             {
-                Title = "Uviewer - Image Viewer";
+                Title = "Uviewer - Image & Text Viewer";
             });
 
             // Clear preloaded images

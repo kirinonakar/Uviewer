@@ -278,7 +278,7 @@ namespace Uviewer
             try
             {
                 // Set window title
-                Title = "Uviewer - Image Viewer";
+                Title = "Uviewer - Image & Text Viewer";
 
                 // Set window icon (with fallback for single-file publish)
                 try

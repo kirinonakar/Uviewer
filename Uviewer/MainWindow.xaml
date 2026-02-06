@@ -9,7 +9,7 @@
     xmlns:canvas="using:Microsoft.Graphics.Canvas.UI.Xaml"
     xmlns:controls="using:CommunityToolkit.WinUI.Controls"
     mc:Ignorable="d"
-    Title="Uviewer - Image Viewer">
+    Title="Uviewer - Image &amp; Text Viewer">
 
     <Window.SystemBackdrop>
         <MicaBackdrop />
@@ -484,7 +484,7 @@
             
             <!-- Epub Display Area -->
             <Grid Grid.Column="2" x:Name="EpubArea" Visibility="Collapsed" Background="{ThemeResource SolidBackgroundFillColorBaseBrush}">
-                <FlipView x:Name="EpubFlipView" SelectionChanged="EpubFlipView_SelectionChanged">
+                <FlipView x:Name="EpubFlipView" SelectionChanged="EpubFlipView_SelectionChanged" PointerPressed="EpubFlipView_PointerPressed">
                     <FlipView.ItemsPanel>
                         <ItemsPanelTemplate>
                             <StackPanel Orientation="Horizontal" />

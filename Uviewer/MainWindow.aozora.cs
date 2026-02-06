@@ -114,7 +114,7 @@ namespace Uviewer
             ToggleAozoraMode();
         }
 
-        private void ToggleAozoraMode()
+        private async void ToggleAozoraMode()
         {
             // Capture current position BEFORE toggling logic
             int currentLine = 1;
@@ -144,13 +144,18 @@ namespace Uviewer
             
             SaveAozoraSettings();
             
-            // Reload current content
-            if (_currentTextFilePath != null)
+            // Optimized Reload: Use cached content if available to avoid IO delay
+            if (!string.IsNullOrEmpty(_currentTextContent) && !string.IsNullOrEmpty(_currentTextFilePath))
+            {
+                 string filename = System.IO.Path.GetFileName(_currentTextFilePath);
+                 await DisplayLoadedText(_currentTextContent, filename, _currentTextFilePath);
+            }
+            else if (_currentTextFilePath != null)
             {
                 var entry = _imageEntries.FirstOrDefault(x => x.FilePath == _currentTextFilePath);
                 if (entry != null)
                 {
-                    _ = LoadTextEntryAsync(entry);
+                    await LoadTextEntryAsync(entry);
                 }
             }
         }
@@ -328,10 +333,13 @@ namespace Uviewer
                     var lines = rawContent.Replace("\r\n", "\n").Replace("\r", "\n").Split('\n');
                     _aozoraTotalLineCountInSource = lines.Length;
 
-                    if (lines.Length > 2000)
+                    int initialLimit = 2000;
+                    if (targetLine > initialLimit - 500) initialLimit = targetLine + 500;
+
+                    if (lines.Length > initialLimit)
                     {
-                        // 1. Initial Load (First 2000 lines)
-                        var initialLines = lines.Take(2000).ToArray();
+                        // 1. Initial Load (First initialLimit lines)
+                        var initialLines = lines.Take(initialLimit).ToArray();
                         _aozoraBlocks = await Task.Run(() => ParseAozoraLines(initialLines, 1));
                         
                         // Proceed to render first page immediately below...
@@ -341,8 +349,8 @@ namespace Uviewer
                         {
                             try
                             {
-                                var restLines = lines.Skip(2000).ToArray();
-                                var restBlocks = ParseAozoraLines(restLines, 2001);
+                                var restLines = lines.Skip(initialLimit).ToArray();
+                                var restBlocks = ParseAozoraLines(restLines, initialLimit + 1);
                                 
                                 this.DispatcherQueue.TryEnqueue(() => 
                                 {
@@ -1414,7 +1422,8 @@ namespace Uviewer
                  items = await Task.Run(() => 
                  {
                      var list = new List<TocItem>();
-                     var lines = _textLines.Count > 0 ? _textLines : SplitTextToLines(_currentTextContent); // Prefer split lines if available
+                                           // var lines = _textLines.Count > 0 ? _textLines : SplitTextToLines(_currentTextContent);
+
                      
                      // In standard mode, finding exact source line number might be tricky if _textLines is wrapped.
                      // But _textLines usually stores 1:1 if no wrap? No, MainWindow.text.cs implementation of SplitTextToLines:

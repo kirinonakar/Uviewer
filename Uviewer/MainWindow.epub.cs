@@ -289,7 +289,7 @@ namespace Uviewer
             ImageToolbarPanel.Visibility = Visibility.Collapsed;
             TextToolbarPanel.Visibility = Visibility.Visible; // Reuse text toolbar for now
             
-            Title = "Uviewer - Epub Reader";
+            Title = "Uviewer - Image & Text Viewer";
             
              if (StatusBarGrid != null)
                 StatusBarGrid.Background = (Brush)Application.Current.Resources["SolidBackgroundFillColorBaseBrush"];
@@ -540,7 +540,7 @@ namespace Uviewer
 
 
 
-        private void EpubPage_PointerPressed(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
+        private void EpubFlipView_PointerPressed(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
         {
              if (!_isEpubMode) return;
 
@@ -553,6 +553,12 @@ namespace Uviewer
                  
                  e.Handled = true;
              }
+        }
+
+        private void EpubPage_PointerPressed(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
+        {
+             if (!_isEpubMode) return;
+             // Handled by FlipView parent
         }
 
         private async Task<UIElement?> CreateImagePageAsync(string imgTag, string currentPath)
