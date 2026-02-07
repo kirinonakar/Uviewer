@@ -879,32 +879,45 @@ namespace Uviewer
             html = Regex.Replace(html, @"<style[^>]*>[\s\S]*?</style>", "", RegexOptions.IgnoreCase);
             
             // Pre-process special tags
-            html = html.Replace("<br/>", "\n").Replace("<br>", "\n");
+            html = Regex.Replace(html, @"<br\s*/?>", "\n", RegexOptions.IgnoreCase);
 
             // --- Ruby Processing ---
-            // Convert to {{RUBY|Base|Top}} using a more unique delimiter
-            html = Regex.Replace(html, @"<ruby[^>]*>(.*?)<rt[^>]*>(.*?)</rt>.*?</ruby>", 
-                m => 
+            html = Regex.Replace(html, @"<ruby[^>]*>(.*?)</ruby>", m => 
+            {
+                string rubyContent = m.Groups[1].Value;
+                // Strip <rp>
+                rubyContent = Regex.Replace(rubyContent, @"<rp[^>]*>.*?</rp>", "", RegexOptions.IgnoreCase | RegexOptions.Singleline);
+                
+                StringBuilder sb = new StringBuilder();
+                var rtMatches = Regex.Matches(rubyContent, @"<rt[^>]*>(.*?)</rt>", RegexOptions.IgnoreCase | RegexOptions.Singleline);
+                
+                int lastIndex = 0;
+                foreach (Match rtMatch in rtMatches)
                 {
-                    string baseText = m.Groups[1].Value; // Content inside ruby before rt
-                    string rubyText = m.Groups[2].Value; // RT content
+                    string basePart = rubyContent.Substring(lastIndex, rtMatch.Index - lastIndex);
+                    string rtPart = rtMatch.Groups[1].Value;
                     
-                    // Handle <rb> tag if present
-                    if (Regex.IsMatch(baseText, @"<rb[^>]*>", RegexOptions.IgnoreCase))
+                    // Cleanup tags like <rb> from basePart and rtPart
+                    string baseText = Regex.Replace(basePart, @"<[^>]+>", "").Trim();
+                    string rtText = Regex.Replace(rtPart, @"<[^>]+>", "").Trim();
+                    
+                    if (!string.IsNullOrEmpty(baseText) || !string.IsNullOrEmpty(rtText))
                     {
-                        baseText = Regex.Replace(baseText, @"<rb[^>]*>(.*?)</rb>", "$1", RegexOptions.IgnoreCase | RegexOptions.Singleline);
+                        sb.Append($"{{{{RUBY|{baseText}|~|{rtText}}}}}");
                     }
-
-                    // Strip <rp>
-                    baseText = Regex.Replace(baseText, @"<rp[^>]*>.*?</rp>", "", RegexOptions.IgnoreCase | RegexOptions.Singleline);
-                    
-                    // Strip all other tags from base/ruby
-                    baseText = Regex.Replace(baseText, @"<[^>]+>", ""); 
-                    rubyText = Regex.Replace(rubyText, @"<[^>]+>", "");
-
-                    return $"{{{{RUBY|{baseText.Trim()}|{rubyText.Trim()}}}}}";
-                }, 
-                RegexOptions.IgnoreCase | RegexOptions.Singleline);
+                    lastIndex = rtMatch.Index + rtMatch.Length;
+                }
+                
+                // Append any remaining text after the last <rt>
+                if (lastIndex < rubyContent.Length)
+                {
+                    string tail = rubyContent.Substring(lastIndex);
+                    string tailText = Regex.Replace(tail, @"<[^>]+>", "").Trim();
+                    if (!string.IsNullOrEmpty(tailText)) sb.Append(tailText);
+                }
+                
+                return sb.ToString();
+            }, RegexOptions.IgnoreCase | RegexOptions.Singleline);
             
             // Strip remaining tags
             // Strip remaining tags
@@ -932,21 +945,17 @@ namespace Uviewer
                 p.LineStackingStrategy = LineStackingStrategy.BlockLineHeight; // Force rigid line height
                 
                 // Tokenize by custom Ruby marker
-                // Regex must strictly match the output from the replacement above
-                // We escape the pip for regex: \| and braces \{ \}
-                var tokens = Regex.Split(line, @"(\{\{RUBY\|.*?\|.*?\}\})");
+                var tokens = Regex.Split(line, @"(\{\{RUBY\|.*?\}\})");
                 
                 foreach (var token in tokens)
                 {
                     if (token.StartsWith("{{RUBY|"))
                     {
-                        var content = token.Trim('{', '}'); // RUBY|Base|Text
-                        var parts = content.Split('|');
-                        if (parts.Length >= 3)
+                        var content = token.Substring(7, token.Length - 9); // Strip {{RUBY| and }}
+                        var parts = content.Split(new[] { "|~|" }, StringSplitOptions.None);
+                        if (parts.Length == 2)
                         {
-                            var baseText = parts[1];
-                            var rubyText = parts[2];
-                            p.Inlines.Add(CreateRuby(baseText, rubyText));
+                            p.Inlines.Add(CreateRuby(parts[0], parts[1]));
                         }
                     }
                     else
