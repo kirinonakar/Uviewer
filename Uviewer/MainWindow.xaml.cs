@@ -1263,6 +1263,7 @@ namespace Uviewer
         {
             FileNameText.Text = entry.DisplayName;
             ImageInfoText.Text = $"{(int)bitmap.Size.Width} × {(int)bitmap.Size.Height}";
+            TextProgressText.Text = ""; // Clear for image mode
 
             if (_isSideBySideMode)
             {

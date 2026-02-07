@@ -797,35 +797,19 @@ namespace Uviewer
             
             int startLine = _aozoraBlocks[_currentAozoraStartBlockIndex].SourceLineNumber;
             
-            // Update status bar
-            string status = $"{progress:F1}%";
+            ImageInfoText.Text = $"Line {startLine} / {_aozoraTotalLineCountInSource}";
+            TextProgressText.Text = $"{progress:F1}%";
             
             if (_isAozoraPageCalcCompleted)
             {
-                // Update current page if possible based on current index
-                // Note: StartAozoraPageCalculationAsync updates _aozoraCalculatedCurrentPage once. 
-                // But if we scroll, we need to update it dynamically without full recalc?
-                // We'd need the map again. 
-                // For now, let's just use the value from last Full Calc or approximate?
-                // Actually, if we scroll, we change _currentAozoraStartBlockIndex. 
-                // Re-running calculation is too expensive just for scroll.
-                // We should store the map?
-                // Let's compromise: Recalculate 'Current Page' relative to Total roughly?
-                // Or: Make BlockToPageMap a class member.
-                
-                // Re-calculating current page approximately:
                 int curPage = (int)((double)_currentAozoraStartBlockIndex / _aozoraBlocks.Count * _aozoraTotalPages) + 1;
                 if (curPage > _aozoraTotalPages) curPage = _aozoraTotalPages;
-                
-                status += $" ({curPage} / {_aozoraTotalPages})";
+                ImageIndexText.Text = $"{curPage} / {_aozoraTotalPages}";
             }
             else
             {
-                status += Strings.CalculatingPages;
+                ImageIndexText.Text = Strings.CalculatingPages.Trim().Replace("(", "").Replace(")", "");
             }
-            
-            ImageIndexText.Text = status;
-            ImageInfoText.Text = $"Line {startLine} / {_aozoraTotalLineCountInSource}";
         }
 
         public void JumpToAozoraLine(int targetLine)

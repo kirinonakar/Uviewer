@@ -1670,9 +1670,10 @@ namespace Uviewer
                  double progress = (TextScrollViewer.ExtentHeight > 0) ? (TextScrollViewer.VerticalOffset + TextScrollViewer.ViewportHeight) * 100.0 / TextScrollViewer.ExtentHeight : 0;
                  if (progress > 100) progress = 100;
 
-                 string status = $"{progress:F1}%";
+                 ImageInfoText.Text = $"Line {currentLine} / {total}";
+                 TextProgressText.Text = $"{progress:F1}%";
 
-                 // Append Page Info if calculated
+                 // Update Page Info if calculated
                  if (_isPageCalculationCompleted && _calculatedTotalHeight > 0 && TextScrollViewer.ViewportHeight > 0)
                  {
                      int totalPages = (int)Math.Ceiling(_calculatedTotalHeight / TextScrollViewer.ViewportHeight);
@@ -1682,15 +1683,16 @@ namespace Uviewer
                      if (calcCurrentPage > totalPages) calcCurrentPage = totalPages;
                      if (calcCurrentPage < 1) calcCurrentPage = 1;
 
-                     status += $" ({calcCurrentPage} / {totalPages})";
+                     ImageIndexText.Text = $"{calcCurrentPage} / {totalPages}";
                  }
                  else if (!_isPageCalculationCompleted)
                  {
-                     status += Strings.CalculatingPages;
+                     ImageIndexText.Text = Strings.CalculatingPages.Trim().Replace("(", "").Replace(")", "");
                  }
-
-                 ImageIndexText.Text = status;
-                 ImageInfoText.Text = $"Line {currentLine} / {total}";
+                 else
+                 {
+                     ImageIndexText.Text = "";
+                 }
              }
         }
         

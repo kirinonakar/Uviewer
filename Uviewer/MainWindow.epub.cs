@@ -430,19 +430,28 @@ namespace Uviewer
                 totalLines = tag.TotalLinesInChapter;
             }
 
-            if (ImageInfoText != null)
-            {
-                ImageInfoText.Text = Strings.EpubPageInfo(currentPage, totalPages, currentLine, totalLines, _currentEpubChapterIndex + 1, _epubSpine.Count);
-            }
-            
-            if (ImageIndexText != null && _epubSpine.Count > 0)
+            double totalProgress = 0;
+            if (_epubSpine.Count > 0)
             {
                 double chapterProgress = (double)_currentEpubChapterIndex / _epubSpine.Count;
                 double pageProgressInChapter = (double)(currentPage - 1) / totalPages / _epubSpine.Count;
-                double totalProgress = (chapterProgress + pageProgressInChapter) * 100.0;
+                totalProgress = (chapterProgress + pageProgressInChapter) * 100.0;
                 if (totalProgress > 100) totalProgress = 100;
-                
-                ImageIndexText.Text = $"{totalProgress:F1}%";
+            }
+
+            if (ImageInfoText != null)
+            {
+                ImageInfoText.Text = $"Line {currentLine} / {totalLines}";
+            }
+
+            if (TextProgressText != null)
+            {
+                TextProgressText.Text = $"{totalProgress:F1}%";
+            }
+            
+            if (ImageIndexText != null)
+            {
+                ImageIndexText.Text = $"{currentPage} / {totalPages} (Ch.{_currentEpubChapterIndex + 1})";
             }
         }
 

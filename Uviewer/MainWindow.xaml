@@ -520,8 +520,9 @@
               Background="{ThemeResource CardBackgroundFillColorDefaultBrush}">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*"/>
-                <ColumnDefinition Width="Auto"/>
-                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="180"/>
+                <ColumnDefinition Width="80"/>
+                <ColumnDefinition Width="100"/>
             </Grid.ColumnDefinitions>
 
             <TextBlock x:Name="FileNameText" Grid.Column="0" 
@@ -536,13 +537,23 @@
                        FontSize="12" 
                        Foreground="{ThemeResource TextFillColorSecondaryBrush}"
                        VerticalAlignment="Center"
-                       Margin="16,0"/>
+                       TextAlignment="Right"
+                       Margin="0,0,16,0"/>
 
-            <TextBlock x:Name="ImageIndexText" Grid.Column="2" 
+            <TextBlock x:Name="TextProgressText" Grid.Column="2" 
                        Text="" 
                        FontSize="12" 
                        Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                       VerticalAlignment="Center"/>
+                       VerticalAlignment="Center"
+                       TextAlignment="Right"
+                       Margin="0,0,16,0"/>
+
+            <TextBlock x:Name="ImageIndexText" Grid.Column="3" 
+                       Text="" 
+                       FontSize="12" 
+                       Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                       VerticalAlignment="Center"
+                       TextAlignment="Right"/>
         </Grid>
     </Grid>
 </Window>

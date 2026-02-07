@@ -120,15 +120,16 @@ namespace Uviewer
             FileNameText.Text = currentEntry.DisplayName;
 
             // Update status bar with filename and index
+            TextProgressText.Text = ""; // Clear for image mode
             if (_isSideBySideMode)
             {
                 int displayIndex = (_currentIndex / 2) + 1;
                 int totalPairs = (_imageEntries.Count + 1) / 2;
-                ImageIndexText.Text = $"{displayIndex} / {totalPairs} (B) - 빠른 네비게이션";
+                ImageIndexText.Text = $"{displayIndex} / {totalPairs} (B)";
             }
             else
             {
-                ImageIndexText.Text = $"{_currentIndex + 1} / {_imageEntries.Count} - 빠른 네비게이션";
+                ImageIndexText.Text = $"{_currentIndex + 1} / {_imageEntries.Count}";
             }
 
             ImageInfoText.Text = "빠르게 넘어가는 중...";
