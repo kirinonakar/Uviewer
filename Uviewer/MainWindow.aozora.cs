@@ -240,13 +240,15 @@ namespace Uviewer
                  return;
             }
 
+            double availableWidth = AozoraPageContainer.ActualWidth;
+            if (availableWidth < 100) availableWidth = 800;
+            double innerWidth = availableWidth - 40; // Grid Padding (20+20)
+
             double availableHeight = AozoraPageContainer.ActualHeight;
             if (availableHeight < 200) availableHeight = 800;
-            availableHeight -= 40; // Padding
+            availableHeight -= 40; // Grid Padding
 
-            double availableWidth = AozoraPageContainer.ActualWidth; // Approximate
-            // We need to match RenderAozoraDynamicPage width logic
-            double maxWidth = _isMarkdownRenderMode ? double.PositiveInfinity : GetUrlMaxWidth();
+            double maxWidth = _isMarkdownRenderMode ? innerWidth : Math.Min(innerWidth, GetUrlMaxWidth());
             
             try
             {
@@ -570,15 +572,23 @@ namespace Uviewer
             _currentAozoraStartBlockIndex = startIdx;
             
             AozoraPageContent.Blocks.Clear();
-            AozoraPageContent.Padding = new Thickness(20);
-            AozoraPageContent.MaxWidth = _isMarkdownRenderMode ? double.PositiveInfinity : GetUrlMaxWidth();
+            AozoraPageContent.Padding = new Thickness(0); // Use Grid's padding instead to avoid double padding
+
+            // Reflow fix: Calculate available width for proper measurement and wrapping
+            double availableWidth = AozoraPageContainer?.ActualWidth ?? 800;
+            if (availableWidth < 100) availableWidth = 800;
+            double innerWidth = availableWidth - 40; // Grid Padding (20+20)
+
+            double currentMaxWidth = _isMarkdownRenderMode ? innerWidth : Math.Min(innerWidth, GetUrlMaxWidth());
+            AozoraPageContent.MaxWidth = currentMaxWidth;
+            
             AozoraPageContent.FontFamily = new FontFamily(_textFontFamily);
             AozoraPageContent.FontSize = _textFontSize;
             AozoraPageContent.Foreground = GetThemeForeground();
 
             double availableHeight = AozoraPageContainer?.ActualHeight ?? 800;
             if (availableHeight < 200) availableHeight = 800;
-            availableHeight -= 40; // Padding
+            availableHeight -= 40; // Grid Padding
 
             double currentHeight = 0;
             int endIdx = startIdx;
