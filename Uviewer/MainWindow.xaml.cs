@@ -1481,23 +1481,7 @@ namespace Uviewer
                         SyncExplorerSelection(item);
                         return;
                     }
-                    else if (item.IsEpub)
-                    {
-                        var file = await StorageFile.GetFileFromPathAsync(item.FullPath);
-                        await LoadEpubFileAsync(file); // Or LoadImageFromFileAsync(file) if we want to reset context? 
-                        // Actually LoadEpubFileAsync is fine as it switches mode, but context remains if we don't clear _imageEntries.
-                        // But since we are navigating using _fileItems (Explorer), we strictly load the file.
-                        // To keep "Up/Down" working within the new file's context if it was "LoadImageFromFile", we might want that.
-                        // But here we are just opening the file.
-                        
-                        // NOTE: If we want to maintain the "playlist" feel, LoadImageFromFileAsync works better?
-                        // But NavigateToFileAsync typically implies sidebar navigation.
-                        // Let's stick to direct load as it's explicit.
-                        
-                        SyncExplorerSelection(item);
-                        return;
-                    }
-                    else if (item.IsImage || item.IsText)
+                    else if (item.IsImage || item.IsText || item.IsEpub)
                     {
                         var file = await StorageFile.GetFileFromPathAsync(item.FullPath);
                         await LoadImageFromFileAsync(file);

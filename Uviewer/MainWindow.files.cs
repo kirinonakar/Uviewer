@@ -574,6 +574,18 @@ namespace Uviewer
 
         private bool IsCurrentFile(string path)
         {
+            if (string.IsNullOrEmpty(path)) return false;
+
+            if (_isEpubMode && !string.IsNullOrEmpty(_currentEpubFilePath))
+            {
+                return _currentEpubFilePath.Equals(path, StringComparison.OrdinalIgnoreCase);
+            }
+
+            if (_isTextMode && !string.IsNullOrEmpty(_currentTextFilePath))
+            {
+                return _currentTextFilePath.Equals(path, StringComparison.OrdinalIgnoreCase);
+            }
+
             if (_currentIndex >= 0 && _imageEntries != null && _currentIndex < _imageEntries.Count)
             {
                 var entry = _imageEntries[_currentIndex];
@@ -720,12 +732,7 @@ namespace Uviewer
             {
                 await LoadImagesFromArchiveAsync(item.FullPath);
             }
-            else if (item.IsEpub && SupportedEpubExtensions.Contains(Path.GetExtension(item.FullPath).ToLowerInvariant()))
-            {
-                var file = await StorageFile.GetFileFromPathAsync(item.FullPath);
-                await LoadEpubFileAsync(file);
-            }
-            else if (item.IsImage || item.IsText)
+            else if (item.IsImage || item.IsText || item.IsEpub)
             {
                 var file = await StorageFile.GetFileFromPathAsync(item.FullPath);
                 await LoadImageFromFileAsync(file);
