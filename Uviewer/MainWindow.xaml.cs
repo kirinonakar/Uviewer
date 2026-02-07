@@ -479,6 +479,11 @@ namespace Uviewer
             ToolTipService.SetToolTip(SidebarRecentButton, Strings.RecentTooltip);
             ToolTipService.SetToolTip(FavoritesButton, Strings.FavoritesTooltip);
             ToolTipService.SetToolTip(BrowseFolderButton, Strings.BrowseFolderTooltip);
+            ToolTipService.SetToolTip(TocButton, Strings.TocTooltip);
+            ToolTipService.SetToolTip(PrevFileButton, Strings.PrevFileTooltip);
+            ToolTipService.SetToolTip(NextFileButton, Strings.NextFileTooltip);
+            ToolTipService.SetToolTip(PrevPageButton, Strings.PrevPageTooltip);
+            ToolTipService.SetToolTip(NextPageButton, Strings.NextPageTooltip);
 
             // Texts
             CurrentPathText.Text = Strings.CurrentPathPlaceholder;

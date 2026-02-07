@@ -37,6 +37,62 @@ namespace Uviewer
             await OpenFolderAsync();
         }
 
+        private async void PrevFileButton_Click(object sender, RoutedEventArgs e)
+        {
+            await NavigateToFileAsync(false);
+        }
+
+        private async void NextFileButton_Click(object sender, RoutedEventArgs e)
+        {
+            await NavigateToFileAsync(true);
+        }
+
+        private async void PrevPageButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (_isEpubMode)
+            {
+                await NavigateEpubAsync(-1);
+            }
+            else if (_isTextMode)
+            {
+                if (_isAozoraMode)
+                {
+                    NavigateAozoraPage(-1);
+                }
+                else
+                {
+                    NavigateTextPage(-1);
+                }
+            }
+            else
+            {
+                await NavigateToPreviousAsync();
+            }
+        }
+
+        private async void NextPageButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (_isEpubMode)
+            {
+                await NavigateEpubAsync(1);
+            }
+            else if (_isTextMode)
+            {
+                if (_isAozoraMode)
+                {
+                    NavigateAozoraPage(1);
+                }
+                else
+                {
+                    NavigateTextPage(1);
+                }
+            }
+            else
+            {
+                await NavigateToNextAsync();
+            }
+        }
+
         private async Task OpenFileAsync()
         {
             var picker = new FileOpenPicker();

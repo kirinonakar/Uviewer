@@ -101,6 +101,7 @@
                     </StackPanel>
                 </Button>
 
+
                 <AppBarSeparator/>
 
                 <!-- Image Toolbar -->
@@ -202,6 +203,19 @@
                 </StackPanel>
 
                 <AppBarSeparator/>
+
+                <Button x:Name="PrevFileButton" Click="PrevFileButton_Click" ToolTipService.ToolTip="이전 파일">
+                    <TextBlock Text="&lt;&lt;" FontSize="12" FontWeight="Bold"/>
+                </Button>
+                <Button x:Name="PrevPageButton" Click="PrevPageButton_Click" ToolTipService.ToolTip="이전 이미지/페이지">
+                    <FontIcon Glyph="&#xE76B;" FontSize="14"/>
+                </Button>
+                <Button x:Name="NextPageButton" Click="NextPageButton_Click" ToolTipService.ToolTip="다음 이미지/페이지">
+                    <FontIcon Glyph="&#xE76C;" FontSize="14"/>
+                </Button>
+                <Button x:Name="NextFileButton" Click="NextFileButton_Click" ToolTipService.ToolTip="다음 파일">
+                    <TextBlock Text="&gt;&gt;" FontSize="12" FontWeight="Bold"/>
+                </Button>
 
                 <Button x:Name="FullscreenButton" Click="FullscreenButton_Click" ToolTipService.ToolTip="전체화면(F11)">
                     <FontIcon x:Name="FullscreenIcon" Glyph="&#xE740;" FontSize="18"/>

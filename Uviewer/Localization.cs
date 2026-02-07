@@ -31,6 +31,10 @@ namespace Uviewer
         public static string SharpenTooltip => S("샤프닝(S)", "Sharpen (S)");
         public static string SideBySideTooltip => S("좌우 보기(Space)", "Side by Side (Space)");
         public static string NextImageSideTooltip => S("다음 그림 위치", "Next Image Position");
+        public static string PrevFileTooltip => S("이전 파일", "Previous File");
+        public static string NextFileTooltip => S("다음 파일", "Next File");
+        public static string PrevPageTooltip => S("이전 이미지/페이지", "Previous Image/Page");
+        public static string NextPageTooltip => S("다음 이미지/페이지", "Next Image/Page");
         public static string AozoraTooltip => "Aozora/md(A)"; // Same
         public static string FontTooltip => S("폰트 변경(F)", "Change Font (F)");
         public static string GoToPageTooltip => S("줄 이동(G)", "Go to Line (G)");
