@@ -51,6 +51,7 @@ namespace Uviewer
 
         private bool _textInputInitialized = false;
         private string? _currentTextFilePath = null;
+        private int _lastRecentSaveLine = -1;
 
         private void InitializeText()
         {
@@ -1320,14 +1321,13 @@ namespace Uviewer
 
         private void RootGrid_Text_PreviewKeyDown(object sender, KeyRoutedEventArgs e)
         {
+             if (e.Handled) return;
              if (!_isTextMode) return;
              
              // Prevent file navigation with arrows/space in text mode
              // Using PreviewKeyDown allows us to intercept before ListView gets it
              if (e.Key == Windows.System.VirtualKey.Left || 
                  e.Key == Windows.System.VirtualKey.Right || 
-                 e.Key == Windows.System.VirtualKey.Up || 
-                 e.Key == Windows.System.VirtualKey.Down ||
                  e.Key == Windows.System.VirtualKey.Space)
              {
                  // Handle Logic Here to avoid bubbling
@@ -1392,18 +1392,6 @@ namespace Uviewer
                      NavigateTextPage(1);
                  }
                  e.Handled = true; // Stop event bubbling to prevent file navigation
-             }
-             else if (e.Key == Windows.System.VirtualKey.Up)
-             {
-                 // Move to previous file
-                 _ = NavigateToFileAsync(false);
-                 e.Handled = true;
-             }
-             else if (e.Key == Windows.System.VirtualKey.Down)
-             {
-                 // Move to next file
-                 _ = NavigateToFileAsync(true);
-                 e.Handled = true;
              }
              else if (e.Key == Windows.System.VirtualKey.Add || e.Key == (Windows.System.VirtualKey)187) // +
              {
@@ -1679,7 +1667,7 @@ namespace Uviewer
                      int totalPages = (int)Math.Ceiling(_calculatedTotalHeight / TextScrollViewer.ViewportHeight);
                      int calcCurrentPage = (int)Math.Floor(TextScrollViewer.VerticalOffset / TextScrollViewer.ViewportHeight) + 1;
                      
-                     if (totalPages < 1) totalPages = 1;
+                 if (totalPages < 1) totalPages = 1;
                      if (calcCurrentPage > totalPages) calcCurrentPage = totalPages;
                      if (calcCurrentPage < 1) calcCurrentPage = 1;
 
@@ -1693,6 +1681,13 @@ namespace Uviewer
                  {
                      ImageIndexText.Text = "";
                  }
+
+                // Throttle Recent update: only if line changed
+                if (currentLine != _lastRecentSaveLine)
+                {
+                    _lastRecentSaveLine = currentLine;
+                    _ = AddToRecentAsync();
+                }
              }
         }
         

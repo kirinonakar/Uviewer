@@ -49,7 +49,7 @@
 |-----|---------|--------|
 | **← / →** | Image | Previous / Next Image |
 | | Text | Previous / Next Page |
-| **↑ / ↓** | Global | Previous / Next File (Same Type) |
+| **↑ / ↓** | Global | Previous / Next File |
 | **Home / End** | Image / Archive | First / Last Image |
 | | Text | First / Last Page |
 | | EPUB | Previous / Next Chapter |

@@ -1402,24 +1402,41 @@ namespace Uviewer
 
         private async Task NavigateToFileAsync(bool isNext)
         {
-            if (string.IsNullOrEmpty(_currentExplorerPath))
-                return;
-
-            // Ensure file list is loaded
-            if (_fileItems.Count == 0)
-            {
-                LoadExplorerFolder(_currentExplorerPath);
-            }
-
             // Find current file/archive in the list
             string? currentPath = null;
             if (_currentArchive != null && !string.IsNullOrEmpty(_currentArchivePath))
             {
                 currentPath = _currentArchivePath;
             }
-            else if (_imageEntries.Count > 0 && _currentIndex >= 0 && _currentIndex < _imageEntries.Count)
+            else if (_isEpubMode && !string.IsNullOrEmpty(_currentEpubFilePath))
+            {
+                currentPath = _currentEpubFilePath;
+            }
+            else if (_isTextMode && !string.IsNullOrEmpty(_currentTextFilePath))
+            {
+                currentPath = _currentTextFilePath;
+            }
+            else if (_imageEntries != null && _imageEntries.Count > 0 && _currentIndex >= 0 && _currentIndex < _imageEntries.Count)
             {
                 currentPath = _imageEntries[_currentIndex].FilePath;
+            }
+
+            if (string.IsNullOrEmpty(currentPath))
+                return;
+
+            // Ensure explorer path is set if missing (e.g. opened from Recent Files)
+            if (string.IsNullOrEmpty(_currentExplorerPath))
+            {
+                _currentExplorerPath = Path.GetDirectoryName(currentPath);
+            }
+
+            if (string.IsNullOrEmpty(_currentExplorerPath))
+                return;
+
+            // Ensure file list is loaded and contains the current path
+            if (_fileItems.Count == 0 || !_fileItems.Any(f => f.FullPath.Equals(currentPath, StringComparison.OrdinalIgnoreCase)))
+            {
+                LoadExplorerFolder(_currentExplorerPath);
             }
 
             if (string.IsNullOrEmpty(currentPath))
@@ -1437,17 +1454,6 @@ namespace Uviewer
 
             if (currentItemIndex == -1) return;
 
-            // Determine current file type strictness
-            bool isCurrentEpub = false;
-            bool isCurrentText = false;
-            
-            if (_imageEntries.Count > 0 && _currentIndex >= 0 && _currentIndex < _imageEntries.Count)
-            {
-                 var currentEntry = _imageEntries[_currentIndex];
-                 isCurrentEpub = IsEpubEntry(currentEntry);
-                 isCurrentText = IsTextEntry(currentEntry);
-            }
-
             // Find next/prev navigable file
             int newIndex = currentItemIndex;
             while (true)
@@ -1461,9 +1467,6 @@ namespace Uviewer
                 if (item.IsDirectory || item.IsParentDirectory)
                     continue; // Skip directories
 
-                // strict navigation: if currently epub, only find epub. if text, only text.
-                if (isCurrentEpub && !item.IsEpub) continue;
-                if (isCurrentText && !item.IsText) continue;
 
                 try
                 {

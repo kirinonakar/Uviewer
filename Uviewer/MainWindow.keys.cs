@@ -21,6 +21,21 @@ namespace Uviewer
                 }
             }
 
+            // Handle Up/Down keys in PreviewKeyDown to ensure they always navigate files
+            // even if controls like ScrollViewer or FlipView would otherwise capture them.
+            if (e.Key == Windows.System.VirtualKey.Up || e.Key == Windows.System.VirtualKey.PageUp)
+            {
+                _ = NavigateToFileAsync(false);
+                e.Handled = true;
+                return;
+            }
+            if (e.Key == Windows.System.VirtualKey.Down || e.Key == Windows.System.VirtualKey.PageDown)
+            {
+                _ = NavigateToFileAsync(true);
+                e.Handled = true;
+                return;
+            }
+
             // Handle Space key in PreviewKeyDown to prevent toolbar buttons from capturing it
             if (e.Key == Windows.System.VirtualKey.Space)
             {
@@ -139,6 +154,7 @@ namespace Uviewer
 
         private void RootGrid_Global_PreviewKeyDown(object sender, KeyRoutedEventArgs e)
         {
+            if (e.Handled) return;
             // Global handler to intercept navigation keys when in specific modes
             // This prevents controls like ListView from consuming Home/End keys when we want to navigate images.
 

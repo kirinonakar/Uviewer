@@ -23,7 +23,7 @@ namespace Uviewer
         private ObservableCollection<RecentItem> _recentItems = new();
         private const string RecentFilePath = "recent.json";
         private string GetRecentFilePath() => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "Uviewer", RecentFilePath);
-        private const int MaxRecentItems = 5;
+        private const int MaxRecentItems = 10;
 
         public class FavoriteItem
         {
@@ -822,16 +822,8 @@ namespace Uviewer
 
                 if (!string.IsNullOrEmpty(name) && !string.IsNullOrEmpty(path))
                 {
-                    // Check for existing item
-                    RecentItem? existing = null;
-                    if (type == "Archive")
-                    {
-                        existing = _recentItems.FirstOrDefault(r => r.Path == path && r.Type == type && r.ArchiveEntryKey == archiveEntryKey);
-                    }
-                    else
-                    {
-                        existing = _recentItems.FirstOrDefault(r => r.Path == path && r.Type == type);
-                    }
+                    // Check for existing item by path and type (Ensure one entry per file/archive)
+                    RecentItem? existing = _recentItems.FirstOrDefault(r => r.Path == path && r.Type == type);
 
                     // Preserve existing position/page if exists
                     double? preservedOffset = null;

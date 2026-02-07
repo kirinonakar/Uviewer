@@ -142,6 +142,7 @@ namespace Uviewer
 
         private void RootGrid_Epub_PreviewKeyDown(object sender, Microsoft.UI.Xaml.Input.KeyRoutedEventArgs e)
         {
+            if (e.Handled) return;
             if (!_isEpubMode) return;
 
             if (e.Key == Windows.System.VirtualKey.Left)
@@ -153,18 +154,6 @@ namespace Uviewer
             {
                 _ = NavigateEpubAsync(1);
                 e.Handled = true;
-            }
-            else if (e.Key == Windows.System.VirtualKey.Up)
-            {
-                 // Previous File
-                 _ = NavigateToFileAsync(false);
-                 e.Handled = true;
-            }
-            else if (e.Key == Windows.System.VirtualKey.Down)
-            {
-                 // Next File
-                 _ = NavigateToFileAsync(true);
-                 e.Handled = true;
             }
             else if (e.Key == Windows.System.VirtualKey.G)
             {
@@ -453,6 +442,8 @@ namespace Uviewer
             {
                 ImageIndexText.Text = $"{currentPage} / {totalPages} (Ch.{_currentEpubChapterIndex + 1})";
             }
+
+            _ = AddToRecentAsync();
         }
 
         // --- Core Rendering Logic ---
