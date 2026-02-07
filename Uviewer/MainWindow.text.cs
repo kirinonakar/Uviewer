@@ -70,18 +70,9 @@ namespace Uviewer
 
         private async Task LoadTextFileAsync(StorageFile file)
         {
-            // Save position of current text file before switching
-            if (_isTextMode && !string.IsNullOrEmpty(_currentTextFilePath) && TextScrollViewer != null)
-            {
-                 var existing = _recentItems.FirstOrDefault(r => r.Path == _currentTextFilePath && r.Type == "File");
-                 if (existing != null)
-                 {
-                     existing.ScrollOffset = TextScrollViewer.VerticalOffset;
-                     existing.SavedLine = GetTopVisibleLineIndex();
-                     await SaveRecentItems(); // Ensure we save to disk
-                 }
-            }
-
+            // Save position of current file before switching
+            await AddToRecentAsync(true);
+            
             InitializeText();
             _currentTextFilePath = file.Path;
             // No reset here, DisplayLoadedText will handle it after using the value
@@ -1686,7 +1677,7 @@ namespace Uviewer
                 if (currentLine != _lastRecentSaveLine)
                 {
                     _lastRecentSaveLine = currentLine;
-                    _ = AddToRecentAsync();
+                    _ = AddToRecentAsync(true);
                 }
              }
         }

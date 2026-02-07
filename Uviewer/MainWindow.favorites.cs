@@ -749,160 +749,134 @@ namespace Uviewer
             }
         }
 
-        private async Task AddToRecentAsync()
+        /// <summary>
+        /// 최근 항목에 추가하거나 갱신합니다.
+        /// </summary>
+        /// <param name="saveCurrentPosition">
+        /// true: 현재 뷰어의 스크롤/페이지 위치를 저장합니다. (파일 닫기, 앱 종료 시)
+        /// false: 기존 저장된 위치를 유지하고 날짜만 갱신합니다. (파일 열 때)
+        /// </param>
+        private async Task AddToRecentAsync(bool saveCurrentPosition = false)
         {
             try
             {
-                System.Diagnostics.Debug.WriteLine("=== AddToRecentAsync called ===");
-
                 string name = "";
                 string path = "";
                 string type = "";
-                string? archiveEntryKey = null;
-
-                System.Diagnostics.Debug.WriteLine($"_currentArchive: {_currentArchive != null}");
-                System.Diagnostics.Debug.WriteLine($"_currentArchivePath: {_currentArchivePath}");
-                System.Diagnostics.Debug.WriteLine($"_currentExplorerPath: {_currentExplorerPath}");
-                System.Diagnostics.Debug.WriteLine($"_currentIndex: {_currentIndex}");
-                System.Diagnostics.Debug.WriteLine($"_imageEntries.Count: {_imageEntries.Count}");
-
+                
+                // 1. 현재 열려있는 파일 정보 파악
                 if (_isTextMode && !string.IsNullOrEmpty(_currentTextFilePath))
                 {
-                    // Text File mode (Prioritize over folder)
                     name = Path.GetFileName(_currentTextFilePath);
                     path = _currentTextFilePath;
                     type = "File";
-                    System.Diagnostics.Debug.WriteLine($"Text File mode: {name}");
                 }
                 else if (_isEpubMode && !string.IsNullOrEmpty(_currentEpubFilePath))
                 {
-                    // Epub Mode
                     name = Path.GetFileName(_currentEpubFilePath);
                     path = _currentEpubFilePath;
                     type = "File";
-                    System.Diagnostics.Debug.WriteLine($"Epub mode: {name}");
                 }
                 else if (_currentArchive != null && !string.IsNullOrEmpty(_currentArchivePath))
                 {
-                    // Archive mode - add current image position
+                    path = _currentArchivePath;
+                    type = "Archive";
+                    // 아카이브 이름 설정 (현재 이미지 기준 또는 파일명)
                     if (_currentIndex >= 0 && _currentIndex < _imageEntries.Count)
-                    {
-                        var currentEntry = _imageEntries[_currentIndex];
-                        name = $"{Path.GetFileName(_currentArchivePath)} - {currentEntry.DisplayName}";
-                        path = _currentArchivePath;
-                        type = "Archive";
-                        archiveEntryKey = currentEntry.ArchiveEntryKey;
-                        System.Diagnostics.Debug.WriteLine($"Archive mode: {name}");
-                    }
+                        name = $"{Path.GetFileName(_currentArchivePath)} - {_imageEntries[_currentIndex].DisplayName}";
+                    else
+                        name = Path.GetFileName(_currentArchivePath);
                 }
                 else if (_currentIndex >= 0 && _currentIndex < _imageEntries.Count)
                 {
-                     // Image/File List mode
                      var currentEntry = _imageEntries[_currentIndex];
                      if (!string.IsNullOrEmpty(currentEntry.FilePath))
                      {
                          name = currentEntry.DisplayName;
                          path = currentEntry.FilePath;
                          type = "File";
-                         System.Diagnostics.Debug.WriteLine($"File mode: {name}");
                      }
                 }
                 else if (!string.IsNullOrEmpty(_currentExplorerPath))
                 {
-                    // Folder mode - add current folder
                     name = Path.GetFileName(_currentExplorerPath);
-                    if (string.IsNullOrEmpty(name))
-                        name = _currentExplorerPath;
+                    if (string.IsNullOrEmpty(name)) name = _currentExplorerPath;
                     path = _currentExplorerPath;
                     type = "Folder";
-                    System.Diagnostics.Debug.WriteLine($"Folder mode: {name}");
                 }
 
-                System.Diagnostics.Debug.WriteLine($"Final values - Name: '{name}', Path: '{path}', Type: '{type}'");
+                if (string.IsNullOrEmpty(path)) return;
 
-                if (!string.IsNullOrEmpty(name) && !string.IsNullOrEmpty(path))
+                // 2. 기존 기록이 있는지 확인
+                RecentItem? existing = _recentItems.FirstOrDefault(r => 
+                    r.Path.Equals(path, StringComparison.OrdinalIgnoreCase) && 
+                    r.Type.Equals(type, StringComparison.OrdinalIgnoreCase));
+                
+                // 3. 저장할 위치 값 결정
+                // 기본값은 기존 기록이 있으면 그것을 쓰고, 없으면 0으로 초기화
+                double? targetOffset = existing?.ScrollOffset;
+                int targetPage = existing?.SavedPage ?? 0;
+                int targetChapter = existing?.ChapterIndex ?? 0;
+                int targetLine = existing?.SavedLine ?? 1;
+                string? targetArchiveKey = existing?.ArchiveEntryKey;
+
+                // [핵심] saveCurrentPosition이 true일 때만 '현재 뷰어 상태'로 값을 덮어씀
+                if (saveCurrentPosition)
                 {
-                    // Check for existing item by path and type (Ensure one entry per file/archive)
-                    RecentItem? existing = _recentItems.FirstOrDefault(r => r.Path == path && r.Type == type);
-
-                    // Preserve existing position/page if exists
-                    double? preservedOffset = null;
-                    int preservedPage = 0;
-                    int preservedChapterIndex = 0;
-
-                    if (existing != null)
-                    {
-                        preservedOffset = existing.ScrollOffset;
-                        preservedPage = existing.SavedPage;
-                        preservedChapterIndex = existing.ChapterIndex;
-                        _recentItems.Remove(existing);
-                        System.Diagnostics.Debug.WriteLine($"Removed existing recent item (preserving position): {existing.Name}");
-                    }
-
-                    // Add new item (Access Time updated)
-                    var newItem = new RecentItem
-                    {
-                        Name = name,
-                        Path = path,
-                        Type = type,
-                        ArchiveEntryKey = archiveEntryKey,
-                        AccessedAt = DateTime.Now,
-                        // If it existed, keep position. If new, start at 0.
-                        // We do NOT capture current TextScrollViewer status here because this methods is called 
-                        // during transition (Open File) when specific offset is typically 'start' or 'transitioning'.
-                        // Position saving should be done explicitly on Navigation/Leave.
-                        ScrollOffset = preservedOffset,
-                        SavedPage = preservedPage,
-                        ChapterIndex = preservedChapterIndex
-                    };
-                    
-                    // Capture current state if active
                     if (_isEpubMode)
                     {
-                        newItem.SavedPage = CurrentEpubPageIndex;
-                        newItem.ChapterIndex = CurrentEpubChapterIndex;
+                        targetPage = CurrentEpubPageIndex;
+                        targetChapter = CurrentEpubChapterIndex;
                         if (EpubFlipView?.SelectedItem is Grid g && g.Tag is EpubPageInfoTag tag)
-                        {
-                            newItem.SavedLine = tag.StartLine;
-                        }
+                            targetLine = tag.StartLine;
                     }
                     else if (_isTextMode && TextScrollViewer != null)
                     {
-                        newItem.ScrollOffset = TextScrollViewer.VerticalOffset;
+                        targetOffset = TextScrollViewer.VerticalOffset;
                         double lineH = _textFontSize * 1.8;
-                        newItem.SavedLine = (int)(TextScrollViewer.VerticalOffset / lineH) + 1;
+                        targetLine = (int)(TextScrollViewer.VerticalOffset / lineH) + 1;
                         
-                        if (_isAozoraMode && _aozoraBlocks.Count > 0 && _currentAozoraStartBlockIndex >= 0 && _currentAozoraStartBlockIndex < _aozoraBlocks.Count)
-                        {
-                            newItem.SavedLine = _aozoraBlocks[_currentAozoraStartBlockIndex].SourceLineNumber;
-                            newItem.SavedPage = 0;
-                        }
+                        // 아오조라 모드 보정
+                        if (_isAozoraMode && _aozoraBlocks.Count > 0 && _currentAozoraStartBlockIndex >= 0)
+                            targetLine = _aozoraBlocks[_currentAozoraStartBlockIndex].SourceLineNumber;
                     }
-                    
-                    _recentItems.Add(newItem);
-                    System.Diagnostics.Debug.WriteLine($"Added recent item: {newItem.Name}");
-
-                    // Keep only the most recent MaxRecentItems
-                    while (_recentItems.Count > MaxRecentItems)
+                    else if (type == "Archive" && _currentIndex >= 0 && _currentIndex < _imageEntries.Count)
                     {
-                        var oldest = _recentItems.OrderBy<RecentItem, DateTime>(r => r.AccessedAt).First();
-                        _recentItems.Remove(oldest);
-                        System.Diagnostics.Debug.WriteLine($"Removed oldest recent item: {oldest.Name}");
+                        targetArchiveKey = _imageEntries[_currentIndex].ArchiveEntryKey;
+                        name = $"{Path.GetFileName(_currentArchivePath)} - {_imageEntries[_currentIndex].DisplayName}";
                     }
+                }
 
-                    await SaveRecentItems();
-                    UpdateRecentMenu();
-                    System.Diagnostics.Debug.WriteLine("Recent item added and saved successfully");
-                }
-                else
+                // 4. 목록 갱신 (기존 항목 제거 후 맨 앞에 추가)
+                if (existing != null) _recentItems.Remove(existing);
+
+                var newItem = new RecentItem
                 {
-                    System.Diagnostics.Debug.WriteLine("Cannot add recent item - missing name or path");
+                    Name = name,
+                    Path = path,
+                    Type = type,
+                    ArchiveEntryKey = targetArchiveKey, // 결정된 키 사용
+                    AccessedAt = DateTime.Now,        // 시간은 항상 갱신
+                    ScrollOffset = targetOffset,      // 결정된 오프셋 사용
+                    SavedPage = targetPage,
+                    ChapterIndex = targetChapter,
+                    SavedLine = targetLine
+                };
+
+                _recentItems.Insert(0, newItem); // 맨 앞에 추가
+
+                // 최대 개수 제한
+                while (_recentItems.Count > MaxRecentItems)
+                {
+                    _recentItems.RemoveAt(_recentItems.Count - 1);
                 }
+
+                await SaveRecentItems();
+                UpdateRecentMenu();
             }
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"Error adding to recent: {ex.Message}");
-                System.Diagnostics.Debug.WriteLine($"Stack trace: {ex.StackTrace}");
             }
         }
 

@@ -808,7 +808,7 @@ namespace Uviewer
             int startLine = _aozoraBlocks[_currentAozoraStartBlockIndex].SourceLineNumber;
             
             ImageInfoText.Text = $"Line {startLine} / {_aozoraTotalLineCountInSource}";
-            _ = AddToRecentAsync();
+            _ = AddToRecentAsync(true);
             TextProgressText.Text = $"{progress:F1}%";
             
             if (_isAozoraPageCalcCompleted)

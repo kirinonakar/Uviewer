@@ -135,14 +135,12 @@ namespace Uviewer
 
                 if (SupportedArchiveExtensions.Contains(ext))
                 {
+                    await AddToRecentAsync(true);
                     await LoadImagesFromArchiveAsync(file.Path);
-                }
-                else if (SupportedEpubExtensions.Contains(ext))
-                {
-                    await LoadImageFromFileAsync(file);
                 }
                 else
                 {
+                    await AddToRecentAsync(true);
                     await LoadImageFromFileAsync(file);
                 }
 
@@ -730,10 +728,12 @@ namespace Uviewer
             }
             else if (item.IsArchive)
             {
+                await AddToRecentAsync(true);
                 await LoadImagesFromArchiveAsync(item.FullPath);
             }
             else if (item.IsImage || item.IsText || item.IsEpub)
             {
+                await AddToRecentAsync(true);
                 var file = await StorageFile.GetFileFromPathAsync(item.FullPath);
                 await LoadImageFromFileAsync(file);
             }

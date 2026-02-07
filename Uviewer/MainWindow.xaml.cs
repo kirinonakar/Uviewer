@@ -349,7 +349,7 @@ namespace Uviewer
 
 
             // Subscribe to window closed event to save settings
-            this.Closed += (s, e) =>
+            this.Closed += async (s, e) =>
             {
                 try
                 {
@@ -402,7 +402,11 @@ namespace Uviewer
 
                     // Save settings
                     SaveWindowSettings();
-                    _ = SaveRecentItems(); // Save recent items on exit
+                    // Save current position before closing
+                    await AddToRecentAsync(true);
+
+                    await SaveRecentItems();
+                    await SaveFavorites();
                     
                     // Dispose semaphore
                     _archiveLock.Dispose();
@@ -788,13 +792,13 @@ namespace Uviewer
             if (IsTextEntry(entry))
             {
                 await LoadTextEntryAsync(entry);
-                _ = AddToRecentAsync();
+                await AddToRecentAsync(false);
                 return;
             }
             else if (IsEpubEntry(entry))
             {
                 await LoadEpubEntryAsync(entry);
-                _ = AddToRecentAsync();
+                await AddToRecentAsync(false);
                 return;
             }
 
@@ -810,7 +814,7 @@ namespace Uviewer
                 await DisplaySingleImageAsync(token); // <-- token 전달
             }
 
-            _ = AddToRecentAsync();
+            await AddToRecentAsync(false);
         }
 
         private void SyncSidebarSelection(ImageEntry entry)
@@ -1370,6 +1374,8 @@ namespace Uviewer
                     await DisplayCurrentImageAsync();
                 }
 
+                _ = AddToRecentAsync(true);
+
                 // Trigger preloading for previous images if navigating backwards
                 if (_currentArchive != null)
                 {
@@ -1400,6 +1406,8 @@ namespace Uviewer
                     await DisplayCurrentImageAsync();
                 }
 
+                _ = AddToRecentAsync(true);
+
                 if (_currentArchive != null)
                     _ = Task.Run(PreloadNextImagesAsync);
             }
@@ -1407,6 +1415,9 @@ namespace Uviewer
 
         private async Task NavigateToFileAsync(bool isNext)
         {
+            // Save current position before navigating away
+            await AddToRecentAsync(true);
+
             // Find current file/archive in the list
             string? currentPath = null;
             if (_currentArchive != null && !string.IsNullOrEmpty(_currentArchivePath))
@@ -1477,12 +1488,14 @@ namespace Uviewer
                 {
                     if (item.IsArchive)
                     {
+                        await AddToRecentAsync(true); // Save current before switching
                         await LoadImagesFromArchiveAsync(item.FullPath);
                         SyncExplorerSelection(item);
                         return;
                     }
                     else if (item.IsImage || item.IsText || item.IsEpub)
                     {
+                        await AddToRecentAsync(true); // Save current before switching
                         var file = await StorageFile.GetFileFromPathAsync(item.FullPath);
                         await LoadImageFromFileAsync(file);
                         SyncExplorerSelection(item);

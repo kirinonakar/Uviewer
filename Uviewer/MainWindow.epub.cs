@@ -219,6 +219,7 @@ namespace Uviewer
 
         private async Task LoadEpubFileAsync(StorageFile file)
         {
+             await AddToRecentAsync(true);
              InitializeEpub();
              StopAnimatedWebp();
              _currentEpubFilePath = file.Path;
@@ -443,7 +444,7 @@ namespace Uviewer
                 ImageIndexText.Text = $"{currentPage} / {totalPages} (Ch.{_currentEpubChapterIndex + 1})";
             }
 
-            _ = AddToRecentAsync();
+            _ = AddToRecentAsync(true);
         }
 
         // --- Core Rendering Logic ---
