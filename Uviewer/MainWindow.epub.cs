@@ -506,9 +506,11 @@ namespace Uviewer
             _epubTextWidth = 42 * _epubFontSize; 
             
             // Regex to split by img/image tags
-            // Use a capture group to keep the tag in the result array
             string pattern = @"(<(?:img|image)\b[^>]*>)"; 
             var segments = Regex.Split(html, pattern, RegexOptions.IgnoreCase | RegexOptions.Singleline);
+
+            bool hasImages = html.Contains("<img", StringComparison.OrdinalIgnoreCase) || html.Contains("<image", StringComparison.OrdinalIgnoreCase);
+            bool isFirstContent = true;
 
             foreach (var segment in segments)
             {
@@ -521,18 +523,28 @@ namespace Uviewer
                     if (imgPage != null) 
                     {
                         pages.Add(imgPage);
-                    }
-                    else
-                    {
-                        // Failed image load, create a placeholder text page? 
-                        // Or just ignore.
-                        System.Diagnostics.Debug.WriteLine($"Failed to load image from tag: {segment}");
+                        isFirstContent = false;
                     }
                 }
                 else
                 {
                     var textPages = CreateTextPages(segment);
+                    if (textPages.Count == 0) continue;
+
+                    // [User Request] If this is a short title page at the start of a chapter with images, skip it.
+                    if (isFirstContent && hasImages && textPages.Count == 1)
+                    {
+                        string plainText = Regex.Replace(segment, @"<[^>]+>", "");
+                        plainText = System.Net.WebUtility.HtmlDecode(plainText).Trim();
+                        if (plainText.Length > 0 && plainText.Length < 100)
+                        {
+                            isFirstContent = false; // Mark that we've handled the "first" part
+                            continue;
+                        }
+                    }
+
                     pages.AddRange(textPages);
+                    isFirstContent = false;
                 }
             }
 
