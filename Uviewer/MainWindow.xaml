@@ -540,7 +540,7 @@
             </Grid.ColumnDefinitions>
 
             <TextBlock x:Name="FileNameText" Grid.Column="0" 
-                       Text="이미지를 선택해주세요" 
+                       Text="파일을 선택해주세요" 
                        FontSize="12" 
                        Foreground="{ThemeResource TextFillColorSecondaryBrush}"
                        VerticalAlignment="Center"

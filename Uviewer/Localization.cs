@@ -57,16 +57,16 @@ namespace Uviewer
 
         // UI Texts
         public static string CurrentPathPlaceholder => S("폴더를 선택하세요", "Select a folder");
-        public static string EmptyStateDrag => S("이미지를 여기에 드래그하거나", "Drag images here or");
+        public static string EmptyStateDrag => S("파일을 여기에 드래그하거나", "Drag files here or");
         public static string EmptyStateClick => S("'열기' 버튼을 클릭하세요", "Click 'Open Button'");
-        public static string EmptyStateButton => S("이미지 열기", "Open Image");
+        public static string EmptyStateButton => S("파일 열기", "Open File");
         
         public static string FastNavText => S("빠른 탐색 중...", "Fast Navigating...");
         public static string TextFastNavText => S("페이지 이동 중...", "Navigating...");
         public static string EpubFastNavText => S("챕터 이동 중...", "Navigating Chapter...");
         public static string CalculatingPages => S(" (페이지 계산중...)", " (Calculating pages...)");
-        public static string FileSelectPlaceholder => S("이미지를 선택해주세요", "Select an image");
-        public static string LoadImageError => S("이미지를 불러올 수 없습니다.", "Cannot load image.");
+        public static string FileSelectPlaceholder => S("파일을 선택해주세요", "Select a file");
+        public static string LoadImageError => S("파일을 불러올 수 없습니다.", "Cannot load file.");
         
         public static string EpubLoadError(string msg) => S($"EPUB 로드 실패: {msg}", $"EPUB Load Failed: {msg}");
         public static string EpubParseError(string msg) => S($"EPUB 파싱 오류: {msg}", $"EPUB Parse Error: {msg}");
