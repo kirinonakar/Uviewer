@@ -285,7 +285,6 @@ namespace Uviewer
         {
             _isTextMode = true;
             _isEpubMode = false; // Reset Epub mode
-            _isSideBySideMode = false; // Disable SbS
 
             // Toggle Visibility
             if (EmptyStatePanel != null) EmptyStatePanel.Visibility = Visibility.Collapsed;

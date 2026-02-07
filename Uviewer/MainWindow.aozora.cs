@@ -59,7 +59,7 @@ namespace Uviewer
         // Settings
         public class AozoraSettings
         {
-            public bool IsAozoraModeEnabled { get; set; } = false;
+            public bool IsAozoraModeEnabled { get; set; } = true;
         }
         
         private const string AozoraSettingsFilePath = "aozora_settings.json";

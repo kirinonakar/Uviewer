@@ -9,7 +9,7 @@
 ## ✨ Key Features
 
 ### 🖼️ Image Viewing
-- **Broad Format Support**: JPEG, PNG, GIF, BMP, TIFF, ICO, SVG, WebP, AVIF and **Animated WebP**.
+- **Broad Format Support**: JPEG, PNG, GIF, BMP, TIFF, ICO, SVG, WebP, AVIF (AV1 Video Extension required) and **Animated WebP**.
 - **High-Performance Rendering**: Powered by **Win2D** (Direct2D) for smooth zooming and panning.
 - **Smart Scaling**: Customizable zoom levels (0.1x to 10x), fit-to-window, and actual size.
 - **Tools**: Sharpening filter, Side-by-Side view mode, and Fast Navigation overlay.
@@ -17,7 +17,7 @@
 ### 📝 Text & Novel Viewing
 - **Advanced Text Engine**: 
   - **Immediate loading of large text files**
-  - **Aozora Bunko Support**: Native rendering of Ruby text (Furigana), emphasis, and indentation.
+  - **Aozora Bunko format Support**: Native rendering of Ruby text (Furigana), emphasis, and indentation.
   - **Markdown Support**: Custom-built Markdown rendering including tables, code blocks, and inline formatting.
   - **Smart Encoding Detection**: Automatically detects and handles various encodings (UTF-8, Unicode, **EUC-KR**, **Shift-JIS**, **Johab**).
 - **Reading Comfort**: Adjustable font size, font family (Yu Gothic Medium/Yu Mincho), and background themes (Light/Beige/Dark).
@@ -40,7 +40,7 @@
 
 ## 🛠️ System Requirements
 - **OS**: Windows 10 (Version 19041+) or Windows 11.
-- **Runtime**: .NET 10.0 (Preview) / .NET 9.0 (check project config).
+- **Runtime**: .NET 10.0.
 - **Framework**: Windows App SDK 1.8+.
 
 ## ⌨️ Keyboard Shortcuts
