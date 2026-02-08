@@ -281,7 +281,7 @@ namespace Uviewer
             string content = await reader.ReadToEndAsync();
             
             // Regex to find full-path
-            var match = Regex.Match(content, "full-path=\"([^\"]+)\"");
+            var match = Regex.Match(content, "full-path=[\"']([^\"']+)[\"']", RegexOptions.IgnoreCase);
             if (match.Success) return match.Groups[1].Value;
             
             return "";
@@ -300,17 +300,32 @@ namespace Uviewer
             
             // Extract Manifest
             var manifest = new Dictionary<string, string>(); // id -> href
-            var manifestMatches = Regex.Matches(content, "<item[^>]*id=\"([^\"]+)\"[^>]*href=\"([^\"]+)\"[^>]*>");
-            foreach (Match m in manifestMatches)
+            string opfDir = Path.GetDirectoryName(opfPath)?.Replace("\\", "/") ?? "";
+
+            var itemMatches = Regex.Matches(content, "<item\\s+[^>]*>", RegexOptions.IgnoreCase);
+            foreach (Match m in itemMatches)
             {
-                manifest[m.Groups[1].Value] = m.Groups[2].Value;
+                string tagContent = m.Value;
+                var idMatch = Regex.Match(tagContent, "id=[\"']([^\"']+)[\"']", RegexOptions.IgnoreCase);
+                var hrefMatch = Regex.Match(tagContent, "href=[\"']([^\"']+)[\"']", RegexOptions.IgnoreCase);
+
+                if (idMatch.Success && hrefMatch.Success)
+                {
+                    string id = idMatch.Groups[1].Value;
+                    string href = hrefMatch.Groups[1].Value;
+                    manifest[id] = href;
+
+                    // Check for EPUB 3 nav property
+                    if (Regex.IsMatch(tagContent, "properties=[\"'][^\"']*nav[^\"']*[\"']", RegexOptions.IgnoreCase))
+                    {
+                        _epubTocPath = string.IsNullOrEmpty(opfDir) ? href : opfDir + "/" + href;
+                    }
+                }
             }
             
             // Extract Spine
             _epubSpine.Clear();
             var itemRefMatches = Regex.Matches(content, "<itemref[^>]*idref=\"([^\"]+)\"[^>]*/>");
-            
-            string opfDir = Path.GetDirectoryName(opfPath)?.Replace("\\", "/") ?? "";
             
             foreach (Match m in itemRefMatches)
             {
@@ -324,16 +339,8 @@ namespace Uviewer
                 }
             }
             
-            // Try to find TOC path
-            // 1. Check for EPUB 3 nav
-            var navMatch = Regex.Match(content, "<item[^>]*properties=\"[^\"]*nav[^\"]*\"[^>]*href=\"([^\"]+)\"");
-            if (navMatch.Success)
-            {
-                string href = navMatch.Groups[1].Value;
-                _epubTocPath = string.IsNullOrEmpty(opfDir) ? href : opfDir + "/" + href;
-            }
-            // 2. Check for EPUB 2 ncx in spine
-            else
+            // Try to find TOC path if not already found (EPUB 2 fallback)
+            if (string.IsNullOrEmpty(_epubTocPath))
             {
                 var spineMatch = Regex.Match(content, "<spine[^>]*toc=\"([^\"]+)\"");
                 if (spineMatch.Success)
@@ -1203,63 +1210,44 @@ namespace Uviewer
         private void ParseNcxToc(string xml)
         {
             // Simple Regex parsing for NCX
-            // <navPoint ...>
-            //   <navLabel><text>Title</text></navLabel>
-            //   <content src="path.html#id" />
-            
-            // This is recursive structure, but we'll try flat for now or simple level detection
-            // Regex is hard for nested, but let's try a simple loop
-            
-            // Cleanup namespaces to simplify
             xml = Regex.Replace(xml, "xmlns=\"[^\"]*\"", "");
             
-            // Match navPoints
-             // We can use a simple state machine or regex loop if structure is simple
-             // Let's assume flat or finding all navPoints.
-             
-             // Extract all navPoints raw
-             var matches = Regex.Matches(xml, "<navPoint[^>]*>([\\s\\S]*?)</navPoint>");
-             foreach (Match m in matches)
-             {
-                 string inner = m.Groups[1].Value;
-                 
-                 // Title
-                 string title = "";
-                 var tm = Regex.Match(inner, "<text>([^<]+)</text>");
-                 if (tm.Success) title = tm.Groups[1].Value;
-                 
-                 // Src
-                 string src = "";
-                 var cm = Regex.Match(inner, "<content[^>]*src=\"([^\"]+)\"");
-                 if (cm.Success) src = cm.Groups[1].Value;
-                 
-                 if (!string.IsNullOrEmpty(title) && !string.IsNullOrEmpty(src))
-                 {
-                     // Resolve Src relative to TOC path
-                     string fullSrc = ResolveRelativePath(_epubTocPath!, src);
-                     _epubToc.Add(new EpubTocItem { Title = title, Link = fullSrc });
-                 }
-             }
+            var matches = Regex.Matches(xml, "<navPoint[^>]*>([\\s\\S]*?)</navPoint>");
+            foreach (Match m in matches)
+            {
+                string inner = m.Groups[1].Value;
+                
+                string title = "";
+                var tm = Regex.Match(inner, "<text>([^<]+)</text>");
+                if (tm.Success) title = tm.Groups[1].Value;
+                
+                string src = "";
+                var cm = Regex.Match(inner, "<content[^>]*src=[\"']([^\"']+)[\"']", RegexOptions.IgnoreCase);
+                if (cm.Success) src = cm.Groups[1].Value;
+                
+                if (!string.IsNullOrEmpty(title) && !string.IsNullOrEmpty(src))
+                {
+                    string fullSrc = ResolveRelativePath(_epubTocPath!, src);
+                    _epubToc.Add(new EpubTocItem { Title = title, Link = fullSrc });
+                }
+            }
         }
         
         private void ParseNavToc(string html)
         {
-             // HTML 5 Parsing via Regex
-             // look for <nav epub:type="toc"> ... <ol> ... <li><a href="...">Title</a>
-             
-             // Extract <a> tags with href
-             var matches = Regex.Matches(html, "<a[^>]*href=\"([^\"]+)\"[^>]*>([^<]+)</a>");
-             foreach (Match m in matches)
-             {
-                 string src = m.Groups[1].Value;
-                 string title = m.Groups[2].Value.Trim();
-                 
-                 if (!string.IsNullOrEmpty(title) && !string.IsNullOrEmpty(src))
-                 {
-                     string fullSrc = ResolveRelativePath(_epubTocPath!, src);
-                     _epubToc.Add(new EpubTocItem { Title = title, Link = fullSrc });
-                 }
-             }
+            // Extract <a> tags with href
+            var matches = Regex.Matches(html, "<a[^>]*href=[\"']([^\"']+)[\"'][^>]*>([^<]+)</a>", RegexOptions.IgnoreCase);
+            foreach (Match m in matches)
+            {
+                string src = m.Groups[1].Value;
+                string title = m.Groups[2].Value.Trim();
+                
+                if (!string.IsNullOrEmpty(title) && !string.IsNullOrEmpty(src))
+                {
+                    string fullSrc = ResolveRelativePath(_epubTocPath!, src);
+                    _epubToc.Add(new EpubTocItem { Title = title, Link = fullSrc });
+                }
+            }
         }
 
         public async void JumpToEpubTocItem(EpubTocItem item)
