@@ -137,6 +137,9 @@ namespace Uviewer
             if (e.Handled) return;
             if (!_isEpubMode) return;
 
+            var ctrlPressed = Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(
+                Windows.System.VirtualKey.Control).HasFlag(Windows.UI.Core.CoreVirtualKeyStates.Down);
+
             if (e.Key == Windows.System.VirtualKey.Left)
             {
                 _ = NavigateEpubAsync(-1);
@@ -169,9 +172,6 @@ namespace Uviewer
             }
             else if (e.Key == Windows.System.VirtualKey.B)
             {
-                 var ctrlPressed = Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(
-                     Windows.System.VirtualKey.Control).HasFlag(Windows.UI.Core.CoreVirtualKeyStates.Down);
-                 
                  if (ctrlPressed)
                  {
                      ToggleSidebar();
@@ -202,9 +202,9 @@ namespace Uviewer
                  }
                  e.Handled = true;
             }
-            else if (e.Key == Windows.System.VirtualKey.Space || e.Key == Windows.System.VirtualKey.S)
+            else if (e.Key == Windows.System.VirtualKey.Space || (e.Key == Windows.System.VirtualKey.S && !ctrlPressed))
             {
-                // Disable Space and S
+                // Disable Space and S (allow Ctrl+S)
                 e.Handled = true;
             }
         }

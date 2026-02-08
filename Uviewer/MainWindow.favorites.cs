@@ -825,13 +825,17 @@ namespace Uviewer
                 {
                     if (_isEpubMode)
                     {
-                        // 페이지가 0인데 기존에 읽던 기록(>0)이 있다면, 로딩 덜 된 상태로 간주하고 기존 값 유지
-                        if (CurrentEpubPageIndex == 0 && existing != null && existing.SavedPage > 0)
+                        // 페이지가 0이거나 챕터가 0인 초기화 상태에서, 
+                        // 기존에 읽던 기록(페이지 > 0 OR 챕터 > 0)이 있다면 기존 값 유지
+                        bool isResetState = CurrentEpubPageIndex == 0 && CurrentEpubChapterIndex == 0;
+                        bool hasExistingProgress = existing != null && (existing.SavedPage > 0 || existing.ChapterIndex > 0);
+
+                        if (isResetState && hasExistingProgress)
                         {
                             targetPage = existing.SavedPage;
                             targetChapter = existing.ChapterIndex;
                             targetLine = existing.SavedLine;
-                            System.Diagnostics.Debug.WriteLine($"[SafeGuard] Epub position 0 detected. Keeping previous page: {targetPage}");
+                            System.Diagnostics.Debug.WriteLine($"[SafeGuard] Epub reset state detected. Keeping previous position: Ch.{targetChapter} P.{targetPage}");
                         }
                         else
                         {
