@@ -72,6 +72,7 @@ namespace Uviewer
         public static string FileSelectPlaceholder => S("파일을 선택해주세요", "Select a file");
         public static string LoadImageError => S("파일을 불러올 수 없습니다.", "Cannot load file.");
         public static string AddedToFavoritesNotification => S("즐겨찾기에 추가되었습니다", "Added to Favorites");
+        public static string Loading => S(" (로딩중...)", " (Loading...)");
         
         public static string EpubLoadError(string msg) => S($"EPUB 로드 실패: {msg}", $"EPUB Load Failed: {msg}");
         public static string EpubParseError(string msg) => S($"EPUB 파싱 오류: {msg}", $"EPUB Parse Error: {msg}");

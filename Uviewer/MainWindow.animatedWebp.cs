@@ -12,6 +12,8 @@ using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 using Windows.Graphics.DirectX;
+using System.Diagnostics;
+using SixLabors.ImageSharp.Processing;
 
 namespace Uviewer
 {
@@ -34,10 +36,11 @@ namespace Uviewer
         // Sharpened image caching
         private readonly Dictionary<int, CanvasBitmap> _sharpenedImageCache = new();
         private const int MaxSharpenedCacheSize = 20; // Limit cache size to prevent memory issues
+        private readonly Dictionary<int, CanvasBitmap> _animatedWebpSharpenedCache = new();
 
         #region Sharpened Image Caching
 
-        private async Task<CanvasBitmap?> ApplySharpenToBitmapAsync(CanvasBitmap originalBitmap, CanvasControl canvas)
+        private async Task<CanvasBitmap?> ApplySharpenToBitmapAsync(CanvasBitmap originalBitmap, CanvasControl canvas, bool skipUpscale = false)
         {
             try
             {
@@ -45,7 +48,7 @@ namespace Uviewer
                     return originalBitmap;
 
                 // 1. 업스케일 조건 확인 (1024 미만)
-                bool shouldUpscale = originalBitmap.Size.Width < 1024 || originalBitmap.Size.Height < 1024;
+                bool shouldUpscale = !skipUpscale && (originalBitmap.Size.Width < 1024 || originalBitmap.Size.Height < 1024);
 
                 float finalWidth = (float)originalBitmap.Size.Width;
                 float finalHeight = (float)originalBitmap.Size.Height;
@@ -160,6 +163,21 @@ namespace Uviewer
             _animatedWebpDelaysMs = null;
             _animatedWebpWidth = 0;        // <-- 추가
             _animatedWebpHeight = 0;       // <-- 추가
+
+            // Clear sharpened frame cache
+            lock (_animatedWebpSharpenedCache)
+            {
+                foreach (var bmp in _animatedWebpSharpenedCache.Values)
+                {
+                    // 현재 사용 중인 비트맵(화면에 출력 중인 것)은 해제하지 않습니다.
+                    // 나중에 _currentBitmap이 교체될 때 IsBitmapInCache 체크를 통해 해제됩니다.
+                    if (bmp != _currentBitmap && bmp != _leftBitmap && bmp != _rightBitmap)
+                    {
+                        bmp.Dispose();
+                    }
+                }
+                _animatedWebpSharpenedCache.Clear();
+            }
         }
 
         private void StartAnimatedWebpTimer()
@@ -173,10 +191,13 @@ namespace Uviewer
             _animatedWebpTimer.Start();
         }
 
-        private void AnimatedWebpTimer_Tick(DispatcherQueueTimer sender, object args)
+        private async void AnimatedWebpTimer_Tick(DispatcherQueueTimer sender, object args)
         {
             if (_animatedWebpFramePixels == null || _animatedWebpDelaysMs == null || _animatedWebpFramePixels.Count == 0)
                 return;
+
+            // 1. 처리 시간 측정을 위한 스톱워치 시작
+            var stopwatch = Stopwatch.StartNew();
 
             sender.Stop(); // 타이머 일시 정지 (다음 딜레이 설정을 위해)
 
@@ -188,44 +209,116 @@ namespace Uviewer
                 // 2. 현재 캔버스 디바이스 확인 (창이 닫히거나 디바이스가 없으면 중단)
                 if (MainCanvas.Device == null) return;
 
-                // 3. 픽셀 데이터로 CanvasBitmap 생성 (이것이 Win2D가 그리는 객체입니다)
-                var newBitmap = CanvasBitmap.CreateFromBytes(
-                    MainCanvas,
-                    _animatedWebpFramePixels[_animatedWebpFrameIndex],
-                    _animatedWebpWidth,
-                    _animatedWebpHeight,
-                    DirectXPixelFormat.B8G8R8A8UIntNormalized);
+                CanvasBitmap? newBitmap = null;
 
-                // 4. 기존 비트맵 정리 및 교체
+                // 3. 샤프닝이 활성화된 경우 캐시 확인 및 적용
+                if (_sharpenEnabled)
+                {
+                    lock (_animatedWebpSharpenedCache)
+                    {
+                        if (_animatedWebpSharpenedCache.TryGetValue(_animatedWebpFrameIndex, out var cached))
+                        {
+                            newBitmap = cached;
+                        }
+                    }
+
+                    if (newBitmap == null)
+                    {
+                        // 원본 프레임 생성
+                        using var originalBitmap = CanvasBitmap.CreateFromBytes(
+                            MainCanvas,
+                            _animatedWebpFramePixels[_animatedWebpFrameIndex],
+                            _animatedWebpWidth,
+                            _animatedWebpHeight,
+                            DirectXPixelFormat.B8G8R8A8UIntNormalized);
+
+                        // 샤프닝 적용
+                        newBitmap = await ApplySharpenToBitmapAsync(originalBitmap, MainCanvas, skipUpscale: true);
+
+                        // 다시 UI 스레드로 돌아왔을 때 애니메이션이 중단되었는지 확인
+                        if (_animatedWebpFramePixels == null || MainCanvas.Device == null)
+                        {
+                            newBitmap?.Dispose();
+                            return;
+                        }
+
+                        if (newBitmap != null)
+                        {
+                            lock (_animatedWebpSharpenedCache)
+                            {
+                                _animatedWebpSharpenedCache[_animatedWebpFrameIndex] = newBitmap;
+                            }
+                        }
+                    }
+                }
+
+                // 4. 샤프닝이 없거나 실패한 경우 일반 프레임 생성
+                if (newBitmap == null)
+                {
+                    newBitmap = CanvasBitmap.CreateFromBytes(
+                        MainCanvas,
+                        _animatedWebpFramePixels[_animatedWebpFrameIndex],
+                        _animatedWebpWidth,
+                        _animatedWebpHeight,
+                        DirectXPixelFormat.B8G8R8A8UIntNormalized);
+                }
+
+                // 5. 기존 비트맵 정리 및 교체 (캐시된 비트맵은 Dispose하지 않도록 주의)
                 var oldBitmap = _currentBitmap;
                 _currentBitmap = newBitmap;
-                oldBitmap?.Dispose(); // 메모리 누수 방지를 위해 이전 프레임 해제
 
-                // 5. 화면 갱신 요청
+                if (oldBitmap != null && !IsBitmapInCache(oldBitmap))
+                {
+                    // 애니메이션 캐시에도 없는 경우에만 Dispose
+                    bool isInAnimationCache = false;
+                    lock (_animatedWebpSharpenedCache)
+                    {
+                        isInAnimationCache = _animatedWebpSharpenedCache.ContainsValue(oldBitmap);
+                    }
+
+                    if (!isInAnimationCache)
+                    {
+                        oldBitmap.Dispose();
+                    }
+                }
+
+                // 6. 화면 갱신 요청
                 MainCanvas.Invalidate();
             }
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"Animation Error: {ex.Message}");
             }
-
-            // 6. 다음 프레임 딜레이 설정 및 타이머 재시작
-            if (_animatedWebpDelaysMs != null)
+            finally
             {
-                sender.Interval = TimeSpan.FromMilliseconds(Math.Max(10, _animatedWebpDelaysMs[_animatedWebpFrameIndex]));
-                sender.Start();
+                // 2. 스톱워치 종료 및 시간 계산
+                stopwatch.Stop();
+                long elapsedMs = stopwatch.ElapsedMilliseconds;
+
+                // 7. 다음 프레임 딜레이 설정 및 타이머 재시작
+                if (_animatedWebpDelaysMs != null)
+                {
+                    // 원래 기다려야 할 시간
+                    int targetDelay = _animatedWebpDelaysMs[_animatedWebpFrameIndex];
+
+                    // 보정된 시간 = (원래 딜레이) - (작업에 걸린 시간)
+                    // 최소 0ms (음수가 되면 즉시 실행해야 함)
+                    int adjustedDelay = Math.Max(0, targetDelay - (int)elapsedMs);
+
+                    sender.Interval = TimeSpan.FromMilliseconds(adjustedDelay);
+                    sender.Start();
+                }
             }
         }
 
 
-        private async Task<(List<byte[]>? framePixels, List<int>? delaysMs, int width, int height)> TryLoadAnimatedWebpFramesAsync(byte[] webpBytes)
+        private async Task<(List<byte[]>? framePixels, List<int>? delaysMs, int width, int height)> TryLoadAnimatedImageFramesAsync(byte[] imageBytes)
         {
             try
             {
-                using var inputStream = new MemoryStream(webpBytes);
-
-                // [최적화 1] Rgba32 대신 Win2D가 선호하는 Bgra32로 바로 로드
-                // (ImageSharp.PixelFormats 네임스페이스 필요)
+                using var inputStream = new MemoryStream(imageBytes);
+                
+                // [최적화 1] Bgra32로 로드
                 using var image = await Task.Run(() => SixLabors.ImageSharp.Image.Load<Bgra32>(inputStream));
 
                 if (image.Frames.Count <= 1)
@@ -236,25 +329,47 @@ namespace Uviewer
                 var framePixels = new List<byte[]>();
                 var delaysMs = new List<int>();
 
-                // 미리 버퍼 크기 계산
                 int bytesPerFrame = w * h * 4;
+
+                // 프레임 구성을 위한 베이스 이미지
+                using var composed = new SixLabors.ImageSharp.Image<Bgra32>(w, h);
 
                 for (int i = 0; i < image.Frames.Count; i++)
                 {
                     var currentFrame = image.Frames[i];
-                    var bytes = new byte[bytesPerFrame];
-
-                    // [최적화 2] 픽셀 루프 제거 -> 메모리 블록 복사로 대체 (수백 배 빠름)
+                    
                     await Task.Run(() =>
                     {
-                        currentFrame.CopyPixelDataTo(bytes);
+                        using var frameImg = image.Frames.CloneFrame(i);
+                        
+                        // [핵심] 겹침 현상(Ghosting) 해결
+                        // PixelAlphaCompositionMode.Src를 사용하여 투명한 영역도 이전 프레임을 덮어씌우도록 합니다.
+                        // 이 방식은 대부분의 전체 크기 애니메이션 GIF의 잔상 문제를 해결합니다.
+                        composed.Mutate(ctx => ctx.DrawImage(frameImg, PixelColorBlendingMode.Normal, PixelAlphaCompositionMode.Src, 1f));
                     });
 
+                    var bytes = new byte[bytesPerFrame];
+                    composed.CopyPixelDataTo(bytes);
                     framePixels.Add(bytes);
 
                     int delayMs = DefaultWebpFrameDelayMs;
-                    if (currentFrame.Metadata.TryGetWebpFrameMetadata(out var webpFrameMeta) && webpFrameMeta.FrameDelay > 0)
+                    
+                    // GIF 딜레이 정보
+                    var gifFrameMeta = currentFrame.Metadata.GetGifMetadata();
+                    // WebP 딜레이 정보
+                    var webpFrameMeta = currentFrame.Metadata.GetWebpMetadata();
+
+                    if (webpFrameMeta != null && webpFrameMeta.FrameDelay > 0)
+                    {
+                        // WebP delay (ms)
                         delayMs = (int)Math.Max(10, webpFrameMeta.FrameDelay);
+                    }
+                    else if (gifFrameMeta != null && gifFrameMeta.FrameDelay > 0)
+                    {
+                        // GIF delay: 1/100s -> ms
+                        delayMs = (int)Math.Max(10, gifFrameMeta.FrameDelay * 10);
+                        if (delayMs <= 20) delayMs = 100; // 브라우저 관례 보정
+                    }
 
                     delaysMs.Add(delayMs);
                 }
@@ -263,7 +378,7 @@ namespace Uviewer
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"WebP Parse Error: {ex.Message}");
+                System.Diagnostics.Debug.WriteLine($"Animated Image Parse Error: {ex.Message}");
                 return (null, null, 0, 0);
             }
         }

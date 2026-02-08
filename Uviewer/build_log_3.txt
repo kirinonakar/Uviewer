@@ -1,0 +1,19 @@
+  복원할 프로젝트를 확인하는 중...
+  복원할 모든 프로젝트가 최신 상태입니다.
+D:\ASUNA\Tools\Visual_studio\Uviewer\Uviewer\MainWindow.animatedWebp.cs(353,66): error CS1061: 'WebpFrameMetadata'에는 'X'에 대한 정의가 포함되어 있지 않고, 'WebpFrameMetadata' 형식의 첫 번째 인수를 허용하는 액세스 가능한 확장 메서드 'X'이(가) 없습니다. using 지시문 또는 어셈블리 참조가 있는지 확인하세요. [D:\ASUNA\Tools\Visual_studio\Uviewer\Uviewer\Uviewer.csproj]
+D:\ASUNA\Tools\Visual_studio\Uviewer\Uviewer\MainWindow.animatedWebp.cs(353,85): error CS1061: 'WebpFrameMetadata'에는 'Y'에 대한 정의가 포함되어 있지 않고, 'WebpFrameMetadata' 형식의 첫 번째 인수를 허용하는 액세스 가능한 확장 메서드 'Y'이(가) 없습니다. using 지시문 또는 어셈블리 참조가 있는지 확인하세요. [D:\ASUNA\Tools\Visual_studio\Uviewer\Uviewer\Uviewer.csproj]
+D:\ASUNA\Tools\Visual_studio\Uviewer\Uviewer\MainWindow.animatedWebp.cs(355,45): error CS1061: 'WebpFrameMetadata'에는 'X'에 대한 정의가 포함되어 있지 않고, 'WebpFrameMetadata' 형식의 첫 번째 인수를 허용하는 액세스 가능한 확장 메서드 'X'이(가) 없습니다. using 지시문 또는 어셈블리 참조가 있는지 확인하세요. [D:\ASUNA\Tools\Visual_studio\Uviewer\Uviewer\Uviewer.csproj]
+D:\ASUNA\Tools\Visual_studio\Uviewer\Uviewer\MainWindow.animatedWebp.cs(356,44): error CS1061: 'WebpFrameMetadata'에는 'Y'에 대한 정의가 포함되어 있지 않고, 'WebpFrameMetadata' 형식의 첫 번째 인수를 허용하는 액세스 가능한 확장 메서드 'Y'이(가) 없습니다. using 지시문 또는 어셈블리 참조가 있는지 확인하세요. [D:\ASUNA\Tools\Visual_studio\Uviewer\Uviewer\Uviewer.csproj]
+C:\Users\totor\.nuget\packages\microsoft.windowsappsdk.winui\1.8.251222000\buildTransitive\Microsoft.UI.Xaml.Markup.Compiler.interop.targets(845,9): error MSB3073: ""C:\Users\totor\.nuget\packages\microsoft.windowsappsdk.winui\1.8.251222000\buildTransitive\..\tools\net6.0\..\net472\XamlCompiler.exe" "obj\Release\net10.0-windows10.0.19041.0\win-x64\\input.json" "obj\Release\net10.0-windows10.0.19041.0\win-x64\\output.json"" 명령이 종료되었습니다(코드: 1). [D:\ASUNA\Tools\Visual_studio\Uviewer\Uviewer\Uviewer.csproj]
+
+빌드하지 못했습니다.
+
+D:\ASUNA\Tools\Visual_studio\Uviewer\Uviewer\MainWindow.animatedWebp.cs(353,66): error CS1061: 'WebpFrameMetadata'에는 'X'에 대한 정의가 포함되어 있지 않고, 'WebpFrameMetadata' 형식의 첫 번째 인수를 허용하는 액세스 가능한 확장 메서드 'X'이(가) 없습니다. using 지시문 또는 어셈블리 참조가 있는지 확인하세요. [D:\ASUNA\Tools\Visual_studio\Uviewer\Uviewer\Uviewer.csproj]
+D:\ASUNA\Tools\Visual_studio\Uviewer\Uviewer\MainWindow.animatedWebp.cs(353,85): error CS1061: 'WebpFrameMetadata'에는 'Y'에 대한 정의가 포함되어 있지 않고, 'WebpFrameMetadata' 형식의 첫 번째 인수를 허용하는 액세스 가능한 확장 메서드 'Y'이(가) 없습니다. using 지시문 또는 어셈블리 참조가 있는지 확인하세요. [D:\ASUNA\Tools\Visual_studio\Uviewer\Uviewer\Uviewer.csproj]
+D:\ASUNA\Tools\Visual_studio\Uviewer\Uviewer\MainWindow.animatedWebp.cs(355,45): error CS1061: 'WebpFrameMetadata'에는 'X'에 대한 정의가 포함되어 있지 않고, 'WebpFrameMetadata' 형식의 첫 번째 인수를 허용하는 액세스 가능한 확장 메서드 'X'이(가) 없습니다. using 지시문 또는 어셈블리 참조가 있는지 확인하세요. [D:\ASUNA\Tools\Visual_studio\Uviewer\Uviewer\Uviewer.csproj]
+D:\ASUNA\Tools\Visual_studio\Uviewer\Uviewer\MainWindow.animatedWebp.cs(356,44): error CS1061: 'WebpFrameMetadata'에는 'Y'에 대한 정의가 포함되어 있지 않고, 'WebpFrameMetadata' 형식의 첫 번째 인수를 허용하는 액세스 가능한 확장 메서드 'Y'이(가) 없습니다. using 지시문 또는 어셈블리 참조가 있는지 확인하세요. [D:\ASUNA\Tools\Visual_studio\Uviewer\Uviewer\Uviewer.csproj]
+C:\Users\totor\.nuget\packages\microsoft.windowsappsdk.winui\1.8.251222000\buildTransitive\Microsoft.UI.Xaml.Markup.Compiler.interop.targets(845,9): error MSB3073: ""C:\Users\totor\.nuget\packages\microsoft.windowsappsdk.winui\1.8.251222000\buildTransitive\..\tools\net6.0\..\net472\XamlCompiler.exe" "obj\Release\net10.0-windows10.0.19041.0\win-x64\\input.json" "obj\Release\net10.0-windows10.0.19041.0\win-x64\\output.json"" 명령이 종료되었습니다(코드: 1). [D:\ASUNA\Tools\Visual_studio\Uviewer\Uviewer\Uviewer.csproj]
+    경고 0개
+    오류 5개
+
+경과 시간: 00:00:04.01

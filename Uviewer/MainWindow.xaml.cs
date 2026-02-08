@@ -900,9 +900,13 @@ namespace Uviewer
 
                 if (bitmap != null)
                 {
-                    // [중요 수정] SideBySide 방식처럼 직접 Dispose를 호출하지 않습니다.
-                    // 대신 _currentBitmap 레퍼런스만 교체합니다.
-                    // 실제 메모리 해제는 CleanupOldPreloadedImages()가 인덱스 거리를 보고 처리합니다.
+                    // [추가] 기존 비트맵이 캐시(프리로딩 등)에 없는 임시 비트맵(애니메이션 프레임 등)이면 명시적으로 해제
+                    if (_currentBitmap != null && !IsBitmapInCache(_currentBitmap))
+                    {
+                        _currentBitmap.Dispose();
+                    }
+
+                    // [중요 수정] 이제 위에서 직접 Dispose를 호출할 수 있습니다 (캐시 여부 확인 후)
                     _currentBitmap = bitmap;
 
                     // UI 즉시 갱신
@@ -927,21 +931,31 @@ namespace Uviewer
                 if (entry.FilePath != null) ext = Path.GetExtension(entry.FilePath).ToLowerInvariant();
                 else if (entry.ArchiveEntryKey != null) ext = Path.GetExtension(entry.ArchiveEntryKey).ToLowerInvariant();
 
-                if (ext == ".webp" && !entry.IsArchiveEntry && entry.FilePath != null)
+                if (ext == ".webp" || ext == ".gif")
                 {
+                    // 로딩 표시 추가
+                    FileNameText.Text += Strings.Loading;
+
                     _ = Task.Run(async () =>
                     {
                         try
                         {
                             if (token.IsCancellationRequested) return;
 
-                            // 1. [최적화] 전체 파일을 읽기 전에 헤더만 살짝 검사
-                            bool isAnimated = await IsAnimatedWebPAsync(entry.FilePath);
-                            if (!isAnimated) return; // 정적 이미지면 여기서 종료 (CPU/IO 절약)
+                            byte[]? imageBytes = null;
+                            if (entry.IsArchiveEntry && entry.ArchiveEntryKey != null)
+                            {
+                                imageBytes = await LoadBytesFromArchiveEntryAsync(entry.ArchiveEntryKey, token);
+                            }
+                            else if (entry.FilePath != null)
+                            {
+                                imageBytes = await File.ReadAllBytesAsync(entry.FilePath, token);
+                            }
 
-                            // 2. 애니메이션이 확실한 경우에만 전체 바이트 로드
-                            byte[] webpBytes = await File.ReadAllBytesAsync(entry.FilePath, token);
-                            var (framePixels, delays, width, height) = await TryLoadAnimatedWebpFramesAsync(webpBytes);
+                            if (imageBytes == null || token.IsCancellationRequested) return;
+
+                            // 애니메이션 프레임 로드 (내부에서 애니메이션 여부 자동 확인)
+                            var (framePixels, delays, width, height) = await TryLoadAnimatedImageFramesAsync(imageBytes);
 
                             if (token.IsCancellationRequested) return;
 
@@ -950,20 +964,46 @@ namespace Uviewer
                                 DispatcherQueue.TryEnqueue(() =>
                                 {
                                     if (token.IsCancellationRequested) return;
-                                    if (_currentIndex < _imageEntries.Count &&
-                                        _imageEntries[_currentIndex].FilePath == entry.FilePath)
+                                    
+                                    // 현재 인덱스가 일치하는지 확인 (다른 파일로 넘어갔을 경우 방지)
+                                    bool isStillCurrent = false;
+                                    if (entry.IsArchiveEntry) 
+                                        isStillCurrent = _currentIndex < _imageEntries.Count && _imageEntries[_currentIndex].ArchiveEntryKey == entry.ArchiveEntryKey;
+                                    else
+                                        isStillCurrent = _currentIndex < _imageEntries.Count && _imageEntries[_currentIndex].FilePath == entry.FilePath;
+
+                                    if (isStillCurrent)
                                     {
                                         _animatedWebpFramePixels = framePixels;
                                         _animatedWebpDelaysMs = delays ?? Enumerable.Repeat(DefaultWebpFrameDelayMs, framePixels.Count).ToList();
                                         _animatedWebpFrameIndex = 0;
                                         _animatedWebpWidth = width;
                                         _animatedWebpHeight = height;
+                                        
+                                        // 로딩 완료 후 상태바 복구
+                                        UpdateStatusBar(entry, _currentBitmap!);
                                         StartAnimatedWebpTimer();
                                     }
                                 });
                             }
+                            else
+                            {
+                                // 애니메이션이 아니거나 로드 실패 시 상태바 복구
+                                DispatcherQueue.TryEnqueue(() =>
+                                {
+                                    if (token.IsCancellationRequested) return;
+                                    UpdateStatusBar(entry, _currentBitmap!);
+                                });
+                            }
                         }
-                        catch { }
+                        catch 
+                        {
+                            DispatcherQueue.TryEnqueue(() =>
+                            {
+                                if (token.IsCancellationRequested) return;
+                                UpdateStatusBar(entry, _currentBitmap!);
+                            });
+                        }
                     }, token);
                 }
             }
@@ -972,36 +1012,6 @@ namespace Uviewer
             {
                 if (!token.IsCancellationRequested)
                     FileNameText.Text = $"이미지 로드 오류: {ex.Message}";
-            }
-        }
-
-        // WebP 헤더만 읽어서 ANIM 청크가 있는지 확인 (매우 빠름)
-        private async Task<bool> IsAnimatedWebPAsync(string filePath)
-        {
-            try
-            {
-                using var stream = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.Read, 4096, true);
-                byte[] header = new byte[64]; // 처음 64바이트만 읽어도 충분함
-                int bytesRead = await stream.ReadAsync(header, 0, header.Length);
-
-                if (bytesRead < 12) return false;
-
-                // "RIFF" and "WEBP" signature check
-                var riff = System.Text.Encoding.ASCII.GetString(header, 0, 4);
-                var webp = System.Text.Encoding.ASCII.GetString(header, 8, 4);
-
-                if (riff != "RIFF" || webp != "WEBP") return false;
-
-                // "VP8X" 청크가 있어야 애니메이션 플래그 확인 가능
-                // VP8X 청크 찾기
-                string headerStr = System.Text.Encoding.ASCII.GetString(header);
-                if (headerStr.Contains("ANIM")) return true; // ANIM 청크가 있으면 100% 애니메이션
-
-                return false;
-            }
-            catch
-            {
-                return false;
             }
         }
 
@@ -1014,6 +1024,10 @@ namespace Uviewer
             lock (_sharpenedImageCache)
             {
                 if (_sharpenedImageCache.ContainsValue(bitmap)) return true;
+            }
+            lock (_animatedWebpSharpenedCache)
+            {
+                if (_animatedWebpSharpenedCache.ContainsValue(bitmap)) return true;
             }
             return false;
         }
@@ -1066,6 +1080,10 @@ namespace Uviewer
 
                 if (token.IsCancellationRequested) return;
 
+                // [추가] 기존 비트맵들 정리
+                if (_leftBitmap != null && !IsBitmapInCache(_leftBitmap)) _leftBitmap.Dispose();
+                if (_rightBitmap != null && !IsBitmapInCache(_rightBitmap)) _rightBitmap.Dispose();
+
                 _leftBitmap = leftBitmap;
                 _rightBitmap = rightBitmap;
                 _currentBitmap = rightBitmap ?? leftBitmap; // For zoom calculations
@@ -1111,7 +1129,7 @@ namespace Uviewer
                                 if (_sharpenedImageCache.TryGetValue(entryIndex, out var sharpenedBitmap))
                                     return sharpenedBitmap;
                             }
-                            var sharpened = await ApplySharpenToBitmapAsync(preloadedBitmap, canvas);
+                            var sharpened = await ApplySharpenToBitmapAsync(preloadedBitmap, canvas, skipUpscale: false);
                             if (sharpened != null)
                             {
                                 CacheSharpenedImage(entryIndex, sharpened);
@@ -1149,7 +1167,7 @@ namespace Uviewer
                             return cached;
                     }
 
-                    var sharpened = await ApplySharpenToBitmapAsync(originalBitmap, canvas);
+                    var sharpened = await ApplySharpenToBitmapAsync(originalBitmap, canvas, skipUpscale: false);
                     if (sharpened != null)
                     {
                         CacheSharpenedImage(entryIndex, sharpened);
@@ -1182,6 +1200,18 @@ namespace Uviewer
                     }
                 }
                 _sharpenedImageCache.Clear();
+            }
+
+            lock (_animatedWebpSharpenedCache)
+            {
+                foreach (var bmp in _animatedWebpSharpenedCache.Values)
+                {
+                    if (bmp != _currentBitmap && bmp != _leftBitmap && bmp != _rightBitmap)
+                    {
+                        bmp.Dispose();
+                    }
+                }
+                _animatedWebpSharpenedCache.Clear();
             }
 
             UpdateSharpenButtonState();
@@ -1317,6 +1347,33 @@ namespace Uviewer
             }
         }
 
+
+        private async Task<byte[]?> LoadBytesFromArchiveEntryAsync(string entryKey, CancellationToken token)
+        {
+            if (token.IsCancellationRequested) return null;
+
+            await _archiveLock.WaitAsync();
+            try
+            {
+                if (_currentArchive == null) return null;
+                var archiveEntry = _currentArchive.Entries.FirstOrDefault(e => e.Key == entryKey);
+                if (archiveEntry == null) return null;
+
+                using var entryStream = archiveEntry.OpenEntryStream();
+                using var memoryStream = new MemoryStream();
+                await entryStream.CopyToAsync(memoryStream, token);
+                return memoryStream.ToArray();
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Archive Byte Load Error: {ex.Message}");
+                return null;
+            }
+            finally
+            {
+                _archiveLock.Release();
+            }
+        }
 
         private void ShowImageUI()
         {
