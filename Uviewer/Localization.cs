@@ -48,7 +48,7 @@ namespace Uviewer
         public static string ParentFolderTooltip => S("상위 폴더로 가기(Backspace)", "Up Level (Backspace)");
         public static string RecentTooltip => S("최근 파일", "Recent Files");
         public static string NoRecentFiles => S("최근 파일 없음", "No Recent Files");
-        public static string FavoritesTooltip => S("즐겨찾기", "Favorites");
+        public static string FavoritesTooltip => S("즐겨찾기(Ctrl+S)", "Favorites (Ctrl+S)");
         public static string NoFavorites => S("즐겨찾기 없음", "No Favorites");
         public static string TocTooltip => S("목차", "Table of Contents");
         public static string TocTitle => S("목차", "Contents");
@@ -71,6 +71,7 @@ namespace Uviewer
         public static string CalculatingPages => S(" (페이지 계산중...)", " (Calculating pages...)");
         public static string FileSelectPlaceholder => S("파일을 선택해주세요", "Select a file");
         public static string LoadImageError => S("파일을 불러올 수 없습니다.", "Cannot load file.");
+        public static string AddedToFavoritesNotification => S("즐겨찾기에 추가되었습니다", "Added to Favorites");
         
         public static string EpubLoadError(string msg) => S($"EPUB 로드 실패: {msg}", $"EPUB Load Failed: {msg}");
         public static string EpubParseError(string msg) => S($"EPUB 파싱 오류: {msg}", $"EPUB Parse Error: {msg}");
@@ -79,7 +80,7 @@ namespace Uviewer
               $"Page {p}/{tp} Line {l}/{tl} (Ch.{c}/{tc})");
 
         // Dialogs & Menus
-        public static string AddToFavorites => S("➕ 즐겨찾기 추가", "➕ Add to Favorites");
+        public static string AddToFavorites => S("➕ 즐겨찾기 추가(Ctrl+S)", "➕ Add to Favorites (Ctrl+S)");
         public static string DialogTitle => S("줄 이동", "Go to Line");
         public static string DialogPrimary => S("이동", "Go");
         public static string DialogClose => S("취소", "Cancel");

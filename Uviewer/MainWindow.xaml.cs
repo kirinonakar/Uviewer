@@ -51,6 +51,8 @@ namespace Uviewer
         private bool _sidebarHideTimerRunning = false;
         private int _SidebarWidth = 320;
 
+        private DispatcherQueueTimer? _notificationTimer;
+
         private Windows.Graphics.RectInt32 _lastNonMaximizedRect = new(100, 100, 1200, 800);
 
         // Side-by-side view settings
@@ -453,6 +455,15 @@ namespace Uviewer
             _animatedWebpTimer = DispatcherQueue.GetForCurrentThread().CreateTimer();
             _animatedWebpTimer.Interval = TimeSpan.FromMilliseconds(100);
             _animatedWebpTimer.Tick += AnimatedWebpTimer_Tick;
+
+            // Initialize notification timer
+            _notificationTimer = DispatcherQueue.GetForCurrentThread().CreateTimer();
+            _notificationTimer.Interval = TimeSpan.FromSeconds(2);
+            _notificationTimer.IsRepeating = false;
+            _notificationTimer.Tick += (s, e) =>
+            {
+                NotificationOverlay.Visibility = Visibility.Collapsed;
+            };
         }
 
         private void ApplyLocalization()
@@ -511,6 +522,7 @@ namespace Uviewer
             if (AddToFavoritesButton != null) AddToFavoritesButton.Content = Strings.AddToFavorites;
             if (SidebarAddToFavoritesButton != null) SidebarAddToFavoritesButton.Content = Strings.AddToFavorites;
             if (ChangeFontMenuItem != null) ChangeFontMenuItem.Text = Strings.ChangeFont;
+            if (NotificationText != null) NotificationText.Text = Strings.AddedToFavoritesNotification;
         }
 
         private void AppWindow_Changed(AppWindow sender, AppWindowChangedEventArgs args)
@@ -774,6 +786,17 @@ namespace Uviewer
         }
 
         #endregion
+
+        public void ShowNotification(string message)
+        {
+            if (NotificationOverlay == null || NotificationText == null) return;
+
+            NotificationText.Text = message;
+            NotificationOverlay.Visibility = Visibility.Visible;
+
+            _notificationTimer?.Stop();
+            _notificationTimer?.Start();
+        }
 
 
         #region Image Display

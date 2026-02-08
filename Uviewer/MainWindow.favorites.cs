@@ -416,6 +416,7 @@ namespace Uviewer
                     await SaveFavorites();
                     UpdateFavoritesMenu();
                     System.Diagnostics.Debug.WriteLine("Favorite added and saved successfully");
+                    ShowNotification(Strings.AddedToFavoritesNotification);
                 }
                 else
                 {
@@ -905,6 +906,7 @@ namespace Uviewer
                 System.Diagnostics.Debug.WriteLine($"Error adding to recent: {ex.Message}");
             }
         }
+
 
         private async Task RemoveRecentAsync(RecentItem recent)
         {

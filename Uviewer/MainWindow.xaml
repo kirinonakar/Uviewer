@@ -581,5 +581,28 @@
                        VerticalAlignment="Center"
                        TextAlignment="Right"/>
         </Grid>
+
+        <!-- Notification Overlay -->
+        <Border x:Name="NotificationOverlay" 
+                Grid.RowSpan="3"
+                HorizontalAlignment="Center" 
+                VerticalAlignment="Bottom"
+                Margin="0,0,0,100"
+                Background="{ThemeResource SystemControlBackgroundChromeMediumLowBrush}"
+                Padding="24,12"
+                CornerRadius="20"
+                BorderThickness="1"
+                BorderBrush="{ThemeResource SystemControlForegroundChromeHighBrush}"
+                Visibility="Collapsed"
+                Canvas.ZIndex="1000">
+            <Border.Shadow>
+                <ThemeShadow />
+            </Border.Shadow>
+            <StackPanel Orientation="Horizontal" Spacing="12">
+                <FontIcon Glyph="&#xE735;" Foreground="Gold" FontSize="20"/>
+                <TextBlock x:Name="NotificationText" Text="즐겨찾기에 추가되었습니다" 
+                           VerticalAlignment="Center" FontWeight="SemiBold"/>
+            </StackPanel>
+        </Border>
     </Grid>
 </Window>

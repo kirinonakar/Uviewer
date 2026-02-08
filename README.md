@@ -60,6 +60,7 @@
 | **Ctrl + O** | Global | Open File |
 | **Ctrl + B** | Global | Toggle Sidebar |
 | **Ctrl + F** | Global | Toggle Favorites |
+| **Ctrl + S** | Global | Add to Favorites |
 | **G** | Text/EPUB | Go to Line |
 | **+ / -** | Global | Zoom In/Out / Font Size Up/Down |
 | **0** | Image | Reset Zoom to 100% |

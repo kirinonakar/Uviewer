@@ -11,10 +11,14 @@ namespace Uviewer
 
         private void RootGrid_PreviewKeyDown(object sender, KeyRoutedEventArgs e)
         {
+            var ctrlPressed = Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(
+                Windows.System.VirtualKey.Control).HasFlag(Windows.UI.Core.CoreVirtualKeyStates.Down);
+
             // Disable specific keys in Text/Epub mode if needed, or prevent interference
             if (_isEpubMode || _isTextMode)
             {
-                if (e.Key == Windows.System.VirtualKey.Space || e.Key == Windows.System.VirtualKey.S)
+                // S is blocked unless Ctrl is pressed
+                if (e.Key == Windows.System.VirtualKey.Space || (e.Key == Windows.System.VirtualKey.S && !ctrlPressed))
                 {
                     e.Handled = true;
                     return;
@@ -69,9 +73,16 @@ namespace Uviewer
                     break;
 
                 case Windows.System.VirtualKey.S:
-                    // 체크 상태만 바꾸고 클릭 핸들러를 실행하면, 핸들러 내부에서 UI를 업데이트합니다.
-                    SharpenButton.IsChecked = !(SharpenButton.IsChecked ?? false);
-                    SharpenButton_Click(SharpenButton, new RoutedEventArgs());
+                    if (ctrlPressed)
+                    {
+                        _ = AddToFavoritesAsync();
+                    }
+                    else
+                    {
+                        // 체크 상태만 바꾸고 클릭 핸들러를 실행하면, 핸들러 내부에서 UI를 업데이트합니다.
+                        SharpenButton.IsChecked = !(SharpenButton.IsChecked ?? false);
+                        SharpenButton_Click(SharpenButton, new RoutedEventArgs());
+                    }
                     e.Handled = true;
                     break;
 
