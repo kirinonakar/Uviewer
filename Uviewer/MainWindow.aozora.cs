@@ -246,7 +246,7 @@ namespace Uviewer
 
             double availableHeight = AozoraPageContainer.ActualHeight;
             if (availableHeight < 200) availableHeight = 800;
-            availableHeight -= 40; // Grid Padding
+            availableHeight -= 45; // 40 (Grid Padding) + 5 (Ruby safety gap)
 
             double maxWidth = _isMarkdownRenderMode ? innerWidth : Math.Min(innerWidth, GetUrlMaxWidth());
             
@@ -572,7 +572,7 @@ namespace Uviewer
             _currentAozoraStartBlockIndex = startIdx;
             
             AozoraPageContent.Blocks.Clear();
-            AozoraPageContent.Padding = new Thickness(0); // Use Grid's padding instead to avoid double padding
+            AozoraPageContent.Padding = new Thickness(0, 15, 0, 0); // Add top padding to prevent first-line ruby clipping
 
             // Reflow fix: Calculate available width for proper measurement and wrapping
             double availableWidth = AozoraPageContainer?.ActualWidth ?? 800;
@@ -588,7 +588,7 @@ namespace Uviewer
 
             double availableHeight = AozoraPageContainer?.ActualHeight ?? 800;
             if (availableHeight < 200) availableHeight = 800;
-            availableHeight -= 40; // Grid Padding
+            availableHeight -= 55; // 40 (Grid Padding) + 15 (Ruby safety gap)
 
             double currentHeight = 0;
             int endIdx = startIdx;
@@ -644,7 +644,7 @@ namespace Uviewer
             }
             
             var p = new Paragraph();
-            p.LineHeight = _textFontSize * block.FontSizeScale * 1.8;
+            p.LineHeight = _textFontSize * block.FontSizeScale * 2; // Increased multiplier for better ruby spacing
             p.LineStackingStrategy = LineStackingStrategy.BlockLineHeight;
             p.Margin = new Thickness(0, block.Margin.Top, 0, block.Margin.Bottom);
             p.TextAlignment = block.Alignment;
@@ -697,8 +697,8 @@ namespace Uviewer
             }
 
             var p = new Paragraph();
-            // 실제 렌더링 시 사용하는 1.8 배수와 동일하게 설정
-            p.LineHeight = rtb.FontSize * 1.8;
+            // 실제 렌더링 시 사용하는 배수와 동일하게 설정
+            p.LineHeight = rtb.FontSize * 2.2;
             p.LineStackingStrategy = LineStackingStrategy.BlockLineHeight;
 
             foreach (var item in block.Inlines)
@@ -1254,7 +1254,7 @@ namespace Uviewer
             
             rtb.Blocks.Clear();
             var p = new Paragraph(); // We put everything in one paragraph per "Block" (Line)
-            p.LineHeight = rtb.FontSize * 1.8;
+            p.LineHeight = rtb.FontSize * 2.2; // Increased multiplier for better ruby spacing
             p.LineStackingStrategy = LineStackingStrategy.BlockLineHeight; // Enforce consistent line height
             
             // Build Inlines
@@ -1292,44 +1292,52 @@ namespace Uviewer
 
         private InlineUIContainer CreateRubyInline(string baseText, string rubyText, double baseFontSize)
         {
-            // Reuse logic from epub.cs (CreateRuby) but adapted for InlineUIContainer
-            
-            bool isMincho = _textFontFamily.Contains("Mincho") || _textFontFamily.Contains("Myungjo");
-
             var grid = new Grid();
-            grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto }); // Ruby
-            grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto }); // Base
             
+            // Auto 높이를 사용하여 내용물 크기에 딱 맞게 설정
+            grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto }); // Ruby (0행)
+            grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto }); // Base (1행)
+            
+            // 루비 텍스트 (윗첨자)
             var rt = new TextBlock
             {
                 Text = rubyText,
                 FontSize = baseFontSize * 0.5,
                 HorizontalAlignment = HorizontalAlignment.Center,
-                Foreground = GetThemeForeground(), 
-                Opacity = 0.8,
-                Margin = new Thickness(0, 0, 0, isMincho ? -7 : -5) 
+                Foreground = GetThemeForeground(),
+                Opacity = 1,
+                TextLineBounds = TextLineBounds.Tight, // 여백 없이 텍스트 영역만 차지
+                IsHitTestVisible = false,
+                Margin = new Thickness(0, 0, 0, 4) // [수정] -2 겹침 마진 제거
             };
             Grid.SetRow(rt, 0);
             
+            // 본문 텍스트 (베이스)
             var rb = new TextBlock
             {
                 Text = baseText,
                 FontSize = baseFontSize,
                 HorizontalAlignment = HorizontalAlignment.Center,
                 Foreground = GetThemeForeground(),
-                Margin = new Thickness(0, isMincho ? 2 : 4, 0, 0) 
+                TextLineBounds = TextLineBounds.Tight, // 주변 텍스트와 높이 맞춤을 위해 Tight 유지
+                Margin = new Thickness(0, 0, 0, 0),
+                Padding = new Thickness(0)
             };
             Grid.SetRow(rb, 1);
             
             grid.Children.Add(rt);
             grid.Children.Add(rb);
             
-            // Translate down to align base text with surrounding text
-            // Gothic needs less offset (0.3), Mincho needs more (0.6)
-            double offsetFactor = isMincho ? 0.6 : 0.3;
-            grid.RenderTransform = new TranslateTransform { Y = baseFontSize * offsetFactor };
+            // [수정] 중요: Grid 자체의 수직 정렬을 Bottom으로 설정하여
+            // 본문 텍스트(rb)의 하단이 주변 텍스트의 기준선(Baseline)에 맞도록 유도
+            grid.VerticalAlignment = VerticalAlignment.Bottom;
+
+            // [수정] 텍스트를 아래로 끌어내리던 음수 마진(-baseFontSize * 0.12) 제거
+            grid.Margin = new Thickness(0, 0, 0, 0); 
             
-            return new InlineUIContainer { Child = grid }; // Align baseline? Default is Bottom.
+            // RichTextBlock 내부에서 InlineUIContainer는 기본적으로 기준선(Baseline)에 맞춰 배치됩니다.
+            // Grid의 아래쪽(BaseText의 바닥)이 기준선에 오게 되므로, 주변 텍스트와 높이가 맞게 됩니다.
+            return new InlineUIContainer { Child = grid }; 
         }
         
         private InlineUIContainer CreateTableInline(List<List<string>> rows)

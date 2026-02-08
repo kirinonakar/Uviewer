@@ -696,9 +696,8 @@ namespace Uviewer
             double targetWidth = Math.Min(availableWidth - (textPadding * 2), 45 * _epubFontSize);
             if (targetWidth < 200) targetWidth = 600;
 
-            // Reserved height (subtracting 20 padding each side + small safety buffer)
-            // 40 for padding + 4 for rounding safety
-            double targetHeight = availableHeight - 44; 
+            // Reserved height (subtracting padding + ruby safety buffer)
+            double targetHeight = availableHeight - 45; 
             if (targetHeight < 200) targetHeight = 800; 
 
             // 1. Create Master RichTextBlock
@@ -715,7 +714,7 @@ namespace Uviewer
                 Margin = new Thickness(0),
                 Padding = new Thickness(0),
                 LineStackingStrategy = LineStackingStrategy.BlockLineHeight,
-                LineHeight = _epubFontSize * 1.8,
+                LineHeight = _epubFontSize * 2, // Increased multiplier for better ruby spacing
                 TextWrapping = TextWrapping.Wrap
             };
 
@@ -724,7 +723,7 @@ namespace Uviewer
             var page1Grid = new Grid 
             { 
                 Background = GetEpubThemeBackground(), 
-                Padding = new Thickness(20)
+                Padding = new Thickness(20, 25, 20, 20) // Added top padding for ruby safety
             };
             page1Grid.Children.Add(rtb);
             page1Grid.PointerPressed += EpubPage_PointerPressed;
@@ -733,7 +732,7 @@ namespace Uviewer
             // Force measure
             rtb.Measure(new Windows.Foundation.Size((float)targetWidth, (float)targetHeight));
 
-            int linesPerPage = (int)(targetHeight / (_epubFontSize * 1.8));
+            int linesPerPage = (int)(targetHeight / (_epubFontSize * 2));
             if (linesPerPage < 1) linesPerPage = 1;
             
             int cumulativeLines = linesPerPage;
@@ -767,7 +766,7 @@ namespace Uviewer
                 var pageGrid = new Grid 
                 { 
                     Background = GetEpubThemeBackground(), 
-                    Padding = new Thickness(20)
+                    Padding = new Thickness(20, 25, 20, 20) // Added top padding for ruby safety
                 };
                 pageGrid.Children.Add(overflow);
                 pageGrid.PointerPressed += EpubPage_PointerPressed;
@@ -953,7 +952,7 @@ namespace Uviewer
                 var p = new Paragraph();
                 p.TextAlignment = TextAlignment.Left;
                 p.Margin = new Thickness(0, 0, 0, _epubFontSize * 0.5); 
-                p.LineHeight = _epubFontSize * 1.8; // Consistent line height (enforced)
+                p.LineHeight = _epubFontSize * 2; // Increased multiplier for better ruby spacing
                 p.LineStackingStrategy = LineStackingStrategy.BlockLineHeight; // Force rigid line height
                 
                 // Tokenize by custom Ruby marker
@@ -988,6 +987,8 @@ namespace Uviewer
         private InlineUIContainer CreateRuby(string baseText, string rubyText)
         {
             var grid = new Grid();
+            
+            // Use Auto height
             grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto }); // Ruby
             grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto }); // Base
             
@@ -998,8 +999,10 @@ namespace Uviewer
                 HorizontalAlignment = HorizontalAlignment.Center,
                 Foreground = GetThemeForeground(),
                 FontFamily = new FontFamily(_epubFontFamily),
-                Opacity = 0.8,
-                Margin = new Thickness(0, 0, 0, _epubFontFamily == "Yu Mincho" ? -7 : -5) // Tighten gap even more (Extra tight for Yu Mincho)
+                Opacity = 1,
+                TextLineBounds = TextLineBounds.Tight,
+                IsHitTestVisible = false,
+                Margin = new Thickness(0, 0, 0, 4) // [수정] 겹침 마진 제거 및 여유 공간 추가
             };
             
             var rb = new TextBlock
@@ -1009,7 +1012,9 @@ namespace Uviewer
                 HorizontalAlignment = HorizontalAlignment.Center,
                 Foreground = GetThemeForeground(),
                 FontFamily = new FontFamily(_epubFontFamily),
-                Margin = new Thickness(0, _epubFontFamily == "Yu Mincho" ? 2 : 4, 0, 0) 
+                TextLineBounds = TextLineBounds.Tight,
+                Margin = new Thickness(0),
+                Padding = new Thickness(0)
             };
             
             Grid.SetRow(rt, 0);
@@ -1018,16 +1023,12 @@ namespace Uviewer
             grid.Children.Add(rt);
             grid.Children.Add(rb);
             
-            // Use TranslateTransform to push the entire Ruby block down relative to the baseline
-            // Push down slightly more to match baseline
-            if (_epubFontFamily == "Yu Mincho")
-            {
-                grid.RenderTransform = new TranslateTransform { Y = _epubFontSize * 0.60 }; 
-            }
-            else
-            {
-                grid.RenderTransform = new TranslateTransform { Y = _epubFontSize * 0.30 }; 
-            }
+            // [수정] 중요: Grid 자체의 수직 정렬을 Bottom으로 설정하여
+            // 본문 텍스트(rb)의 하단이 주변 텍스트의 기준선(Baseline)에 맞도록 유도
+            grid.VerticalAlignment = VerticalAlignment.Bottom;
+
+            // [수정] 텍스트를 아래로 끌어내리던 음수 마진 제거
+            grid.Margin = new Thickness(0, 0, 0, 0); 
 
             return new InlineUIContainer { Child = grid };
         }
