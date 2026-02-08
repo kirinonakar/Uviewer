@@ -73,7 +73,13 @@ namespace Uviewer
                          // LoadEpubChapterAsync resets index to 0 by default but we can try to restore?
                          // Ideally we want to stay at same *percentage* or *text position*.
                          // For now, simple reload as requested. 
-                         _ = LoadEpubChapterAsync(_currentEpubChapterIndex);
+                         int currentLine = 1;
+                         if (EpubFlipView?.SelectedItem is Grid g && g.Tag is EpubPageInfoTag tag)
+                         {
+                             currentLine = tag.StartLine;
+                         }
+                         
+                         _ = LoadEpubChapterAsync(_currentEpubChapterIndex, targetLine: currentLine);
                      }
                 };
             }
@@ -355,7 +361,7 @@ namespace Uviewer
             }
         }
 
-        private async Task LoadEpubChapterAsync(int index, bool fromEnd = false)
+        private async Task LoadEpubChapterAsync(int index, bool fromEnd = false, int targetLine = -1)
         {
             if (index < 0 || index >= _epubSpine.Count) return;
 
@@ -379,7 +385,29 @@ namespace Uviewer
                 // Update FlipView
                 EpubFlipView.ItemsSource = pages;
                 
-                if (fromEnd && pages.Count > 0)
+                if (targetLine > 0)
+                {
+                    int targetPage = 0;
+                    for (int i = 0; i < pages.Count; i++)
+                    {
+                        if (pages[i] is Grid pg && pg.Tag is EpubPageInfoTag tag)
+                        {
+                            if (targetLine >= tag.StartLine && targetLine < tag.StartLine + tag.LineCount)
+                            {
+                                targetPage = i;
+                                break;
+                            }
+                            // Last page fallback
+                            if (i == pages.Count - 1 && targetLine >= tag.StartLine)
+                            {
+                                targetPage = i;
+                                break;
+                            }
+                        }
+                    }
+                    EpubFlipView.SelectedIndex = targetPage;
+                }
+                else if (fromEnd && pages.Count > 0)
                 {
                     EpubFlipView.SelectedIndex = pages.Count - 1;
                 }

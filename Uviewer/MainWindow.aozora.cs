@@ -186,7 +186,7 @@ namespace Uviewer
                     if (AozoraPageContainer != null) AozoraPageContainer.Visibility = Visibility.Visible;
                     
                     await PrepareAozoraDisplayAsync(_currentTextContent, targetLine);
-                    FileNameText.Text = fileName;
+                    FileNameText.Text = GetFormattedDisplayName(fileName, _currentTextArchiveEntryKey != null);
                 }
                 else
                 {

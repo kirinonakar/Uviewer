@@ -178,7 +178,7 @@ namespace Uviewer
                 if (TextScrollViewer != null) TextScrollViewer.Visibility = Visibility.Collapsed;
                 if (AozoraPageContainer != null) AozoraPageContainer.Visibility = Visibility.Visible;
                 
-                FileNameText.Text = name;
+                FileNameText.Text = GetFormattedDisplayName(name, _currentTextArchiveEntryKey != null);
             }
             else
             {
@@ -1141,8 +1141,14 @@ namespace Uviewer
         {
             if (_isEpubMode)
             {
+                int currentLine = 1;
+                if (!resetScroll && EpubFlipView?.SelectedItem is Grid g && g.Tag is EpubPageInfoTag tag)
+                {
+                    currentLine = tag.StartLine;
+                }
+                
                 UpdateEpubVisuals();
-                _ = LoadEpubChapterAsync(_currentEpubChapterIndex);
+                _ = LoadEpubChapterAsync(_currentEpubChapterIndex, targetLine: currentLine);
                 return;
             }
 
@@ -1711,7 +1717,7 @@ namespace Uviewer
             if (!_isTextMode) return;
             if (_isAozoraMode) { UpdateAozoraStatusBar(); return; }
 
-             if (fileName != null) FileNameText.Text = fileName;
+             if (fileName != null) FileNameText.Text = GetFormattedDisplayName(fileName, _currentTextArchiveEntryKey != null);
              
              int total = totalLines ?? _textLines.Count;
              if (total == 0) total = 1;

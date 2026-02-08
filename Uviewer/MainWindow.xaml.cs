@@ -1311,9 +1311,19 @@ namespace Uviewer
             }
         }
 
+        private string GetFormattedDisplayName(string displayName, bool isArchiveEntry)
+        {
+            if (isArchiveEntry && !string.IsNullOrEmpty(_currentArchivePath))
+            {
+                string archiveName = Path.GetFileName(_currentArchivePath);
+                return $"{archiveName} - {displayName}";
+            }
+            return displayName;
+        }
+
         private void UpdateStatusBar(ImageEntry entry, CanvasBitmap bitmap)
         {
-            FileNameText.Text = entry.DisplayName;
+            FileNameText.Text = GetFormattedDisplayName(entry.DisplayName, entry.IsArchiveEntry);
             ImageInfoText.Text = $"{(int)bitmap.Size.Width} × {(int)bitmap.Size.Height}";
             TextProgressText.Text = ""; // Clear for image mode
 

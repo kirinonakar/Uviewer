@@ -117,7 +117,7 @@ namespace Uviewer
             // Images will stay visible showing the last loaded image
 
             // Update the filename text directly
-            FileNameText.Text = currentEntry.DisplayName;
+            FileNameText.Text = GetFormattedDisplayName(currentEntry.DisplayName, currentEntry.IsArchiveEntry);
 
             // Update status bar with filename and index
             TextProgressText.Text = ""; // Clear for image mode
