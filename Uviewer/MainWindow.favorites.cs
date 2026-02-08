@@ -763,7 +763,7 @@ namespace Uviewer
                 string name = "";
                 string path = "";
                 string type = "";
-                
+
                 // 1. 현재 열려있는 파일 정보 파악
                 if (_isTextMode && !string.IsNullOrEmpty(_currentTextFilePath))
                 {
@@ -781,7 +781,6 @@ namespace Uviewer
                 {
                     path = _currentArchivePath;
                     type = "Archive";
-                    // 아카이브 이름 설정 (현재 이미지 기준 또는 파일명)
                     if (_currentIndex >= 0 && _currentIndex < _imageEntries.Count)
                         name = $"{Path.GetFileName(_currentArchivePath)} - {_imageEntries[_currentIndex].DisplayName}";
                     else
@@ -789,13 +788,13 @@ namespace Uviewer
                 }
                 else if (_currentIndex >= 0 && _currentIndex < _imageEntries.Count)
                 {
-                     var currentEntry = _imageEntries[_currentIndex];
-                     if (!string.IsNullOrEmpty(currentEntry.FilePath))
-                     {
-                         name = currentEntry.DisplayName;
-                         path = currentEntry.FilePath;
-                         type = "File";
-                     }
+                    var currentEntry = _imageEntries[_currentIndex];
+                    if (!string.IsNullOrEmpty(currentEntry.FilePath))
+                    {
+                        name = currentEntry.DisplayName;
+                        path = currentEntry.FilePath;
+                        type = "File";
+                    }
                 }
                 else if (!string.IsNullOrEmpty(_currentExplorerPath))
                 {
@@ -808,40 +807,67 @@ namespace Uviewer
                 if (string.IsNullOrEmpty(path)) return;
 
                 // 2. 기존 기록이 있는지 확인
-                RecentItem? existing = _recentItems.FirstOrDefault(r => 
-                    r.Path.Equals(path, StringComparison.OrdinalIgnoreCase) && 
+                RecentItem? existing = _recentItems.FirstOrDefault(r =>
+                    r.Path.Equals(path, StringComparison.OrdinalIgnoreCase) &&
                     r.Type.Equals(type, StringComparison.OrdinalIgnoreCase));
-                
-                // 3. 저장할 위치 값 결정
-                // 기본값은 기존 기록이 있으면 그것을 쓰고, 없으면 0으로 초기화
+
+                // 3. 저장할 위치 값 결정 (기본값: 기존 기록 유지)
                 double? targetOffset = existing?.ScrollOffset;
                 int targetPage = existing?.SavedPage ?? 0;
                 int targetChapter = existing?.ChapterIndex ?? 0;
                 int targetLine = existing?.SavedLine ?? 1;
                 string? targetArchiveKey = existing?.ArchiveEntryKey;
 
-                // [핵심] saveCurrentPosition이 true일 때만 '현재 뷰어 상태'로 값을 덮어씀
+                // [핵심 수정] saveCurrentPosition이 true일 때 '현재 뷰어 상태'를 읽어오되,
+                // 로딩 중 초기화(0)된 값으로 유의미한 기존 기록을 덮어쓰는 것을 방지
                 if (saveCurrentPosition)
                 {
                     if (_isEpubMode)
                     {
-                        targetPage = CurrentEpubPageIndex;
-                        targetChapter = CurrentEpubChapterIndex;
-                        if (EpubFlipView?.SelectedItem is Grid g && g.Tag is EpubPageInfoTag tag)
-                            targetLine = tag.StartLine;
+                        // 페이지가 0인데 기존에 읽던 기록(>0)이 있다면, 로딩 덜 된 상태로 간주하고 기존 값 유지
+                        if (CurrentEpubPageIndex == 0 && existing != null && existing.SavedPage > 0)
+                        {
+                            targetPage = existing.SavedPage;
+                            targetChapter = existing.ChapterIndex;
+                            targetLine = existing.SavedLine;
+                            System.Diagnostics.Debug.WriteLine($"[SafeGuard] Epub position 0 detected. Keeping previous page: {targetPage}");
+                        }
+                        else
+                        {
+                            targetPage = CurrentEpubPageIndex;
+                            targetChapter = CurrentEpubChapterIndex;
+                            if (EpubFlipView?.SelectedItem is Grid g && g.Tag is EpubPageInfoTag tag)
+                                targetLine = tag.StartLine;
+                        }
                     }
                     else if (_isTextMode && TextScrollViewer != null)
                     {
-                        targetOffset = TextScrollViewer.VerticalOffset;
-                        double lineH = _textFontSize * 1.8;
-                        targetLine = (int)(TextScrollViewer.VerticalOffset / lineH) + 1;
+                        double currentOffset = TextScrollViewer.VerticalOffset;
                         
-                        // 아오조라 모드 보정
-                        if (_isAozoraMode && _aozoraBlocks.Count > 0 && _currentAozoraStartBlockIndex >= 0)
-                            targetLine = _aozoraBlocks[_currentAozoraStartBlockIndex].SourceLineNumber;
+                        // 오프셋이 0인데 기존에 읽던 기록(>0)이 있다면, 기존 값 유지
+                        if (currentOffset == 0 && existing != null && existing.ScrollOffset > 0)
+                        {
+                            targetOffset = existing.ScrollOffset;
+                            targetLine = existing.SavedLine;
+                            System.Diagnostics.Debug.WriteLine($"[SafeGuard] Text offset 0 detected. Keeping previous offset: {targetOffset}");
+                        }
+                        else
+                        {
+                            targetOffset = currentOffset;
+                            double lineH = _textFontSize * 1.8; // 폰트 사이즈가 0이면 Infinity가 될 수 있음 주의
+                            if (lineH > 0)
+                            {
+                                targetLine = (int)(currentOffset / lineH) + 1;
+                            }
+                            
+                            // 아오조라 모드 보정
+                            if (_isAozoraMode && _aozoraBlocks.Count > 0 && _currentAozoraStartBlockIndex >= 0)
+                                targetLine = _aozoraBlocks[_currentAozoraStartBlockIndex].SourceLineNumber;
+                        }
                     }
                     else if (type == "Archive" && _currentIndex >= 0 && _currentIndex < _imageEntries.Count)
                     {
+                        // 아카이브의 경우 인덱스가 명확하므로 업데이트 (단, 0번 인덱스일 때 기존 키가 있다면 고민해볼 수 있으나 보통 의도된 이동임)
                         targetArchiveKey = _imageEntries[_currentIndex].ArchiveEntryKey;
                         name = $"{Path.GetFileName(_currentArchivePath)} - {_imageEntries[_currentIndex].DisplayName}";
                     }
@@ -855,15 +881,15 @@ namespace Uviewer
                     Name = name,
                     Path = path,
                     Type = type,
-                    ArchiveEntryKey = targetArchiveKey, // 결정된 키 사용
-                    AccessedAt = DateTime.Now,        // 시간은 항상 갱신
-                    ScrollOffset = targetOffset,      // 결정된 오프셋 사용
+                    ArchiveEntryKey = targetArchiveKey,
+                    AccessedAt = DateTime.Now,
+                    ScrollOffset = targetOffset,
                     SavedPage = targetPage,
                     ChapterIndex = targetChapter,
                     SavedLine = targetLine
                 };
 
-                _recentItems.Insert(0, newItem); // 맨 앞에 추가
+                _recentItems.Insert(0, newItem);
 
                 // 최대 개수 제한
                 while (_recentItems.Count > MaxRecentItems)
