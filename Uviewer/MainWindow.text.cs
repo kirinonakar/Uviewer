@@ -51,6 +51,7 @@ namespace Uviewer
 
         private bool _textInputInitialized = false;
         private string? _currentTextFilePath = null;
+        private string? _currentTextArchiveEntryKey = null; // Track entry key if viewing from archive
         private int _lastRecentSaveLine = -1;
 
         private void InitializeText()
@@ -75,6 +76,7 @@ namespace Uviewer
             
             InitializeText();
             _currentTextFilePath = file.Path;
+            _currentTextArchiveEntryKey = null; // Clear archive context when loading local file
             // No reset here, DisplayLoadedText will handle it after using the value
 
             try
@@ -108,6 +110,7 @@ namespace Uviewer
         {
              InitializeText();
              _currentTextFilePath = null; // Clear to prevent state leakage from previous file
+             _currentTextArchiveEntryKey = entry.ArchiveEntryKey; // Store entry key for relative path resolution
              // No reset here, DisplayLoadedText will handle it
              
              try

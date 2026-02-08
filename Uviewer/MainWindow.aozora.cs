@@ -48,6 +48,7 @@ namespace Uviewer
             public int SourceLineNumber { get; set; } = 0; // Original line number in source text
             public int HeadingLevel { get; set; } = 0; // 0=None, 1=Large/H1, 2=Medium/H2, 3=Small/H3...
             public string HeadingText { get; set; } = "";
+            public bool HasImage => Inlines.Any(i => i is AozoraImage);
         }
 
         public class AozoraBold { public string Text { get; set; } = ""; }
@@ -55,6 +56,7 @@ namespace Uviewer
         public class AozoraCode { public string Text { get; set; } = ""; }
         public class AozoraLineBreak { }
         public class AozoraRuby { public string BaseText { get; set; } = ""; public string RubyText { get; set; } = ""; }
+        public class AozoraImage { public string Source { get; set; } = ""; }
 
         // Settings
         public class AozoraSettings
@@ -279,9 +281,24 @@ namespace Uviewer
 
                     var block = _aozoraBlocks[i];
                     
+                    if (block.HasImage)
+                    {
+                        if (currentPageHeight > 0)
+                        {
+                            pageCount++;
+                            currentPageHeight = 0;
+                            blockToPageMap[i] = pageCount;
+                        }
+
+                        // Image block takes its own page
+                        pageCount++;
+                        currentPageHeight = 0;
+                        continue;
+                    }
+
                     // Measure Block
                     dummyRTB.Blocks.Clear();
-                    var p = CreateParagraphFromBlock(block);
+                    var p = CreateParagraphFromBlock(block, availableHeight);
                     dummyRTB.Blocks.Add(p);
                     
                     dummyRTB.Measure(new Windows.Foundation.Size((float)maxWidth, double.PositiveInfinity));
@@ -303,12 +320,7 @@ namespace Uviewer
                     // Very large single block handling?
                     if (currentPageHeight > availableHeight)
                     {
-                         // If a single block is taller than page, we still count it as one 'chunk' effectively in this simplified calc
-                         // Or should we count it as multiple pages? 
-                         // RenderAozoraDynamicPage cuts if > availableHeight mostly.
-                         // But for counting, let's keep it simple: it takes up the page.
-                         currentPageHeight = 0; // Force next block to new page? 
-                         // If we set to 0, next block starts fresh.
+                         currentPageHeight = 0; 
                          pageCount++;
                     }
 
@@ -588,7 +600,24 @@ namespace Uviewer
 
             double availableHeight = AozoraPageContainer?.ActualHeight ?? 800;
             if (availableHeight < 200) availableHeight = 800;
-            availableHeight -= 55; // 40 (Grid Padding) + 15 (Ruby safety gap)
+            
+            // Image pages should NOT have top padding for ruby safety as it might push the image down unnecessarily
+            bool isImagePage = startIdx < _aozoraBlocks.Count && _aozoraBlocks[startIdx].HasImage && AozoraPageContent.Blocks.Count == 0;
+            
+            if (isImagePage)
+            {
+                AozoraPageContent.Padding = new Thickness(0);
+                availableHeight -= 40; // Only Grid Padding
+                AozoraPageContent.MaxWidth = innerWidth; // Bypass GetUrlMaxWidth() for images to allow full screen width
+                AozoraPageContent.VerticalAlignment = VerticalAlignment.Center;
+            }
+            else
+            {
+                AozoraPageContent.Padding = new Thickness(0, 15, 0, 0);
+                availableHeight -= 55; // Grid Padding + Ruby safety gap
+                AozoraPageContent.MaxWidth = _isMarkdownRenderMode ? innerWidth : Math.Min(innerWidth, GetUrlMaxWidth());
+                AozoraPageContent.VerticalAlignment = VerticalAlignment.Top;
+            }
 
             double currentHeight = 0;
             int endIdx = startIdx;
@@ -600,9 +629,30 @@ namespace Uviewer
             for (int i = startIdx; i < _aozoraBlocks.Count; i++)
             {
                 var block = _aozoraBlocks[i];
-                var p = CreateParagraphFromBlock(block);
                 
-                AozoraPageContent.Blocks.Add(p);
+                // If this block has an image, it should be isolated on its own page
+                if (block.HasImage)
+                {
+                    if (AozoraPageContent.Blocks.Count > 0)
+                    {
+                        // Finish current page before image
+                        break;
+                    }
+                    else
+                    {
+                        // First block is image, add ONLY this block and stop
+                        var p = CreateParagraphFromBlock(block, availableHeight);
+                        // For image-only pages, center horizontally and vertically
+                        p.TextAlignment = TextAlignment.Center;
+                        
+                        AozoraPageContent.Blocks.Add(p);
+                        endIdx = i;
+                        break;
+                    }
+                }
+
+                var pNormal = CreateParagraphFromBlock(block, availableHeight);
+                AozoraPageContent.Blocks.Add(pNormal);
                 
                 // Measure the container to see current total height
                 AozoraPageContent.Measure(new Windows.Foundation.Size(AozoraPageContent.MaxWidth, double.PositiveInfinity));
@@ -611,7 +661,7 @@ namespace Uviewer
                 if (AozoraPageContent.Blocks.Count > 1 && newHeight > availableHeight)
                 {
                     // Too high, remove last and stop
-                    AozoraPageContent.Blocks.Remove(p);
+                    AozoraPageContent.Blocks.Remove(pNormal);
                     break;
                 }
                 
@@ -634,7 +684,7 @@ namespace Uviewer
             }
         }
 
-        private Paragraph CreateParagraphFromBlock(AozoraBindingModel block)
+        private Paragraph CreateParagraphFromBlock(AozoraBindingModel block, double availableHeight = 0)
         {
             if (block.IsTable)
             {
@@ -644,8 +694,17 @@ namespace Uviewer
             }
             
             var p = new Paragraph();
-            p.LineHeight = _textFontSize * block.FontSizeScale * 2; // Increased multiplier for better ruby spacing
-            p.LineStackingStrategy = LineStackingStrategy.BlockLineHeight;
+            if (block.HasImage)
+            {
+                // Images shouldn't have forced line height which might cause clipping/offsetting
+                p.LineHeight = 0;
+                p.LineStackingStrategy = LineStackingStrategy.MaxHeight;
+            }
+            else
+            {
+                p.LineHeight = _textFontSize * block.FontSizeScale * 2; // Increased multiplier for better ruby spacing
+                p.LineStackingStrategy = LineStackingStrategy.BlockLineHeight;
+            }
             p.Margin = new Thickness(0, block.Margin.Top, 0, block.Margin.Bottom);
             p.TextAlignment = block.Alignment;
             p.FontFamily = block.FontFamily != null ? new FontFamily(block.FontFamily) : new FontFamily(_textFontFamily);
@@ -676,13 +735,18 @@ namespace Uviewer
                 {
                     p.Inlines.Add(CreateRubyInline(ruby.BaseText, ruby.RubyText, _textFontSize * block.FontSizeScale));
                 }
+                else if (item is AozoraImage img)
+                {
+                    var ui = CreateImageInline(img.Source, availableHeight);
+                    if (ui != null) p.Inlines.Add(ui);
+                }
             }
             return p;
         }
         
 
 
-        private void UpdateRichTextBlockForMeasurement(RichTextBlock rtb, AozoraBindingModel block)
+        private void UpdateRichTextBlockForMeasurement(RichTextBlock rtb, AozoraBindingModel block, double availableHeight = 0)
         {
             rtb.Blocks.Clear();
             rtb.FontSize = _textFontSize * block.FontSizeScale;
@@ -731,6 +795,11 @@ namespace Uviewer
                         FontFamily = new FontFamily("Consolas, Courier New, Monospace"), 
                         Foreground = new SolidColorBrush(Colors.DarkSlateGray)
                     });
+                }
+                else if (item is AozoraImage img)
+                {
+                    var ui = CreateImageInline(img.Source, availableHeight);
+                    if (ui != null) p.Inlines.Add(ui);
                 }
             }
             rtb.Blocks.Add(p);
@@ -923,6 +992,11 @@ namespace Uviewer
                      content = content.Replace("［＃ここから罫囲み］", "");
                 }
 
+                // 4. Image tags: <img src="file.jpg"> or ［＃挿絵（img/file.jpg）入る］
+                // IMPORTANT: Parse images BEFORE cleaning up all ［＃...］ tags
+                content = Regex.Replace(content, @"<img\s+src=[""'](.+?)[""']\s*/?>", "{{IMG|$1}}", RegexOptions.IgnoreCase);
+                content = Regex.Replace(content, @"［＃挿絵\s*[（\(\[［]\s*([^）\)\]］]+?)\s*[）\)\]］].*?］", "{{IMG|$1}}");
+
                 // Cleanup other tags
                 content = Regex.Replace(content, @"［＃[^］]+］", "");
 
@@ -945,11 +1019,13 @@ namespace Uviewer
                 // 3. Fallback for mixed/other scripts? Aozora spec usually strictly defines this. 
                 // Some files use 《》 for other things? Assuming Ruby for now.
                 
+                // (Image parsing moved above cleanup)
+
                 // Tokenize
-                // Split by {{RUBY|...}} AND **...**
+                // Split by {{RUBY|...}}, {{IMG|...}} AND **...**
                 // Regex split captures delimiters if in parenthesis.
                 
-                string pattern = @"(\{\{RUBY\|.*?\|.*?\}\}|\*\*.*?\*\*)";
+                string pattern = @"(\{\{RUBY\|.*?\|.*?\}\}|\{\{IMG\|.*?\}\}|\*\*.*?\*\*)";
                 var parts = Regex.Split(content, pattern);
                 
                 foreach (var part in parts)
@@ -964,6 +1040,15 @@ namespace Uviewer
                         {
                             model.Inlines.Add(new AozoraRuby { BaseText = p[1], RubyText = p[2] });
                         }
+                    }
+                    else if (part.StartsWith("{{IMG|"))
+                    {
+                        var src = part.Substring(6, part.Length - 8);
+                        // Strip parameters after comma if present (e.g., img.jpg,横50％)
+                        int commaIdx = src.IndexOfAny(new[] { ',', '，', '、' });
+                        if (commaIdx >= 0) src = src.Substring(0, commaIdx).Trim();
+                        
+                        model.Inlines.Add(new AozoraImage { Source = src });
                     }
                     else if (part.StartsWith("**") && part.EndsWith("**") && part.Length > 4)
                     {
@@ -1141,6 +1226,10 @@ namespace Uviewer
                 // 1.5 <br> -> {{BR}} (Case insensitive, supports <br>, <br/>, <br />)
                 content = Regex.Replace(content, @"<br\s*/?>", "{{BR}}", RegexOptions.IgnoreCase);
 
+                // 1.6 Image <img src="..."> -> {{IMG|...}}
+                content = Regex.Replace(content, @"<img\s+src=[""'](.+?)[""']\s*/?>", "{{IMG|$1}}", RegexOptions.IgnoreCase);
+                content = Regex.Replace(content, @"［＃挿絵\s*[（\(\[［]\s*([^）\)\]］]+?)\s*[）\)\]］].*?］", "{{IMG|$1}}");
+
                 // 2. Bold **...** or __...__ (Support spaces inside: ** text **)
                 content = Regex.Replace(content, @"(\*\*|__)(.*?)\1", "{{BOLD|$2}}");
                 
@@ -1148,7 +1237,7 @@ namespace Uviewer
                 content = Regex.Replace(content, @"(\*|_)(.*?)\1", "{{ITALIC|$2}}");
                 
                 // Tokenize
-                string pattern = @"(\{\{CODE\|.*?\}\}|\{\{BOLD\|.*?\}\}|\{\{ITALIC\|.*?\}\}|\{\{BR\}\})";
+                string pattern = @"(\{\{CODE\|.*?\}\}|\{\{BOLD\|.*?\}\}|\{\{ITALIC\|.*?\}\}|\{\{BR\}\}|\{\{IMG\|.*?\}\})";
                 var parts = Regex.Split(content, pattern);
                 
                 foreach (var part in parts)
@@ -1159,6 +1248,11 @@ namespace Uviewer
                      {
                          var inner = part.Substring(7, part.Length - 9);
                          blockModel.Inlines.Add(new AozoraCode { Text = inner });
+                     }
+                     else if (part.StartsWith("{{IMG|"))
+                     {
+                         var src = part.Substring(6, part.Length - 8);
+                         blockModel.Inlines.Add(new AozoraImage { Source = src });
                      }
                      else if (part == "{{BR}}")
                      {
@@ -1186,7 +1280,7 @@ namespace Uviewer
             return blocks;
         }
 
-        private void PrepareAozoraElement(RichTextBlock rtb, int index)
+        private void PrepareAozoraElement(RichTextBlock rtb, int index, double availableHeight = 0)
         {
             if (index < 0 || index >= _aozoraBlocks.Count) return;
             var block = _aozoraBlocks[index];
@@ -1285,6 +1379,11 @@ namespace Uviewer
                 {
                     p.Inlines.Add(CreateRubyInline(ruby.BaseText, ruby.RubyText, rtb.FontSize));
                 }
+                else if (item is AozoraImage img)
+                {
+                    var ui = CreateImageInline(img.Source, availableHeight);
+                    if (ui != null) p.Inlines.Add(ui);
+                }
             }
             
             rtb.Blocks.Add(p);
@@ -1334,12 +1433,147 @@ namespace Uviewer
 
             // [수정] 텍스트를 아래로 끌어내리던 음수 마진(-baseFontSize * 0.12) 제거
             grid.Margin = new Thickness(0, 0, 0, 0); 
-            
-            // RichTextBlock 내부에서 InlineUIContainer는 기본적으로 기준선(Baseline)에 맞춰 배치됩니다.
-            // Grid의 아래쪽(BaseText의 바닥)이 기준선에 오게 되므로, 주변 텍스트와 높이가 맞게 됩니다.
+                // Grid의 아래쪽(BaseText의 바닥)이 기준선에 오게 되므로, 주변 텍스트와 높이가 맞게 됩니다.
             return new InlineUIContainer { Child = grid }; 
         }
-        
+
+        private InlineUIContainer? CreateImageInline(string relativePath, double maxHeight = 0)
+        {
+            if (string.IsNullOrEmpty(_currentTextFilePath) && (_currentArchive == null || string.IsNullOrEmpty(_currentTextArchiveEntryKey))) return null;
+            
+            relativePath = relativePath.Trim().TrimStart('/', '\\');
+
+            var img = new Image();
+            img.Stretch = Stretch.Uniform;
+            img.Margin = new Thickness(0);
+            
+            double maxWidth = AozoraPageContent.MaxWidth;
+            if (double.IsInfinity(maxWidth) || maxWidth < 100) maxWidth = 800;
+            img.Width = maxWidth;
+            if (maxHeight > 0) img.Height = maxHeight;
+            
+            img.HorizontalAlignment = HorizontalAlignment.Center;
+            img.VerticalAlignment = VerticalAlignment.Center;
+
+            if (!string.IsNullOrEmpty(_currentTextFilePath))
+            {
+                // Local File Case
+                try
+                {
+                    string? dir = System.IO.Path.GetDirectoryName(_currentTextFilePath);
+                    if (dir == null) return null;
+                    
+                    string normPath = relativePath.Replace('/', System.IO.Path.DirectorySeparatorChar);
+                    string fullPath = System.IO.Path.GetFullPath(System.IO.Path.Combine(dir, normPath));
+
+                    if (System.IO.File.Exists(fullPath))
+                    {
+                        // Use stream to avoid UI thread issues and ensure better compatibility
+                        _ = Task.Run(async () =>
+                        {
+                            try
+                            {
+                                using var fs = new System.IO.FileStream(fullPath, System.IO.FileMode.Open, System.IO.FileAccess.Read);
+                                using var ms = new System.IO.MemoryStream();
+                                await fs.CopyToAsync(ms);
+                                var bytes = ms.ToArray();
+
+                                this.DispatcherQueue.TryEnqueue(async () =>
+                                {
+                                    try
+                                    {
+                                        var winrtStream = new Windows.Storage.Streams.InMemoryRandomAccessStream();
+                                        using (var writer = new Windows.Storage.Streams.DataWriter(winrtStream))
+                                        {
+                                            writer.WriteBytes(bytes);
+                                            await writer.StoreAsync();
+                                            await writer.FlushAsync();
+                                            writer.DetachStream();
+                                        }
+                                        winrtStream.Seek(0);
+                                        var bitmap = new Microsoft.UI.Xaml.Media.Imaging.BitmapImage();
+                                        await bitmap.SetSourceAsync(winrtStream);
+                                        img.Source = bitmap;
+                                    }
+                                    catch { }
+                                });
+                            }
+                            catch { }
+                        });
+                        return new InlineUIContainer { Child = img };
+                    }
+                }
+                catch { }
+            }
+            else if (_currentArchive != null && !string.IsNullOrEmpty(_currentTextArchiveEntryKey))
+            {
+                // Archive Case (Async Load)
+                _ = Task.Run(async () =>
+                {
+                    try
+                    {
+                        await _archiveLock.WaitAsync();
+                        byte[]? bytes = null;
+                        try
+                        {
+                            // Manuel path resolution for archives (don't trust Path.GetDirectoryName for keys with '/')
+                            string normKey = _currentTextArchiveEntryKey.Replace('\\', '/');
+                            string? baseDir = "";
+                            int lastSlash = normKey.LastIndexOf('/');
+                            if (lastSlash >= 0) baseDir = normKey.Substring(0, lastSlash);
+
+                            string subPath = relativePath.Replace('\\', '/').TrimStart('/');
+                            string targetKey = string.IsNullOrEmpty(baseDir) ? subPath : (baseDir.TrimEnd('/') + "/" + subPath);
+                            
+                            // Normalize targetKey (remove ./ and ../ for simplicity if needed, but for now just exact match)
+                            targetKey = targetKey.Replace("/./", "/");
+                            
+                            // Exact match or Case-insensitive match find
+                            var entry = _currentArchive.Entries.FirstOrDefault(e => e.Key != null && e.Key.Replace('\\', '/') == targetKey) 
+                                     ?? _currentArchive.Entries.FirstOrDefault(e => e.Key != null && string.Equals(e.Key.Replace('\\', '/'), targetKey, StringComparison.OrdinalIgnoreCase));
+                            
+                            if (entry != null)
+                            {
+                                using var ms = new System.IO.MemoryStream();
+                                using var es = entry.OpenEntryStream();
+                                es.CopyTo(ms);
+                                bytes = ms.ToArray();
+                            }
+                        }
+                        finally { _archiveLock.Release(); }
+
+                        if (bytes != null)
+                        {
+                            this.DispatcherQueue.TryEnqueue(async () =>
+                            {
+                                try
+                                {
+                                    var winrtStream = new Windows.Storage.Streams.InMemoryRandomAccessStream();
+                                    using (var writer = new Windows.Storage.Streams.DataWriter(winrtStream))
+                                    {
+                                        writer.WriteBytes(bytes);
+                                        await writer.StoreAsync();
+                                        await writer.FlushAsync();
+                                        writer.DetachStream();
+                                    }
+                                    winrtStream.Seek(0);
+                                    
+                                    var bitmap = new Microsoft.UI.Xaml.Media.Imaging.BitmapImage();
+                                    await bitmap.SetSourceAsync(winrtStream);
+                                    img.Source = bitmap;
+                                }
+                                catch { }
+                            });
+                        }
+                    }
+                    catch { }
+                });
+                return new InlineUIContainer { Child = img };
+            }
+
+            return null;
+        }
+
         private InlineUIContainer CreateTableInline(List<List<string>> rows)
         {
             var grid = new Grid();

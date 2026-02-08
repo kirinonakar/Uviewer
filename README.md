@@ -17,7 +17,7 @@
 ### 📝 Text & Novel Viewing
 - **Advanced Text Engine**: 
   - **Immediate loading of large text files**
-  - **Aozora Bunko format Support**: Native rendering of Ruby text (Furigana), emphasis, and indentation.
+  - **Aozora Bunko format Support**: Native rendering of Ruby text (Furigana), emphasis, indentation and images.
   - **Markdown Support**: Custom-built Markdown rendering including tables, code blocks, and inline formatting.
   - **Smart Encoding Detection**: Automatically detects and handles various encodings (UTF-8, Unicode, **EUC-KR**, **Shift-JIS**, **Johab**).
 - **Reading Comfort**: Adjustable font size, font family (Yu Gothic Medium/Yu Mincho), and background themes (Light/Beige/Dark).
