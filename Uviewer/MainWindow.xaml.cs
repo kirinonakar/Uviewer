@@ -899,7 +899,7 @@ namespace Uviewer
                     return;
                 }
 
-                // [애니메이션 WebP 처리 부분 - 기존과 동일]
+                // [애니메이션 WebP 처리 부분] 헤더만 읽어서 애니메이션 여부 확인 후 필요시 로드
                 string? ext = null;
                 if (entry.FilePath != null) ext = Path.GetExtension(entry.FilePath).ToLowerInvariant();
                 else if (entry.ArchiveEntryKey != null) ext = Path.GetExtension(entry.ArchiveEntryKey).ToLowerInvariant();
@@ -911,6 +911,12 @@ namespace Uviewer
                         try
                         {
                             if (token.IsCancellationRequested) return;
+
+                            // 1. [최적화] 전체 파일을 읽기 전에 헤더만 살짝 검사
+                            bool isAnimated = await IsAnimatedWebPAsync(entry.FilePath);
+                            if (!isAnimated) return; // 정적 이미지면 여기서 종료 (CPU/IO 절약)
+
+                            // 2. 애니메이션이 확실한 경우에만 전체 바이트 로드
                             byte[] webpBytes = await File.ReadAllBytesAsync(entry.FilePath, token);
                             var (framePixels, delays, width, height) = await TryLoadAnimatedWebpFramesAsync(webpBytes);
 
@@ -943,6 +949,36 @@ namespace Uviewer
             {
                 if (!token.IsCancellationRequested)
                     FileNameText.Text = $"이미지 로드 오류: {ex.Message}";
+            }
+        }
+
+        // WebP 헤더만 읽어서 ANIM 청크가 있는지 확인 (매우 빠름)
+        private async Task<bool> IsAnimatedWebPAsync(string filePath)
+        {
+            try
+            {
+                using var stream = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.Read, 4096, true);
+                byte[] header = new byte[64]; // 처음 64바이트만 읽어도 충분함
+                int bytesRead = await stream.ReadAsync(header, 0, header.Length);
+
+                if (bytesRead < 12) return false;
+
+                // "RIFF" and "WEBP" signature check
+                var riff = System.Text.Encoding.ASCII.GetString(header, 0, 4);
+                var webp = System.Text.Encoding.ASCII.GetString(header, 8, 4);
+
+                if (riff != "RIFF" || webp != "WEBP") return false;
+
+                // "VP8X" 청크가 있어야 애니메이션 플래그 확인 가능
+                // VP8X 청크 찾기
+                string headerStr = System.Text.Encoding.ASCII.GetString(header);
+                if (headerStr.Contains("ANIM")) return true; // ANIM 청크가 있으면 100% 애니메이션
+
+                return false;
+            }
+            catch
+            {
+                return false;
             }
         }
 
@@ -1217,39 +1253,44 @@ namespace Uviewer
 
         private async Task<CanvasBitmap?> LoadImageFromArchiveEntryAsync(string entryKey, CanvasControl canvas, CancellationToken token)
         {
-            // 이미 취소된 작업이면 Lock 대기조차 하지 않음
             if (token.IsCancellationRequested) return null;
-            // 아카이브 접근시 Lock 사용
+
+            using var memoryStream = new MemoryStream();
+
+            // 1. [Lock 구간] 아카이브에서 데이터만 빠르게 메모리로 복사
             await _archiveLock.WaitAsync();
             try
             {
-                if (token.IsCancellationRequested) return null;
                 if (_currentArchive == null) return null;
-
                 var archiveEntry = _currentArchive.Entries.FirstOrDefault(e => e.Key == entryKey);
                 if (archiveEntry == null) return null;
 
                 using var entryStream = archiveEntry.OpenEntryStream();
-                // 메모리 스트림 생성 (using을 사용하여 자동 해제하되, LoadAsync가 끝날 때까지 유지되어야 함)
-                using var memoryStream = new MemoryStream();
                 // [핵심 수정] CopyToAsync에 토큰을 전달하여 스트림 복사 강제 중단
-                // 압축 파일이 클수록 이 부분이 딜레이의 주범입니다.
                 await entryStream.CopyToAsync(memoryStream, token);
-                memoryStream.Position = 0;
-
-                if (token.IsCancellationRequested) return null;
-
-                // Win2D가 스트림을 읽어서 비트맵을 생성
-                return await CanvasBitmap.LoadAsync(canvas, memoryStream.AsRandomAccessStream());
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"Archive Load Error: {ex.Message}");
+                System.Diagnostics.Debug.WriteLine($"Archive Stream Error: {ex.Message}");
                 return null;
             }
             finally
             {
                 _archiveLock.Release();
+            }
+
+            memoryStream.Position = 0;
+            if (token.IsCancellationRequested) return null;
+
+            // 2. [Lock 해제 후] 디코딩 수행 (여기가 CPU를 많이 쓰므로 락 밖에서 해야 함)
+            try
+            {
+                return await CanvasBitmap.LoadAsync(canvas, memoryStream.AsRandomAccessStream());
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Win2D Load Error: {ex.Message}");
+                return null;
             }
         }
 
@@ -1627,38 +1668,43 @@ namespace Uviewer
         {
             try
             {
-                if (_currentArchive == null || _imageEntries.Count == 0)
-                    return;
+                if (_imageEntries.Count == 0) return;
 
                 var startIndex = _currentIndex + 1;
                 var endIndex = Math.Min(_imageEntries.Count - 1, startIndex + PreloadCount);
 
+                var tasks = new List<Task>();
+
                 for (int i = startIndex; i <= endIndex; i++)
                 {
-                    // 스레드 안전하게 딕셔너리 확인
-                    lock (_preloadedImages)
-                    {
-                        if (_preloadedImages.ContainsKey(i))
-                            continue;
-                    }
+                    int index = i;
+                    lock (_preloadedImages) { if (_preloadedImages.ContainsKey(index)) continue; }
 
-                    var entry = _imageEntries[i];
-                    if (entry.IsArchiveEntry)
+                    var entry = _imageEntries[index];
+                    tasks.Add(Task.Run(async () =>
                     {
-                        // 여기서는 Lock을 내부적으로 처리하는 수정된 LoadImageFromArchiveEntryAsync 호출
-                        var bitmap = await LoadImageFromArchiveEntryAsync(entry.ArchiveEntryKey!, MainCanvas, CancellationToken.None);
-                        if (bitmap != null)
+                        try
                         {
-                            lock (_preloadedImages)
+                            CanvasBitmap? bitmap = null;
+                            if (entry.IsArchiveEntry && _currentArchive != null)
                             {
-                                _preloadedImages[i] = bitmap;
+                                bitmap = await LoadImageFromArchiveEntryAsync(entry.ArchiveEntryKey!, MainCanvas, CancellationToken.None);
+                            }
+                            else if (!entry.IsArchiveEntry && entry.FilePath != null)
+                            {
+                                bitmap = await LoadImageFromPathAsync(entry.FilePath, MainCanvas);
+                            }
+
+                            if (bitmap != null)
+                            {
+                                lock (_preloadedImages) { _preloadedImages[index] = bitmap; }
                             }
                         }
-                    }
-
-                    // Add small delay to prevent blocking UI
-                    await Task.Delay(10);
+                        catch { }
+                    }));
                 }
+
+                await Task.WhenAll(tasks);
 
                 // Clean up old preloaded images to save memory
                 CleanupOldPreloadedImages();
@@ -1673,36 +1719,43 @@ namespace Uviewer
         {
             try
             {
-                if (_currentArchive == null || _imageEntries.Count == 0)
-                    return;
+                if (_imageEntries.Count == 0) return;
 
                 var startIndex = Math.Max(0, _currentIndex - PreloadCount);
                 var endIndex = _currentIndex - 1;
 
+                var tasks = new List<Task>();
+
                 for (int i = startIndex; i <= endIndex; i++)
                 {
-                    lock (_preloadedImages)
-                    {
-                        if (_preloadedImages.ContainsKey(i))
-                            continue;
-                    }
+                    int index = i;
+                    lock (_preloadedImages) { if (_preloadedImages.ContainsKey(index)) continue; }
 
-                    var entry = _imageEntries[i];
-                    if (entry.IsArchiveEntry)
+                    var entry = _imageEntries[index];
+                    tasks.Add(Task.Run(async () =>
                     {
-                        var bitmap = await LoadImageFromArchiveEntryAsync(entry.ArchiveEntryKey!, MainCanvas, CancellationToken.None);
-                        if (bitmap != null)
+                        try
                         {
-                            lock (_preloadedImages)
+                            CanvasBitmap? bitmap = null;
+                            if (entry.IsArchiveEntry && _currentArchive != null)
                             {
-                                _preloadedImages[i] = bitmap;
+                                bitmap = await LoadImageFromArchiveEntryAsync(entry.ArchiveEntryKey!, MainCanvas, CancellationToken.None);
+                            }
+                            else if (!entry.IsArchiveEntry && entry.FilePath != null)
+                            {
+                                bitmap = await LoadImageFromPathAsync(entry.FilePath, MainCanvas);
+                            }
+
+                            if (bitmap != null)
+                            {
+                                lock (_preloadedImages) { _preloadedImages[index] = bitmap; }
                             }
                         }
-                    }
-
-                    // Add small delay to prevent blocking UI
-                    await Task.Delay(10);
+                        catch { }
+                    }));
                 }
+
+                await Task.WhenAll(tasks);
 
                 // Clean up old preloaded images to save memory
                 CleanupOldPreloadedImages();
