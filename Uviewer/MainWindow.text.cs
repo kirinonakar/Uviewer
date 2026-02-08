@@ -1,3 +1,4 @@
+using Microsoft.Graphics.Canvas.Text;
 using Microsoft.UI;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
@@ -1138,6 +1139,13 @@ namespace Uviewer
 
         private async Task RefreshTextDisplay(bool resetScroll = false)
         {
+            if (_isEpubMode)
+            {
+                UpdateEpubVisuals();
+                _ = LoadEpubChapterAsync(_currentEpubChapterIndex);
+                return;
+            }
+
             if (_isAozoraMode && !string.IsNullOrEmpty(_currentTextContent))
             {
                 // Capture current line to preserve position
@@ -1241,12 +1249,90 @@ namespace Uviewer
 
         private void FontToggleButton_Click(object sender, RoutedEventArgs e)
         {
-            if (_isEpubMode)
-                ToggleEpubFont();
-            else
-                ToggleFont();
+            ToggleFont();
         }
-        
+
+        private void FontMenu_Click(object sender, RoutedEventArgs e)
+        {
+            _ = ShowFontPickerDialog();
+        }
+
+        private async Task ShowFontPickerDialog()
+        {
+            try
+            {
+                var fonts = CanvasTextFormat.GetSystemFontFamilies()
+                    .OrderBy(f => f)
+                    .ToList();
+
+                var searchBox = new AutoSuggestBox
+                {
+                    PlaceholderText = Strings.FontSearchPlaceholder,
+                    QueryIcon = new SymbolIcon(Symbol.Find),
+                    Margin = new Thickness(0, 0, 0, 10),
+                    Width = 300
+                };
+
+                var fontList = new ListView
+                {
+                    ItemsSource = fonts,
+                    SelectionMode = ListViewSelectionMode.Single,
+                    MaxHeight = 400,
+                    Width = 300,
+                    ItemTemplate = (DataTemplate)Microsoft.UI.Xaml.Markup.XamlReader.Load(
+                        @"<DataTemplate xmlns='http://schemas.microsoft.com/winfx/2006/xaml/presentation'>
+                            <TextBlock Text='{Binding}' FontFamily='{Binding}' FontSize='16' VerticalAlignment='Center' Padding='4'/>
+                        </DataTemplate>")
+                };
+
+                // Pre-select current font
+                string currentFont = _textFontFamily;
+                fontList.SelectedItem = fonts.FirstOrDefault(f => f.Equals(currentFont, StringComparison.OrdinalIgnoreCase));
+                if (fontList.SelectedItem != null) fontList.ScrollIntoView(fontList.SelectedItem);
+
+                searchBox.TextChanged += (s, e) =>
+                {
+                    if (e.Reason == AutoSuggestionBoxTextChangeReason.UserInput)
+                    {
+                        var filtered = fonts.Where(f => f.Contains(s.Text, StringComparison.OrdinalIgnoreCase)).ToList();
+                        fontList.ItemsSource = filtered;
+                    }
+                };
+
+                var stackPanel = new StackPanel();
+                stackPanel.Children.Add(searchBox);
+                stackPanel.Children.Add(fontList);
+
+                var dialog = new ContentDialog
+                {
+                    Title = Strings.FontSelectionTitle,
+                    Content = stackPanel,
+                    PrimaryButtonText = Strings.DialogPrimary,
+                    CloseButtonText = Strings.DialogClose,
+                    XamlRoot = this.Content.XamlRoot,
+                    DefaultButton = ContentDialogButton.Primary
+                };
+
+                if (await dialog.ShowAsync() == ContentDialogResult.Primary && fontList.SelectedItem is string selectedFont)
+                {
+                    SetTextFont(selectedFont);
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error showing font picker: {ex.Message}");
+            }
+        }
+
+        private async void SetTextFont(string fontFamily)
+        {
+            _textFontFamily = fontFamily;
+            SaveTextSettings();
+            await RefreshTextDisplay();
+        }
+
+
+
         private async void ToggleFont()
         {
             if (_textFontFamily == "Yu Gothic Medium")
@@ -1260,10 +1346,7 @@ namespace Uviewer
 
         private void TextSizeUpButton_Click(object sender, RoutedEventArgs e)
         {
-            if (_isEpubMode)
-                IncreaseEpubSize();
-            else
-                IncreaseTextSize();
+            IncreaseTextSize();
         }
         
         private async void IncreaseTextSize()
@@ -1277,10 +1360,7 @@ namespace Uviewer
 
         private void TextSizeDownButton_Click(object sender, RoutedEventArgs e)
         {
-            if (_isEpubMode)
-                DecreaseEpubSize();
-            else
-                DecreaseTextSize();
+            DecreaseTextSize();
         }
 
         private async void DecreaseTextSize()
@@ -1294,10 +1374,7 @@ namespace Uviewer
 
         private void ThemeToggleButton_Click(object sender, RoutedEventArgs e)
         {
-            if (_isEpubMode)
-                ToggleEpubTheme();
-            else
-                ToggleTheme();
+            ToggleTheme();
         }
         
         private async void ToggleTheme()
@@ -1388,14 +1465,12 @@ namespace Uviewer
              }
              else if (e.Key == Windows.System.VirtualKey.Add || e.Key == (Windows.System.VirtualKey)187) // +
              {
-                 if (_isEpubMode) IncreaseEpubSize();
-                 else IncreaseTextSize();
+                 IncreaseTextSize();
                  e.Handled = true;
              }
              else if (e.Key == Windows.System.VirtualKey.Subtract || e.Key == (Windows.System.VirtualKey)189) // -
              {
-                 if (_isEpubMode) DecreaseEpubSize();
-                 else DecreaseTextSize();
+                 DecreaseTextSize();
                  e.Handled = true;
              }
              else if (e.Key == Windows.System.VirtualKey.A)
@@ -1405,8 +1480,7 @@ namespace Uviewer
              }
              else if (e.Key == Windows.System.VirtualKey.F)
              {
-                 if (_isEpubMode) ToggleEpubFont();
-                 else ToggleFont();
+                 ToggleFont();
                  e.Handled = true;
              }
              else if (e.Key == Windows.System.VirtualKey.B)
@@ -1420,8 +1494,7 @@ namespace Uviewer
                  }
                  else
                  {
-                     if (_isEpubMode) ToggleEpubTheme();
-                     else ToggleTheme();
+                     ToggleTheme();
                  }
                  e.Handled = true;
              }

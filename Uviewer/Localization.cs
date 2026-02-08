@@ -54,6 +54,10 @@ namespace Uviewer
         public static string TocTitle => S("목차", "Contents");
         public static string NoTocContent => S("목차 없음", "No Table of Contents");
         public static string BrowseFolderTooltip => S("폴더 찾아보기", "Browse Folder");
+        public static string SettingsTooltip => S("설정", "Settings");
+        public static string ChangeFont => S("폰트 변경", "Change Font");
+        public static string FontSelectionTitle => S("폰트 선택", "Font Selection");
+        public static string FontSearchPlaceholder => S("폰트 검색...", "Search Fonts...");
 
         // UI Texts
         public static string CurrentPathPlaceholder => S("폴더를 선택하세요", "Select a folder");

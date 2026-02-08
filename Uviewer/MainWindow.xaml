@@ -45,6 +45,18 @@
             <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
                 <FontIcon Glyph="&#xE8B9;" FontSize="20"/>
                 <TextBlock Text="Uviewer" FontWeight="SemiBold" FontSize="16" VerticalAlignment="Center"/>
+                <Button x:Name="SettingsButton" Background="Transparent" BorderThickness="0" Padding="4" Margin="4,0,0,0" ToolTipService.ToolTip="설정">
+                    <FontIcon Glyph="&#xE713;" FontSize="14"/>
+                    <Button.Flyout>
+                        <MenuFlyout Placement="Bottom">
+                            <MenuFlyoutItem x:Name="ChangeFontMenuItem" Text="폰트 변경" Click="FontMenu_Click">
+                                <MenuFlyoutItem.Icon>
+                                    <FontIcon Glyph="&#xE8D2;"/>
+                                </MenuFlyoutItem.Icon>
+                            </MenuFlyoutItem>
+                        </MenuFlyout>
+                    </Button.Flyout>
+                </Button>
             </StackPanel>
 
             <!-- Toolbar -->

@@ -30,17 +30,7 @@ namespace Uviewer
         private double _epubTextWidth = 0;
         private bool _isEpubMode = false;
 
-        // EPUB Settings
-        private double _epubFontSize = 18;
-        private string _epubFontFamily = "Yu Gothic Medium";
-        private int _epubThemeIndex = 0; // 0: White, 1: Beige, 2: Dark
 
-        public class EpubSettings
-        {
-             public double FontSize { get; set; } = 18;
-             public string FontFamily { get; set; } = "Yu Gothic Medium";
-             public int ThemeIndex { get; set; } = 0;
-        }
 
         public class EpubTocItem
         {
@@ -59,11 +49,7 @@ namespace Uviewer
             public int TotalLinesInChapter { get; set; }
         }
 
-        private const string EpubSettingsFilePath = "epub_settings.json";
-        private string GetEpubSettingsFilePath() => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "Uviewer", EpubSettingsFilePath);
 
-        [System.Text.Json.Serialization.JsonSerializable(typeof(EpubSettings))]
-        public partial class EpubSettingsContext : System.Text.Json.Serialization.JsonSerializerContext;
 
         public int CurrentEpubChapterIndex => _currentEpubChapterIndex;
         public int CurrentEpubPageIndex => EpubFlipView != null ? EpubFlipView.SelectedIndex : 0;
@@ -162,17 +148,17 @@ namespace Uviewer
             }
             else if (e.Key == Windows.System.VirtualKey.F)
             {
-                 ToggleEpubFont();
+                 ToggleFont();
                  e.Handled = true;
             }
             else if (e.Key == Windows.System.VirtualKey.Subtract || e.Key == (Windows.System.VirtualKey)189) // - key
             {
-                DecreaseEpubSize();
+                DecreaseTextSize();
                 e.Handled = true;
             }
             else if (e.Key == Windows.System.VirtualKey.Add || e.Key == (Windows.System.VirtualKey)187) // + key
             {
-                IncreaseEpubSize();
+                IncreaseTextSize();
                 e.Handled = true;
             }
             else if (e.Key == Windows.System.VirtualKey.B)
@@ -186,7 +172,7 @@ namespace Uviewer
                  }
                  else
                  {
-                     ToggleEpubTheme();
+                     ToggleTheme();
                  }
                  e.Handled = true;
             }
@@ -503,7 +489,7 @@ namespace Uviewer
         {
             var pages = new List<UIElement>();
             
-            _epubTextWidth = 42 * _epubFontSize; 
+            _epubTextWidth = 42 * _textFontSize; 
             
             // Regex to split by img/image tags
             string pattern = @"(<(?:img|image)\b[^>]*>)"; 
@@ -693,7 +679,7 @@ namespace Uviewer
             
             // Text Area Width (subtracting 20 padding each side)
             double textPadding = 20;
-            double targetWidth = Math.Min(availableWidth - (textPadding * 2), 45 * _epubFontSize);
+            double targetWidth = Math.Min(availableWidth - (textPadding * 2), 45 * _textFontSize);
             if (targetWidth < 200) targetWidth = 600;
 
             // Reserved height (subtracting padding + ruby safety buffer)
@@ -704,8 +690,8 @@ namespace Uviewer
             var rtb = new RichTextBlock 
             { 
                 IsTextSelectionEnabled = false,
-                FontFamily = new FontFamily(_epubFontFamily),
-                FontSize = _epubFontSize,
+                FontFamily = new FontFamily(_textFontFamily),
+                FontSize = _textFontSize,
                 Foreground = GetEpubThemeForeground(),
                 Width = targetWidth,
                 Height = targetHeight,
@@ -714,7 +700,7 @@ namespace Uviewer
                 Margin = new Thickness(0),
                 Padding = new Thickness(0),
                 LineStackingStrategy = LineStackingStrategy.BlockLineHeight,
-                LineHeight = _epubFontSize * 2, // Increased multiplier for better ruby spacing
+                LineHeight = _textFontSize * 2, // Increased multiplier for better ruby spacing
                 TextWrapping = TextWrapping.Wrap
             };
 
@@ -732,7 +718,7 @@ namespace Uviewer
             // Force measure
             rtb.Measure(new Windows.Foundation.Size((float)targetWidth, (float)targetHeight));
 
-            int linesPerPage = (int)(targetHeight / (_epubFontSize * 2));
+            int linesPerPage = (int)(targetHeight / (_textFontSize * 2));
             if (linesPerPage < 1) linesPerPage = 1;
             
             int cumulativeLines = linesPerPage;
@@ -951,8 +937,8 @@ namespace Uviewer
                 
                 var p = new Paragraph();
                 p.TextAlignment = TextAlignment.Left;
-                p.Margin = new Thickness(0, 0, 0, _epubFontSize * 0.5); 
-                p.LineHeight = _epubFontSize * 2; // Increased multiplier for better ruby spacing
+                p.Margin = new Thickness(0, 0, 0, _textFontSize * 0.5); 
+                p.LineHeight = _textFontSize * 2; // Increased multiplier for better ruby spacing
                 p.LineStackingStrategy = LineStackingStrategy.BlockLineHeight; // Force rigid line height
                 
                 // Tokenize by custom Ruby marker
@@ -995,10 +981,10 @@ namespace Uviewer
             var rt = new TextBlock
             {
                 Text = rubyText,
-                FontSize = _epubFontSize * 0.5,
+                FontSize = _textFontSize * 0.5,
                 HorizontalAlignment = HorizontalAlignment.Center,
                 Foreground = GetThemeForeground(),
-                FontFamily = new FontFamily(_epubFontFamily),
+                FontFamily = new FontFamily(_textFontFamily),
                 Opacity = 1,
                 TextLineBounds = TextLineBounds.Tight,
                 IsHitTestVisible = false,
@@ -1008,10 +994,10 @@ namespace Uviewer
             var rb = new TextBlock
             {
                 Text = baseText,
-                FontSize = _epubFontSize,
+                FontSize = _textFontSize,
                 HorizontalAlignment = HorizontalAlignment.Center,
                 Foreground = GetThemeForeground(),
-                FontFamily = new FontFamily(_epubFontFamily),
+                FontFamily = new FontFamily(_textFontFamily),
                 TextLineBounds = TextLineBounds.Tight,
                 Margin = new Thickness(0),
                 Padding = new Thickness(0)
@@ -1075,109 +1061,24 @@ namespace Uviewer
 
         private void LoadEpubSettings()
         {
-            try
-            {
-                var settingsFile = GetEpubSettingsFilePath();
-                if (System.IO.File.Exists(settingsFile))
-                {
-                    var json = System.IO.File.ReadAllText(settingsFile);
-                    var settings = System.Text.Json.JsonSerializer.Deserialize(json, typeof(EpubSettings), EpubSettingsContext.Default) as EpubSettings;
-                    
-                    if (settings != null)
-                    {
-                        _epubFontSize = settings.FontSize;
-                        _epubFontFamily = settings.FontFamily;
-                        _epubThemeIndex = settings.ThemeIndex;
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"Error loading epub settings: {ex.Message}");
-            }
-
-            if (_epubFontSize < 8) _epubFontSize = 8;
-            if (_epubFontSize > 72) _epubFontSize = 72;
-            
+            LoadTextSettings();
             UpdateEpubToolbarUI();
         }
 
         private void SaveEpubSettings()
         {
-            try
-            {
-                var settings = new EpubSettings
-                {
-                    FontSize = _epubFontSize,
-                    FontFamily = _epubFontFamily,
-                    ThemeIndex = _epubThemeIndex
-                };
-                
-                var settingsFile = GetEpubSettingsFilePath();
-                var settingsDir = System.IO.Path.GetDirectoryName(settingsFile);
-                if (settingsDir != null && !System.IO.Directory.Exists(settingsDir))
-                {
-                    System.IO.Directory.CreateDirectory(settingsDir);
-                }
-                
-                var json = System.Text.Json.JsonSerializer.Serialize(settings, typeof(EpubSettings), EpubSettingsContext.Default);
-                System.IO.File.WriteAllText(settingsFile, json);
-            }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"Error saving epub settings: {ex.Message}");
-            }
+            SaveTextSettings();
         }
 
         private void UpdateEpubToolbarUI()
         {
             if (TextSizeLevelText != null)
             {
-                TextSizeLevelText.Text = _epubFontSize.ToString();
+                TextSizeLevelText.Text = _textFontSize.ToString();
             }
         }
 
-        public void ToggleEpubFont()
-        {
-            if (_epubFontFamily == "Yu Gothic Medium")
-                _epubFontFamily = "Yu Mincho";
-            else
-                _epubFontFamily = "Yu Gothic Medium";
-            
-            SaveEpubSettings();
-            
-            // Reload chapter to re-calculate layout and ruby positions
-             _ = LoadEpubChapterAsync(_currentEpubChapterIndex);
-        }
 
-        public void ToggleEpubTheme()
-        {
-            _epubThemeIndex = (_epubThemeIndex + 1) % 3;
-            SaveEpubSettings();
-            UpdateEpubVisuals();
-        }
-
-        public void IncreaseEpubSize()
-        {
-            _epubFontSize += 2;
-            if (_epubFontSize > 72) _epubFontSize = 72;
-            SaveEpubSettings();
-            UpdateEpubToolbarUI();
-            
-            // For font size change, we usually need to re-pagination because it affects how much text fits per page.
-            // Just updating visuals isn't enough as content flows differently.
-            // So we reload the chapter.
-             _ = LoadEpubChapterAsync(_currentEpubChapterIndex, fromEnd: false); // Maintain page? Hard with reflow.
-        }
-
-        public void DecreaseEpubSize()
-        {
-            _epubFontSize -= 2;
-            if (_epubFontSize < 8) _epubFontSize = 8;
-            SaveEpubSettings();
-            UpdateEpubToolbarUI();
-            _ = LoadEpubChapterAsync(_currentEpubChapterIndex, fromEnd: false);
-        }
 
         private void UpdateEpubVisuals()
         {
@@ -1201,7 +1102,7 @@ namespace Uviewer
                             if (scroll.Content is RichTextBlock rtb)
                             {
                                 rtb.Foreground = fg;
-                                rtb.FontFamily = new FontFamily(_epubFontFamily);
+                                rtb.FontFamily = new FontFamily(_textFontFamily);
                                 
                                 // Also update Rubies inside blocks if possible? 
                                 // Traversing Blocks is hard.
@@ -1223,7 +1124,7 @@ namespace Uviewer
                                                      if (child is TextBlock rubytb)
                                                      {
                                                          rubytb.Foreground = fg;
-                                                         rubytb.FontFamily = new FontFamily(_epubFontFamily);
+                                                         rubytb.FontFamily = new FontFamily(_textFontFamily);
                                                      }
                                                  }
                                             }
@@ -1239,14 +1140,14 @@ namespace Uviewer
 
         private Brush GetEpubThemeForeground()
         {
-            if (_epubThemeIndex == 2) return new SolidColorBrush(Microsoft.UI.ColorHelper.FromArgb(255, 204, 204, 204)); // Dark theme
+            if (_themeIndex == 2) return new SolidColorBrush(Microsoft.UI.ColorHelper.FromArgb(255, 204, 204, 204)); // Dark theme
             return new SolidColorBrush(Colors.Black);
         }
         
         private Brush GetEpubThemeBackground()
         {
-             if (_epubThemeIndex == 0) return new SolidColorBrush(Colors.White);
-             if (_epubThemeIndex == 1) return new SolidColorBrush(Microsoft.UI.ColorHelper.FromArgb(255, 255, 249, 235)); // Beige
+             if (_themeIndex == 0) return new SolidColorBrush(Colors.White);
+             if (_themeIndex == 1) return new SolidColorBrush(Microsoft.UI.ColorHelper.FromArgb(255, 255, 249, 235)); // Beige
              return new SolidColorBrush(Microsoft.UI.ColorHelper.FromArgb(255, 30, 30, 30)); // Dark
         }
 
