@@ -462,6 +462,13 @@ namespace Uviewer
                     case "File":
                         if (File.Exists(favorite.Path))
                         {
+                            // Set pending values for EPUB
+                            if (favorite.Path.EndsWith(".epub", StringComparison.OrdinalIgnoreCase))
+                            {
+                                PendingEpubChapterIndex = favorite.ChapterIndex;
+                                PendingEpubPageIndex = favorite.SavedPage;
+                            }
+
                             // Set pending target line BEFORE loading triggers
                             // Unified navigation: Set pending target line for both modes
                             // DisplayLoadedText will handle the actual scrolling/rendering
@@ -517,8 +524,7 @@ namespace Uviewer
                 {
                     if (favorite.Path.EndsWith(".epub", StringComparison.OrdinalIgnoreCase))
                     {
-                         // Restore Epub
-                         await RestoreEpubStateAsync(favorite.ChapterIndex, favorite.SavedPage);
+                         // Handled via PendingEpubChapterIndex/PageIndex during load
                     }
                     else 
                     {
@@ -830,7 +836,7 @@ namespace Uviewer
                         bool isResetState = CurrentEpubPageIndex == 0 && CurrentEpubChapterIndex == 0;
                         bool hasExistingProgress = existing != null && (existing.SavedPage > 0 || existing.ChapterIndex > 0);
 
-                        if (isResetState && hasExistingProgress)
+                        if (isResetState && existing != null && (existing.SavedPage > 0 || existing.ChapterIndex > 0))
                         {
                             targetPage = existing.SavedPage;
                             targetChapter = existing.ChapterIndex;
@@ -944,6 +950,13 @@ namespace Uviewer
                     case "File":
                         if (File.Exists(recent.Path))
                         {
+                            // Set pending values for EPUB
+                            if (recent.Path.EndsWith(".epub", StringComparison.OrdinalIgnoreCase))
+                            {
+                                PendingEpubChapterIndex = recent.ChapterIndex;
+                                PendingEpubPageIndex = recent.SavedPage;
+                            }
+
                             // Set pending target line BEFORE loading triggers
                             _aozoraPendingTargetLine = recent.SavedLine > 1 ? recent.SavedLine : (recent.SavedPage > 0 ? -recent.SavedPage : 1);
 
@@ -1019,7 +1032,7 @@ namespace Uviewer
                 {
                     if (recent.Path.EndsWith(".epub", StringComparison.OrdinalIgnoreCase))
                     {
-                        await RestoreEpubStateAsync(recent.ChapterIndex, recent.SavedPage);
+                        // Handled via PendingEpubChapterIndex/PageIndex during load
                     }
                     else if (!_isAozoraMode && recent.ScrollOffset.HasValue && TextScrollViewer != null)
                     {

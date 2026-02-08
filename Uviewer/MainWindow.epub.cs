@@ -29,6 +29,33 @@ namespace Uviewer
         private object _epubLock = new object();
         private double _epubTextWidth = 0;
         private bool _isEpubMode = false;
+        public int PendingEpubChapterIndex { get; set; } = -1;
+        public int PendingEpubPageIndex { get; set; } = -1;
+
+        // Optimized Static Regexes
+        private static readonly Regex RxEpubFullPath = new Regex("full-path=[\"']([^\"']+)[\"']", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+        private static readonly Regex RxEpubItem = new Regex("<item\\s+[^>]*>", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+        private static readonly Regex RxEpubId = new Regex("id=[\"']([^\"']+)[\"']", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+        private static readonly Regex RxEpubHref = new Regex("href=[\"']([^\"']+)[\"']", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+        private static readonly Regex RxEpubNavProp = new Regex("properties=[\"'][^\"']*nav[^\"']*[\"']", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+        private static readonly Regex RxEpubItemRef = new Regex("<itemref[^>]*idref=\"([^\"]+)\"[^>]*/>", RegexOptions.Compiled);
+        private static readonly Regex RxEpubSpineToc = new Regex("<spine[^>]*toc=\"([^\"]+)\"", RegexOptions.Compiled);
+        private static readonly Regex RxEpubImgTag = new Regex("(<(?:img|image)\\b[^>]*>)", RegexOptions.IgnoreCase | RegexOptions.Singleline | RegexOptions.Compiled);
+        private static readonly Regex RxEpubIsImg = new Regex("^<(?:img|image)\\b", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+        private static readonly Regex RxEpubAnyTag = new Regex("<[^>]+>", RegexOptions.Compiled);
+        private static readonly Regex RxEpubSrc = new Regex("(?:src|xlink:href)=[\"']([^\"']+)[\"']", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+        private static readonly Regex RxEpubScript = new Regex(@"<script[^>]*>[\s\S]*?</script>", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+        private static readonly Regex RxEpubStyle = new Regex(@"<style[^>]*>[\s\S]*?</style>", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+        private static readonly Regex RxEpubBr = new Regex(@"<br\s*/?>", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+        private static readonly Regex RxEpubRuby = new Regex(@"<ruby[^>]*>(.*?)</ruby>", RegexOptions.IgnoreCase | RegexOptions.Singleline | RegexOptions.Compiled);
+        private static readonly Regex RxEpubRp = new Regex(@"<rp[^>]*>.*?</rp>", RegexOptions.IgnoreCase | RegexOptions.Singleline | RegexOptions.Compiled);
+        private static readonly Regex RxEpubRt = new Regex(@"<rt[^>]*>(.*?)</rt>", RegexOptions.IgnoreCase | RegexOptions.Singleline | RegexOptions.Compiled);
+        private static readonly Regex RxEpubRubySplit = new Regex(@"(\{\{RUBY\|.*?\}\})", RegexOptions.Compiled);
+        private static readonly Regex RxEpubXmlns = new Regex("xmlns=\"[^\"]*\"", RegexOptions.Compiled);
+        private static readonly Regex RxEpubNcxNav = new Regex("<navPoint[^>]*>([\\s\\S]*?)</navPoint>", RegexOptions.Compiled);
+        private static readonly Regex RxEpubNcxText = new Regex("<text>([^<]+)</text>", RegexOptions.Compiled);
+        private static readonly Regex RxEpubNcxContent = new Regex("<content[^>]*src=[\"']([^\"']+)[\"']", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+        private static readonly Regex RxEpubNavAnchor = new Regex("<a[^>]*href=[\"']([^\"']+)[\"'][^>]*>([^<]+)</a>", RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
 
 
@@ -231,14 +258,33 @@ namespace Uviewer
                  if (_epubSpine.Count == 0) throw new Exception("No content found in EPUB");
                  
                  SwitchToEpubMode();
-                 
-                 // 3. Load First Chapter
-                 _currentEpubChapterIndex = 0;
-
-                 // Load Settings
                  LoadEpubSettings();
+                 
+                 // 3. Load Chapter (Updated to handle pending positions)
+                 if (PendingEpubChapterIndex >= 0 && PendingEpubChapterIndex < _epubSpine.Count)
+                 {
+                     _currentEpubChapterIndex = PendingEpubChapterIndex;
+                     await LoadEpubChapterAsync(_currentEpubChapterIndex);
 
-                 await LoadEpubChapterAsync(_currentEpubChapterIndex);
+                     // Page navigation (wait for items to be populated)
+                     if (PendingEpubPageIndex > 0)
+                     {
+                         await Task.Delay(100);
+                         if (EpubFlipView != null && PendingEpubPageIndex < EpubFlipView.Items.Count)
+                         {
+                             EpubFlipView.SelectedIndex = PendingEpubPageIndex;
+                         }
+                     }
+                 }
+                 else
+                 {
+                     _currentEpubChapterIndex = 0;
+                     await LoadEpubChapterAsync(_currentEpubChapterIndex);
+                 }
+                 
+                 // Reset pending values
+                 PendingEpubChapterIndex = -1;
+                 PendingEpubPageIndex = -1;
                  
                  // 4. Load TOC (Background)
                  _ = ParseEpubTocAsync();
@@ -287,7 +333,7 @@ namespace Uviewer
             string content = await reader.ReadToEndAsync();
             
             // Regex to find full-path
-            var match = Regex.Match(content, "full-path=[\"']([^\"']+)[\"']", RegexOptions.IgnoreCase);
+            var match = RxEpubFullPath.Match(content);
             if (match.Success) return match.Groups[1].Value;
             
             return "";
@@ -308,12 +354,12 @@ namespace Uviewer
             var manifest = new Dictionary<string, string>(); // id -> href
             string opfDir = Path.GetDirectoryName(opfPath)?.Replace("\\", "/") ?? "";
 
-            var itemMatches = Regex.Matches(content, "<item\\s+[^>]*>", RegexOptions.IgnoreCase);
+            var itemMatches = RxEpubItem.Matches(content);
             foreach (Match m in itemMatches)
             {
                 string tagContent = m.Value;
-                var idMatch = Regex.Match(tagContent, "id=[\"']([^\"']+)[\"']", RegexOptions.IgnoreCase);
-                var hrefMatch = Regex.Match(tagContent, "href=[\"']([^\"']+)[\"']", RegexOptions.IgnoreCase);
+                var idMatch = RxEpubId.Match(tagContent);
+                var hrefMatch = RxEpubHref.Match(tagContent);
 
                 if (idMatch.Success && hrefMatch.Success)
                 {
@@ -322,7 +368,7 @@ namespace Uviewer
                     manifest[id] = href;
 
                     // Check for EPUB 3 nav property
-                    if (Regex.IsMatch(tagContent, "properties=[\"'][^\"']*nav[^\"']*[\"']", RegexOptions.IgnoreCase))
+                    if (RxEpubNavProp.IsMatch(tagContent))
                     {
                         _epubTocPath = string.IsNullOrEmpty(opfDir) ? href : opfDir + "/" + href;
                     }
@@ -331,7 +377,7 @@ namespace Uviewer
             
             // Extract Spine
             _epubSpine.Clear();
-            var itemRefMatches = Regex.Matches(content, "<itemref[^>]*idref=\"([^\"]+)\"[^>]*/>");
+            var itemRefMatches = RxEpubItemRef.Matches(content);
             
             foreach (Match m in itemRefMatches)
             {
@@ -348,7 +394,7 @@ namespace Uviewer
             // Try to find TOC path if not already found (EPUB 2 fallback)
             if (string.IsNullOrEmpty(_epubTocPath))
             {
-                var spineMatch = Regex.Match(content, "<spine[^>]*toc=\"([^\"]+)\"");
+                var spineMatch = RxEpubSpineToc.Match(content);
                 if (spineMatch.Success)
                 {
                     string tocId = spineMatch.Groups[1].Value;
@@ -527,8 +573,7 @@ namespace Uviewer
             _epubTextWidth = 42 * _textFontSize; 
             
             // Regex to split by img/image tags
-            string pattern = @"(<(?:img|image)\b[^>]*>)"; 
-            var segments = Regex.Split(html, pattern, RegexOptions.IgnoreCase | RegexOptions.Singleline);
+            var segments = RxEpubImgTag.Split(html);
 
             bool hasImages = html.Contains("<img", StringComparison.OrdinalIgnoreCase) || html.Contains("<image", StringComparison.OrdinalIgnoreCase);
             bool isFirstContent = true;
@@ -538,7 +583,7 @@ namespace Uviewer
                 if (string.IsNullOrWhiteSpace(segment)) continue;
 
                 // Check if segment is an image tag
-                if (Regex.IsMatch(segment, @"^<(?:img|image)\b", RegexOptions.IgnoreCase))
+                if (RxEpubIsImg.IsMatch(segment))
                 {
                     var imgPage = await CreateImagePageAsync(segment, currentPath);
                     if (imgPage != null) 
@@ -549,13 +594,13 @@ namespace Uviewer
                 }
                 else
                 {
-                    var textPages = CreateTextPages(segment);
+                    var textPages = await CreateTextPagesAsync(segment);
                     if (textPages.Count == 0) continue;
 
                     // [User Request] If this is a short title page at the start of a chapter with images, skip it.
                     if (isFirstContent && hasImages && textPages.Count == 1)
                     {
-                        string plainText = Regex.Replace(segment, @"<[^>]+>", "");
+                        string plainText = RxEpubAnyTag.Replace(segment, "");
                         plainText = System.Net.WebUtility.HtmlDecode(plainText).Trim();
                         if (plainText.Length > 0 && plainText.Length < 100)
                         {
@@ -637,7 +682,7 @@ namespace Uviewer
         private async Task<UIElement?> CreateImagePageAsync(string imgTag, string currentPath)
         {
             // Extract src or xlink:href (for svg image tags)
-            var match = Regex.Match(imgTag, "(?:src|xlink:href)=[\"']([^\"']+)[\"']", RegexOptions.IgnoreCase);
+            var match = RxEpubSrc.Match(imgTag);
             if (!match.Success) return null;
             
             string src = match.Groups[1].Value;
@@ -694,7 +739,7 @@ namespace Uviewer
             return _currentEpubArchive?.Entries.FirstOrDefault(e => e.Name.Equals(name, StringComparison.OrdinalIgnoreCase));
         }
 
-        private List<UIElement> CreateTextPages(string htmlContent)
+        private async Task<List<UIElement>> CreateTextPagesAsync(string htmlContent)
         {
             var blocks = ParseHtmlToBlocks(htmlContent);
             if (blocks.Count == 0) return new List<UIElement>();
@@ -766,6 +811,9 @@ namespace Uviewer
 
             while (pageCount < maxPages)
             {
+                // [Optimization] Yield UI control periodically to keep app responsive
+                if (pageCount % 5 == 0) await Task.Delay(1);
+
                 bool hasOverflow = false;
                 if (lastLinked is RichTextBlock m && m.HasOverflowContent) hasOverflow = true;
                 else if (lastLinked is RichTextBlockOverflow o && o.HasOverflowContent) hasOverflow = true;
@@ -907,21 +955,21 @@ namespace Uviewer
             var blocks = new List<Block>();
             
             // Cleanup
-            html = Regex.Replace(html, @"<script[^>]*>[\s\S]*?</script>", "", RegexOptions.IgnoreCase);
-            html = Regex.Replace(html, @"<style[^>]*>[\s\S]*?</style>", "", RegexOptions.IgnoreCase);
+            html = RxEpubScript.Replace(html, "");
+            html = RxEpubStyle.Replace(html, "");
             
             // Pre-process special tags
-            html = Regex.Replace(html, @"<br\s*/?>", "\n", RegexOptions.IgnoreCase);
+            html = RxEpubBr.Replace(html, "\n");
 
             // --- Ruby Processing ---
-            html = Regex.Replace(html, @"<ruby[^>]*>(.*?)</ruby>", m => 
+            html = RxEpubRuby.Replace(html, m => 
             {
                 string rubyContent = m.Groups[1].Value;
                 // Strip <rp>
-                rubyContent = Regex.Replace(rubyContent, @"<rp[^>]*>.*?</rp>", "", RegexOptions.IgnoreCase | RegexOptions.Singleline);
+                rubyContent = RxEpubRp.Replace(rubyContent, "");
                 
                 StringBuilder sb = new StringBuilder();
-                var rtMatches = Regex.Matches(rubyContent, @"<rt[^>]*>(.*?)</rt>", RegexOptions.IgnoreCase | RegexOptions.Singleline);
+                var rtMatches = RxEpubRt.Matches(rubyContent);
                 
                 int lastIndex = 0;
                 foreach (Match rtMatch in rtMatches)
@@ -930,8 +978,8 @@ namespace Uviewer
                     string rtPart = rtMatch.Groups[1].Value;
                     
                     // Cleanup tags like <rb> from basePart and rtPart
-                    string baseText = Regex.Replace(basePart, @"<[^>]+>", "").Trim();
-                    string rtText = Regex.Replace(rtPart, @"<[^>]+>", "").Trim();
+                    string baseText = RxEpubAnyTag.Replace(basePart, "").Trim();
+                    string rtText = RxEpubAnyTag.Replace(rtPart, "").Trim();
                     
                     if (!string.IsNullOrEmpty(baseText) || !string.IsNullOrEmpty(rtText))
                     {
@@ -944,16 +992,15 @@ namespace Uviewer
                 if (lastIndex < rubyContent.Length)
                 {
                     string tail = rubyContent.Substring(lastIndex);
-                    string tailText = Regex.Replace(tail, @"<[^>]+>", "").Trim();
+                    string tailText = RxEpubAnyTag.Replace(tail, "").Trim();
                     if (!string.IsNullOrEmpty(tailText)) sb.Append(tailText);
                 }
                 
                 return sb.ToString();
-            }, RegexOptions.IgnoreCase | RegexOptions.Singleline);
+            });
             
             // Strip remaining tags
-            // Strip remaining tags
-            html = Regex.Replace(html, @"<[^>]+>", ""); 
+            html = RxEpubAnyTag.Replace(html, ""); 
             html = System.Net.WebUtility.HtmlDecode(html);
             
             // Normalize newlines and whitespace
@@ -977,7 +1024,7 @@ namespace Uviewer
                 p.LineStackingStrategy = LineStackingStrategy.BlockLineHeight; // Force rigid line height
                 
                 // Tokenize by custom Ruby marker
-                var tokens = Regex.Split(line, @"(\{\{RUBY\|.*?\}\})");
+                var tokens = RxEpubRubySplit.Split(line);
                 
                 foreach (var token in tokens)
                 {
@@ -1238,19 +1285,19 @@ namespace Uviewer
         private void ParseNcxToc(string xml)
         {
             // Simple Regex parsing for NCX
-            xml = Regex.Replace(xml, "xmlns=\"[^\"]*\"", "");
+            xml = RxEpubXmlns.Replace(xml, "");
             
-            var matches = Regex.Matches(xml, "<navPoint[^>]*>([\\s\\S]*?)</navPoint>");
+            var matches = RxEpubNcxNav.Matches(xml);
             foreach (Match m in matches)
             {
                 string inner = m.Groups[1].Value;
                 
                 string title = "";
-                var tm = Regex.Match(inner, "<text>([^<]+)</text>");
+                var tm = RxEpubNcxText.Match(inner);
                 if (tm.Success) title = tm.Groups[1].Value;
                 
                 string src = "";
-                var cm = Regex.Match(inner, "<content[^>]*src=[\"']([^\"']+)[\"']", RegexOptions.IgnoreCase);
+                var cm = RxEpubNcxContent.Match(inner);
                 if (cm.Success) src = cm.Groups[1].Value;
                 
                 if (!string.IsNullOrEmpty(title) && !string.IsNullOrEmpty(src))
@@ -1264,7 +1311,7 @@ namespace Uviewer
         private void ParseNavToc(string html)
         {
             // Extract <a> tags with href
-            var matches = Regex.Matches(html, "<a[^>]*href=[\"']([^\"']+)[\"'][^>]*>([^<]+)</a>", RegexOptions.IgnoreCase);
+            var matches = RxEpubNavAnchor.Matches(html);
             foreach (Match m in matches)
             {
                 string src = m.Groups[1].Value;
