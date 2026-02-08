@@ -1070,8 +1070,15 @@ namespace Uviewer
                 Opacity = 1,
                 TextLineBounds = TextLineBounds.Tight,
                 IsHitTestVisible = false,
-                Margin = new Thickness(0, 0, 0, 4) // [수정] 겹침 마진 제거 및 여유 공간 추가
+                Margin = new Thickness(0, 0, 0, 4)
             };
+
+            // [추가] 루비가 3자 이상이면서 베이스 텍스트가 1자인 경우에만 장평(ScaleX)을 70%로 설정
+            if (rubyText.Length >= 3 && baseText.Length < 2)
+            {
+                rt.RenderTransform = new ScaleTransform { ScaleX = 0.75 };
+                rt.RenderTransformOrigin = new Windows.Foundation.Point(0.5, 0.5);
+            }
             
             var rb = new TextBlock
             {
@@ -1095,8 +1102,13 @@ namespace Uviewer
             // 본문 텍스트(rb)의 하단이 주변 텍스트의 기준선(Baseline)에 맞도록 유도
             grid.VerticalAlignment = VerticalAlignment.Bottom;
 
-            // [수정] 텍스트를 아래로 끌어내리던 음수 마진 제거
-            grid.Margin = new Thickness(0, 0, 0, 0); 
+            // [수정] 루비가 3자인 경우 자간이 넓어지는 것을 방지하기 위해 왼쪽/오른쪽 마진을 음수로 설정
+            double sideMargin = 0;
+            if (rubyText.Length == 3 && baseText.Length == 1)
+            {
+                sideMargin = -(_textFontSize * 0.25);
+            }
+            grid.Margin = new Thickness(sideMargin, 0, sideMargin, 0); 
 
             return new InlineUIContainer { Child = grid };
         }
