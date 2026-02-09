@@ -1410,10 +1410,13 @@ namespace Uviewer
                 Margin = new Thickness(0, 0, 0, 4)
             };
 
-            // [추가] 루비가 3자 이상이면서 베이스 텍스트가 1자인 경우에만 장평(ScaleX)을 70%로 설정
-            if (rubyText != null && rubyText.Length >= 3 && baseText != null && baseText.Length < 2)
+            // [추가] 루비가 너무 길어지는 경우 장평(ScaleX)을 75%로 설정
+            bool shouldScale = (baseText != null && baseText.Length == 1 && rubyText != null && rubyText.Length >= 3) || 
+                               (baseText != null && baseText.Length == 2 && rubyText != null && rubyText.Length >= 5) ||
+                               (baseText != null && baseText.Length == 3 && rubyText != null && rubyText.Length >= 7);
+            if (shouldScale)
             {
-                rt.RenderTransform = new ScaleTransform { ScaleX = 0.7 };
+                rt.RenderTransform = new ScaleTransform { ScaleX = 0.75 };
                 rt.RenderTransformOrigin = new Windows.Foundation.Point(0.5, 0.5);
             }
             Grid.SetRow(rt, 0);
