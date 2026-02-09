@@ -1309,7 +1309,8 @@ namespace Uviewer
                     PrimaryButtonText = Strings.DialogPrimary,
                     CloseButtonText = Strings.DialogClose,
                     XamlRoot = this.Content.XamlRoot,
-                    DefaultButton = ContentDialogButton.Primary
+                    DefaultButton = ContentDialogButton.Primary,
+                    RequestedTheme = _currentTheme
                 };
 
                 // ★ 핵심: PreviewKeyDown을 사용하여 입력 컨트롤보다 먼저 ESC를 감지합니다.
@@ -1542,7 +1543,8 @@ namespace Uviewer
                  Content = input,
                  PrimaryButtonText = Strings.DialogPrimary,
                  CloseButtonText = Strings.DialogClose,
-                 XamlRoot = this.Content.XamlRoot
+                 XamlRoot = this.Content.XamlRoot,
+                 RequestedTheme = _currentTheme
              };
  
              input.KeyDown += (s, e) => 

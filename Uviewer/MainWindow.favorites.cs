@@ -14,6 +14,9 @@ namespace Uviewer
 {
     public sealed partial class MainWindow : Window
     {
+        // [추가] 파일 이동 중 자동 저장을 막기 위한 플래그
+        private bool _isNavigatingRecent = false;
+
         // Favorites
         private ObservableCollection<FavoriteItem> _favorites = new();
         private const string FavoritesFilePath = "favorites.json";
@@ -361,16 +364,9 @@ namespace Uviewer
 
                 if (!string.IsNullOrEmpty(name) && !string.IsNullOrEmpty(path))
                 {
-                    // Check if already exists - for archives, check both path and ArchiveEntryKey
-                    FavoriteItem? existing = null;
-                    if (type == "Archive")
-                    {
-                        existing = _favorites.FirstOrDefault(f => f.Path == path && f.Type == type && f.ArchiveEntryKey == archiveEntryKey);
-                    }
-                    else
-                    {
-                        existing = _favorites.FirstOrDefault(f => f.Path == path && f.Type == type);
-                    }
+                    // Check if already exists - for archives, now also check only path to replace existing entry
+                    FavoriteItem? existing = _favorites.FirstOrDefault(f => f.Path == path && f.Type == type);
+
 
                     if (existing != null)
                     {
@@ -767,6 +763,12 @@ namespace Uviewer
         {
             try
             {
+                // [추가] Recent 메뉴를 통해 이동 중일 때는 자동 저장을 차단하여 데이터 오염 방지
+                if (_isNavigatingRecent)
+                {
+                    System.Diagnostics.Debug.WriteLine("Skipping AddToRecentAsync during navigation.");
+                    return;
+                }
                 string name = "";
                 string path = "";
                 string type = "";
@@ -937,88 +939,90 @@ namespace Uviewer
 
         private async Task NavigateToRecentAsync(RecentItem recent)
         {
+            // 1. 클릭한 시점의 위치/정보를 미리 캡처 (데이터 오염 방지)
+            double? targetOffset = recent.ScrollOffset;
+            int targetLine = recent.SavedLine;
+            string targetType = recent.Type;
+            string targetPath = recent.Path;
+            int targetChapter = recent.ChapterIndex;
+            int targetPage = recent.SavedPage;
+            string? targetArchiveKey = recent.ArchiveEntryKey;
+
             try
             {
-                switch (recent.Type)
+                // 2. [중요] 새 파일을 로드하기 전에, 현재 보고 있던 '이전 파일'의 상태를 확실히 저장
+                // 이때는 아직 _isNavigatingRecent가 false이므로 저장이 정상 동작함
+                await AddToRecentAsync(true);
+
+                // 3. [잠금] 이제부터 파일 로드가 완료될 때까지 자동 저장 기능을 차단
+                _isNavigatingRecent = true;
+
+                switch (targetType)
                 {
                     case "Folder":
-                        if (Directory.Exists(recent.Path))
+                        if (Directory.Exists(targetPath))
                         {
-                            LoadExplorerFolder(recent.Path);
+                            LoadExplorerFolder(targetPath);
                         }
                         break;
+
                     case "File":
-                        if (File.Exists(recent.Path))
+                        if (File.Exists(targetPath))
                         {
-                            // Set pending values for EPUB
-                            if (recent.Path.EndsWith(".epub", StringComparison.OrdinalIgnoreCase))
+                            // EPUB용 Pending 설정
+                            if (targetPath.EndsWith(".epub", StringComparison.OrdinalIgnoreCase))
                             {
-                                PendingEpubChapterIndex = recent.ChapterIndex;
-                                PendingEpubPageIndex = recent.SavedPage;
+                                PendingEpubChapterIndex = targetChapter;
+                                PendingEpubPageIndex = targetPage;
                             }
 
-                            // Set pending target line BEFORE loading triggers
-                            _aozoraPendingTargetLine = recent.SavedLine > 1 ? recent.SavedLine : (recent.SavedPage > 0 ? -recent.SavedPage : 1);
+                            // 텍스트/아오조라용 Pending 설정
+                            _aozoraPendingTargetLine = targetLine > 1 ? targetLine : (targetPage > 0 ? -targetPage : 1);
 
-                            // Load explorer parent folder
-                            var parentDir = Path.GetDirectoryName(recent.Path);
+                            // 탐색기 폴더 이동 및 선택
+                            var parentDir = Path.GetDirectoryName(targetPath);
                             if (!string.IsNullOrEmpty(parentDir) && Directory.Exists(parentDir))
                             {
-                                 LoadExplorerFolder(parentDir);
-                                 
-                                 // Select text file in explorer
-                                 var filename = Path.GetFileName(recent.Path);
-                                 var item = _fileItems.FirstOrDefault(f => f.Name.Equals(filename, StringComparison.OrdinalIgnoreCase));
-                                 if (item != null)
-                                 {
-                                     if (_isExplorerGrid)
-                                     {
-                                         FileGridView.SelectedItem = item;
-                                         FileGridView.ScrollIntoView(item);
-                                     }
-                                     else
-                                     {
-                                         FileListView.SelectedItem = item;
-                                         FileListView.ScrollIntoView(item);
-                                     }
-                                 }
+                                LoadExplorerFolder(parentDir);
+
+                                var filename = Path.GetFileName(targetPath);
+                                var item = _fileItems.FirstOrDefault(f => f.Name.Equals(filename, StringComparison.OrdinalIgnoreCase));
+                                if (item != null)
+                                {
+                                    if (_isExplorerGrid) FileGridView.SelectedItem = item;
+                                    else FileListView.SelectedItem = item;
+                                }
                             }
 
-                            var file = await StorageFile.GetFileFromPathAsync(recent.Path);
+                            var file = await StorageFile.GetFileFromPathAsync(targetPath);
+
+                            // [로드] 파일 열기 (내부에서 AddToRecentAsync가 호출되지만, 위에서 건 플래그 때문에 무시됨)
                             await LoadImageFromFileAsync(file);
-                            
-                            // Restore text position
-                             if (recent.ScrollOffset.HasValue && _isTextMode && TextScrollViewer != null)
-                            {
-                                await Task.Delay(300);
-                                TextScrollViewer.ChangeView(null, recent.ScrollOffset.Value, null);
-                                UpdateTextStatusBar();
-                            }
                         }
                         break;
+
                     case "Archive":
-                        if (File.Exists(recent.Path))
+                        if (File.Exists(targetPath))
                         {
-                            // First navigate to the archive file's folder
-                            var archiveFolder = Path.GetDirectoryName(recent.Path);
+                            var archiveFolder = Path.GetDirectoryName(targetPath);
                             if (!string.IsNullOrEmpty(archiveFolder) && Directory.Exists(archiveFolder))
                             {
                                 LoadExplorerFolder(archiveFolder);
 
-                                // Then open the archive and navigate to specific entry
-                                if (!string.IsNullOrEmpty(recent.ArchiveEntryKey))
+                                if (!string.IsNullOrEmpty(targetArchiveKey))
                                 {
-                                    await LoadImagesFromArchiveAsync(recent.Path);
-                                    var entryIndex = _imageEntries.FindIndex(e => e.ArchiveEntryKey == recent.ArchiveEntryKey);
+                                    await LoadImagesFromArchiveAsync(targetPath);
+                                    var entryIndex = _imageEntries.FindIndex(e => e.ArchiveEntryKey == targetArchiveKey);
                                     if (entryIndex >= 0)
                                     {
                                         _currentIndex = entryIndex;
                                         await DisplayCurrentImageAsync();
-                                        
-                                        if (recent.ScrollOffset.HasValue && TextScrollViewer != null)
+
+                                        // 아카이브 내 텍스트 파일인 경우 스크롤 복원
+                                        if (targetOffset.HasValue && TextScrollViewer != null)
                                         {
                                             await Task.Delay(100);
-                                            TextScrollViewer.ChangeView(null, recent.ScrollOffset.Value, null);
+                                            TextScrollViewer.ChangeView(null, targetOffset.Value, null);
                                             UpdateTextStatusBar();
                                         }
                                     }
@@ -1028,17 +1032,19 @@ namespace Uviewer
                         break;
                 }
 
-                if (recent.Type == "File")
+                // 4. [복원] 일반 텍스트 파일 위치 강제 복원 (오염되지 않은 캡처값 사용)
+                if (targetType == "File")
                 {
-                    if (recent.Path.EndsWith(".epub", StringComparison.OrdinalIgnoreCase))
+                    if (!targetPath.EndsWith(".epub", StringComparison.OrdinalIgnoreCase) && !_isAozoraMode)
                     {
-                        // Handled via PendingEpubChapterIndex/PageIndex during load
-                    }
-                    else if (!_isAozoraMode && recent.ScrollOffset.HasValue && TextScrollViewer != null)
-                    {
-                        await Task.Delay(100);
-                        TextScrollViewer.ChangeView(null, recent.ScrollOffset.Value, null);
-                        UpdateTextStatusBar();
+                        if (targetOffset.HasValue && TextScrollViewer != null)
+                        {
+                            // UI 레이아웃 안정화를 위해 약간 대기 후 스크롤
+                            await Task.Delay(200);
+                            TextScrollViewer.ChangeView(null, targetOffset.Value, null);
+                            UpdateTextStatusBar();
+                            System.Diagnostics.Debug.WriteLine($"Restored position to: {targetOffset.Value}");
+                        }
                     }
                 }
             }
@@ -1046,6 +1052,14 @@ namespace Uviewer
             {
                 System.Diagnostics.Debug.WriteLine($"Error navigating to recent: {ex.Message}");
             }
+            finally
+            {
+                // 5. [해제] 로드 및 복원이 끝났으므로 잠금 해제
+                _isNavigatingRecent = false;
+            }
+
+            // 6. [갱신] 이제 안전하게 현재 파일을 Recent 목록의 최상단으로 이동 (위치는 유지)
+            await AddToRecentAsync(false);
         }
 
         #endregion
