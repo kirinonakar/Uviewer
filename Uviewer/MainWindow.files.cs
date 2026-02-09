@@ -267,7 +267,11 @@ namespace Uviewer
                     await DisplayCurrentImageAsync();
 
                     // Start preloading images after displaying the first one
-                    _ = Task.Run(PreloadNextImagesAsync);
+                    _preloadCts?.Cancel();
+                    _preloadCts?.Dispose();
+                    _preloadCts = new CancellationTokenSource();
+                    var token = _preloadCts.Token;
+                    _ = Task.Run(() => PreloadNextImagesAsync(token));
 
                     // Update title to show archive name
                     Title = "Uviewer - Image & Text Viewer";
@@ -333,12 +337,20 @@ namespace Uviewer
             // Clear preloaded images
             lock (_preloadedImages)
             {
+                foreach (var bitmap in _preloadedImages.Values)
+                {
+                    bitmap?.Dispose();
+                }
                 _preloadedImages.Clear();
             }
 
             // Clear sharpened image cache
             lock (_sharpenedImageCache)
             {
+                foreach (var bitmap in _sharpenedImageCache.Values)
+                {
+                    bitmap?.Dispose();
+                }
                 _sharpenedImageCache.Clear();
             }
 
@@ -436,76 +448,106 @@ namespace Uviewer
         {
             try
             {
-                // Create a copy of the list to iterate safely
                 var items = _fileItems.ToList();
 
-                foreach (var item in items)
+                // [변경 1] 동시 작업 수를 2개로 제한하여 스레드 풀 과부하 방지
+                var parallelOptions = new ParallelOptions
                 {
-                    if (token.IsCancellationRequested) return;
+                    MaxDegreeOfParallelism = 2, 
+                    CancellationToken = token
+                };
 
-                    if (item.IsImage)
+                await Parallel.ForEachAsync(items, parallelOptions, async (item, ct) =>
+                {
+                    // 이미지가 아닌 항목은 빠르게 스킵
+                    if (!item.IsImage && !item.IsArchive && !item.IsEpub) return;
+
+                    // [변경 2] UI 스레드에 숨통을 틔워주기 위해 아주 잠깐 대기
+                    // 파일이 수백 개일 때 UI 메시지 큐가 꽉 차는 것을 방지합니다.
+                    await Task.Delay(10, ct);
+
+                    try
                     {
-                        try
+                        if (item.IsArchive)
                         {
-                            var file = await StorageFile.GetFileFromPathAsync(item.FullPath);
-                            if (file != null)
+                            using var archive = ArchiveFactory.Open(item.FullPath);
+                            var entry = archive.Entries
+                                .Where(e => !e.IsDirectory &&
+                                       SupportedImageExtensions.Contains(Path.GetExtension(e.Key)?.ToLowerInvariant() ?? ""))
+                                .OrderBy(e => e.Key)
+                                .FirstOrDefault();
+
+                            if (entry != null)
                             {
-                                var thumbnail = await file.GetThumbnailAsync(Windows.Storage.FileProperties.ThumbnailMode.SingleItem, 160);
+                                using var entryStream = entry.OpenEntryStream();
+                                var memStream = new MemoryStream(); // using 없음 (UI로 넘겨야 하므로)
+                                await entryStream.CopyToAsync(memStream, ct);
+                                memStream.Position = 0;
+
+                                // [핵심 변경 3] Low 우선순위 사용 & SetSourceAsync 사용
+                                DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, async () =>
+                                {
+                                    if (ct.IsCancellationRequested) 
+                                    {
+                                        memStream.Dispose();
+                                        return;
+                                    }
+
+                                    try 
+                                    {
+                                        var bitmap = new BitmapImage();
+                                        bitmap.DecodePixelWidth = 200;
+                                        
+                                        // [가장 중요한 수정] SetSource(동기) -> SetSourceAsync(비동기)
+                                        // UI 스레드가 디코딩을 기다리지 않고 즉시 반환되게 하여 멈춤 현상 해결
+                                        await bitmap.SetSourceAsync(memStream.AsRandomAccessStream());
+                                        item.Thumbnail = bitmap;
+                                    }
+                                    catch 
+                                    { 
+                                        memStream.Dispose();
+                                    }
+                                });
+                            }
+                        }
+                        else if (item.IsImage)
+                        {
+                            // 일반 이미지도 동일하게 비동기 처리
+                            try
+                            {
+                                var file = await StorageFile.GetFileFromPathAsync(item.FullPath);
+                                // GetThumbnailAsync는 내부적으로 이미 비동기이므로 그대로 사용
+                                var thumbnail = await file.GetThumbnailAsync(Windows.Storage.FileProperties.ThumbnailMode.SingleItem, 200);
+
                                 if (thumbnail != null)
                                 {
-                                    DispatcherQueue.TryEnqueue(() =>
+                                    DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, async () =>
                                     {
-                                        if (token.IsCancellationRequested) return;
+                                        if (ct.IsCancellationRequested) return;
                                         var bitmap = new BitmapImage();
-                                        bitmap.SetSource(thumbnail);
+                                        bitmap.DecodePixelWidth = 200;
+                                        await bitmap.SetSourceAsync(thumbnail);
                                         item.Thumbnail = bitmap;
                                     });
                                 }
                             }
+                            catch { }
                         }
-                        catch { }
                     }
-                    else if (item.IsArchive)
+                    catch 
                     {
-                        try
-                        {
-                            await Task.Run(async () =>
-                            {
-                                if (token.IsCancellationRequested) return;
-                                using var archive = ArchiveFactory.Open(item.FullPath);
-                                var entry = archive.Entries
-                                    .Where(e => !e.IsDirectory && 
-                                           SupportedImageExtensions.Contains(Path.GetExtension(e.Key)?.ToLowerInvariant() ?? ""))
-                                    .OrderBy(e => e.Key)
-                                    .FirstOrDefault();
-
-                                if (entry != null)
-                                {
-                                    using var entryStream = entry.OpenEntryStream();
-                                    var memStream = new MemoryStream();
-                                    await entryStream.CopyToAsync(memStream);
-                                    memStream.Position = 0;
-                                    
-                                    DispatcherQueue.TryEnqueue(() =>
-                                    {
-                                        if (token.IsCancellationRequested) return;
-                                        var bitmap = new BitmapImage();
-                                        bitmap.SetSource(memStream.AsRandomAccessStream());
-                                        item.Thumbnail = bitmap;
-                                    });
-                                }
-                            });
-                        }
-                        catch { }
+                        // 개별 실패 무시
                     }
-                    else if (item.IsEpub)
-                    {
-                        // Use default icon or try to extract cover?
-                        // For now, let the icon font handle it unless we wanna parse cover
-                    }
-                }
+                });
             }
-            catch { }
+            catch (OperationCanceledException)
+            {
+                // 탐색 중단 시 자연스럽게 종료
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Thumbnail load error: {ex.Message}");
+            }
         }
 
         private void ToggleExplorerViewButton_Click(object sender, RoutedEventArgs e)

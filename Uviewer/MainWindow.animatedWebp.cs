@@ -143,6 +143,10 @@ namespace Uviewer
                     var keysToRemove = _sharpenedImageCache.Keys.Take(_sharpenedImageCache.Count - MaxSharpenedCacheSize + 1).ToList();
                     foreach (var key in keysToRemove)
                     {
+                        if (_sharpenedImageCache.TryGetValue(key, out var bitmap))
+                        {
+                            bitmap?.Dispose();
+                        }
                         _sharpenedImageCache.Remove(key);
                     }
                 }

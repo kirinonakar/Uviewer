@@ -63,7 +63,10 @@ namespace Uviewer
 
         // Image preloading for faster navigation
         private readonly Dictionary<int, CanvasBitmap> _preloadedImages = new();
-        private const int PreloadCount = 3; // Number of images to preload ahead
+        private readonly HashSet<int> _loadingIndices = new();
+        private const int PreloadCount = 5; // Number of images to preload ahead
+        private readonly SemaphoreSlim _thumbnailSemaphore = new(4); // Limit concurrent thumbnail loads (archives)
+        private CancellationTokenSource? _preloadCts;
 
         private static readonly string[] SupportedImageExtensions =
         {
@@ -410,8 +413,9 @@ namespace Uviewer
                     await SaveRecentItems();
                     await SaveFavorites();
                     
-                    // Dispose semaphore
+                    // Dispose semaphores
                     _archiveLock.Dispose();
+                    _thumbnailSemaphore.Dispose();
 
                     // Dispose cancellation tokens
                     _imageLoadingCts?.Dispose();
@@ -893,23 +897,26 @@ namespace Uviewer
 
                 if (token.IsCancellationRequested)
                 {
-                    // 여기서 bitmap을 Dispose하지 않는 이유는 LoadImageBitmapAsync가 
-                    // 캐시된 객체를 반환했을 수도 있기 때문입니다.
+                    // 취소 요청이 들어왔다면, 로드된 비트맵이 "캐시된 것"인지 "새로 만든 것"인지 따지지 말고
+                    // 일단 화면에 안 쓸 거니까 정리해야 합니다.
+
+                    // 단, 캐시에 있는 녀석(프리로딩된 것)은 지우면 안 되므로 IsBitmapInCache 체크
+                    if (bitmap != null && !IsBitmapInCache(bitmap))
+                    {
+                        bitmap.Dispose();
+                    }
                     return;
                 }
 
                 if (bitmap != null)
                 {
-                    // [추가] 기존 비트맵이 캐시(프리로딩 등)에 없는 임시 비트맵(애니메이션 프레임 등)이면 명시적으로 해제
-                    if (_currentBitmap != null && !IsBitmapInCache(_currentBitmap))
-                    {
-                        _currentBitmap.Dispose();
-                    }
+                    // 1. 옛날 이미지를 임시 변수에 담아둠
+                    var oldBitmap = _currentBitmap;
 
-                    // [중요 수정] 이제 위에서 직접 Dispose를 호출할 수 있습니다 (캐시 여부 확인 후)
+                    // 2. 현재 이미지를 새것으로 '먼저' 교체 (Draw 스레드가 새것을 보게 함)
                     _currentBitmap = bitmap;
 
-                    // UI 즉시 갱신
+                    // 3. UI 갱신 요청
                     _zoomLevel = 1.0;
                     FitToWindow();
                     ShowImageUI();
@@ -919,6 +926,13 @@ namespace Uviewer
                     
                     // Sync sidebar selection (using our new safe method)
                     SyncSidebarSelection(entry);
+
+                    // 4. 이제 안전하게 옛날 이미지를 폐기
+                    // (단, 캐시에 있는 건 지우면 안 됨)
+                    if (oldBitmap != null && !IsBitmapInCache(oldBitmap) && oldBitmap != bitmap)
+                    {
+                        oldBitmap.Dispose();
+                    }
                 }
                 else
                 {
@@ -1041,7 +1055,11 @@ namespace Uviewer
                     leftEntry = _imageEntries[_currentIndex];
                     leftBitmap = await LoadImageBitmapAsync(leftEntry, LeftCanvas, token);
 
-                    if (token.IsCancellationRequested) return; // 취소 확인
+                    if (token.IsCancellationRequested)
+                    {
+                        if (leftBitmap != null && !IsBitmapInCache(leftBitmap)) leftBitmap.Dispose();
+                        return; // 취소 확인
+                    }
 
                     if (_currentIndex + 1 < _imageEntries.Count)
                     {
@@ -1068,27 +1086,48 @@ namespace Uviewer
                         leftBitmap = null;
                     }
 
-                    if (token.IsCancellationRequested) return; // 취소 확인
+                    if (token.IsCancellationRequested)
+                    {
+                        if (leftBitmap != null && !IsBitmapInCache(leftBitmap)) leftBitmap.Dispose();
+                        return; // 취소 확인
+                    }
 
                     rightEntry = _imageEntries[_currentIndex];
                     rightBitmap = await LoadImageBitmapAsync(rightEntry, RightCanvas, token);
                 }
 
-                if (token.IsCancellationRequested) return;
+                if (token.IsCancellationRequested)
+                {
+                    if (leftBitmap != null && !IsBitmapInCache(leftBitmap)) leftBitmap.Dispose();
+                    if (rightBitmap != null && !IsBitmapInCache(rightBitmap)) rightBitmap.Dispose();
+                    return;
+                }
 
-                // [추가] 기존 비트맵들 정리
-                if (_leftBitmap != null && !IsBitmapInCache(_leftBitmap)) _leftBitmap.Dispose();
-                if (_rightBitmap != null && !IsBitmapInCache(_rightBitmap)) _rightBitmap.Dispose();
+                // 1. 옛날 이미지를 임시 변수에 담아둠
+                var oldLeft = _leftBitmap;
+                var oldRight = _rightBitmap;
 
+                // 2. 현재 이미지를 새것으로 '먼저' 교체
                 _leftBitmap = leftBitmap;
                 _rightBitmap = rightBitmap;
                 _currentBitmap = rightBitmap ?? leftBitmap; // For zoom calculations
 
+                // 3. UI 갱신 요청
                 _zoomLevel = 1.0;
                 FitToWindow();
                 ShowImageUI();
                 UpdateStatusBar(rightEntry, _currentBitmap!);
                 SyncSidebarSelection(rightEntry); // Sync to the "primary" image
+
+                // 4. 이제 안전하게 옛날 이미지를 폐기
+                if (oldLeft != null && !IsBitmapInCache(oldLeft) && oldLeft != leftBitmap && oldLeft != rightBitmap)
+                {
+                    oldLeft.Dispose();
+                }
+                if (oldRight != null && !IsBitmapInCache(oldRight) && oldRight != leftBitmap && oldRight != rightBitmap)
+                {
+                    oldRight.Dispose();
+                }
             }
             catch (Exception ex)
             {
@@ -1164,9 +1203,10 @@ namespace Uviewer
                     }
 
                     var sharpened = await ApplySharpenToBitmapAsync(originalBitmap, canvas, skipUpscale: false);
-                    if (sharpened != null)
+                    if (sharpened != null && sharpened != originalBitmap)
                     {
                         CacheSharpenedImage(entryIndex, sharpened);
+                        originalBitmap.Dispose(); // Dispose original as we now have sharpened version
                         return sharpened;
                     }
                 }
@@ -1307,7 +1347,7 @@ namespace Uviewer
             using var memoryStream = new MemoryStream();
 
             // 1. [Lock 구간] 아카이브에서 데이터만 빠르게 메모리로 복사
-            await _archiveLock.WaitAsync();
+            await _archiveLock.WaitAsync(token);
             try
             {
                 if (_currentArchive == null) return null;
@@ -1348,7 +1388,7 @@ namespace Uviewer
         {
             if (token.IsCancellationRequested) return null;
 
-            await _archiveLock.WaitAsync();
+            await _archiveLock.WaitAsync(token);
             try
             {
                 if (_currentArchive == null) return null;
@@ -1475,6 +1515,10 @@ namespace Uviewer
         {
             if (_currentIndex > 0)
             {
+                _preloadCts?.Cancel();
+                _preloadCts?.Dispose();
+                _preloadCts = null;
+
                 DetectFastNavigation();
 
                 if (_isSideBySideMode)
@@ -1489,6 +1533,7 @@ namespace Uviewer
                 if (_isFastNavigation)
                 {
                     ShowFilenameOnly();
+                    return; // 빠른 탐색 중에는 프리로딩 안 함
                 }
                 else
                 {
@@ -1500,7 +1545,9 @@ namespace Uviewer
                 // Trigger preloading for previous images if navigating backwards
                 if (_currentArchive != null)
                 {
-                    _ = Task.Run(PreloadPreviousImagesAsync);
+                    _preloadCts = new CancellationTokenSource();
+                    var token = _preloadCts.Token;
+                    _ = Task.Run(() => PreloadPreviousImagesAsync(token));
                 }
             }
         }
@@ -1509,6 +1556,10 @@ namespace Uviewer
         {
             if (_currentIndex < _imageEntries.Count - 1)
             {
+                _preloadCts?.Cancel();
+                _preloadCts?.Dispose();
+                _preloadCts = null;
+
                 bool isFast = DetectFastNavigation();
 
                 if (_isSideBySideMode)
@@ -1520,6 +1571,7 @@ namespace Uviewer
                 {
                     // 빠른 탐색 중에는 텍스트만 업데이트하고 실제 로드는 타이머에 맡김
                     ShowFilenameOnly();
+                    return; // 빠른 탐색 중에는 프리로딩 안 함
                 }
                 else
                 {
@@ -1530,7 +1582,11 @@ namespace Uviewer
                 _ = AddToRecentAsync(true);
 
                 if (_currentArchive != null)
-                    _ = Task.Run(PreloadNextImagesAsync);
+                {
+                    _preloadCts = new CancellationTokenSource();
+                    var token = _preloadCts.Token;
+                    _ = Task.Run(() => PreloadNextImagesAsync(token));
+                }
             }
         }
 
@@ -1660,23 +1716,32 @@ namespace Uviewer
         {
             if (_currentBitmap != null && !_isFastNavigation)
             {
-                var ds = args.DrawingSession;
-                var canvasSize = sender.Size;
-                var imageSize = _currentBitmap.Size;
+                try
+                {
+                    if (_currentBitmap.Device == null) return; // Disposed 체크
 
-                // Calculate fit ratio
-                var fitRatio = Math.Min(canvasSize.Width / imageSize.Width, canvasSize.Height / imageSize.Height);
+                    var ds = args.DrawingSession;
+                    var canvasSize = sender.Size;
+                    var imageSize = _currentBitmap.Size;
 
-                // Apply zoom level on top of fit
-                var scaledSize = new Windows.Foundation.Size(imageSize.Width * fitRatio * _zoomLevel, imageSize.Height * fitRatio * _zoomLevel);
+                    // Calculate fit ratio
+                    var fitRatio = Math.Min(canvasSize.Width / imageSize.Width, canvasSize.Height / imageSize.Height);
 
-                // Center the image
-                var position = new Windows.Foundation.Point(
-                    (canvasSize.Width - scaledSize.Width) / 2,
-                    (canvasSize.Height - scaledSize.Height) / 2);
+                    // Apply zoom level on top of fit
+                    var scaledSize = new Windows.Foundation.Size(imageSize.Width * fitRatio * _zoomLevel, imageSize.Height * fitRatio * _zoomLevel);
 
-                var destRect = new Windows.Foundation.Rect(position, scaledSize);
-                ds.DrawImage(_currentBitmap, destRect);
+                    // Center the image
+                    var position = new Windows.Foundation.Point(
+                        (canvasSize.Width - scaledSize.Width) / 2,
+                        (canvasSize.Height - scaledSize.Height) / 2);
+
+                    var destRect = new Windows.Foundation.Rect(position, scaledSize);
+                    ds.DrawImage(_currentBitmap, destRect);
+                }
+                catch (Exception)
+                {
+                    // 그리는 도중 이미지가 해제되면 무시
+                }
             }
         }
 
@@ -1689,23 +1754,29 @@ namespace Uviewer
         {
             if (_leftBitmap != null)
             {
-                var ds = args.DrawingSession;
-                var canvasSize = sender.Size;
-                var imageSize = _leftBitmap.Size;
+                try
+                {
+                    if (_leftBitmap.Device == null) return; // Disposed 체크
 
-                // Calculate fit ratio for full canvas width (each canvas is already half the screen)
-                var fitRatio = Math.Min(canvasSize.Width / imageSize.Width, canvasSize.Height / imageSize.Height);
+                    var ds = args.DrawingSession;
+                    var canvasSize = sender.Size;
+                    var imageSize = _leftBitmap.Size;
 
-                // Apply zoom level on top of fit
-                var scaledSize = new Windows.Foundation.Size(imageSize.Width * fitRatio * _zoomLevel, imageSize.Height * fitRatio * _zoomLevel);
+                    // Calculate fit ratio for full canvas width (each canvas is already half the screen)
+                    var fitRatio = Math.Min(canvasSize.Width / imageSize.Width, canvasSize.Height / imageSize.Height);
 
-                // Align to RIGHT edge (to make images touch in the center)
-                var position = new Windows.Foundation.Point(
-                    canvasSize.Width - scaledSize.Width,
-                    (canvasSize.Height - scaledSize.Height) / 2);
+                    // Apply zoom level on top of fit
+                    var scaledSize = new Windows.Foundation.Size(imageSize.Width * fitRatio * _zoomLevel, imageSize.Height * fitRatio * _zoomLevel);
 
-                var destRect = new Windows.Foundation.Rect(position, scaledSize);
-                ds.DrawImage(_leftBitmap, destRect);
+                    // Align to RIGHT edge (to make images touch in the center)
+                    var position = new Windows.Foundation.Point(
+                        canvasSize.Width - scaledSize.Width,
+                        (canvasSize.Height - scaledSize.Height) / 2);
+
+                    var destRect = new Windows.Foundation.Rect(position, scaledSize);
+                    ds.DrawImage(_leftBitmap, destRect);
+                }
+                catch (Exception) { }
             }
         }
 
@@ -1718,23 +1789,29 @@ namespace Uviewer
         {
             if (_rightBitmap != null)
             {
-                var ds = args.DrawingSession;
-                var canvasSize = sender.Size;
-                var imageSize = _rightBitmap.Size;
+                try
+                {
+                    if (_rightBitmap.Device == null) return; // Disposed 체크
 
-                // Calculate fit ratio for full canvas width (each canvas is already half the screen)
-                var fitRatio = Math.Min(canvasSize.Width / imageSize.Width, canvasSize.Height / imageSize.Height);
+                    var ds = args.DrawingSession;
+                    var canvasSize = sender.Size;
+                    var imageSize = _rightBitmap.Size;
 
-                // Apply zoom level on top of fit
-                var scaledSize = new Windows.Foundation.Size(imageSize.Width * fitRatio * _zoomLevel, imageSize.Height * fitRatio * _zoomLevel);
+                    // Calculate fit ratio for full canvas width (each canvas is already half the screen)
+                    var fitRatio = Math.Min(canvasSize.Width / imageSize.Width, canvasSize.Height / imageSize.Height);
 
-                // Align to LEFT edge (to make images touch in the center)
-                var position = new Windows.Foundation.Point(
-                    0,
-                    (canvasSize.Height - scaledSize.Height) / 2);
+                    // Apply zoom level on top of fit
+                    var scaledSize = new Windows.Foundation.Size(imageSize.Width * fitRatio * _zoomLevel, imageSize.Height * fitRatio * _zoomLevel);
 
-                var destRect = new Windows.Foundation.Rect(position, scaledSize);
-                ds.DrawImage(_rightBitmap, destRect);
+                    // Align to LEFT edge (to make images touch in the center)
+                    var position = new Windows.Foundation.Point(
+                        0,
+                        (canvasSize.Height - scaledSize.Height) / 2);
+
+                    var destRect = new Windows.Foundation.Rect(position, scaledSize);
+                    ds.DrawImage(_rightBitmap, destRect);
+                }
+                catch (Exception) { }
             }
         }
 
@@ -1742,11 +1819,12 @@ namespace Uviewer
 
         #region Image Preloading
 
-        private async Task PreloadNextImagesAsync()
+        private async Task PreloadNextImagesAsync(CancellationToken token)
         {
             try
             {
                 if (_imageEntries.Count == 0) return;
+                if (token.IsCancellationRequested) return;
 
                 var startIndex = _currentIndex + 1;
                 var endIndex = Math.Min(_imageEntries.Count - 1, startIndex + PreloadCount);
@@ -1755,37 +1833,83 @@ namespace Uviewer
 
                 for (int i = startIndex; i <= endIndex; i++)
                 {
+                    if (token.IsCancellationRequested) break;
+
                     int index = i;
-                    lock (_preloadedImages) { if (_preloadedImages.ContainsKey(index)) continue; }
+                    
+                    // 1. 이미 캐시에 있거나, 2. 현재 로딩 중이라면 스킵
+                    bool shouldSkip = false;
+                    lock (_preloadedImages) { if (_preloadedImages.ContainsKey(index)) shouldSkip = true; }
+                    
+                    if (!shouldSkip)
+                    {
+                        lock (_loadingIndices)
+                        {
+                            if (_loadingIndices.Contains(index)) shouldSkip = true;
+                            else _loadingIndices.Add(index); // 로딩 시작 표시
+                        }
+                    }
+
+                    if (shouldSkip) continue;
 
                     var entry = _imageEntries[index];
                     tasks.Add(Task.Run(async () =>
                     {
                         try
                         {
+                            if (token.IsCancellationRequested) return;
+
                             CanvasBitmap? bitmap = null;
                             if (entry.IsArchiveEntry && _currentArchive != null)
                             {
-                                bitmap = await LoadImageFromArchiveEntryAsync(entry.ArchiveEntryKey!, MainCanvas, CancellationToken.None);
+                                bitmap = await LoadImageFromArchiveEntryAsync(entry.ArchiveEntryKey!, MainCanvas, token);
                             }
                             else if (!entry.IsArchiveEntry && entry.FilePath != null)
                             {
                                 bitmap = await LoadImageFromPathAsync(entry.FilePath, MainCanvas);
                             }
 
+                            if (token.IsCancellationRequested)
+                            {
+                                // 만들었는데 취소됐다면 즉시 폐기
+                                bitmap?.Dispose();
+                                return;
+                            }
+
                             if (bitmap != null)
                             {
-                                lock (_preloadedImages) { _preloadedImages[index] = bitmap; }
+                                lock (_preloadedImages)
+                                {
+                                    // 로딩 끝낸 사이에 이미 누가 넣었는지 더블 체크
+                                    if (!_preloadedImages.ContainsKey(index))
+                                    {
+                                        _preloadedImages[index] = bitmap;
+                                    }
+                                    else
+                                    {
+                                        // 늦게 도착한 비트맵은 즉시 폐기
+                                        bitmap.Dispose();
+                                    }
+                                }
                             }
                         }
                         catch { }
-                    }));
+                        finally
+                        {
+                            // 로딩 상태 해제
+                            lock (_loadingIndices) { _loadingIndices.Remove(index); }
+                        }
+                    }, token));
                 }
 
                 await Task.WhenAll(tasks);
 
-                // Clean up old preloaded images to save memory
-                CleanupOldPreloadedImages();
+                if (!token.IsCancellationRequested)
+                {
+                    // Clean up old preloaded images to save memory
+                    CleanupOldPreloadedImages();
+                    CleanupOldSharpenedImages();
+                }
             }
             catch (Exception ex)
             {
@@ -1793,11 +1917,12 @@ namespace Uviewer
             }
         }
 
-        private async Task PreloadPreviousImagesAsync()
+        private async Task PreloadPreviousImagesAsync(CancellationToken token)
         {
             try
             {
                 if (_imageEntries.Count == 0) return;
+                if (token.IsCancellationRequested) return;
 
                 var startIndex = Math.Max(0, _currentIndex - PreloadCount);
                 var endIndex = _currentIndex - 1;
@@ -1806,37 +1931,82 @@ namespace Uviewer
 
                 for (int i = startIndex; i <= endIndex; i++)
                 {
+                    if (token.IsCancellationRequested) break;
+
                     int index = i;
-                    lock (_preloadedImages) { if (_preloadedImages.ContainsKey(index)) continue; }
+                    
+                    // 1. 이미 캐시에 있거나, 2. 현재 로딩 중이라면 스킵
+                    bool shouldSkip = false;
+                    lock (_preloadedImages) { if (_preloadedImages.ContainsKey(index)) shouldSkip = true; }
+                    
+                    if (!shouldSkip)
+                    {
+                        lock (_loadingIndices)
+                        {
+                            if (_loadingIndices.Contains(index)) shouldSkip = true;
+                            else _loadingIndices.Add(index); // 로딩 시작 표시
+                        }
+                    }
+
+                    if (shouldSkip) continue;
 
                     var entry = _imageEntries[index];
                     tasks.Add(Task.Run(async () =>
                     {
                         try
                         {
+                            if (token.IsCancellationRequested) return;
+
                             CanvasBitmap? bitmap = null;
                             if (entry.IsArchiveEntry && _currentArchive != null)
                             {
-                                bitmap = await LoadImageFromArchiveEntryAsync(entry.ArchiveEntryKey!, MainCanvas, CancellationToken.None);
+                                bitmap = await LoadImageFromArchiveEntryAsync(entry.ArchiveEntryKey!, MainCanvas, token);
                             }
                             else if (!entry.IsArchiveEntry && entry.FilePath != null)
                             {
                                 bitmap = await LoadImageFromPathAsync(entry.FilePath, MainCanvas);
                             }
 
+                            if (token.IsCancellationRequested)
+                            {
+                                // 만들었는데 취소됐다면 즉시 폐기
+                                bitmap?.Dispose();
+                                return;
+                            }
+
                             if (bitmap != null)
                             {
-                                lock (_preloadedImages) { _preloadedImages[index] = bitmap; }
+                                lock (_preloadedImages)
+                                {
+                                    if (!_preloadedImages.ContainsKey(index))
+                                    {
+                                        _preloadedImages[index] = bitmap;
+                                    }
+                                    else
+                                    {
+                                        // 늦게 도착한 것은 즉시 폐기
+                                        bitmap.Dispose();
+                                    }
+                                }
                             }
                         }
                         catch { }
-                    }));
+                        finally
+                        {
+                            // 로딩 상태 해제
+                            lock (_loadingIndices) { _loadingIndices.Remove(index); }
+                        }
+                    }, token));
                 }
 
                 await Task.WhenAll(tasks);
 
-                // Clean up old preloaded images to save memory
-                CleanupOldPreloadedImages();
+                if (!token.IsCancellationRequested)
+                {
+                    // Clean up old preloaded images to save memory
+                    CleanupOldPreloadedImages();
+                    CleanupOldSharpenedImages();
+                }
             }
             catch (Exception ex)
             {
@@ -1856,7 +2026,31 @@ namespace Uviewer
 
                 foreach (var key in keysToRemove)
                 {
+                    if (_preloadedImages.TryGetValue(key, out var bitmap))
+                    {
+                        bitmap?.Dispose();
+                    }
                     _preloadedImages.Remove(key);
+                }
+            }
+        }
+
+        private void CleanupOldSharpenedImages()
+        {
+            lock (_sharpenedImageCache)
+            {
+                var keepRange = PreloadCount * 2;
+                var keysToRemove = _sharpenedImageCache.Keys
+                    .Where(index => Math.Abs(index - _currentIndex) > keepRange)
+                    .ToList();
+
+                foreach (var key in keysToRemove)
+                {
+                    if (_sharpenedImageCache.TryGetValue(key, out var bitmap))
+                    {
+                        bitmap?.Dispose();
+                    }
+                    _sharpenedImageCache.Remove(key);
                 }
             }
         }

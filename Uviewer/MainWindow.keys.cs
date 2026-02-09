@@ -180,6 +180,18 @@ namespace Uviewer
 
             if (_isTextMode || _isEpubMode) return; 
 
+            // Intercept Left/Right for Archive internal navigation even when explorer grid is focused
+            if (e.Key == Windows.System.VirtualKey.Left || e.Key == Windows.System.VirtualKey.Right)
+            {
+                if (_currentArchive != null)
+                {
+                    if (e.Key == Windows.System.VirtualKey.Left) _ = NavigateToPreviousAsync();
+                    else _ = NavigateToNextAsync();
+                    e.Handled = true;
+                    return;
+                }
+            }
+
             // Image Mode (Archive or Folder with images)
             if (_imageEntries != null && _imageEntries.Count > 0)
             {
