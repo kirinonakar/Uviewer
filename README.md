@@ -38,6 +38,11 @@
 ### 🌍 Localization
 - **Multi-language Support**: Automatically detects and switches between **English** and **Korean** based on system settings.
 
+### 🎨 Global Theme & Design
+- **Dark & Light Mode**: Seamlessly switch between dark and light themes for the entire interface.
+- **Modern Windows Integration**: Features an extended title bar with modern styling, similar to Windows 11 system apps like Explorer and Settings.
+- **Unified Aesthetics**: All UI components, including the custom title bar and status bar, dynamically sync with the selected system theme.
+
 ## 🛠️ System Requirements
 - **OS**: Windows 10 (Version 19041+) or Windows 11.
 - **Runtime**: .NET 10.0.

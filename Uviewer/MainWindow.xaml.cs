@@ -58,6 +58,7 @@ namespace Uviewer
         // Side-by-side view settings
         private bool _isSideBySideMode = false;
         private bool _nextImageOnRight = true;
+        private ElementTheme _currentTheme = ElementTheme.Default;
         private CanvasBitmap? _leftBitmap;
         private CanvasBitmap? _rightBitmap;
 
@@ -284,6 +285,10 @@ namespace Uviewer
             {
                 // Set window title
                 Title = "Uviewer - Image & Text Viewer";
+                
+                // Custom Title Bar
+                ExtendsContentIntoTitleBar = true;
+                SetTitleBar(AppTitleBar);
 
                 // Set window icon (with fallback for single-file publish)
                 try
@@ -436,8 +441,9 @@ namespace Uviewer
                 _toolbarHideTimerRunning = false;
                 if (_isFullscreen)
                 {
+                    AppTitleBar.Visibility = Visibility.Collapsed;
                     ToolbarGrid.Visibility = Visibility.Collapsed;
-                    System.Diagnostics.Debug.WriteLine("✓ Toolbar hidden by timer");
+                    System.Diagnostics.Debug.WriteLine("✓ Titlebar and Toolbar hidden by timer");
                 }
             };
 
@@ -500,6 +506,7 @@ namespace Uviewer
             ToolTipService.SetToolTip(BrowseFolderButton, Strings.BrowseFolderTooltip);
             ToolTipService.SetToolTip(TocButton, Strings.TocTooltip);
             ToolTipService.SetToolTip(SettingsButton, Strings.SettingsTooltip);
+            UpdateThemeToggleButtonTooltip();
             ToolTipService.SetToolTip(PrevFileButton, Strings.PrevFileTooltip);
             ToolTipService.SetToolTip(NextFileButton, Strings.NextFileTooltip);
             ToolTipService.SetToolTip(PrevPageButton, Strings.PrevPageTooltip);
@@ -580,6 +587,7 @@ namespace Uviewer
             {
                 // Exit fullscreen
                 appWindow.SetPresenter(AppWindowPresenterKind.Default);
+                AppTitleBar.Visibility = Visibility.Visible;
                 ToolbarGrid.Visibility = Visibility.Visible;
                 StatusBarGrid.Visibility = Visibility.Visible;
                 if (_isSidebarVisible)
@@ -599,6 +607,7 @@ namespace Uviewer
             {
                 // Enter fullscreen
                 appWindow.SetPresenter(AppWindowPresenterKind.FullScreen);
+                AppTitleBar.Visibility = Visibility.Collapsed;
                 ToolbarGrid.Visibility = Visibility.Collapsed;
                 StatusBarGrid.Visibility = Visibility.Collapsed;
                 SidebarGrid.Visibility = Visibility.Collapsed;
@@ -650,8 +659,9 @@ namespace Uviewer
                 // Show toolbar and stop hide timer while in hover zone
                 if (ToolbarGrid.Visibility != Visibility.Visible)
                 {
+                    AppTitleBar.Visibility = Visibility.Visible;
                     ToolbarGrid.Visibility = Visibility.Visible;
-                    System.Diagnostics.Debug.WriteLine("Toolbar SHOWN (mouse in top zone)");
+                    System.Diagnostics.Debug.WriteLine("Titlebar and Toolbar SHOWN (mouse in top zone)");
                 }
                 if (_toolbarHideTimerRunning)
                 {
@@ -797,11 +807,85 @@ namespace Uviewer
 
             NotificationText.Text = message;
             NotificationOverlay.Visibility = Visibility.Visible;
-
             _notificationTimer?.Stop();
             _notificationTimer?.Start();
         }
 
+        private void GlobalThemeToggleButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (_currentTheme == ElementTheme.Dark)
+            {
+                SetTheme(ElementTheme.Light);
+            }
+            else
+            {
+                SetTheme(ElementTheme.Dark);
+            }
+        }
+
+        private void SetTheme(ElementTheme theme)
+        {
+            _currentTheme = theme;
+            if (RootGrid != null)
+            {
+                RootGrid.RequestedTheme = theme;
+            }
+
+            // Update icon
+            if (ThemeIcon != null)
+            {
+                ThemeIcon.Glyph = _currentTheme == ElementTheme.Dark ? "\uE706" : "\uE708"; // Sun if dark (to switch to light), Moon if light (to switch to dark)
+            }
+            
+            // Update ToggleButton state
+            if (GlobalThemeToggleButton != null)
+            {
+                GlobalThemeToggleButton.IsChecked = _currentTheme == ElementTheme.Dark;
+            }
+
+            UpdateThemeToggleButtonTooltip();
+            UpdateTitleBarColors();
+        }
+
+        private void UpdateTitleBarColors()
+        {
+            var appWindow = this.AppWindow;
+            if (appWindow != null && AppWindowTitleBar.IsCustomizationSupported())
+            {
+                var titleBar = appWindow.TitleBar;
+                // Get the background color of the toolbar/titlebar to match buttons
+                // Default is transparent for buttons to let our background show through
+                titleBar.ButtonBackgroundColor = Colors.Transparent;
+                titleBar.ButtonInactiveBackgroundColor = Colors.Transparent;
+
+                if (_currentTheme == ElementTheme.Dark)
+                {
+                    titleBar.ButtonForegroundColor = Colors.White;
+                    titleBar.ButtonHoverForegroundColor = Colors.White;
+                    titleBar.ButtonHoverBackgroundColor = ColorHelper.FromArgb(0x33, 0xFF, 0xFF, 0xFF);
+                    titleBar.ButtonPressedForegroundColor = Colors.White;
+                    titleBar.ButtonPressedBackgroundColor = ColorHelper.FromArgb(0x66, 0xFF, 0xFF, 0xFF);
+                    titleBar.ButtonInactiveForegroundColor = Colors.Gray;
+                }
+                else
+                {
+                    titleBar.ButtonForegroundColor = Colors.Black;
+                    titleBar.ButtonHoverForegroundColor = Colors.Black;
+                    titleBar.ButtonHoverBackgroundColor = ColorHelper.FromArgb(0x33, 0x00, 0x00, 0x00);
+                    titleBar.ButtonPressedForegroundColor = Colors.Black;
+                    titleBar.ButtonPressedBackgroundColor = ColorHelper.FromArgb(0x66, 0x00, 0x00, 0x00);
+                    titleBar.ButtonInactiveForegroundColor = Colors.LightGray;
+                }
+            }
+        }
+
+        private void UpdateThemeToggleButtonTooltip()
+        {
+            if (GlobalThemeToggleButton != null)
+            {
+                ToolTipService.SetToolTip(GlobalThemeToggleButton, _currentTheme == ElementTheme.Dark ? Strings.LightModeTooltip : Strings.DarkModeTooltip);
+            }
+        }
 
         #region Image Display
 

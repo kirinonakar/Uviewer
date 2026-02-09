@@ -327,9 +327,6 @@ namespace Uviewer
             TextToolbarPanel.Visibility = Visibility.Visible; // Reuse text toolbar for now
             
             Title = "Uviewer - Image & Text Viewer";
-            
-             if (StatusBarGrid != null)
-                StatusBarGrid.Background = (Brush)Application.Current.Resources["SolidBackgroundFillColorBaseBrush"];
         }
 
         private async Task<string> ParseEpubContainerAsync()

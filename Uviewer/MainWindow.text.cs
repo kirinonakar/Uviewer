@@ -303,10 +303,6 @@ namespace Uviewer
             // Update Title
             Title = "Uviewer - Image & Text Viewer";
             
-            // Set Opaque Status Bar
-            if (StatusBarGrid != null)
-                StatusBarGrid.Background = (Brush)Application.Current.Resources["SolidBackgroundFillColorBaseBrush"]; // Opaque standard brush
-            
             // Load Settings
             LoadTextSettings();
         }
@@ -384,10 +380,6 @@ namespace Uviewer
             
             ImageToolbarPanel.Visibility = Visibility.Visible;
             TextToolbarPanel.Visibility = Visibility.Collapsed;
-            
-            // Restore Status Bar (semi-transparent style if any, but default opaque is safest)
-             if (StatusBarGrid != null)
-                StatusBarGrid.Background = (Brush)Application.Current.Resources["CardBackgroundFillColorDefaultBrush"];
         }
 
         private async Task<string> ReadTextFileWithEncodingAsync(StorageFile file)

@@ -333,6 +333,10 @@ namespace Uviewer
                         if (lines.Length >= 6 && lines[5].Trim() == "1") _sharpenEnabled = true;
                         if (lines.Length >= 7 && lines[6].Trim() == "1") _isSideBySideMode = true;
                         if (lines.Length >= 8 && lines[7].Trim() == "0") _nextImageOnRight = false;
+                        if (lines.Length >= 9 && int.TryParse(lines[8], out int themeVal))
+                        {
+                            SetTheme((ElementTheme)themeVal);
+                        }
 
                         UpdateSharpenButtonState();
                         UpdateSideBySideButtonState();
@@ -419,7 +423,8 @@ namespace Uviewer
             isMaximized ? "1" : "0", // 상태만 현재 상태(최대화 여부)를 저장
             _sharpenEnabled ? "1" : "0",
             _isSideBySideMode ? "1" : "0",
-            _nextImageOnRight ? "1" : "0"
+            _nextImageOnRight ? "1" : "0",
+            ((int)_currentTheme).ToString()
                 };
 
                 File.WriteAllLines(_windowSettingsFile, settings);
