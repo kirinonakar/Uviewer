@@ -28,6 +28,8 @@ namespace Uviewer
         private string? _currentEpubFilePath;
         private string? _epubTocPath;
         private object _epubLock = new object();
+        private SemaphoreSlim _epubArchiveLock = new SemaphoreSlim(1, 1);
+
         private double _epubTextWidth = 0;
         private bool _isEpubMode = false;
         public int PendingEpubChapterIndex { get; set; } = -1;
@@ -334,9 +336,18 @@ namespace Uviewer
             var entry = _currentEpubArchive?.GetEntry("META-INF/container.xml");
             if (entry == null) return "";
 
-            using var stream = entry.Open();
-            using var reader = new StreamReader(stream);
-            string content = await reader.ReadToEndAsync();
+            string content;
+            await _epubArchiveLock.WaitAsync();
+            try
+            {
+                using var stream = entry.Open();
+                using var reader = new StreamReader(stream);
+                content = await reader.ReadToEndAsync();
+            }
+            finally
+            {
+                _epubArchiveLock.Release();
+            }
             
             // Regex to find full-path
             var match = RxEpubFullPath.Match(content);
@@ -352,9 +363,18 @@ namespace Uviewer
             
             _epubTocPath = null; // Reset
 
-            using var stream = entry.Open();
-            using var reader = new StreamReader(stream);
-            string content = await reader.ReadToEndAsync();
+            string content;
+            await _epubArchiveLock.WaitAsync();
+            try
+            {
+                using var stream = entry.Open();
+                using var reader = new StreamReader(stream);
+                content = await reader.ReadToEndAsync();
+            }
+            finally
+            {
+                _epubArchiveLock.Release();
+            }
             
             // Extract Manifest
             var manifest = new Dictionary<string, string>(); // id -> href
@@ -434,9 +454,18 @@ namespace Uviewer
                     var entry = _currentEpubArchive?.GetEntry(path);
                     if (entry == null) return;
 
-                    using var stream = entry.Open();
-                    using var reader = new StreamReader(stream);
-                    string html = await reader.ReadToEndAsync();
+                    string html;
+                    await _epubArchiveLock.WaitAsync();
+                    try
+                    {
+                        using var stream = entry.Open();
+                        using var reader = new StreamReader(stream);
+                        html = await reader.ReadToEndAsync();
+                    }
+                    finally
+                    {
+                        _epubArchiveLock.Release();
+                    }
 
                     // Convert HTML to Blocks and Images
                     pages = await RenderEpubPagesAsync(html, path);
@@ -514,10 +543,18 @@ namespace Uviewer
                     if (entry == null) continue;
 
                     string html;
-                    using (var stream = entry.Open())
-                    using (var reader = new StreamReader(stream))
+                    await _epubArchiveLock.WaitAsync();
+                    try
                     {
-                        html = await reader.ReadToEndAsync();
+                        using (var stream = entry.Open())
+                        using (var reader = new StreamReader(stream))
+                        {
+                            html = await reader.ReadToEndAsync();
+                        }
+                    }
+                    finally
+                    {
+                        _epubArchiveLock.Release();
                     }
 
                     if (token.IsCancellationRequested) return;
@@ -599,7 +636,7 @@ namespace Uviewer
                 if (string.IsNullOrEmpty(relativePath)) return "";
 
                 // Decoded URL chars (e.g. %20)
-                relativePath = System.Net.WebUtility.UrlDecode(relativePath);
+                relativePath = Uri.UnescapeDataString(relativePath);
 
                 // Handle absolute paths (starting with /) relative to epub root?? 
                 // Usually in EPUB, / implies root of zip.
@@ -793,9 +830,18 @@ namespace Uviewer
 
             try
             {
-                using var stream = entry.Open();
                 var mem = new MemoryStream();
-                await stream.CopyToAsync(mem);
+                await _epubArchiveLock.WaitAsync();
+                try
+                {
+                    using var stream = entry.Open();
+                    await stream.CopyToAsync(mem);
+                }
+                finally
+                {
+                    _epubArchiveLock.Release();
+                }
+
                 mem.Position = 0;
                 
                 var bitmap = new BitmapImage();
@@ -1344,9 +1390,18 @@ namespace Uviewer
                      var entry = _currentEpubArchive?.GetEntry(_epubTocPath);
                      if (entry != null)
                      {
+                     string content;
+                     await _epubArchiveLock.WaitAsync();
+                     try
+                     {
                          using var stream = entry.Open();
                          using var reader = new StreamReader(stream);
-                         string content = await reader.ReadToEndAsync();
+                         content = await reader.ReadToEndAsync();
+                     }
+                     finally
+                     {
+                         _epubArchiveLock.Release();
+                     }
                          
                          string ext = Path.GetExtension(_epubTocPath).ToLower();
                          if (ext == ".ncx")
