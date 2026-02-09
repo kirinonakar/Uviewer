@@ -1320,6 +1320,16 @@ namespace Uviewer
                     DefaultButton = ContentDialogButton.Primary
                 };
 
+                // ★ 핵심: PreviewKeyDown을 사용하여 입력 컨트롤보다 먼저 ESC를 감지합니다.
+                stackPanel.PreviewKeyDown += (s, e) =>
+                {
+                    if (e.Key == Windows.System.VirtualKey.Escape)
+                    {
+                        dialog.Hide(); // 강제 닫기
+                        e.Handled = true; // 이벤트 전파 중단
+                    }
+                };
+
                 if (await dialog.ShowAsync() == ContentDialogResult.Primary && fontList.SelectedItem is string selectedFont)
                 {
                     SetTextFont(selectedFont);
