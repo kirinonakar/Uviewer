@@ -1465,7 +1465,7 @@ namespace Uviewer
             double maxWidth = AozoraPageContent.MaxWidth;
             if (double.IsInfinity(maxWidth) || maxWidth < 100) maxWidth = 800;
             img.Width = maxWidth;
-            if (maxHeight > 0) img.Height = maxHeight;
+            if (maxHeight > 0) img.Height = maxHeight * 0.98; // 위아래 크기를 화면보다 약간 줄임 (약 90% 수준)
             
             img.HorizontalAlignment = HorizontalAlignment.Center;
             img.VerticalAlignment = VerticalAlignment.Center;

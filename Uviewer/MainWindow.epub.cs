@@ -13,6 +13,7 @@ using System.IO.Compression;
 using System.Linq;
 using System.Text;
 using System.Text.RegularExpressions;
+using System.Threading;
 using System.Threading.Tasks;
 using Windows.Storage;
 using Windows.Storage.Streams;
@@ -31,6 +32,12 @@ namespace Uviewer
         private bool _isEpubMode = false;
         public int PendingEpubChapterIndex { get; set; } = -1;
         public int PendingEpubPageIndex { get; set; } = -1;
+        private List<UIElement> _epubPages = new();
+        private int _currentEpubPageIndex = 0;
+        private UIElement? EpubSelectedItem => (_epubPages.Count > 0 && _currentEpubPageIndex >= 0 && _currentEpubPageIndex < _epubPages.Count) ? _epubPages[_currentEpubPageIndex] : null;
+
+        private Dictionary<int, List<UIElement>> _epubPreloadCache = new();
+        private CancellationTokenSource? _epubPreloadCts;
 
         // Optimized Static Regexes
         private static readonly Regex RxEpubFullPath = new Regex("full-path=[\"']([^\"']+)[\"']", RegexOptions.IgnoreCase | RegexOptions.Compiled);
@@ -79,7 +86,7 @@ namespace Uviewer
 
 
         public int CurrentEpubChapterIndex => _currentEpubChapterIndex;
-        public int CurrentEpubPageIndex => EpubFlipView != null ? EpubFlipView.SelectedIndex : 0;
+        public int CurrentEpubPageIndex => _currentEpubPageIndex;
 
         private DispatcherQueueTimer? _epubResizeTimer;
 
@@ -96,12 +103,13 @@ namespace Uviewer
                 {
                      if (_isEpubMode)
                      {
+                         _epubPreloadCache.Clear();
                          // Maintain current page ratio or just reload chapter (which defaults to page 0 usually, need to keep index?)
                          // LoadEpubChapterAsync resets index to 0 by default but we can try to restore?
                          // Ideally we want to stay at same *percentage* or *text position*.
                          // For now, simple reload as requested. 
                          int currentLine = 1;
-                         if (EpubFlipView?.SelectedItem is Grid g && g.Tag is EpubPageInfoTag tag)
+                         if (EpubSelectedItem is Grid g && g.Tag is EpubPageInfoTag tag)
                          {
                              currentLine = tag.StartLine;
                          }
@@ -125,9 +133,9 @@ namespace Uviewer
                      // Wait for rendering
                  await Task.Delay(100);
                  
-                 if (pageIndex >= 0 && pageIndex < EpubFlipView.Items.Count)
+                 if (pageIndex >= 0 && pageIndex < _epubPages.Count)
                  {
-                     EpubFlipView.SelectedIndex = pageIndex;
+                     SetEpubPageIndex(pageIndex);
                  }
                  UpdateEpubStatus();
             }
@@ -243,10 +251,11 @@ namespace Uviewer
              StopAnimatedWebp();
              _currentEpubFilePath = file.Path;
              
-             try
-             {
-                 var stream = await file.OpenStreamForReadAsync();
-                 _currentEpubArchive = new ZipArchive(stream, ZipArchiveMode.Read);
+              try
+              {
+                  _epubPreloadCache.Clear();
+                  var stream = await file.OpenStreamForReadAsync();
+                  _currentEpubArchive = new ZipArchive(stream, ZipArchiveMode.Read);
                  
                  // 1. Parse Container
                  var rootPath = await ParseEpubContainerAsync();
@@ -270,9 +279,9 @@ namespace Uviewer
                      if (PendingEpubPageIndex > 0)
                      {
                          await Task.Delay(100);
-                         if (EpubFlipView != null && PendingEpubPageIndex < EpubFlipView.Items.Count)
+                         if (PendingEpubPageIndex < _epubPages.Count)
                          {
-                             EpubFlipView.SelectedIndex = PendingEpubPageIndex;
+                             SetEpubPageIndex(PendingEpubPageIndex);
                          }
                      }
                  }
@@ -415,25 +424,42 @@ namespace Uviewer
             {
                 // Show loading
                 if (EpubFastNavOverlay != null) EpubFastNavOverlay.Visibility = Visibility.Visible;
-                await Task.Delay(10); // UI yield
+                await Task.Delay(10); // UI yield to show overlay
 
-                string path = _epubSpine[index];
-                var entry = _currentEpubArchive?.GetEntry(path);
-                if (entry == null) return;
+                List<UIElement> pages;
+                if (_epubPreloadCache.TryGetValue(index, out var cachedPages))
+                {
+                    pages = cachedPages;
+                }
+                else
+                {
+                    string path = _epubSpine[index];
+                    var entry = _currentEpubArchive?.GetEntry(path);
+                    if (entry == null) return;
 
-                using var stream = entry.Open();
-                using var reader = new StreamReader(stream);
-                string html = await reader.ReadToEndAsync();
+                    using var stream = entry.Open();
+                    using var reader = new StreamReader(stream);
+                    string html = await reader.ReadToEndAsync();
 
-                // Convert HTML to Blocks and Images
-                var pages = await RenderEpubPagesAsync(html, path);
+                    // Convert HTML to Blocks and Images
+                    pages = await RenderEpubPagesAsync(html, path);
+                    _epubPreloadCache[index] = pages;
+                }
                 
-                // Update FlipView
-                EpubFlipView.ItemsSource = pages;
+                // Update pages list
+                _epubPages = pages;
+                _currentEpubPageIndex = -1;
+
+                // Update UI Container
+                EpubPageDisplay.Children.Clear();
+                foreach (var page in _epubPages)
+                {
+                    EpubPageDisplay.Children.Add(page);
+                }
                 
+                int targetPage = 0;
                 if (targetLine > 0)
                 {
-                    int targetPage = 0;
                     for (int i = 0; i < pages.Count; i++)
                     {
                         if (pages[i] is Grid pg && pg.Tag is EpubPageInfoTag tag)
@@ -451,18 +477,16 @@ namespace Uviewer
                             }
                         }
                     }
-                    EpubFlipView.SelectedIndex = targetPage;
                 }
                 else if (fromEnd && pages.Count > 0)
                 {
-                    EpubFlipView.SelectedIndex = pages.Count - 1;
-                }
-                else
-                {
-                    EpubFlipView.SelectedIndex = 0;
+                    targetPage = pages.Count - 1;
                 }
                 
-                UpdateEpubStatus();
+                SetEpubPageIndex(targetPage);
+
+                // Trigger preloading for neighbors
+                _ = PreloadEpubChaptersAsync(index);
             }
             finally
             {
@@ -470,18 +494,72 @@ namespace Uviewer
             }
         }
 
+        private async Task PreloadEpubChaptersAsync(int currentIndex)
+        {
+            _epubPreloadCts?.Cancel();
+            _epubPreloadCts = new CancellationTokenSource();
+            var token = _epubPreloadCts.Token;
+
+            try
+            {
+                // Preload next and previous
+                var indicesToPreload = new List<int>();
+                if (currentIndex + 1 < _epubSpine.Count) indicesToPreload.Add(currentIndex + 1);
+                if (currentIndex - 1 >= 0) indicesToPreload.Add(currentIndex - 1);
+
+                foreach (int idx in indicesToPreload)
+                {
+                    if (token.IsCancellationRequested) return;
+                    if (_epubPreloadCache.ContainsKey(idx)) continue;
+
+                    string path = _epubSpine[idx];
+                    var entry = _currentEpubArchive?.GetEntry(path);
+                    if (entry == null) continue;
+
+                    string html;
+                    using (var stream = entry.Open())
+                    using (var reader = new StreamReader(stream))
+                    {
+                        html = await reader.ReadToEndAsync();
+                    }
+
+                    if (token.IsCancellationRequested) return;
+
+                    var pages = await RenderEpubPagesAsync(html, path);
+                    _epubPreloadCache[idx] = pages;
+
+                    // Small delay to let UI breathe
+                    await Task.Delay(50, token);
+                }
+                
+                // Keep cache size reasonable (e.g., current + 2 neighbors each side)
+                if (_epubPreloadCache.Count > 5)
+                {
+                    var keysToRemove = _epubPreloadCache.Keys
+                        .Where(k => Math.Abs(k - currentIndex) > 2)
+                        .ToList();
+                    foreach (var k in keysToRemove) _epubPreloadCache.Remove(k);
+                }
+            }
+            catch (OperationCanceledException) { }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Epub preload error: {ex.Message}");
+            }
+        }
+
         private void UpdateEpubStatus()
         {
             if (!_isEpubMode) return;
             
-            int currentPage = (EpubFlipView?.SelectedIndex ?? 0) + 1;
-            int totalPages = EpubFlipView?.Items.Count ?? 0;
+            int currentPage = _currentEpubPageIndex + 1;
+            int totalPages = _epubPages.Count;
             if (totalPages == 0) totalPages = 1;
 
             int currentLine = 1;
             int totalLines = 1;
 
-            if (EpubFlipView?.SelectedItem is Grid g && g.Tag is EpubPageInfoTag tag)
+            if (EpubSelectedItem is Grid g && g.Tag is EpubPageInfoTag tag)
             {
                 currentLine = tag.StartLine;
                 totalLines = tag.TotalLinesInChapter;
@@ -673,6 +751,27 @@ namespace Uviewer
              }
         }
 
+        private void EpubTouchOverlay_PointerWheelChanged(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
+        {
+            if (!_isEpubMode) return;
+
+            var ptr = e.GetCurrentPoint(EpubArea);
+            var delta = ptr.Properties.MouseWheelDelta;
+
+            if (delta > 0)
+            {
+                // Scroll up -> Previous page
+                _ = NavigateEpubAsync(-1);
+            }
+            else if (delta < 0)
+            {
+                // Scroll down -> Next page
+                _ = NavigateEpubAsync(1);
+            }
+
+            e.Handled = true;
+        }
+
         private void EpubPage_PointerPressed(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
         {
              if (!_isEpubMode) return;
@@ -708,14 +807,19 @@ namespace Uviewer
                 var img = new Image
                 {
                     Source = bitmap,
-                    Stretch = Stretch.Uniform,
-                    HorizontalAlignment = HorizontalAlignment.Center,
-                    VerticalAlignment = VerticalAlignment.Center
+                    Stretch = Stretch.Uniform, // Keep Stretch on the image
                 };
                 
                 // Use a Viewbox or just Grid to center
-                var grid = new Grid { Background = new SolidColorBrush(Colors.Black) };
-                grid.Children.Add(img);
+                var grid = new Grid
+                {
+                    HorizontalAlignment = HorizontalAlignment.Center,
+                    VerticalAlignment = VerticalAlignment.Center,
+                    Children = { img },
+                    Background = GetEpubThemeBackground(), // Use theme background
+                    Opacity = 0,
+                    IsHitTestVisible = false
+                };
                 
                 // Attach Navigation
                 grid.PointerPressed += EpubPage_PointerPressed;
@@ -789,7 +893,9 @@ namespace Uviewer
             var page1Grid = new Grid 
             { 
                 Background = GetEpubThemeBackground(), 
-                Padding = new Thickness(20, 25, 20, 20) // Added top padding for ruby safety
+                Padding = new Thickness(20, 25, 20, 20), // Added top padding for ruby safety
+                Opacity = 0,
+                IsHitTestVisible = false
             };
             page1Grid.Children.Add(rtb);
             page1Grid.PointerPressed += EpubPage_PointerPressed;
@@ -812,7 +918,7 @@ namespace Uviewer
             while (pageCount < maxPages)
             {
                 // [Optimization] Yield UI control periodically to keep app responsive
-                if (pageCount % 5 == 0) await Task.Delay(1);
+                if (pageCount % 50 == 0) await Task.Delay(1);
 
                 bool hasOverflow = false;
                 if (lastLinked is RichTextBlock m && m.HasOverflowContent) hasOverflow = true;
@@ -835,7 +941,9 @@ namespace Uviewer
                 var pageGrid = new Grid 
                 { 
                     Background = GetEpubThemeBackground(), 
-                    Padding = new Thickness(20, 25, 20, 20) // Added top padding for ruby safety
+                    Padding = new Thickness(20, 25, 20, 20), // Added top padding for ruby safety
+                    Opacity = 0,
+                    IsHitTestVisible = false
                 };
                 pageGrid.Children.Add(overflow);
                 pageGrid.PointerPressed += EpubPage_PointerPressed;
@@ -872,15 +980,15 @@ namespace Uviewer
         {
              int totalLines = 1;
              int currentLine = 1;
-             if (EpubFlipView.SelectedItem is Grid cg && cg.Tag is EpubPageInfoTag ctag)
+             if (EpubSelectedItem is Grid cg && cg.Tag is EpubPageInfoTag ctag)
              {
                  currentLine = ctag.StartLine;
                  totalLines = ctag.TotalLinesInChapter;
              }
-             else if (EpubFlipView.Items.Count > 0)
+             else if (_epubPages.Count > 0)
              {
-                 totalLines = EpubFlipView.Items.Count; // Page fallback if no tag
-                 currentLine = EpubFlipView.SelectedIndex + 1;
+                 totalLines = _epubPages.Count; // Page fallback if no tag
+                 currentLine = _currentEpubPageIndex + 1;
              }
 
              var dialog = new ContentDialog
@@ -907,19 +1015,19 @@ namespace Uviewer
                  if (int.TryParse(input.Text, out int targetLine))
                  {
                      // Find page that contains this line
-                     for (int i = 0; i < EpubFlipView.Items.Count; i++)
+                     for (int i = 0; i < _epubPages.Count; i++)
                      {
-                         if (EpubFlipView.Items[i] is Grid pg && pg.Tag is EpubPageInfoTag ptag)
+                         if (_epubPages[i] is Grid pg && pg.Tag is EpubPageInfoTag ptag)
                          {
                              if (targetLine >= ptag.StartLine && targetLine < ptag.StartLine + ptag.LineCount)
                              {
-                                 EpubFlipView.SelectedIndex = i;
+                                 SetEpubPageIndex(i);
                                  return;
                              }
                              // Last page safety or exact chapter end
-                             if (i == EpubFlipView.Items.Count - 1 && targetLine >= ptag.StartLine)
+                             if (i == _epubPages.Count - 1 && targetLine >= ptag.StartLine)
                              {
-                                 EpubFlipView.SelectedIndex = i;
+                                 SetEpubPageIndex(i);
                                  return;
                              }
                          }
@@ -927,9 +1035,9 @@ namespace Uviewer
                      
                      // Fallback to page-based indexing if tags missing or out of bounds
                      int pageIndex = targetLine - 1;
-                     if (pageIndex >= 0 && pageIndex < EpubFlipView.Items.Count)
+                     if (pageIndex >= 0 && pageIndex < _epubPages.Count)
                      {
-                         EpubFlipView.SelectedIndex = pageIndex;
+                         SetEpubPageIndex(pageIndex);
                      }
                  }
              }
@@ -1116,18 +1224,7 @@ namespace Uviewer
             return new InlineUIContainer { Child = grid };
         }
 
-        private void EpubFlipView_SelectionChanged(object sender, SelectionChangedEventArgs e)
-        {
-             if (!_isEpubMode) return;
-             
-             UpdateEpubStatus();
-             
-             // Check bounds
-             if (EpubFlipView.SelectedIndex == EpubFlipView.Items.Count - 1)
-             {
-                 // Last page
-             }
-        }
+        // FlipView SelectionChanged logic is now handled in SetEpubPageIndex
         
         // Navigation Handlers (Hooked from MainWindow.xaml.cs logic ideally, or replicated keys)
         // Since we are in Partial Class, we can handle keys if we route them.
@@ -1136,11 +1233,11 @@ namespace Uviewer
         {
             if (!_isEpubMode) return;
             
-            int newIndex = EpubFlipView.SelectedIndex + direction;
+            int newIndex = _currentEpubPageIndex + direction;
             
-            if (newIndex >= 0 && newIndex < EpubFlipView.Items.Count)
+            if (newIndex >= 0 && newIndex < _epubPages.Count)
             {
-                EpubFlipView.SelectedIndex = newIndex;
+                SetEpubPageIndex(newIndex);
             }
             else
             {
@@ -1185,46 +1282,36 @@ namespace Uviewer
             if (EpubArea != null) EpubArea.Background = bg;
             // if (StatusBarGrid != null) StatusBarGrid.Background = bg; // Keep status bar default color
 
-            if (EpubFlipView != null)
+            if (_epubPages != null)
             {
-                foreach (var item in EpubFlipView.Items)
+                foreach (var item in _epubPages)
                 {
                     if (item is Grid pageGrid)
                     {
                         pageGrid.Background = bg;
                         
                         // Find child... deeper
-                        if (pageGrid.Children.Count > 0 && pageGrid.Children[0] is ScrollViewer scroll)
+                        if (pageGrid.Children.Count > 0 && pageGrid.Children[0] is RichTextBlock rtb)
                         {
-                            if (scroll.Content is RichTextBlock rtb)
+                            rtb.Foreground = fg;
+                            rtb.FontFamily = new FontFamily(_textFontFamily);
+                            
+                            foreach (var block in rtb.Blocks)
                             {
-                                rtb.Foreground = fg;
-                                rtb.FontFamily = new FontFamily(_textFontFamily);
-                                
-                                // Also update Rubies inside blocks if possible? 
-                                // Traversing Blocks is hard.
-                                // Actually, since we generated rubies as InlineUIContainers containing Grids and TextBlocks,
-                                // we might need to drill down or just rely on Inheritance?
-                                // TextBlock Foreground inherits if not set? 
-                                // In CreateRuby, we EXPLICITLY set Foreground. So we need to update it.
-                                
-                                foreach (var block in rtb.Blocks)
+                                if (block is Paragraph p)
                                 {
-                                    if (block is Paragraph p)
+                                    foreach (var inline in p.Inlines)
                                     {
-                                        foreach (var inline in p.Inlines)
+                                        if (inline is InlineUIContainer container && container.Child is Grid rGrid)
                                         {
-                                            if (inline is InlineUIContainer container && container.Child is Grid rGrid)
-                                            {
-                                                 foreach (var child in rGrid.Children)
+                                             foreach (var child in rGrid.Children)
+                                             {
+                                                 if (child is TextBlock rubytb)
                                                  {
-                                                     if (child is TextBlock rubytb)
-                                                     {
-                                                         rubytb.Foreground = fg;
-                                                         rubytb.FontFamily = new FontFamily(_textFontFamily);
-                                                     }
+                                                     rubytb.Foreground = fg;
+                                                     rubytb.FontFamily = new FontFamily(_textFontFamily);
                                                  }
-                                            }
+                                             }
                                         }
                                     }
                                 }
@@ -1375,6 +1462,30 @@ namespace Uviewer
                  // For now, just jump to chapter.
              }
         }
+        private void SetEpubPageIndex(int index)
+        {
+            if (index >= 0 && index < _epubPages.Count)
+            {
+                // Hide current page
+                if (_currentEpubPageIndex >= 0 && _currentEpubPageIndex < _epubPages.Count)
+                {
+                    _epubPages[_currentEpubPageIndex].Opacity = 0;
+                    _epubPages[_currentEpubPageIndex].IsHitTestVisible = false;
+                }
 
+                _currentEpubPageIndex = index;
+                
+                // Show new page
+                _epubPages[_currentEpubPageIndex].Opacity = 1;
+                _epubPages[_currentEpubPageIndex].IsHitTestVisible = true;
+                
+                UpdateEpubStatus();
+            }
+        }
+
+        public void ClearEpubCache()
+        {
+            _epubPreloadCache.Clear();
+        }
     }
 }

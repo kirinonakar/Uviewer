@@ -383,7 +383,7 @@ namespace Uviewer
                     if (_isEpubMode)
                     {
                         savedPage = CurrentEpubPageIndex;
-                        if (EpubFlipView?.SelectedItem is Grid g && g.Tag is EpubPageInfoTag tag)
+                        if (EpubSelectedItem is Grid g && g.Tag is EpubPageInfoTag tag)
                         {
                             savedLine = tag.StartLine;
                         }
@@ -847,7 +847,7 @@ namespace Uviewer
                         {
                             targetPage = CurrentEpubPageIndex;
                             targetChapter = CurrentEpubChapterIndex;
-                            if (EpubFlipView?.SelectedItem is Grid g && g.Tag is EpubPageInfoTag tag)
+                            if (EpubSelectedItem is Grid g && g.Tag is EpubPageInfoTag tag)
                                 targetLine = tag.StartLine;
                         }
                     }

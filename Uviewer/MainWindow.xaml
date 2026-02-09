@@ -510,17 +510,12 @@
             
             <!-- Epub Display Area -->
             <Grid Grid.Column="2" x:Name="EpubArea" Visibility="Collapsed" Background="{ThemeResource SolidBackgroundFillColorBaseBrush}">
-                <FlipView x:Name="EpubFlipView" SelectionChanged="EpubFlipView_SelectionChanged">
-                    <FlipView.ItemsPanel>
-                        <ItemsPanelTemplate>
-                            <StackPanel Orientation="Horizontal" />
-                        </ItemsPanelTemplate>
-                    </FlipView.ItemsPanel>
-                </FlipView>
+                <Grid x:Name="EpubPageDisplay" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" />
                 <!-- Touch Overlay for Page Navigation (left half = prev, right half = next) -->
                 <Grid x:Name="EpubTouchOverlay" 
                       Background="Transparent" 
                       PointerPressed="EpubTouchOverlay_PointerPressed"
+                      PointerWheelChanged="EpubTouchOverlay_PointerWheelChanged"
                       HorizontalAlignment="Stretch"
                       VerticalAlignment="Stretch"/>
                  <Grid x:Name="EpubFastNavOverlay"

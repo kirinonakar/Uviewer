@@ -1142,12 +1142,13 @@ namespace Uviewer
             if (_isEpubMode)
             {
                 int currentLine = 1;
-                if (!resetScroll && EpubFlipView?.SelectedItem is Grid g && g.Tag is EpubPageInfoTag tag)
+                if (!resetScroll && EpubSelectedItem is Grid g && g.Tag is EpubPageInfoTag tag)
                 {
                     currentLine = tag.StartLine;
                 }
                 
                 UpdateEpubVisuals();
+                ClearEpubCache();
                 _ = LoadEpubChapterAsync(_currentEpubChapterIndex, targetLine: currentLine);
                 return;
             }
