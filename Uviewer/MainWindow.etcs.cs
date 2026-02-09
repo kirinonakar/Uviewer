@@ -20,7 +20,7 @@ namespace Uviewer
 
         // Fast navigation detection
         private DateTime _lastNavigationTime = DateTime.MinValue;
-        private readonly TimeSpan _fastNavigationThreshold = TimeSpan.FromMilliseconds(50); // 50ms threshold
+        private readonly TimeSpan _fastNavigationThreshold = TimeSpan.FromMilliseconds(40); // 40ms threshold
         private bool _isFastNavigation = false;
         private CancellationTokenSource? _fastNavigationResetCts;
         private DispatcherQueueTimer? _fastNavOverlayTimer;

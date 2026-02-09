@@ -55,7 +55,7 @@ namespace Uviewer
 
                 // 업스케일 시 최대 강도(10.0f), 아닐 경우 기본 강도(5.0f)
                 float currentSharpenAmount = shouldUpscale ? 10.0f : SharpenAmount;
-                float currentThreshold = shouldUpscale ? 0.03f : 0.0f;
+                float currentThreshold = shouldUpscale ? 0.03f : 0.01f;
 
                 CanvasBitmap processedSource;
 
@@ -80,7 +80,7 @@ namespace Uviewer
                             new Windows.Foundation.Rect(0, 0, finalWidth, finalHeight),
                             originalBitmap.GetBounds(canvas),
                             1.0f,
-                            CanvasImageInterpolation.Cubic);
+                            CanvasImageInterpolation.HighQualityCubic);
                     }
                     processedSource = upscaledTarget;
                 }
@@ -114,7 +114,7 @@ namespace Uviewer
                 var finalTarget = new CanvasRenderTarget(canvas, new Windows.Foundation.Size(finalWidth, finalHeight));
                 using (var ds = finalTarget.CreateDrawingSession())
                 {
-                    if (shouldUpscale) ds.Antialiasing = CanvasAntialiasing.Aliased;
+                    ds.Antialiasing = CanvasAntialiasing.Antialiased;
                     ds.DrawImage(finalEffect);
                 }
 
@@ -152,6 +152,19 @@ namespace Uviewer
         }
 
         #endregion
+
+
+        private bool IsAnimationSupported(ImageEntry entry)
+        {
+            string? ext = null;
+            if (entry.FilePath != null) ext = Path.GetExtension(entry.FilePath).ToLowerInvariant();
+            else if (entry.ArchiveEntryKey != null) ext = Path.GetExtension(entry.ArchiveEntryKey).ToLowerInvariant();
+
+            // 압축 파일 내의 애니메이션은 재생하지 않음
+            if (entry.IsArchiveEntry) return false;
+
+            return ext == ".webp" || ext == ".gif";
+        }
 
 
         private void StopAnimatedWebp()

@@ -927,11 +927,7 @@ namespace Uviewer
                 }
 
                 // [애니메이션 WebP 처리 부분] 헤더만 읽어서 애니메이션 여부 확인 후 필요시 로드
-                string? ext = null;
-                if (entry.FilePath != null) ext = Path.GetExtension(entry.FilePath).ToLowerInvariant();
-                else if (entry.ArchiveEntryKey != null) ext = Path.GetExtension(entry.ArchiveEntryKey).ToLowerInvariant();
-
-                if (ext == ".webp" || ext == ".gif")
+                if (IsAnimationSupported(entry))
                 {
                     // 로딩 표시 추가
                     FileNameText.Text += Strings.Loading;
@@ -1438,20 +1434,12 @@ namespace Uviewer
             if (wheelDelta < 0)
             {
                 // Scroll down - next image
-                if (_currentIndex < _imageEntries.Count - 1)
-                {
-                    _currentIndex++;
-                    await DisplayCurrentImageAsync();
-                }
+                await NavigateToNextAsync();
             }
             else if (wheelDelta > 0)
             {
                 // Scroll up - previous image
-                if (_currentIndex > 0)
-                {
-                    _currentIndex--;
-                    await DisplayCurrentImageAsync();
-                }
+                await NavigateToPreviousAsync();
             }
 
             e.Handled = true;
