@@ -177,6 +177,10 @@
                         <TextBlock Text="A" FontSize="14" FontWeight="Bold"/>
                     </ToggleButton>
                     
+                    <ToggleButton x:Name="VerticalToggleButton" Click="VerticalToggleButton_Click" ToolTipService.ToolTip="세로쓰기(V)">
+                        <TextBlock Text="V" FontSize="14" FontWeight="Bold"/>
+                    </ToggleButton>
+                    
                     <Button x:Name="FontToggleButton" Click="FontToggleButton_Click" ToolTipService.ToolTip="폰트 변경(F)">
                         <TextBlock Text="F" FontSize="14" FontWeight="Bold"/>
                     </Button>
@@ -531,6 +535,15 @@
                             VerticalAlignment="Center"
                             Text="페이지 이동 중..." />
                 </Grid>
+
+                <!-- Vertical Text Display (Win2D) -->
+                <canvas:CanvasControl x:Name="VerticalTextCanvas"
+                                     Visibility="Collapsed"
+                                     Draw="VerticalTextCanvas_Draw"
+                                     CreateResources="VerticalTextCanvas_CreateResources"
+                                     PointerPressed="VerticalTextCanvas_PointerPressed"
+                                     PointerWheelChanged="VerticalTextCanvas_PointerWheelChanged"
+                                     SizeChanged="VerticalTextCanvas_SizeChanged"/>
             </Grid>
             
             <!-- Epub Display Area -->

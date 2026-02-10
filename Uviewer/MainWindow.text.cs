@@ -169,33 +169,42 @@ namespace Uviewer
                 targetLine = GetSavedStartLine(name, uniquePath);
             }
 
+            // Ensure visibility is mutually exclusive
+            if (TextScrollViewer != null) TextScrollViewer.Visibility = Visibility.Collapsed;
+            if (AozoraPageContainer != null) AozoraPageContainer.Visibility = Visibility.Collapsed;
+            if (VerticalTextCanvas != null) VerticalTextCanvas.Visibility = Visibility.Collapsed;
+
+            if (_isVerticalMode)
+            {
+                await PrepareVerticalTextAsync(targetLine);
+                if (VerticalTextCanvas != null) VerticalTextCanvas.Visibility = Visibility.Visible;
+                
+                FileNameText.Text = GetFormattedDisplayName(name, _currentTextArchiveEntryKey != null);
+                UpdateTextStatusBar();
+                return;
+            }
+
             if (_isAozoraMode)
             {
                 // Use page-based container display with target line restoration
                 await PrepareAozoraDisplayAsync(content, targetLine);
-                
-                // Show Container, hide ScrollViewer
-                if (TextScrollViewer != null) TextScrollViewer.Visibility = Visibility.Collapsed;
                 if (AozoraPageContainer != null) AozoraPageContainer.Visibility = Visibility.Visible;
                 
                 FileNameText.Text = GetFormattedDisplayName(name, _currentTextArchiveEntryKey != null);
             }
             else
             {
-                // Show ScrollViewer, hide Container
-                if (TextScrollViewer != null) TextScrollViewer.Visibility = Visibility.Visible;
-                if (AozoraPageContainer != null) AozoraPageContainer.Visibility = Visibility.Collapsed;
-                
                 // Ensure default template
                 if (TextItemsRepeater != null && RootGrid.Resources.TryGetValue("TextItemTemplate", out var template))
                 {
                      TextItemsRepeater.ItemTemplate = (DataTemplate)template;
                 }
                 
-                // Progressive loading for large files - same strategy as Aozora mode
+                // Progressive loading for large files
                 await LoadTextLinesProgressivelyAsync(content, targetLine);
-                
-                // Reset to top immediately (if not restoring position)
+                if (TextScrollViewer != null) TextScrollViewer.Visibility = Visibility.Visible;
+
+                // Reset to top immediately if not restoring position
                 if (targetLine <= 1 && TextScrollViewer != null) 
                 {
                     TextScrollViewer.ChangeView(null, 0, null, true);
@@ -204,17 +213,14 @@ namespace Uviewer
                 // Update Text Status
                 UpdateTextStatusBar(name, _textTotalLineCountInSource, 1);
                 
-                // Unified Scroll Restoration for General Text
                 if (targetLine > 1)
                 {
-                    // Wait slightly for layout
                     await Task.Delay(50);
                     ScrollToLine(targetLine);
                     UpdateTextStatusBar();
                 }
                 else 
                 {
-                     // Restore scroll position from recent items if exists (Legacy Offset)
                     _ = RestoreTextPositionAsync(name);
                 }
             }
@@ -301,11 +307,30 @@ namespace Uviewer
             TextToolbarPanel.Visibility = Visibility.Visible;
             SideBySideToolbarPanel.Visibility = Visibility.Collapsed;
             
+            // Load Settings (Must happen before visibility check)
+            LoadTextSettings();
+
+            if (_isVerticalMode)
+            {
+                VerticalTextCanvas.Visibility = Visibility.Visible;
+                TextScrollViewer.Visibility = Visibility.Collapsed;
+                AozoraPageContainer.Visibility = Visibility.Collapsed;
+            }
+            else if (_isAozoraMode)
+            {
+                VerticalTextCanvas.Visibility = Visibility.Collapsed;
+                TextScrollViewer.Visibility = Visibility.Collapsed;
+                AozoraPageContainer.Visibility = Visibility.Visible;
+            }
+            else
+            {
+                VerticalTextCanvas.Visibility = Visibility.Collapsed;
+                TextScrollViewer.Visibility = Visibility.Visible;
+                AozoraPageContainer.Visibility = Visibility.Collapsed;
+            }
+            
             // Update Title
             Title = "Uviewer - Image & Text Viewer";
-            
-            // Load Settings
-            LoadTextSettings();
         }
 
         private void LoadTextSettings()
@@ -323,6 +348,8 @@ namespace Uviewer
                         _textFontSize = settings.FontSize;
                         _textFontFamily = settings.FontFamily;
                         _themeIndex = settings.ThemeIndex;
+                        _isVerticalMode = settings.IsVerticalMode;
+                        if (VerticalToggleButton != null) VerticalToggleButton.IsChecked = _isVerticalMode;
                     }
                 }
             }
@@ -352,7 +379,8 @@ namespace Uviewer
                 {
                     FontSize = _textFontSize,
                     FontFamily = _textFontFamily,
-                    ThemeIndex = _themeIndex
+                    ThemeIndex = _themeIndex,
+                    IsVerticalMode = _isVerticalMode
                 };
                 
                 var settingsFile = GetTextSettingsFilePath();
@@ -378,6 +406,7 @@ namespace Uviewer
             ImageArea.Visibility = Visibility.Visible;
             TextArea.Visibility = Visibility.Collapsed;
             EpubArea.Visibility = Visibility.Collapsed;
+            VerticalTextCanvas.Visibility = Visibility.Collapsed;
             
             ImageToolbarPanel.Visibility = Visibility.Visible;
             TextToolbarPanel.Visibility = Visibility.Collapsed;
@@ -1455,29 +1484,43 @@ namespace Uviewer
               }
              else if (e.Key == Windows.System.VirtualKey.Left)
              {
-                 int dir = ShouldInvertControls ? 1 : -1;
-                 if (_isAozoraMode)
+                 if (_isVerticalMode)
                  {
-                     NavigateAozoraPage(dir);
+                     NavigateVerticalPage(1);
                  }
-                 else if (TextScrollViewer != null)
+                 else
                  {
-                     NavigateTextPage(dir);
+                     int dir = ShouldInvertControls ? 1 : -1;
+                     if (_isAozoraMode)
+                     {
+                         NavigateAozoraPage(dir);
+                     }
+                     else if (TextScrollViewer != null)
+                     {
+                         NavigateTextPage(dir);
+                     }
                  }
-                 e.Handled = true; // Stop event bubbling to prevent file navigation
+                 e.Handled = true; 
              }
              else if (e.Key == Windows.System.VirtualKey.Right)
              {
-                 int dir = ShouldInvertControls ? -1 : 1;
-                 if (_isAozoraMode)
+                 if (_isVerticalMode)
                  {
-                     NavigateAozoraPage(dir);
+                     NavigateVerticalPage(-1);
                  }
-                 else if (TextScrollViewer != null)
+                 else
                  {
-                     NavigateTextPage(dir);
+                     int dir = ShouldInvertControls ? -1 : 1;
+                     if (_isAozoraMode)
+                     {
+                         NavigateAozoraPage(dir);
+                     }
+                     else if (TextScrollViewer != null)
+                     {
+                         NavigateTextPage(dir);
+                     }
                  }
-                 e.Handled = true; // Stop event bubbling to prevent file navigation
+                 e.Handled = true;
              }
              else if (e.Key == Windows.System.VirtualKey.Add || e.Key == (Windows.System.VirtualKey)187) // +
              {
@@ -1492,6 +1535,14 @@ namespace Uviewer
              else if (e.Key == Windows.System.VirtualKey.A)
              {
                  ToggleAozoraMode();
+                 e.Handled = true;
+             }
+             else if (e.Key == Windows.System.VirtualKey.V)
+             {
+                 _isVerticalMode = !_isVerticalMode;
+                 if (VerticalToggleButton != null) VerticalToggleButton.IsChecked = _isVerticalMode;
+                 SaveTextSettings();
+                 ToggleVerticalMode();
                  e.Handled = true;
              }
              else if (e.Key == Windows.System.VirtualKey.F)
@@ -1726,6 +1777,7 @@ namespace Uviewer
         private void UpdateTextStatusBar(string? fileName = null, int? totalLines = null, int? currentPage = null)
         {
             if (!_isTextMode) return;
+            if (_isVerticalMode) { UpdateVerticalStatusBar(); return; }
             if (_isAozoraMode) { UpdateAozoraStatusBar(); return; }
 
              if (fileName != null) FileNameText.Text = GetFormattedDisplayName(fileName, _currentTextArchiveEntryKey != null);
