@@ -63,7 +63,38 @@ namespace Uviewer
         private CanvasBitmap? _rightBitmap;
         private bool _matchControlDirection = false;
         private bool _allowMultipleInstances = true;
-        private bool ShouldInvertControls => _matchControlDirection && _isSideBySideMode && !_nextImageOnRight;
+        
+        // 컨트롤 반전 로직 수정:
+        // - Match Control Direction이 켜져 있고 Next Image가 왼쪽인 경우
+        // - 이미지 모드(한장보기/두장보기)와 epub 이미지의 경우 반전 적용
+        // - 텍스트 모드는 어떤 경우에도 반전되지 않음
+        private bool ShouldInvertControls
+        {
+            get
+            {
+                if (!_matchControlDirection || _nextImageOnRight) return false;
+                if (_isTextMode) return false;
+
+                if (_isEpubMode)
+                {
+                    // 1. 현재 선택된 페이지가 텍스트인 경우 반전 안 함
+                    if (EpubSelectedItem is Grid g && !(g.Tag is EpubImageTag)) return false;
+
+                    // 2. 현재 챕터에 텍스트가 포함된 경우 (이미지 페이지라도) 반전 안 함
+                    if (_epubChapterHasText.TryGetValue(_currentEpubChapterIndex, out var curHasText) && curHasText) return false;
+
+                    // 3. 현재 챕터가 이미지만 있더라도, 전후 챕터가 모두 텍스트인 경우 반전 안 함 (소설 내 삽화 등)
+                    bool prevHasText = _currentEpubChapterIndex > 0 && 
+                                      _epubChapterHasText.TryGetValue(_currentEpubChapterIndex - 1, out var pHT) && pHT;
+                    bool nextHasText = _currentEpubChapterIndex < _epubSpine.Count - 1 && 
+                                      _epubChapterHasText.TryGetValue(_currentEpubChapterIndex + 1, out var nHT) && nHT;
+
+                    if (prevHasText && nextHasText) return false;
+                }
+
+                return true;
+            }
+        }
 
         // Image preloading for faster navigation
         private readonly Dictionary<int, CanvasBitmap> _preloadedImages = new();
@@ -111,6 +142,15 @@ namespace Uviewer
             else if (entry.ArchiveEntryKey != null) ext = Path.GetExtension(entry.ArchiveEntryKey);
 
             return !string.IsNullOrEmpty(ext) && SupportedEpubExtensions.Contains(ext.ToLowerInvariant());
+        }
+
+        private bool IsImageEntry(ImageEntry entry)
+        {
+            string? ext = null;
+            if (entry.FilePath != null) ext = Path.GetExtension(entry.FilePath);
+            else if (entry.ArchiveEntryKey != null) ext = Path.GetExtension(entry.ArchiveEntryKey);
+
+            return !string.IsNullOrEmpty(ext) && SupportedImageExtensions.Contains(ext.ToLowerInvariant());
         }
 
         // File item for ListView

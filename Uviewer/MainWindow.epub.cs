@@ -40,6 +40,7 @@ namespace Uviewer
         private bool _isEpubShowingTwoPages = false;
 
         private Dictionary<int, List<UIElement>> _epubPreloadCache = new();
+        private Dictionary<int, bool> _epubChapterHasText = new();
         private CancellationTokenSource? _epubPreloadCts;
 
         // Optimized Static Regexes
@@ -298,8 +299,9 @@ namespace Uviewer
                  }
                  
                  // Reset pending values
-                 PendingEpubChapterIndex = -1;
-                 PendingEpubPageIndex = -1;
+                PendingEpubChapterIndex = -1;
+                PendingEpubPageIndex = -1;
+                _epubChapterHasText.Clear();
                  
                  // 4. Load TOC (Background)
                  _ = ParseEpubTocAsync();
@@ -486,6 +488,7 @@ namespace Uviewer
 
                     var pages = await RenderEpubPagesAsync(html, path);
                     _epubPreloadCache[idx] = pages;
+                    _epubChapterHasText[idx] = pages.Any(p => p is Grid g && g.Tag is EpubPageInfoTag);
 
                     await Task.Delay(50, token);
 
@@ -1174,16 +1177,13 @@ namespace Uviewer
             int step = direction;
             if (_isSideBySideMode)
             {
-                bool isImg = false;
-                if (_currentEpubPageIndex >= 0 && _currentEpubPageIndex < _epubPages.Count)
-                {
-                    if (_epubPages[_currentEpubPageIndex] is Grid g && g.Tag is EpubImageTag)
-                        isImg = true;
-                }
-
-                if (_isEpubShowingTwoPages || isImg)
+                if (_isEpubShowingTwoPages)
                 {
                     step = direction * 2;
+                }
+                else
+                {
+                    step = direction;
                 }
             }
 
@@ -1323,6 +1323,7 @@ namespace Uviewer
                     // Convert HTML to Blocks and Images
                     pages = await RenderEpubPagesAsync(html, path);
                     _epubPreloadCache[index] = pages;
+                    _epubChapterHasText[index] = pages.Any(p => p is Grid g && g.Tag is EpubPageInfoTag);
                 }
                 
                 // Update pages list

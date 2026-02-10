@@ -35,6 +35,14 @@
 - **Archive Support**: Read images directly from compressed archives (`.zip`, `.rar`, `.7z`, etc.) using **SharpCompress**.
 - **Organization**: "Favorites" and "Recent Files" management.
 
+### 🔧 Settings
+
+#### ⚙️ Multiple Instances (다중 실행)
+- **Allow Multiple Instances**: When enabled, each file opens in a new window instance. When disabled, files open in the already running instance using inter-process communication (NamedPipe).
+  - Default: **Enabled** (`true`)
+  - Toggle via Settings menu
+  - Setting persists across sessions
+
 ### 🌍 Localization
 - **Multi-language Support**: Automatically detects and switches between **English** and **Korean** based on system settings.
 
