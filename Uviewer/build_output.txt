@@ -1,9 +1,0 @@
-  복원할 프로젝트를 확인하는 중...
-  D:\ASUNA\Tools\Visual_studio\Uviewer\Uviewer\Uviewer.csproj을(를) 201밀리초 동안 복원했습니다.
-  Uviewer -> D:\ASUNA\Tools\Visual_studio\Uviewer\Uviewer\bin\Debug\net10.0-windows10.0.19041.0\win-x64\Uviewer.dll
-
-빌드했습니다.
-    경고 0개
-    오류 0개
-
-경과 시간: 00:00:05.63

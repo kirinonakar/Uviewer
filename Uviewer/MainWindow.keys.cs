@@ -78,12 +78,14 @@ namespace Uviewer
                     break;
 
                 case Windows.System.VirtualKey.Left:
-                    await NavigateToPreviousAsync();
+                    if (ShouldInvertControls) await NavigateToNextAsync();
+                    else await NavigateToPreviousAsync();
                     e.Handled = true;
                     break;
 
                 case Windows.System.VirtualKey.Right:
-                    await NavigateToNextAsync();
+                    if (ShouldInvertControls) await NavigateToPreviousAsync();
+                    else await NavigateToNextAsync();
                     e.Handled = true;
                     break;
 
@@ -176,8 +178,16 @@ namespace Uviewer
             {
                 if (_currentArchive != null)
                 {
-                    if (e.Key == Windows.System.VirtualKey.Left) _ = NavigateToPreviousAsync();
-                    else _ = NavigateToNextAsync();
+                    if (e.Key == Windows.System.VirtualKey.Left)
+                    {
+                        if (ShouldInvertControls) _ = NavigateToNextAsync();
+                        else _ = NavigateToPreviousAsync();
+                    }
+                    else
+                    {
+                        if (ShouldInvertControls) _ = NavigateToPreviousAsync();
+                        else _ = NavigateToNextAsync();
+                    }
                     e.Handled = true;
                     return;
                 }

@@ -61,6 +61,12 @@ namespace Uviewer
         public static string FontSelectionTitle => S("폰트 선택", "Font Selection");
         public static string FontSearchPlaceholder => S("폰트 검색...", "Search Fonts...");
 
+        public static string MatchControlDirection => S("컨트롤 방향 일치", "Match Control Direction");
+        public static string MatchControlDirectionTooltip => S("페이지 진행 방향에 따라 컨트롤 방향을 변경", "Change control direction based on page progression direction");
+
+        public static string AllowMultipleInstances => S("다중 실행", "Allow Multiple Instances");
+        public static string AllowMultipleInstancesTooltip => S("여러 개의 앱을 동시에 실행할 수 있게 함. 해제하면 이미 실행중인 창에서 이미지를 엽니다.", "Allows multiple instances of the app. If disabled, images will open in the already running instance.");
+
         // UI Texts
         public static string CurrentPathPlaceholder => S("폴더를 선택하세요", "Select a folder");
         public static string EmptyStateDrag => S("파일을 여기에 드래그하거나", "Drag files here or");

@@ -333,11 +333,16 @@ namespace Uviewer
                         if (lines.Length >= 6 && lines[5].Trim() == "1") _sharpenEnabled = true;
                         if (lines.Length >= 7 && lines[6].Trim() == "1") _isSideBySideMode = true;
                         if (lines.Length >= 8 && lines[7].Trim() == "0") _nextImageOnRight = false;
+                        if (lines.Length >= 10 && lines[9].Trim() == "1") _matchControlDirection = true;
                         if (lines.Length >= 9 && int.TryParse(lines[8], out int themeVal))
                         {
                             SetTheme((ElementTheme)themeVal);
                         }
+                        
+                        if (lines.Length >= 11 && lines[10].Trim() == "0") _allowMultipleInstances = false;
 
+                        if (MatchControlDirectionMenuItem != null) MatchControlDirectionMenuItem.IsChecked = _matchControlDirection;
+                        if (AllowMultipleInstancesMenuItem != null) AllowMultipleInstancesMenuItem.IsChecked = _allowMultipleInstances;
                         UpdateSharpenButtonState();
                         UpdateSideBySideButtonState();
                         UpdateNextImageSideButtonState();
@@ -424,7 +429,9 @@ namespace Uviewer
             _sharpenEnabled ? "1" : "0",
             _isSideBySideMode ? "1" : "0",
             _nextImageOnRight ? "1" : "0",
-            ((int)_currentTheme).ToString()
+            ((int)_currentTheme).ToString(),
+            _matchControlDirection ? "1" : "0",
+            _allowMultipleInstances ? "1" : "0"
                 };
 
                 File.WriteAllLines(_windowSettingsFile, settings);

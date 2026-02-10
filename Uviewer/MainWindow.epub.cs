@@ -185,12 +185,14 @@ namespace Uviewer
 
             if (e.Key == Windows.System.VirtualKey.Left)
             {
-                _ = NavigateEpubAsync(-1);
+                if (ShouldInvertControls) _ = NavigateEpubAsync(1);
+                else _ = NavigateEpubAsync(-1);
                 e.Handled = true;
             }
             else if (e.Key == Windows.System.VirtualKey.Right)
             {
-                _ = NavigateEpubAsync(1);
+                if (ShouldInvertControls) _ = NavigateEpubAsync(-1);
+                else _ = NavigateEpubAsync(1);
                 e.Handled = true;
             }
             else if (e.Key == Windows.System.VirtualKey.G)
@@ -669,49 +671,9 @@ namespace Uviewer
              var ptr = e.GetCurrentPoint(EpubArea);
              if (ptr.Properties.IsLeftButtonPressed)
              {
-                 // Check for fullscreen edge zones first
-                 if (_isFullscreen)
-                 {
-                     var rootPt = e.GetCurrentPoint(RootGrid);
-                     // Top Edge -> Show Toolbar
-                     if (rootPt.Position.Y < FullscreenTopHoverZone)
-                     {
-                         if (ToolbarGrid.Visibility != Visibility.Visible)
-                         {
-                             ToolbarGrid.Visibility = Visibility.Visible;
-                         }
-                         StartOrRestartFullscreenToolbarHideTimer();
-                         e.Handled = true;
-                         return;
-                     }
-                     
-                     // Left Edge -> Show Sidebar
-                     if (rootPt.Position.X < FullscreenLeftHoverZone)
-                     {
-                         if (SidebarGrid.Visibility != Visibility.Visible)
-                         {
-                             SidebarColumn.Width = new GridLength(_SidebarWidth);
-                             SidebarGrid.Visibility = Visibility.Visible;
-                         }
-                         StartOrRestartFullscreenSidebarHideTimer();
-                         e.Handled = true;
-                         return;
-                     }
-                 }
-                 
-                 // Navigation: Left half = prev page, Right half = next page
-                 double x = ptr.Position.X;
-                 double areaWidth = EpubArea.ActualWidth;
-                 
-                 if (x < areaWidth / 2)
-                 {
-                     _ = NavigateEpubAsync(-1);
-                 }
-                 else
-                 {
-                     _ = NavigateEpubAsync(1);
-                 }
-                 
+                 HandleSmartTouchNavigation(e, 
+                     () => _ = NavigateEpubAsync(-1), 
+                     () => _ = NavigateEpubAsync(1));
                  e.Handled = true;
              }
         }

@@ -61,6 +61,9 @@ namespace Uviewer
         private ElementTheme _currentTheme = ElementTheme.Default;
         private CanvasBitmap? _leftBitmap;
         private CanvasBitmap? _rightBitmap;
+        private bool _matchControlDirection = false;
+        private bool _allowMultipleInstances = true;
+        private bool ShouldInvertControls => _matchControlDirection && _isSideBySideMode && !_nextImageOnRight;
 
         // Image preloading for faster navigation
         private readonly Dictionary<int, CanvasBitmap> _preloadedImages = new();
@@ -193,79 +196,16 @@ namespace Uviewer
                 await LoadRecentItems();
                 UpdateRecentMenu();
 
-            // Handle launch file path if provided
-            if (!string.IsNullOrEmpty(launchFilePath))
-            {
-                try
+                // Handle launch file path if provided
+                if (!string.IsNullOrEmpty(launchFilePath))
                 {
-                    if (File.Exists(launchFilePath))
-                    {
-                        // First navigate to the folder
-                        var fileFolder = Path.GetDirectoryName(launchFilePath);
-                        if (!string.IsNullOrEmpty(fileFolder) && Directory.Exists(fileFolder))
-                        {
-                            LoadExplorerFolder(fileFolder);
-                            System.Diagnostics.Debug.WriteLine($"Loaded file folder: {fileFolder}");
-
-                            // Then try to open the specific file
-                            try
-                            {
-                                // Check if it's an archive file
-                                var extension = Path.GetExtension(launchFilePath).ToLowerInvariant();
-                                var archiveExtensions = new[] { ".zip", ".rar", ".7z", ".tar", ".gz" };
-                                var epubExtensions = new[] { ".epub" };
-
-                                if (archiveExtensions.Contains(extension))
-                                {
-                                    // For archive files, load the archive
-                                    await LoadImagesFromArchiveAsync(launchFilePath);
-                                    System.Diagnostics.Debug.WriteLine($"Loaded archive file: {launchFilePath}");
-                                }
-                                else if (epubExtensions.Contains(extension))
-                                {
-                                     // For EPUB files
-                                     var file = await StorageFile.GetFileFromPathAsync(launchFilePath);
-                                     await LoadEpubFileAsync(file);
-                                     System.Diagnostics.Debug.WriteLine($"Loaded epub file: {launchFilePath}");
-                                }
-                                else
-                                {
-                                    // For regular image files, load the image
-                                    var file = await StorageFile.GetFileFromPathAsync(launchFilePath);
-                                    await LoadImageFromFileAsync(file);
-                                    System.Diagnostics.Debug.WriteLine($"Loaded launch file: {launchFilePath}");
-                                }
-                            }
-                            catch (Exception fileEx)
-                            {
-                                System.Diagnostics.Debug.WriteLine($"Could not load file directly, but folder is loaded: {fileEx.Message}");
-                            }
-                        }
-                        else
-                        {
-                            // Fallback to Pictures folder
-                            LoadExplorerFolder(Environment.GetFolderPath(Environment.SpecialFolder.MyPictures));
-                        }
-                    }
-                    else if (Directory.Exists(launchFilePath))
-                    {
-                        LoadExplorerFolder(launchFilePath);
-                        System.Diagnostics.Debug.WriteLine($"Loaded launch folder: {launchFilePath}");
-                    }
-                    else
-                    {
-                        System.Diagnostics.Debug.WriteLine($"Launch path does not exist: {launchFilePath}");
-                        // Load Pictures folder by default first
-                        LoadExplorerFolder(Environment.GetFolderPath(Environment.SpecialFolder.MyPictures));
-                    }
+                    await ProcessLaunchPathAsync(launchFilePath);
                 }
-                catch (Exception ex)
+                else
                 {
-                    System.Diagnostics.Debug.WriteLine($"Error loading launch path: {launchFilePath}, Error: {ex.Message}");
-                    // Load Pictures folder by default first
+                    // Load Pictures folder by default if no path provided
                     LoadExplorerFolder(Environment.GetFolderPath(Environment.SpecialFolder.MyPictures));
                 }
-            }
             }
             catch (Exception ex)
             {
@@ -276,6 +216,71 @@ namespace Uviewer
         }
 
 
+
+        public async Task HandleNewInstanceFile(string? filePath)
+        {
+            try
+            {
+                // Bring window to front
+                var appWindow = this.AppWindow;
+                appWindow.Show();
+                if (appWindow.Presenter is OverlappedPresenter overlapped)
+                {
+                    overlapped.Restore();
+                }
+                
+                // Re-activate window
+                this.Activate();
+
+                if (!string.IsNullOrEmpty(filePath))
+                {
+                    await ProcessLaunchPathAsync(filePath);
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error handling new instance file: {ex.Message}");
+            }
+        }
+
+        private async Task ProcessLaunchPathAsync(string launchFilePath)
+        {
+            try
+            {
+                if (File.Exists(launchFilePath))
+                {
+                    var fileFolder = Path.GetDirectoryName(launchFilePath);
+                    if (!string.IsNullOrEmpty(fileFolder) && Directory.Exists(fileFolder))
+                    {
+                        LoadExplorerFolder(fileFolder);
+                        
+                        var extension = Path.GetExtension(launchFilePath).ToLowerInvariant();
+                        if (SupportedArchiveExtensions.Contains(extension))
+                        {
+                            await LoadImagesFromArchiveAsync(launchFilePath);
+                        }
+                        else if (SupportedEpubExtensions.Contains(extension))
+                        {
+                             var file = await StorageFile.GetFileFromPathAsync(launchFilePath);
+                             await LoadEpubFileAsync(file);
+                        }
+                        else
+                        {
+                            var file = await StorageFile.GetFileFromPathAsync(launchFilePath);
+                            await LoadImageFromFileAsync(file);
+                        }
+                    }
+                }
+                else if (Directory.Exists(launchFilePath))
+                {
+                    LoadExplorerFolder(launchFilePath);
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error processing launch path: {ex.Message}");
+            }
+        }
 
         public MainWindow(string? launchFilePath = null)
         {
@@ -532,6 +537,16 @@ namespace Uviewer
             if (AddToFavoritesButton != null) AddToFavoritesButton.Content = Strings.AddToFavorites;
             if (SidebarAddToFavoritesButton != null) SidebarAddToFavoritesButton.Content = Strings.AddToFavorites;
             if (ChangeFontMenuItem != null) ChangeFontMenuItem.Text = Strings.ChangeFont;
+            if (MatchControlDirectionMenuItem != null)
+            {
+                MatchControlDirectionMenuItem.Text = Strings.MatchControlDirection;
+                ToolTipService.SetToolTip(MatchControlDirectionMenuItem, Strings.MatchControlDirectionTooltip);
+            }
+            if (AllowMultipleInstancesMenuItem != null)
+            {
+                AllowMultipleInstancesMenuItem.Text = Strings.AllowMultipleInstances;
+                ToolTipService.SetToolTip(AllowMultipleInstancesMenuItem, Strings.AllowMultipleInstancesTooltip);
+            }
             if (NotificationText != null) NotificationText.Text = Strings.AddedToFavoritesNotification;
         }
 
@@ -790,11 +805,13 @@ namespace Uviewer
             // 2. Navigation Zones (Screen Half)
             if (x < RootGrid.ActualWidth / 2)
             {
-                prevAction?.Invoke();
+                if (ShouldInvertControls) nextAction?.Invoke();
+                else prevAction?.Invoke();
             }
             else
             {
-                nextAction?.Invoke();
+                if (ShouldInvertControls) prevAction?.Invoke();
+                else nextAction?.Invoke();
             }
         }
 
@@ -1421,6 +1438,18 @@ namespace Uviewer
             }
         }
 
+        private void MatchControlDirectionMenuItem_Click(object sender, RoutedEventArgs e)
+        {
+            _matchControlDirection = MatchControlDirectionMenuItem.IsChecked;
+            SaveWindowSettings();
+        }
+
+        private void AllowMultipleInstancesMenuItem_Click(object sender, RoutedEventArgs e)
+        {
+            _allowMultipleInstances = AllowMultipleInstancesMenuItem.IsChecked;
+            SaveWindowSettings();
+        }
+
         private async Task<CanvasBitmap?> LoadImageFromPathAsync(string filePath, CanvasControl canvas)
         {
             try
@@ -1593,11 +1622,13 @@ namespace Uviewer
             double half = ImageArea.ActualWidth * 0.5;
             if (pt.Position.X < half)
             {
-                await NavigateToPreviousAsync();
+                if (ShouldInvertControls) await NavigateToNextAsync();
+                else await NavigateToPreviousAsync();
             }
             else
             {
-                await NavigateToNextAsync();
+                if (ShouldInvertControls) await NavigateToPreviousAsync();
+                else await NavigateToNextAsync();
             }
 
             e.Handled = true;

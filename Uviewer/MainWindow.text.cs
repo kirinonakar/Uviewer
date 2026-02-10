@@ -1455,25 +1455,27 @@ namespace Uviewer
               }
              else if (e.Key == Windows.System.VirtualKey.Left)
              {
+                 int dir = ShouldInvertControls ? 1 : -1;
                  if (_isAozoraMode)
                  {
-                     NavigateAozoraPage(-1);
+                     NavigateAozoraPage(dir);
                  }
                  else if (TextScrollViewer != null)
                  {
-                     NavigateTextPage(-1);
+                     NavigateTextPage(dir);
                  }
                  e.Handled = true; // Stop event bubbling to prevent file navigation
              }
              else if (e.Key == Windows.System.VirtualKey.Right)
              {
+                 int dir = ShouldInvertControls ? -1 : 1;
                  if (_isAozoraMode)
                  {
-                     NavigateAozoraPage(1);
+                     NavigateAozoraPage(dir);
                  }
                  else if (TextScrollViewer != null)
                  {
-                     NavigateTextPage(1);
+                     NavigateTextPage(dir);
                  }
                  e.Handled = true; // Stop event bubbling to prevent file navigation
              }

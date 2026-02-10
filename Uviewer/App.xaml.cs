@@ -15,6 +15,9 @@ using Windows.ApplicationModel;
 using Windows.ApplicationModel.Activation;
 using Windows.Foundation;
 using Windows.Foundation.Collections;
+using System.IO.Pipes;
+using System.Threading;
+using System.Threading.Tasks;
 
 // To learn more about WinUI, the WinUI project structure,
 // and more about our project templates, see: http://aka.ms/winui-project-info.
@@ -28,6 +31,8 @@ namespace Uviewer
     {
         private Window? _window;
         public static string? LaunchFilePath { get; set; }
+        private static bool _allowMultipleInstances = true;
+        private static CancellationTokenSource? _pipeCts;
 
         /// <summary>
         /// Initializes the singleton application object.  This is the first line of authored code
@@ -42,11 +47,24 @@ namespace Uviewer
                 // Set Windows App SDK runtime base directory for single-file publish
                 Environment.SetEnvironmentVariable("MICROSOFT_WINDOWSAPPRUNTIME_BASE_DIRECTORY", AppContext.BaseDirectory);
                 
+                // Load settings
+                LoadSettings();
+
                 // Get command line arguments
                 var args = Environment.GetCommandLineArgs();
                 if (args.Length > 1)
                 {
                     LaunchFilePath = args[1];
+                }
+
+                if (!_allowMultipleInstances)
+                {
+                    if (TrySendToExistingInstance(LaunchFilePath))
+                    {
+                        Environment.Exit(0);
+                        return;
+                    }
+                    StartPipeServer();
                 }
             }
             catch (Exception ex)
@@ -54,6 +72,81 @@ namespace Uviewer
                 System.Diagnostics.Debug.WriteLine($"Error in App constructor: {ex.Message}");
             }
             InitializeComponent();
+        }
+
+        private void LoadSettings()
+        {
+            try
+            {
+                string settingsFile = System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "Uviewer", "window_settings.txt");
+                if (System.IO.File.Exists(settingsFile))
+                {
+                    var lines = File.ReadAllLines(settingsFile);
+                    if (lines.Length >= 11)
+                    {
+                        if (lines[10].Trim() == "0") _allowMultipleInstances = false;
+                    }
+                }
+            }
+            catch { }
+        }
+
+        private bool TrySendToExistingInstance(string? filePath)
+        {
+            try
+            {
+                // Check if already running by trying to connect to the pipe
+                using var client = new NamedPipeClientStream(".", "UviewerInstancePipe", PipeDirection.Out);
+                client.Connect(200); // 200ms timeout
+                using var writer = new StreamWriter(client);
+                writer.WriteLine(filePath ?? "");
+                writer.Flush();
+                return true;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        private void StartPipeServer()
+        {
+            _pipeCts = new CancellationTokenSource();
+            _ = Task.Run(async () =>
+            {
+                while (!_pipeCts.Token.IsCancellationRequested)
+                {
+                    try
+                    {
+                        using var server = new NamedPipeServerStream("UviewerInstancePipe", PipeDirection.In, 1, PipeTransmissionMode.Byte, PipeOptions.Asynchronous);
+                        await server.WaitForConnectionAsync(_pipeCts.Token);
+                        using var reader = new StreamReader(server);
+                        var filePath = await reader.ReadLineAsync();
+                        
+                        // Wait for window to be initialized if it's not yet
+                        int retryCount = 0;
+                        while (_window == null && retryCount < 50) 
+                        {
+                            await Task.Delay(100);
+                            retryCount++;
+                        }
+
+                        if (_window is MainWindow mainWindow)
+                        {
+                            mainWindow.DispatcherQueue.TryEnqueue(async () =>
+                            {
+                                await mainWindow.HandleNewInstanceFile(filePath);
+                            });
+                        }
+                    }
+                    catch (OperationCanceledException) { break; }
+                    catch (Exception ex)
+                    {
+                        System.Diagnostics.Debug.WriteLine($"Pipe server error: {ex.Message}");
+                        await Task.Delay(1000);
+                    }
+                }
+            });
         }
 
         private void App_UnhandledException(object sender, Microsoft.UI.Xaml.UnhandledExceptionEventArgs e)

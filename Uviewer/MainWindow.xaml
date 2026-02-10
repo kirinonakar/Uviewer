@@ -62,6 +62,17 @@
                                     <FontIcon Glyph="&#xE8D2;"/>
                                 </MenuFlyoutItem.Icon>
                             </MenuFlyoutItem>
+                            <MenuFlyoutSeparator/>
+                            <ToggleMenuFlyoutItem x:Name="MatchControlDirectionMenuItem" Text="컨트롤 방향 일치" Click="MatchControlDirectionMenuItem_Click">
+                                <ToggleMenuFlyoutItem.Icon>
+                                    <FontIcon Glyph="&#xE8D1;"/>
+                                </ToggleMenuFlyoutItem.Icon>
+                            </ToggleMenuFlyoutItem>
+                            <ToggleMenuFlyoutItem x:Name="AllowMultipleInstancesMenuItem" Text="다중 실행" Click="AllowMultipleInstancesMenuItem_Click">
+                                <ToggleMenuFlyoutItem.Icon>
+                                    <FontIcon Glyph="&#xE8A9;"/>
+                                </ToggleMenuFlyoutItem.Icon>
+                            </ToggleMenuFlyoutItem>
                         </MenuFlyout>
                     </Button.Flyout>
                 </Button>
