@@ -14,16 +14,7 @@ namespace Uviewer
             var ctrlPressed = Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(
                 Windows.System.VirtualKey.Control).HasFlag(Windows.UI.Core.CoreVirtualKeyStates.Down);
 
-            // Disable specific keys in Text/Epub mode if needed, or prevent interference
-            if (_isEpubMode || _isTextMode)
-            {
-                // S is blocked unless Ctrl is pressed
-                if (e.Key == Windows.System.VirtualKey.Space || (e.Key == Windows.System.VirtualKey.S && !ctrlPressed))
-                {
-                    e.Handled = true;
-                    return;
-                }
-            }
+
 
             // Handle Up/Down keys in PreviewKeyDown to ensure they always navigate files
             // even if controls like ScrollViewer or FlipView would otherwise capture them.

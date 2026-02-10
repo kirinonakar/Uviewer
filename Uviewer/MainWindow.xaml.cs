@@ -527,7 +527,6 @@ namespace Uviewer
             // Overlay Texts
             FastNavText.Text = Strings.FastNavText;
             TextFastNavText.Text = Strings.TextFastNavText;
-            EpubFastNavText.Text = Strings.EpubFastNavText;
             
             // Menus
             if (AddToFavoritesButton != null) AddToFavoritesButton.Content = Strings.AddToFavorites;
@@ -1368,7 +1367,15 @@ namespace Uviewer
             _isSideBySideMode = !_isSideBySideMode;
             UpdateSideBySideButtonState();
             SaveWindowSettings();
-            _ = DisplayCurrentImageAsync();
+            
+            if (_isEpubMode)
+            {
+                SetEpubPageIndex(_currentEpubPageIndex);
+            }
+            else
+            {
+                _ = DisplayCurrentImageAsync();
+            }
         }
 
         private void NextImageSideButton_Click(object sender, RoutedEventArgs e)
@@ -1376,7 +1383,12 @@ namespace Uviewer
             _nextImageOnRight = !_nextImageOnRight;
             UpdateNextImageSideButtonState();
             SaveWindowSettings();
-            if (_isSideBySideMode)
+
+            if (_isEpubMode)
+            {
+                SetEpubPageIndex(_currentEpubPageIndex);
+            }
+            else
             {
                 _ = DisplayCurrentImageAsync();
             }

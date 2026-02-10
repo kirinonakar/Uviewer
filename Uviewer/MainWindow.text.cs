@@ -299,6 +299,7 @@ namespace Uviewer
             // Toggle Toolbars
             ImageToolbarPanel.Visibility = Visibility.Collapsed;
             TextToolbarPanel.Visibility = Visibility.Visible;
+            SideBySideToolbarPanel.Visibility = Visibility.Collapsed;
             
             // Update Title
             Title = "Uviewer - Image & Text Viewer";
@@ -380,6 +381,9 @@ namespace Uviewer
             
             ImageToolbarPanel.Visibility = Visibility.Visible;
             TextToolbarPanel.Visibility = Visibility.Collapsed;
+            SideBySideToolbarPanel.Visibility = Visibility.Visible;
+            UpdateSideBySideButtonState();
+            UpdateNextImageSideButtonState();
         }
 
         private async Task<string> ReadTextFileWithEncodingAsync(StorageFile file)
@@ -1310,7 +1314,7 @@ namespace Uviewer
                     CloseButtonText = Strings.DialogClose,
                     XamlRoot = this.Content.XamlRoot,
                     DefaultButton = ContentDialogButton.Primary,
-                    RequestedTheme = _currentTheme
+                    RequestedTheme = RootGrid.ActualTheme
                 };
 
                 // ★ 핵심: PreviewKeyDown을 사용하여 입력 컨트롤보다 먼저 ESC를 감지합니다.
@@ -1544,7 +1548,7 @@ namespace Uviewer
                  PrimaryButtonText = Strings.DialogPrimary,
                  CloseButtonText = Strings.DialogClose,
                  XamlRoot = this.Content.XamlRoot,
-                 RequestedTheme = _currentTheme
+                 RequestedTheme = RootGrid.ActualTheme
              };
  
              input.KeyDown += (s, e) => 

@@ -37,6 +37,7 @@ namespace Uviewer
         private List<UIElement> _epubPages = new();
         private int _currentEpubPageIndex = 0;
         private UIElement? EpubSelectedItem => (_epubPages.Count > 0 && _currentEpubPageIndex >= 0 && _currentEpubPageIndex < _epubPages.Count) ? _epubPages[_currentEpubPageIndex] : null;
+        private bool _isEpubShowingTwoPages = false;
 
         private Dictionary<int, List<UIElement>> _epubPreloadCache = new();
         private CancellationTokenSource? _epubPreloadCts;
@@ -83,6 +84,11 @@ namespace Uviewer
             public int StartLine { get; set; }
             public int LineCount { get; set; }
             public int TotalLinesInChapter { get; set; }
+        }
+
+        public class EpubImageTag
+        {
+            public string FullPath { get; set; } = "";
         }
 
 
@@ -239,11 +245,7 @@ namespace Uviewer
                  }
                  e.Handled = true;
             }
-            else if (e.Key == Windows.System.VirtualKey.Space || (e.Key == Windows.System.VirtualKey.S && !ctrlPressed))
-            {
-                // Disable Space and S (allow Ctrl+S)
-                e.Handled = true;
-            }
+
         }
 
         private async Task LoadEpubFileAsync(StorageFile file)
@@ -327,6 +329,9 @@ namespace Uviewer
             
             ImageToolbarPanel.Visibility = Visibility.Collapsed;
             TextToolbarPanel.Visibility = Visibility.Visible; // Reuse text toolbar for now
+            SideBySideToolbarPanel.Visibility = Visibility.Visible;
+            UpdateSideBySideButtonState();
+            UpdateNextImageSideButtonState();
             
             Title = "Uviewer - Image & Text Viewer";
         }
@@ -433,92 +438,7 @@ namespace Uviewer
             }
         }
 
-        private async Task LoadEpubChapterAsync(int index, bool fromEnd = false, int targetLine = -1)
-        {
-            if (index < 0 || index >= _epubSpine.Count) return;
 
-            try
-            {
-                // Show loading
-                if (EpubFastNavOverlay != null) EpubFastNavOverlay.Visibility = Visibility.Visible;
-                await Task.Delay(10); // UI yield to show overlay
-
-                List<UIElement> pages;
-                if (_epubPreloadCache.TryGetValue(index, out var cachedPages))
-                {
-                    pages = cachedPages;
-                }
-                else
-                {
-                    string path = _epubSpine[index];
-                    var entry = _currentEpubArchive?.GetEntry(path);
-                    if (entry == null) return;
-
-                    string html;
-                    await _epubArchiveLock.WaitAsync();
-                    try
-                    {
-                        using var stream = entry.Open();
-                        using var reader = new StreamReader(stream);
-                        html = await reader.ReadToEndAsync();
-                    }
-                    finally
-                    {
-                        _epubArchiveLock.Release();
-                    }
-
-                    // Convert HTML to Blocks and Images
-                    pages = await RenderEpubPagesAsync(html, path);
-                    _epubPreloadCache[index] = pages;
-                }
-                
-                // Update pages list
-                _epubPages = pages;
-                _currentEpubPageIndex = -1;
-
-                // Update UI Container
-                EpubPageDisplay.Children.Clear();
-                foreach (var page in _epubPages)
-                {
-                    EpubPageDisplay.Children.Add(page);
-                }
-                
-                int targetPage = 0;
-                if (targetLine > 0)
-                {
-                    for (int i = 0; i < pages.Count; i++)
-                    {
-                        if (pages[i] is Grid pg && pg.Tag is EpubPageInfoTag tag)
-                        {
-                            if (targetLine >= tag.StartLine && targetLine < tag.StartLine + tag.LineCount)
-                            {
-                                targetPage = i;
-                                break;
-                            }
-                            // Last page fallback
-                            if (i == pages.Count - 1 && targetLine >= tag.StartLine)
-                            {
-                                targetPage = i;
-                                break;
-                            }
-                        }
-                    }
-                }
-                else if (fromEnd && pages.Count > 0)
-                {
-                    targetPage = pages.Count - 1;
-                }
-                
-                SetEpubPageIndex(targetPage);
-
-                // Trigger preloading for neighbors
-                _ = PreloadEpubChaptersAsync(index);
-            }
-            finally
-            {
-                if (EpubFastNavOverlay != null) EpubFastNavOverlay.Visibility = Visibility.Collapsed;
-            }
-        }
 
         private async Task PreloadEpubChaptersAsync(int currentIndex)
         {
@@ -528,9 +448,12 @@ namespace Uviewer
 
             try
             {
-                // Preload next and previous
+                // Preload next 3 and previous 1
                 var indicesToPreload = new List<int>();
-                if (currentIndex + 1 < _epubSpine.Count) indicesToPreload.Add(currentIndex + 1);
+                for (int i = 1; i <= 3; i++)
+                {
+                    if (currentIndex + i < _epubSpine.Count) indicesToPreload.Add(currentIndex + i);
+                }
                 if (currentIndex - 1 >= 0) indicesToPreload.Add(currentIndex - 1);
 
                 foreach (int idx in indicesToPreload)
@@ -562,15 +485,23 @@ namespace Uviewer
                     var pages = await RenderEpubPagesAsync(html, path);
                     _epubPreloadCache[idx] = pages;
 
-                    // Small delay to let UI breathe
                     await Task.Delay(50, token);
+
+                    // If this is the next chapter, refresh to check if we can now show side-by-side.
+                    if (idx == _currentEpubChapterIndex + 1 && _isSideBySideMode)
+                    {
+                        var _ = DispatcherQueue.TryEnqueue(() => 
+                        {
+                             if (_isEpubMode) SetEpubPageIndex(_currentEpubPageIndex);
+                        });
+                    }
                 }
                 
-                // Keep cache size reasonable (e.g., current + 2 neighbors each side)
-                if (_epubPreloadCache.Count > 5)
+                // Keep cache size reasonable (current + 3 ahead + 1 behind)
+                if (_epubPreloadCache.Count > 8)
                 {
                     var keysToRemove = _epubPreloadCache.Keys
-                        .Where(k => Math.Abs(k - currentIndex) > 2)
+                        .Where(k => (k < currentIndex - 1) || (k > currentIndex + 3))
                         .ToList();
                     foreach (var k in keysToRemove) _epubPreloadCache.Remove(k);
                 }
@@ -861,7 +792,8 @@ namespace Uviewer
                     Children = { img },
                     Background = GetEpubThemeBackground(), // Use theme background
                     Opacity = 0,
-                    IsHitTestVisible = false
+                    IsHitTestVisible = false,
+                    Tag = new EpubImageTag { FullPath = fullPath }
                 };
                 
                 // Attach Navigation
@@ -1040,7 +972,8 @@ namespace Uviewer
                  PrimaryButtonText = Strings.DialogPrimary,
                  CloseButtonText = Strings.DialogClose,
                  DefaultButton = ContentDialogButton.Primary,
-                 XamlRoot = RootGrid.XamlRoot
+                 XamlRoot = RootGrid.XamlRoot,
+                 RequestedTheme = RootGrid.ActualTheme
              };
 
              var input = new TextBox 
@@ -1276,22 +1209,328 @@ namespace Uviewer
         {
             if (!_isEpubMode) return;
             
-            int newIndex = _currentEpubPageIndex + direction;
-            
-            if (newIndex >= 0 && newIndex < _epubPages.Count)
+            int step = direction;
+            if (_isSideBySideMode)
             {
-                SetEpubPageIndex(newIndex);
+                bool isImg = false;
+                if (_currentEpubPageIndex >= 0 && _currentEpubPageIndex < _epubPages.Count)
+                {
+                    if (_epubPages[_currentEpubPageIndex] is Grid g && g.Tag is EpubImageTag)
+                        isImg = true;
+                }
+
+                if (_isEpubShowingTwoPages || isImg)
+                {
+                    step = direction * 2;
+                }
+            }
+
+            int targetChapter = _currentEpubChapterIndex;
+            int targetPage = _currentEpubPageIndex + step;
+
+            // Handle multi-chapter transitions
+            while (true)
+            {
+                // Get current page count for the 'targetChapter'
+                int currentLimit = (targetChapter == _currentEpubChapterIndex) 
+                    ? _epubPages.Count 
+                    : (_epubPreloadCache.TryGetValue(targetChapter, out var cached) ? cached.Count : 0);
+
+                // Forward check
+                if (targetPage >= currentLimit && targetChapter < _epubSpine.Count - 1)
+                {
+                     targetPage -= currentLimit;
+                     targetChapter++;
+                     
+                     await ForceLoadChapterPagesAsync(targetChapter);
+                     continue;
+                }
+                
+                // Backward check
+                if (targetPage < 0 && targetChapter > 0)
+                {
+                    targetChapter--;
+                    await ForceLoadChapterPagesAsync(targetChapter);
+                    
+                    int prevLimit = (targetChapter == _currentEpubChapterIndex) 
+                        ? _epubPages.Count 
+                        : (_epubPreloadCache.TryGetValue(targetChapter, out var cachedPrev) ? cachedPrev.Count : 0);
+                        
+                    targetPage += prevLimit;
+                    continue;
+                }
+                
+                break;
+            }
+
+            // Cap inside current (potential) chapter
+            if (targetChapter != _currentEpubChapterIndex)
+            {
+                _currentEpubChapterIndex = targetChapter;
+                await LoadEpubChapterAsync(targetChapter, targetPage: targetPage);
             }
             else
             {
-                // Chapter Transition
-                int nextChapter = _currentEpubChapterIndex + direction;
-                if (nextChapter >= 0 && nextChapter < _epubSpine.Count)
+                int finalIndex = Math.Clamp(targetPage, 0, _epubPages.Count - 1);
+                SetEpubPageIndex(finalIndex);
+            }
+        }
+
+        private async Task ForceLoadChapterPagesAsync(int chapterIndex)
+        {
+            if (chapterIndex == _currentEpubChapterIndex) return;
+            
+            if (_epubPreloadCache.TryGetValue(chapterIndex, out var cached))
+            {
+                // Temporarily swap pages to check count if needed, 
+                // but actually we just need the count.
+                // If it's cached, we are good.
+            }
+            else
+            {
+                // Not cached, must load now
+                string path = _epubSpine[chapterIndex];
+                var entry = _currentEpubArchive?.GetEntry(path);
+                if (entry != null)
                 {
-                    _currentEpubChapterIndex = nextChapter;
-                    await LoadEpubChapterAsync(_currentEpubChapterIndex, fromEnd: direction < 0);
+                    string html;
+                    await _epubArchiveLock.WaitAsync();
+                    try {
+                        using var s = entry.Open();
+                        using var r = new StreamReader(s);
+                        html = await r.ReadToEndAsync();
+                    } finally { _epubArchiveLock.Release(); }
+                    
+                    var pages = await RenderEpubPagesAsync(html, path);
+                    _epubPreloadCache[chapterIndex] = pages;
                 }
             }
+            
+            // Note: We don't update _epubPages yet, 
+            // the loop uses _epubPreloadCache or _epubPages based on targetChapter.
+            // Wait, let's fix the loop to use the correct source.
+        }
+
+        private UIElement? GetEpubPage(int chapterIndex, int pageIndex)
+        {
+            if (chapterIndex == _currentEpubChapterIndex)
+            {
+                if (pageIndex >= 0 && pageIndex < _epubPages.Count) return _epubPages[pageIndex];
+            }
+            else if (_epubPreloadCache.TryGetValue(chapterIndex, out var cachedPages))
+            {
+                if (pageIndex >= 0 && pageIndex < cachedPages.Count) return cachedPages[pageIndex];
+            }
+            return null;
+        }
+
+        private async Task LoadEpubChapterAsync(int index, bool fromEnd = false, int targetLine = -1, int targetPage = -1)
+        {
+            if (index < 0 || index >= _epubSpine.Count) return;
+
+            try
+            {
+                // Show loading
+                FileNameText.Text = (Path.GetFileName(_currentEpubFilePath) ?? "") + Strings.Loading;
+                await Task.Delay(1); // UI yield to show status change
+
+                List<UIElement> pages;
+                if (_epubPreloadCache.TryGetValue(index, out var cachedPages))
+                {
+                    pages = cachedPages;
+                }
+                else
+                {
+                    string path = _epubSpine[index];
+                    var entry = _currentEpubArchive?.GetEntry(path);
+                    if (entry == null) return;
+
+                    string html;
+                    await _epubArchiveLock.WaitAsync();
+                    try
+                    {
+                        using var stream = entry.Open();
+                        using var reader = new StreamReader(stream);
+                        html = await reader.ReadToEndAsync();
+                    }
+                    finally
+                    {
+                        _epubArchiveLock.Release();
+                    }
+
+                    // Convert HTML to Blocks and Images
+                    pages = await RenderEpubPagesAsync(html, path);
+                    _epubPreloadCache[index] = pages;
+                }
+                
+                // Update pages list
+                _epubPages = pages;
+                _currentEpubPageIndex = -1;
+
+                // Update UI Container
+                EpubPageDisplay.Children.Clear();
+                foreach (var page in _epubPages)
+                {
+                    EpubPageDisplay.Children.Add(page);
+                }
+                
+                int finalTargetPage = 0;
+                if (targetPage >= 0)
+                {
+                    finalTargetPage = Math.Min(targetPage, pages.Count - 1);
+                }
+                else if (targetLine > 0)
+                {
+                    for (int i = 0; i < pages.Count; i++)
+                    {
+                        if (pages[i] is Grid pg && pg.Tag is EpubPageInfoTag tag)
+                        {
+                            if (targetLine >= tag.StartLine && targetLine < tag.StartLine + tag.LineCount)
+                            {
+                                finalTargetPage = i;
+                                break;
+                            }
+                            // Last page fallback
+                            if (i == pages.Count - 1 && targetLine >= tag.StartLine)
+                            {
+                                finalTargetPage = i;
+                                break;
+                            }
+                        }
+                    }
+                }
+                else if (fromEnd && pages.Count > 0)
+                {
+                    finalTargetPage = pages.Count - 1;
+                }
+                
+                SetEpubPageIndex(finalTargetPage);
+
+                // Trigger preloading for neighbors
+                _ = PreloadEpubChaptersAsync(index);
+            }
+            finally
+            {
+                FileNameText.Text = Path.GetFileName(_currentEpubFilePath) ?? "";
+            }
+        }
+
+        private void SetEpubPageIndex(int index)
+        {
+            if (index < 0 || index >= _epubPages.Count) return;
+
+            // 1. Reset current state
+            _isEpubShowingTwoPages = false;
+            foreach (UIElement p in EpubPageDisplay.Children)
+            {
+                p.Opacity = 0;
+                p.IsHitTestVisible = false;
+                if (p is FrameworkElement fe)
+                {
+                    Grid.SetColumn(fe, 0);
+                    Grid.SetColumnSpan(fe, 2);
+                }
+            }
+            EpubPageDisplay.ColumnDefinitions.Clear();
+
+            _currentEpubPageIndex = index;
+            UIElement page1 = _epubPages[index];
+
+            // 2. Side-by-Side Logic
+            bool isImg1 = (page1 is Grid g1 && g1.Tag is EpubImageTag);
+
+            if (_isSideBySideMode && isImg1)
+            {
+                // Try to find next page (could be in next chapter)
+                int nextChapIndex = _currentEpubChapterIndex;
+                int nextPgIndex = index + 1;
+
+                if (nextPgIndex >= _epubPages.Count)
+                {
+                    nextChapIndex++;
+                    nextPgIndex = 0;
+                }
+
+                UIElement? page2 = GetEpubPage(nextChapIndex, nextPgIndex);
+                bool isImg2 = page2 != null && (page2 is Grid g2 && g2.Tag is EpubImageTag);
+
+                if (isImg2 && page2 != null && page2 != page1)
+                {
+                    _isEpubShowingTwoPages = true;
+
+                    // Setup 2-column layout
+                    EpubPageDisplay.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+                    EpubPageDisplay.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+
+                    // Ensure page2 is a child of display
+                    if (!EpubPageDisplay.Children.Contains(page2))
+                    {
+                        EpubPageDisplay.Children.Add(page2);
+                    }
+
+                    // Position
+                    if (_nextImageOnRight)
+                    {
+                        Grid.SetColumn((FrameworkElement)page1, 0);
+                        Grid.SetColumn((FrameworkElement)page2, 1);
+                        ((FrameworkElement)page1).HorizontalAlignment = HorizontalAlignment.Right;
+                        ((FrameworkElement)page2).HorizontalAlignment = HorizontalAlignment.Left;
+                    }
+                    else
+                    {
+                        Grid.SetColumn((FrameworkElement)page1, 1);
+                        Grid.SetColumn((FrameworkElement)page2, 0);
+                        ((FrameworkElement)page1).HorizontalAlignment = HorizontalAlignment.Left;
+                        ((FrameworkElement)page2).HorizontalAlignment = HorizontalAlignment.Right;
+                    }
+
+                    page1.Opacity = 1;
+                    page1.IsHitTestVisible = true;
+                    page2.Opacity = 1;
+                    page2.IsHitTestVisible = true;
+
+                    Grid.SetColumnSpan((FrameworkElement)page1, 1);
+                    Grid.SetColumnSpan((FrameworkElement)page2, 1);
+                }
+                else if (nextChapIndex < _epubSpine.Count && page2 == null)
+                {
+                    // Next page is in another chapter and not yet loaded.
+                    // To avoid flicker when it becomes ready, setup the layout as if it's SBS.
+                    _isEpubShowingTwoPages = true;
+
+                    EpubPageDisplay.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+                    EpubPageDisplay.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+
+                    if (_nextImageOnRight)
+                    {
+                        Grid.SetColumn((FrameworkElement)page1, 0);
+                        ((FrameworkElement)page1).HorizontalAlignment = HorizontalAlignment.Right;
+                    }
+                    else
+                    {
+                        Grid.SetColumn((FrameworkElement)page1, 1);
+                        ((FrameworkElement)page1).HorizontalAlignment = HorizontalAlignment.Left;
+                    }
+
+                    page1.Opacity = 1;
+                    page1.IsHitTestVisible = true;
+                    Grid.SetColumnSpan((FrameworkElement)page1, 1);
+                }
+            }
+
+            if (!_isEpubShowingTwoPages)
+            {
+                page1.Opacity = 1;
+                page1.IsHitTestVisible = true;
+                
+                // Only center images. Text should be left-aligned (indicated by Stretching the grid container)
+                ((FrameworkElement)page1).HorizontalAlignment = isImg1 ? HorizontalAlignment.Center : HorizontalAlignment.Stretch;
+
+                Grid.SetColumn((FrameworkElement)page1, 0);
+                Grid.SetColumnSpan((FrameworkElement)page1, 2); 
+            }
+
+            UpdateEpubStatus();
         }
 
         // --- Epub Settings Logic ---
@@ -1514,26 +1753,7 @@ namespace Uviewer
                  // For now, just jump to chapter.
              }
         }
-        private void SetEpubPageIndex(int index)
-        {
-            if (index >= 0 && index < _epubPages.Count)
-            {
-                // Hide current page
-                if (_currentEpubPageIndex >= 0 && _currentEpubPageIndex < _epubPages.Count)
-                {
-                    _epubPages[_currentEpubPageIndex].Opacity = 0;
-                    _epubPages[_currentEpubPageIndex].IsHitTestVisible = false;
-                }
 
-                _currentEpubPageIndex = index;
-                
-                // Show new page
-                _epubPages[_currentEpubPageIndex].Opacity = 1;
-                _epubPages[_currentEpubPageIndex].IsHitTestVisible = true;
-                
-                UpdateEpubStatus();
-            }
-        }
 
         public void ClearEpubCache()
         {

@@ -158,15 +158,6 @@
                         <FontIcon x:Name="SharpenIcon" Glyph="S" FontSize="14" FontFamily="Segoe UI" />
                     </ToggleButton>
 
-                    <AppBarSeparator/>
-
-                    <Button x:Name="SideBySideButton" Click="SideBySideButton_Click" ToolTipService.ToolTip="좌우 보기(Space)">
-                        <TextBlock x:Name="SideBySideText" Text="1" FontSize="14" FontWeight="SemiBold" Width="14" TextAlignment="Center"/>
-                    </Button>
-
-                    <Button x:Name="NextImageSideButton" Click="NextImageSideButton_Click" ToolTipService.ToolTip="다음 그림 위치">
-                        <TextBlock x:Name="NextImageSideText" Text="→" FontSize="12" FontWeight="SemiBold"/>
-                    </Button>
                 </StackPanel>
 
                 <!-- Text Toolbar -->
@@ -222,6 +213,18 @@
 
                     <Button x:Name="ThemeToggleButton" Click="ThemeToggleButton_Click" ToolTipService.ToolTip="배경색 변경(B)">
                         <FontIcon Glyph="&#xE790;" FontSize="14"/>
+                    </Button>
+                </StackPanel>
+
+                <StackPanel x:Name="SideBySideToolbarPanel" Orientation="Horizontal" Spacing="4" Visibility="Visible">
+                    <AppBarSeparator/>
+
+                    <Button x:Name="SideBySideButton" Click="SideBySideButton_Click" ToolTipService.ToolTip="좌우 보기(Space)">
+                        <TextBlock x:Name="SideBySideText" Text="1" FontSize="14" FontWeight="SemiBold" Width="14" TextAlignment="Center"/>
+                    </Button>
+
+                    <Button x:Name="NextImageSideButton" Click="NextImageSideButton_Click" ToolTipService.ToolTip="다음 그림 위치">
+                        <TextBlock x:Name="NextImageSideText" Text="→" FontSize="12" FontWeight="SemiBold"/>
                     </Button>
                 </StackPanel>
 
@@ -529,21 +532,6 @@
                       PointerWheelChanged="EpubTouchOverlay_PointerWheelChanged"
                       HorizontalAlignment="Stretch"
                       VerticalAlignment="Stretch"/>
-                 <Grid x:Name="EpubFastNavOverlay"
-                        Canvas.ZIndex="999"
-                        IsHitTestVisible="False"
-                        Visibility="Collapsed"
-                        Background="#80000000"
-                        HorizontalAlignment="Stretch"
-                        VerticalAlignment="Stretch">
-                    <TextBlock x:Name="EpubFastNavText"
-                            Foreground="White"
-                            FontSize="28"
-                            FontWeight="SemiBold"
-                            HorizontalAlignment="Center"
-                            VerticalAlignment="Center"
-                            Text="챕터 이동 중..." />
-                </Grid>
             </Grid>
         </Grid>
 
