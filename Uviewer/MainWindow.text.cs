@@ -1487,7 +1487,13 @@ namespace Uviewer
              
               if (e.Key == Windows.System.VirtualKey.Home)
               {
-                   if (_isAozoraMode && _aozoraBlocks.Count > 0)
+                   if (_isVerticalMode)
+                   {
+                       _currentVerticalPageIndex = 0;
+                       VerticalTextCanvas?.Invalidate();
+                       UpdateTextStatusBar();
+                   }
+                   else if (_isAozoraMode && _aozoraBlocks.Count > 0)
                    {
                        _aozoraNavHistory.Clear();
                        RenderAozoraDynamicPage(0);
@@ -1501,7 +1507,13 @@ namespace Uviewer
               }
               else if (e.Key == Windows.System.VirtualKey.End)
               {
-                   if (_isAozoraMode && _aozoraBlocks.Count > 0)
+                   if (_isVerticalMode)
+                   {
+                       _currentVerticalPageIndex = _verticalPageInfos.Count - 1;
+                       VerticalTextCanvas?.Invalidate();
+                       UpdateTextStatusBar();
+                   }
+                   else if (_isAozoraMode && _aozoraBlocks.Count > 0)
                    {
                        _aozoraNavHistory.Clear();
                        // Start rendering from slightly before the end to fill the last page
@@ -1661,6 +1673,12 @@ namespace Uviewer
         {
             if (!int.TryParse(lineText, out int line) || line < 1) return;
             
+             if (_isVerticalMode)
+             {
+                 _ = PrepareVerticalTextAsync(line);
+                 return;
+             }
+
              if (_isAozoraMode && _aozoraBlocks.Count > 0)
              {
                  // Find block by line number
@@ -1815,7 +1833,7 @@ namespace Uviewer
         
         private void UpdateTextStatusBar(string? fileName = null, int? totalLines = null, int? currentPage = null)
         {
-            if (!_isTextMode) return;
+            if (!_isTextMode && !_isEpubMode) return;
             if (_isVerticalMode) { UpdateVerticalStatusBar(); return; }
             if (_isAozoraMode) { UpdateAozoraStatusBar(); return; }
 

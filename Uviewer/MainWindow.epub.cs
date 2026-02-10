@@ -255,8 +255,21 @@ namespace Uviewer
             }
             else if (e.Key == Windows.System.VirtualKey.Home)
             {
-                 // Previous Chapter
-                 if (_currentEpubChapterIndex > 0)
+                 if (_isVerticalMode)
+                 {
+                     if (_currentVerticalPageIndex > 0)
+                     {
+                         _currentVerticalPageIndex = 0;
+                         VerticalTextCanvas?.Invalidate();
+                         UpdateTextStatusBar();
+                     }
+                     else if (_currentEpubChapterIndex > 0)
+                     {
+                         _currentEpubChapterIndex--;
+                         _ = LoadEpubChapterAsync(_currentEpubChapterIndex);
+                     }
+                 }
+                 else if (_currentEpubChapterIndex > 0)
                  {
                      _currentEpubChapterIndex--;
                      _ = LoadEpubChapterAsync(_currentEpubChapterIndex);
@@ -265,8 +278,21 @@ namespace Uviewer
             }
             else if (e.Key == Windows.System.VirtualKey.End)
             {
-                 // Next Chapter
-                 if (_currentEpubChapterIndex < _epubSpine.Count - 1)
+                 if (_isVerticalMode)
+                 {
+                     if (_currentVerticalPageIndex < _verticalPageInfos.Count - 1)
+                     {
+                         _currentVerticalPageIndex = _verticalPageInfos.Count - 1;
+                         VerticalTextCanvas?.Invalidate();
+                         UpdateTextStatusBar();
+                     }
+                     else if (_currentEpubChapterIndex < _epubSpine.Count - 1)
+                     {
+                         _currentEpubChapterIndex++;
+                         _ = LoadEpubChapterAsync(_currentEpubChapterIndex);
+                     }
+                 }
+                 else if (_currentEpubChapterIndex < _epubSpine.Count - 1)
                  {
                      _currentEpubChapterIndex++;
                      _ = LoadEpubChapterAsync(_currentEpubChapterIndex);
@@ -987,6 +1013,12 @@ namespace Uviewer
              {
                  if (int.TryParse(input.Text, out int targetLine))
                  {
+                     if (_isVerticalMode)
+                     {
+                         _ = PrepareVerticalTextAsync(targetLine);
+                         return;
+                     }
+
                      // Find page that contains this line
                      for (int i = 0; i < _epubPages.Count; i++)
                      {
@@ -1365,8 +1397,42 @@ namespace Uviewer
                 if (_isVerticalMode)
                 {
                     _currentEpubChapterIndex = index;
-                    _aozoraBlocks = await GetEpubChapterAsAozoraBlocksAsync(index);
+                    var blocks = await GetEpubChapterAsAozoraBlocksAsync(index);
+                    
+                    // If side-by-side mode is on and current chapter ends with an image, try to pull in the next chapter's blocks
+                    // to allow SBS grouping across chapter boundaries.
+                    if (_isSideBySideMode && blocks.Count > 0 && blocks.Last().HasImage)
+                    {
+                        int nextIdx = index + 1;
+                        if (nextIdx < _epubSpine.Count)
+                        {
+                            var nextBlocks = await GetEpubChapterAsAozoraBlocksAsync(nextIdx);
+                            // Only pull in if next chapter also starts with an image (don't mixing text chapters too much)
+                            if (nextBlocks.Count > 0 && nextBlocks[0].HasImage)
+                            {
+                                blocks.AddRange(nextBlocks);
+                            }
+                        }
+                    }
+
+                    _aozoraBlocks = blocks;
                     await PrepareVerticalTextAsync(fromEnd ? 999999 : (targetLine > 0 ? targetLine : 1));
+                    
+                    // Side-by-Side 모드에서 챕터 경계 배치를 정합성 있게 하기 위한 처리
+                    // 이전 챕터로 넘어갈 때(fromEnd), 마지막 페이지가 다음 챕터의 첫 이미지를 포함하고 있다면
+                    // 이는 현재 뷰(다음 챕터 시작 부분)와 1장 겹치는 상태가 되므로, 한 페이지 더 앞을 보여주어 2장 단위 이동을 맞춥니다.
+                    if (fromEnd && _isSideBySideMode && _verticalPageInfos.Count > 1)
+                    {
+                        int lastPageIdx = _verticalPageInfos.Count - 1;
+                        var lastPage = _verticalPageInfos[lastPageIdx];
+                        // 마지막 페이지의 블록들 중 로드한 챕터(index)보다 큰 번호의 챕터(즉, 다음 챕터) 블록이 포함되어 있는지 확인
+                        if (lastPage.Blocks.Any(b => b.EpubChapterIndex > index))
+                        {
+                            _currentVerticalPageIndex = lastPageIdx - 1;
+                            VerticalTextCanvas?.Invalidate();
+                            UpdateTextStatusBar();
+                        }
+                    }
                     return;
                 }
 
@@ -1439,7 +1505,7 @@ namespace Uviewer
             _currentEpubPageIndex = index;
             UIElement page1 = _epubPages[index];
 
-            // 2. Side-by-Side Logic
+            // 2. Side-by-Side Logic (Images only for now)
             bool isImg1 = (page1 is Grid g1 && g1.Tag is EpubImageTag);
 
             if (_isSideBySideMode && isImg1)
@@ -1471,9 +1537,10 @@ namespace Uviewer
                         EpubPageDisplay.Children.Add(page2);
                     }
 
-                    // Position
+                    // Position based on progression direction
                     if (_nextImageOnRight)
                     {
+                        // Left-to-Right: Current on Left (Col 0), Next on Right (Col 1)
                         Grid.SetColumn((FrameworkElement)page1, 0);
                         Grid.SetColumn((FrameworkElement)page2, 1);
                         ((FrameworkElement)page1).HorizontalAlignment = HorizontalAlignment.Right;
@@ -1481,6 +1548,7 @@ namespace Uviewer
                     }
                     else
                     {
+                        // Right-to-Left: Current on Right (Col 1), Next on Left (Col 0)
                         Grid.SetColumn((FrameworkElement)page1, 1);
                         Grid.SetColumn((FrameworkElement)page2, 0);
                         ((FrameworkElement)page1).HorizontalAlignment = HorizontalAlignment.Left;
@@ -1498,7 +1566,7 @@ namespace Uviewer
                 else if (nextChapIndex < _epubSpine.Count && page2 == null)
                 {
                     // Next page is in another chapter and not yet loaded.
-                    // To avoid flicker when it becomes ready, setup the layout as if it's SBS.
+                    // Setup layout as SBS to avoid flicker when it loads soon.
                     _isEpubShowingTwoPages = true;
 
                     EpubPageDisplay.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
@@ -1518,6 +1586,9 @@ namespace Uviewer
                     page1.Opacity = 1;
                     page1.IsHitTestVisible = true;
                     Grid.SetColumnSpan((FrameworkElement)page1, 1);
+                    
+                    // Trigger proactive preloading if next page is null
+                    _ = PreloadEpubChaptersAsync(_currentEpubChapterIndex);
                 }
             }
 
@@ -1526,7 +1597,7 @@ namespace Uviewer
                 page1.Opacity = 1;
                 page1.IsHitTestVisible = true;
                 
-                // Only center images. Text should be left-aligned (indicated by Stretching the grid container)
+                // Only center images. Text should be left-aligned (stretching the container)
                 ((FrameworkElement)page1).HorizontalAlignment = isImg1 ? HorizontalAlignment.Center : HorizontalAlignment.Stretch;
 
                 Grid.SetColumn((FrameworkElement)page1, 0);
@@ -1784,12 +1855,15 @@ namespace Uviewer
                 _epubArchiveLock.Release();
             }
 
-            return ParseEpubHtmlToAozoraBlocks(html, path);
+            return ParseEpubHtmlToAozoraBlocks(html, path, index);
         }
 
-        private List<AozoraBindingModel> ParseEpubHtmlToAozoraBlocks(string html, string currentPath)
+        private List<AozoraBindingModel> ParseEpubHtmlToAozoraBlocks(string html, string currentPath, int chapterIndex)
         {
             var blocks = new List<AozoraBindingModel>();
+            
+            // ...
+            
             
             // Cleanup
             html = RxEpubScript.Replace(html, "");
@@ -1816,7 +1890,7 @@ namespace Uviewer
                         string src = match.Groups[1].Value;
                         string fullPath = ResolveRelativePath(currentPath, src);
 
-                        var block = new AozoraBindingModel { SourceLineNumber = lineNum++ };
+                        var block = new AozoraBindingModel { SourceLineNumber = lineNum++, EpubChapterIndex = chapterIndex };
                         block.Inlines.Add(new AozoraImage { Source = fullPath });
                         blocks.Add(block);
                         isFirstContent = false;
@@ -1825,7 +1899,7 @@ namespace Uviewer
                 else
                 {
                     // Text segment
-                    var textBlocks = ParseHtmlToAozoraTextBlocks(segment, ref lineNum);
+                    var textBlocks = ParseHtmlToAozoraTextBlocks(segment, ref lineNum, chapterIndex);
 
                     // If this is the first content and chapter has images, skip short title-like text blocks
                     if (isFirstContent && hasImages && textBlocks.Count == 1)
@@ -1852,7 +1926,7 @@ namespace Uviewer
             return blocks;
         }
 
-        private List<AozoraBindingModel> ParseHtmlToAozoraTextBlocks(string html, ref int lineNum)
+        private List<AozoraBindingModel> ParseHtmlToAozoraTextBlocks(string html, ref int lineNum, int chapterIndex)
         {
             var blocks = new List<AozoraBindingModel>();
 
@@ -1902,7 +1976,7 @@ namespace Uviewer
                 var trimmed = line.Replace('\u3000', ' ').Replace('\u00A0', ' ').Trim();
                 if (string.IsNullOrWhiteSpace(trimmed)) continue;
                 
-                var block = new AozoraBindingModel { SourceLineNumber = lineNum++ };
+                var block = new AozoraBindingModel { SourceLineNumber = lineNum++, EpubChapterIndex = chapterIndex };
                 
                 var tokens = RxEpubRubySplit.Split(line);
                 foreach (var token in tokens)

@@ -1429,7 +1429,14 @@ namespace Uviewer
             UpdateSideBySideButtonState();
             SaveWindowSettings();
             
-            if (_isEpubMode)
+            if (_isVerticalMode)
+            {
+                int currentLine = 1;
+                if (_verticalPageInfos.Count > _currentVerticalPageIndex)
+                    currentLine = _verticalPageInfos[_currentVerticalPageIndex].StartLine;
+                _ = PrepareVerticalTextAsync(currentLine);
+            }
+            else if (_isEpubMode)
             {
                 SetEpubPageIndex(_currentEpubPageIndex);
             }
@@ -1445,7 +1452,14 @@ namespace Uviewer
             UpdateNextImageSideButtonState();
             SaveWindowSettings();
 
-            if (_isEpubMode)
+            if (_isVerticalMode)
+            {
+                int currentLine = 1;
+                if (_verticalPageInfos.Count > _currentVerticalPageIndex)
+                    currentLine = _verticalPageInfos[_currentVerticalPageIndex].StartLine;
+                _ = PrepareVerticalTextAsync(currentLine);
+            }
+            else if (_isEpubMode)
             {
                 SetEpubPageIndex(_currentEpubPageIndex);
             }

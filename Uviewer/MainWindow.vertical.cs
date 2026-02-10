@@ -120,14 +120,20 @@ namespace Uviewer
             _currentVerticalPageIndex = 0;
             _verticalImageCache.Clear();
 
+            float marginTop = 40;
+            float marginBottom = 40;
+            float marginRight = 40;
+            float marginLeft = 40; 
+
             float availableHeight = (float)(VerticalTextCanvas?.ActualHeight ?? 800);
             if (availableHeight < 100) availableHeight = (float)RootGrid.ActualHeight - 200;
             if (availableHeight < 100) availableHeight = 800;
+            availableHeight -= (marginTop + marginBottom); 
             
             float availableWidth = (float)(VerticalTextCanvas?.ActualWidth ?? 1200);
             if (availableWidth < 100) availableWidth = (float)RootGrid.ActualWidth - 100;
             if (availableWidth < 100) availableWidth = 1000;
-            availableWidth -= 120; // Total horizontal margin (60 * 2)
+            availableWidth -= (marginRight + marginLeft);
 
             try
             {
@@ -227,72 +233,66 @@ namespace Uviewer
         {
             var pageBlocks = new List<AozoraBindingModel>();
             float usedWidth = 0;
+            var device = VerticalTextCanvas?.Device;
 
             while (index < blocks.Count)
             {
                 var block = blocks[index];
 
-                // [추가] 이미지 블록은 무조건 한 페이지를 차지하게 함
                 if (block.HasImage)
                 {
                     var aozoraImg = block.Inlines.OfType<AozoraImage>().FirstOrDefault();
-                    if (aozoraImg != null)
+                    if (aozoraImg != null && !DoesVerticalImageExist(aozoraImg.Source))
                     {
-                        // 이미지 파일 존재 여부 확인
-                        if (!DoesVerticalImageExist(aozoraImg.Source))
-                        {
-                            index++; // 파일이 없으면 이 블록은 건너뜀
-                            continue;
-                        }
+                        index++;
+                        continue;
                     }
 
-                    if (pageBlocks.Count > 0) break; // 이미 다른 내용이 있으면 다음 페이지로 넘김
+                    if (pageBlocks.Count > 0) break;
                     
                     pageBlocks.Add(block);
                     index++;
-                    break; // 이미지 페이지는 이미지 하나만 넣고 종료
+
+                    // SideBySide 모드인 경우 이미지를 가로로 한 장 더 배치 (Space 키 토글 지원)
+                    if (_isSideBySideMode)
+                    {
+                        while (index < blocks.Count)
+                        {
+                            var nextBlock = blocks[index];
+                            if (nextBlock.HasImage)
+                            {
+                                var nextImg = nextBlock.Inlines.OfType<AozoraImage>().FirstOrDefault();
+                                if (nextImg != null && DoesVerticalImageExist(nextImg.Source))
+                                {
+                                    pageBlocks.Add(nextBlock);
+                                    index++;
+                                    break; // Max 2 images reached
+                                }
+                            }
+
+                            // Skip whitespace or empty blocks between images
+                            bool isWhitespace = nextBlock.Inlines.Count == 0 || nextBlock.Inlines.All(inline => 
+                                (inline is string s && (string.IsNullOrWhiteSpace(s) || s.Trim() == "\u3000" || s.Trim() == "\u00A0")) || 
+                                (inline is AozoraLineBreak));
+                            
+                            if (isWhitespace)
+                            {
+                                index++;
+                                continue;
+                            }
+                            break; // Content block found, stop grouping
+                        }
+                    }
+                    break;
                 }
 
                 float fontSize = (float)(_textFontSize * block.FontSizeScale);
                 
-                // 1. 블록의 전체 텍스트 길이 계산
-                int textLength = 0;
-                if (block.Inlines != null)
-                {
-                    foreach (var inline in block.Inlines)
-                    {
-                        if (inline is string s) textLength += s.Length;
-                        else if (inline is AozoraRuby ruby) textLength += ruby.BaseText.Length;
-                        else if (inline is AozoraBold bold) textLength += bold.Text.Length;
-                        else if (inline is AozoraItalic italic) textLength += italic.Text.Length;
-                        else if (inline is AozoraCode code) textLength += code.Text.Length;
-                        else if (inline is AozoraLineBreak) textLength += 1;
-                    }
-                }
-                
-                if (block.IsTable && block.TableRows.Count > 0)
-                {
-                    foreach (var row in block.TableRows) textLength += string.Join(" | ", row).Length + 1;
-                }
+                // [핵심 수정] Pixel-accurate measurement using CanvasTextLayout
+                float blockTotalWidth = MeasureVerticalBlockWidth(device, block, availableHeight, fontSize);
 
-                if (textLength == 0) textLength = 1;
-
-                // 2. 한 줄(세로)에 들어갈 수 있는 글자 수 추정 (여백 90% 고려해 더 안전하게 계산)
-                int charsPerCol = (int)((availableHeight * 0.90f) / fontSize);
-                if (charsPerCol < 1) charsPerCol = 1;
-
-                // 3. 이 블록이 차지할 예상 줄(Column) 수 계산
-                int estimatedCols = (int)Math.Ceiling((double)textLength / charsPerCol);
-                if (estimatedCols < 1) estimatedCols = 1;
-
-                // 4. 예상 너비 계산 (줄 수 * (본문두께 + 줄간격 + 루비여유))
-                // Draw 로직의 LineSpacing(1.8f) 및 Spacing(0.6f)을 고려해 넉넉하게 2.0f로 설정
-                float colWidth = fontSize * 2.0f; 
-                float blockTotalWidth = (estimatedCols * colWidth) + (fontSize * 0.2f); 
-
-                // 5. 공간 체크 (안전 여백 Safety Buffer 적용)
-                // 화면 왼쪽 끝에 딱 붙지 않도록, 폰트 크기의 1.5배 정도 여유를 둠
-                float safetyBuffer = fontSize * 1.5f;
+                // 공간 체크 (안전 여백 Safety Buffer 적용)
+                float safetyBuffer = fontSize * 0.5f;
 
                 if (pageBlocks.Count > 0 && usedWidth + blockTotalWidth > (availableWidth - safetyBuffer))
                 {
@@ -306,6 +306,57 @@ namespace Uviewer
                 if (usedWidth >= (availableWidth - safetyBuffer)) break;
             }
             return pageBlocks;
+        }
+
+        private float MeasureVerticalBlockWidth(CanvasDevice? device, AozoraBindingModel block, float availableHeight, float fontSize)
+        {
+            if (device == null) return fontSize * 2.0f;
+
+            // Build text same as in Draw method
+            StringBuilder sb = new StringBuilder();
+            bool hasRuby = false;
+            foreach (var inline in block.Inlines)
+            {
+                int start = sb.Length;
+                if (inline is string s) sb.Append(s);
+                else if (inline is AozoraRuby ruby)
+                {
+                    sb.Append(ruby.BaseText);
+                    hasRuby = true;
+                }
+                else if (inline is AozoraBold bold) sb.Append(bold.Text);
+                else if (inline is AozoraItalic italic) sb.Append(italic.Text);
+                else if (inline is AozoraCode code) sb.Append(code.Text);
+                else if (inline is AozoraLineBreak) sb.Append("\n");
+            }
+            if (block.IsTable && block.TableRows.Count > 0)
+            {
+                foreach (var row in block.TableRows) sb.AppendLine(string.Join(" | ", row));
+            }
+
+            string text = sb.ToString();
+            if (string.IsNullOrEmpty(text)) text = " ";
+
+            using var format = new CanvasTextFormat
+            {
+                FontSize = fontSize,
+                FontFamily = block.FontFamily ?? _textFontFamily,
+                Direction = CanvasTextDirection.TopToBottomThenRightToLeft,
+                WordWrapping = CanvasWordWrapping.EmergencyBreak,
+                LineSpacing = fontSize * 1.8f,
+                VerticalGlyphOrientation = CanvasVerticalGlyphOrientation.Default,
+                VerticalAlignment = CanvasVerticalAlignment.Center
+            };
+
+            // Using same measureWidth (fontSize * 2f) as in Draw method
+            using var layout = new CanvasTextLayout(device, text, format, fontSize * 2.0f, availableHeight);
+            
+            float boundsWidth = (float)layout.LayoutBounds.Width;
+            float rubyFontSize = fontSize * 0.5f;
+            float rubySpace = hasRuby ? rubyFontSize : 0;
+            float spacing = fontSize * 0.6f;
+            
+            return boundsWidth + rubySpace + spacing;
         }
 
         private void VerticalTextCanvas_CreateResources(CanvasControl sender, Microsoft.Graphics.Canvas.UI.CanvasCreateResourcesEventArgs args)
@@ -323,25 +374,38 @@ namespace Uviewer
             
             ds.Clear(GetVerticalBackgroundColor());
 
-            float margin = 60;
+            float marginTop = 40;
+            float marginBottom = 40;
+            float marginRight = 40;
+            float marginLeft = 40;
+
             // [좌표 기준] currentX: 현재 줄의 "가장 오른쪽 끝" 좌표
-            float currentX = (float)size.Width - margin; 
-            float startY = margin;
+            float currentX = (float)size.Width - marginRight; 
+            float startY = marginTop;
+            float drawHeight = (float)size.Height - (marginTop + marginBottom);
 
             if (page.Blocks == null) return;
 
+            // [추가] 이미지 모드 체크 (SideBySide일 때 한 페이지에 여러 블록(이미지)이 있을 수 있음)
+            var imgBlocks = page.Blocks.Where(b => b.HasImage).ToList();
+            if (imgBlocks.Count > 0)
+            {
+                if (imgBlocks.Count >= 2)
+                {
+                    var src1 = imgBlocks[0].Inlines.OfType<AozoraImage>().First().Source;
+                    var src2 = imgBlocks[1].Inlines.OfType<AozoraImage>().First().Source;
+                    DrawVerticalImagesSBS(ds, size, src1, src2);
+                }
+                else
+                {
+                    var src = imgBlocks[0].Inlines.OfType<AozoraImage>().First().Source;
+                    DrawVerticalImage(ds, size, src);
+                }
+                return; // 이미지 페이지는 텍스트를 그리지 않음
+            }
+
             foreach (var block in page.Blocks)
             {
-                if (block.HasImage)
-                {
-                    // Draw Image Page
-                    var aozoraImg = block.Inlines.OfType<AozoraImage>().FirstOrDefault();
-                    if (aozoraImg != null)
-                    {
-                        DrawVerticalImage(ds, size, aozoraImg.Source);
-                    }
-                    continue;
-                }
 
                 float fontSize = (float)(_textFontSize * block.FontSizeScale);
                 float rubyFontSize = fontSize * 0.5f;
@@ -398,7 +462,7 @@ namespace Uviewer
                 string blockText = sb.ToString();
 
                 // 1. 텍스트 레이아웃 생성
-                using var textLayout = new CanvasTextLayout(ds, blockText, format, measureWidth, (float)size.Height - margin * 2);
+                using var textLayout = new CanvasTextLayout(ds, blockText, format, measureWidth, drawHeight);
                 
                 foreach (var r in boldRanges) textLayout.SetFontWeight(r.start, r.length, Microsoft.UI.Text.FontWeights.Bold);
                 foreach (var r in italicRanges) textLayout.SetFontStyle(r.start, r.length, Windows.UI.Text.FontStyle.Italic);
@@ -419,7 +483,10 @@ namespace Uviewer
                 // Y축 정렬
                 float drawY = startY + (float)block.Margin.Top;
                 if (block.Alignment == TextAlignment.Center) drawY = (float)((size.Height - bounds.Height) / 2);
-                else if (block.Alignment == TextAlignment.Right) drawY = (float)(size.Height - bounds.Height - margin);
+                else if (block.Alignment == TextAlignment.Right) drawY = (float)(size.Height - bounds.Height - marginBottom);
+
+                // 5. [안전 장치] 왼쪽 여백 침범 체크 (marginLeft 사용)
+                if (currentX - currentLineThickness < marginLeft - 5) break; 
 
                 // 5. 본문 그리기
                 ds.DrawTextLayout(textLayout, drawX, drawY, textColor);
@@ -526,15 +593,33 @@ namespace Uviewer
             }
             else if (_isEpubMode)
             {
-                if (direction > 0 && _currentEpubChapterIndex < _epubSpine.Count - 1)
+                if (direction > 0)
                 {
-                    _currentEpubChapterIndex++;
-                    await LoadEpubChapterAsync(_currentEpubChapterIndex);
+                    // Find the max chapter index on the current page to skip already seen chapters
+                    int maxChapterOnPage = _currentEpubChapterIndex;
+                    var currentPage = _verticalPageInfos[_currentVerticalPageIndex];
+                    if (currentPage.Blocks.Count > 0)
+                        maxChapterOnPage = currentPage.Blocks.Max(b => b.EpubChapterIndex);
+
+                    if (maxChapterOnPage < _epubSpine.Count - 1)
+                    {
+                        _currentEpubChapterIndex = maxChapterOnPage + 1;
+                        await LoadEpubChapterAsync(_currentEpubChapterIndex);
+                    }
                 }
-                else if (direction < 0 && _currentEpubChapterIndex > 0)
+                else if (direction < 0)
                 {
-                    _currentEpubChapterIndex--;
-                    await LoadEpubChapterAsync(_currentEpubChapterIndex, fromEnd: true);
+                    // Find the min chapter index on the current page
+                    int minChapterOnPage = _currentEpubChapterIndex;
+                    var currentPage = _verticalPageInfos[_currentVerticalPageIndex];
+                    if (currentPage.Blocks.Count > 0)
+                        minChapterOnPage = currentPage.Blocks.Min(b => b.EpubChapterIndex);
+
+                    if (minChapterOnPage > 0)
+                    {
+                        _currentEpubChapterIndex = minChapterOnPage - 1;
+                        await LoadEpubChapterAsync(_currentEpubChapterIndex, fromEnd: true);
+                    }
                 }
             }
         }
@@ -559,18 +644,29 @@ namespace Uviewer
             
             if (_isEpubMode)
             {
-                ImageInfoText.Text = $"Ch. {_currentEpubChapterIndex + 1} / {_epubSpine.Count} | Line {currentLine} / {totalLines}";
+                ImageInfoText.Text = $"Line {currentLine} / {totalLines}";
+
+                // Calculate global progress for EPUB
+                double totalProgress = 0;
+                if (_epubSpine.Count > 0)
+                {
+                    double chapterProgress = (double)_currentEpubChapterIndex / _epubSpine.Count;
+                    double pageProgressInChapter = (double)(currentPage - 1) / totalPages / _epubSpine.Count;
+                    totalProgress = (chapterProgress + pageProgressInChapter) * 100.0;
+                    if (totalProgress > 100) totalProgress = 100;
+                }
+                TextProgressText.Text = $"{totalProgress:F1}%";
+                ImageIndexText.Text = $"{currentPage} / {totalPages} (Ch.{_currentEpubChapterIndex + 1})";
             }
             else
             {
                 ImageInfoText.Text = Strings.LineInfo(currentLine, totalLines);
+                ImageIndexText.Text = $"{currentPage} / {totalPages}";
+                
+                double progress = totalPages > 1 ? (double)_currentVerticalPageIndex / (totalPages - 1) * 100.0 : 100.0;
+                if (progress > 100) progress = 100;
+                TextProgressText.Text = $"{progress:F1}%";
             }
-
-            ImageIndexText.Text = $"{currentPage} / {totalPages}";
-            
-            double progress = totalPages > 1 ? (double)_currentVerticalPageIndex / (totalPages - 1) * 100.0 : 100.0;
-            if (progress > 100) progress = 100;
-            TextProgressText.Text = $"{progress:F1}%";
         }
 
         private void VerticalTextCanvas_SizeChanged(object sender, SizeChangedEventArgs e)
@@ -591,59 +687,123 @@ namespace Uviewer
             if (e.Handled) return;
             if (!_isVerticalMode) return;
 
-            // Only handle chapter navigation for EPUB in vertical mode
-            if (!_isEpubMode) return;
+            // Space to toggle SideBySide for images in vertical mode
+            if (e.Key == Windows.System.VirtualKey.Space)
+            {
+                _isSideBySideMode = !_isSideBySideMode;
+                UpdateSideBySideButtonState();
 
+                // Preserve current line position when toggling
+                int currentLine = 1;
+                if (_verticalPageInfos.Count > _currentVerticalPageIndex)
+                    currentLine = _verticalPageInfos[_currentVerticalPageIndex].StartLine;
+
+                _ = PrepareVerticalTextAsync(currentLine);
+                e.Handled = true;
+                return;
+            }
+
+            // Handle Home/End navigation (within page range or chapters)
             if (e.Key == Windows.System.VirtualKey.Home)
             {
-                if (_currentEpubChapterIndex > 0)
+                if (_currentVerticalPageIndex > 0)
+                {
+                    _currentVerticalPageIndex = 0;
+                    VerticalTextCanvas?.Invalidate();
+                    UpdateTextStatusBar();
+                    e.Handled = true;
+                }
+                else if (_isEpubMode && _currentEpubChapterIndex > 0)
                 {
                     _currentEpubChapterIndex--;
                     _ = LoadEpubChapterAsync(_currentEpubChapterIndex);
+                    e.Handled = true;
                 }
-                e.Handled = true;
             }
             else if (e.Key == Windows.System.VirtualKey.End)
             {
-                if (_currentEpubChapterIndex < _epubSpine.Count - 1)
+                if (_currentVerticalPageIndex < _verticalPageInfos.Count - 1)
+                {
+                    _currentVerticalPageIndex = _verticalPageInfos.Count - 1;
+                    VerticalTextCanvas?.Invalidate();
+                    UpdateTextStatusBar();
+                    e.Handled = true;
+                }
+                else if (_isEpubMode && _currentEpubChapterIndex < _epubSpine.Count - 1)
                 {
                     _currentEpubChapterIndex++;
                     _ = LoadEpubChapterAsync(_currentEpubChapterIndex);
+                    e.Handled = true;
                 }
+            }
+
+            // Handle arrow keys
+            if (e.Key == Windows.System.VirtualKey.Left)
+            {
+                NavigateVerticalPage(ShouldInvertControls ? 1 : -1);
+                e.Handled = true;
+            }
+            else if (e.Key == Windows.System.VirtualKey.Right)
+            {
+                NavigateVerticalPage(ShouldInvertControls ? -1 : 1);
                 e.Handled = true;
             }
         }
 
-        private async void DrawVerticalImage(CanvasDrawingSession ds, Size canvasSize, string relativePath)
+        private void DrawVerticalImagesSBS(CanvasDrawingSession ds, Size canvasSize, string path1, string path2)
         {
-            if (string.IsNullOrEmpty(relativePath)) return;
+            float halfW = (float)canvasSize.Width / 2;
+            float canvasH = (float)canvasSize.Height;
 
-            // Try to get from cache
-            if (_verticalImageCache.TryGetValue(relativePath, out var bitmap))
+            if (_nextImageOnRight)
             {
-                if (bitmap == null) return; // Loading failed before
+                // Left-to-Right layout: Current on Left (Right-align), Next on Right (Left-align)
+                DrawImageInRect(ds, path1, new Rect(0, 0, halfW, canvasH), HorizontalAlignment.Right);
+                DrawImageInRect(ds, path2, new Rect(halfW, 0, halfW, canvasH), HorizontalAlignment.Left);
+            }
+            else
+            {
+                // Right-to-Left layout: Current on Right (Left-align), Next on Left (Right-align)
+                DrawImageInRect(ds, path1, new Rect(halfW, 0, halfW, canvasH), HorizontalAlignment.Left);
+                DrawImageInRect(ds, path2, new Rect(0, 0, halfW, canvasH), HorizontalAlignment.Right);
+            }
+        }
 
-                // Draw centered and scaled
-                float canvasW = (float)canvasSize.Width;
-                float canvasH = (float)canvasSize.Height;
+        private void DrawVerticalImage(CanvasDrawingSession ds, Size canvasSize, string relativePath)
+        {
+            DrawImageInRect(ds, relativePath, new Rect(0, 0, canvasSize.Width, canvasSize.Height));
+        }
+
+        private void DrawImageInRect(CanvasDrawingSession ds, string path, Rect rect, HorizontalAlignment align = HorizontalAlignment.Center)
+        {
+            if (string.IsNullOrEmpty(path)) return;
+
+            if (_verticalImageCache.TryGetValue(path, out var bitmap))
+            {
+                if (bitmap == null) return;
+
+                float canvasW = (float)rect.Width;
+                float canvasH = (float)rect.Height;
                 float imgW = (float)bitmap.Size.Width;
                 float imgH = (float)bitmap.Size.Height;
 
-                float scale = Math.Min((canvasW - 80) / imgW, (canvasH - 80) / imgH);
-                if (scale > 1.0f) scale = 1.0f; // Don't upscale too much if small
+                float scale = Math.Min(canvasW / imgW, canvasH / imgH);
 
                 float drawW = imgW * scale;
                 float drawH = imgH * scale;
-                float drawX = (canvasW - drawW) / 2;
-                float drawY = (canvasH - drawH) / 2;
+
+                float drawX = (float)rect.X + (canvasW - drawW) / 2;
+                if (align == HorizontalAlignment.Left) drawX = (float)rect.X;
+                else if (align == HorizontalAlignment.Right) drawX = (float)rect.X + (canvasW - drawW);
+
+                float drawY = (float)rect.Y + (canvasH - drawH) / 2;
 
                 ds.DrawImage(bitmap, new Rect(drawX, drawY, drawW, drawH));
             }
             else
             {
-                // Trigger Load
-                _verticalImageCache[relativePath] = null!; // Mark as loading (placeholder)
-                _ = LoadVerticalImageAsync(relativePath);
+                _verticalImageCache[path] = null!;
+                _ = LoadVerticalImageAsync(path);
             }
         }
 
@@ -655,7 +815,10 @@ namespace Uviewer
             {
                 if (_isEpubMode && _currentEpubArchive != null)
                 {
-                    return _currentEpubArchive.GetEntry(relativePath) != null;
+                    string normPath = relativePath.Replace('\\', '/');
+                    return _currentEpubArchive.Entries.Any(e => 
+                        e.FullName.Replace('\\', '/') == normPath || 
+                        string.Equals(e.FullName.Replace('\\', '/'), normPath, StringComparison.OrdinalIgnoreCase));
                 }
                 if (!string.IsNullOrEmpty(_currentTextFilePath) && _currentTextArchiveEntryKey == null)
                 {
@@ -692,7 +855,10 @@ namespace Uviewer
 
                 if (_isEpubMode && _currentEpubArchive != null)
                 {
-                    var entry = _currentEpubArchive.GetEntry(relativePath);
+                    string normPath = relativePath.Replace('\\', '/');
+                    var entry = _currentEpubArchive.Entries.FirstOrDefault(e => e.FullName.Replace('\\', '/') == normPath)
+                             ?? _currentEpubArchive.Entries.FirstOrDefault(e => string.Equals(e.FullName.Replace('\\', '/'), normPath, StringComparison.OrdinalIgnoreCase));
+
                     if (entry != null)
                     {
                         await _epubArchiveLock.WaitAsync();

@@ -50,6 +50,7 @@ namespace Uviewer
             public int HeadingLevel { get; set; } = 0; // 0=None, 1=Large/H1, 2=Medium/H2, 3=Small/H3...
             public string HeadingText { get; set; } = "";
             public bool HasImage => Inlines.Any(i => i is AozoraImage);
+            public int EpubChapterIndex { get; set; } = -1;
         }
 
         public class AozoraBold { public string Text { get; set; } = ""; }
@@ -908,6 +909,12 @@ namespace Uviewer
         {
             if (!_isTextMode || !_isAozoraMode || _aozoraBlocks.Count == 0) return;
 
+            if (_isVerticalMode)
+            {
+                _ = PrepareVerticalTextAsync(targetLine);
+                return;
+            }
+
             int startIdx = 0;
             for (int i = 0; i < _aozoraBlocks.Count; i++)
             {
@@ -1724,7 +1731,7 @@ namespace Uviewer
 
             List<TocItem> items = new();
 
-            if (_isAozoraMode && _aozoraBlocks.Count > 0)
+            if ((_isAozoraMode || _isVerticalMode) && _aozoraBlocks.Count > 0)
             {
                 items = _aozoraBlocks
                     .Where(b => b.HeadingLevel > 0)
@@ -1822,7 +1829,14 @@ namespace Uviewer
             {
                 // Text / Aozora Mode
                 int currentLine = 1;
-                if (_isAozoraMode)
+                if (_isVerticalMode)
+                {
+                    if (_verticalPageInfos != null && _currentVerticalPageIndex >= 0 && _currentVerticalPageIndex < _verticalPageInfos.Count)
+                    {
+                        currentLine = _verticalPageInfos[_currentVerticalPageIndex].StartLine;
+                    }
+                }
+                else if (_isAozoraMode)
                 {
                     if (_currentAozoraStartBlockIndex >= 0 && _currentAozoraStartBlockIndex < _aozoraBlocks.Count)
                         currentLine = _aozoraBlocks[_currentAozoraStartBlockIndex].SourceLineNumber;
@@ -1843,7 +1857,7 @@ namespace Uviewer
 
             if (currentIndex >= 0 && currentIndex < items.Count)
             {
-                items[currentIndex].HeadingText = "→ " + items[currentIndex].HeadingText;
+                items[currentIndex].HeadingText = "⮕ " + items[currentIndex].HeadingText;
             }
 
             if (items.Count == 0)
@@ -1855,8 +1869,15 @@ namespace Uviewer
             
             if (currentIndex >= 0)
             {
-                // Scroll to current item
-                TocListView.ScrollIntoView(items[currentIndex]);
+                // Ensure layout updated before scrolling
+                this.DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, () =>
+                {
+                    try
+                    {
+                        TocListView.ScrollIntoView(items[currentIndex], ScrollIntoViewAlignment.Leading);
+                    }
+                    catch { }
+                });
             }
         }
 
@@ -1875,7 +1896,11 @@ namespace Uviewer
                 }
                 else if (item.SourceLineNumber > 0)
                 {
-                    if (_isAozoraMode)
+                    if (_isVerticalMode)
+                    {
+                        _ = PrepareVerticalTextAsync(item.SourceLineNumber);
+                    }
+                    else if (_isAozoraMode)
                     {
                         JumpToAozoraLine(item.SourceLineNumber);
                     }

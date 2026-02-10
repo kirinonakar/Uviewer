@@ -20,7 +20,9 @@
   - **Aozora Bunko format Support**: Native rendering of Ruby text (Furigana), emphasis, indentation and images.
   - **Markdown Support**: Custom-built Markdown rendering including tables, code blocks, and inline formatting.
   - **Smart Encoding Detection**: Automatically detects and handles various encodings (UTF-8, Unicode, **EUC-KR**, **Shift-JIS**, **Johab**).
-- **Reading Comfort**: Adjustable font size, font family (Yu Gothic Medium/Yu Mincho/Custom font), and background themes (Light/Beige/Dark).
+- **Reading Comfort**: 
+  - **Adjustable Styling**: Change font size, font family (Yu Gothic Medium/Yu Mincho/Custom), and background themes (Light/Beige/Dark).
+  - **Vertical Mode (Tategaki)**: Comprehensive support for vertical text rendering with pixel-accurate layout.
 - **Go to Line**: Jump directly to a specific line (G).
 - **Table of Contents (TOC)**: Automatically extracts headings (Markdown `#` or Aozora `［＃...］` tags) for quick navigation.
 - **Line Bookmark**: Save your reading progress (Line number) to Favorites and resume exactly where you left off.
@@ -29,6 +31,7 @@
 - **Full EPUB Support**: Page-based navigation with chapter tracking.
 - **Table of Contents**: Support for Navigation via TOC.
 - **Customization**: Adjustable font settings (font family/size) and background colors.
+- **Vertical Support**: View EPUBs in vertical mode
 
 ### 📂 File Management
 - **Integrated Explorer**: Sidebar with Folder/Thumbnail views for easy navigation.
@@ -44,7 +47,7 @@
   - Setting persists across sessions
 
 ### 🌍 Localization
-- **Multi-language Support**: Automatically detects and switches between **English** and **Korean** based on system settings.
+- **Multi-language Support**: Automatically detects and switches between **English**, **Korean**, and **Japanese** based on system settings.
 
 ### 🎨 Global Theme & Design
 - **Dark & Light Mode**: Seamlessly switch between dark and light themes for the entire interface.
@@ -67,6 +70,7 @@
 | | Text | First / Last Page |
 | | EPUB | Previous / Next Chapter |
 | **Space** | Image | Toggle 2-Page View (Side-by-Side) |
+| **V** | Text / EPUB | Toggle Vertical Mode (Tategaki) |
 | **Backspace** | Global | Go to Parent Folder |
 | **Esc** | Global | Close Window / Exit Fullscreen |
 | **F11** | Global | Toggle Fullscreen |
