@@ -186,14 +186,30 @@ namespace Uviewer
 
             if (e.Key == Windows.System.VirtualKey.Left)
             {
-                if (ShouldInvertControls) _ = NavigateEpubAsync(1);
-                else _ = NavigateEpubAsync(-1);
+                if (_isVerticalMode)
+                {
+                    // In vertical mode: Left -> Next page
+                    NavigateVerticalPage(1);
+                }
+                else
+                {
+                    if (ShouldInvertControls) _ = NavigateEpubAsync(1);
+                    else _ = NavigateEpubAsync(-1);
+                }
                 e.Handled = true;
             }
             else if (e.Key == Windows.System.VirtualKey.Right)
             {
-                if (ShouldInvertControls) _ = NavigateEpubAsync(-1);
-                else _ = NavigateEpubAsync(1);
+                if (_isVerticalMode)
+                {
+                    // In vertical mode: Right -> Previous page
+                    NavigateVerticalPage(-1);
+                }
+                else
+                {
+                    if (ShouldInvertControls) _ = NavigateEpubAsync(-1);
+                    else _ = NavigateEpubAsync(1);
+                }
                 e.Handled = true;
             }
             else if (e.Key == Windows.System.VirtualKey.G)
@@ -205,6 +221,15 @@ namespace Uviewer
             {
                  ToggleFont();
                  e.Handled = true;
+            }
+            else if (e.Key == Windows.System.VirtualKey.V)
+            {
+                // Toggle vertical mode from EPUB key handler as well
+                _isVerticalMode = !_isVerticalMode;
+                if (VerticalToggleButton != null) VerticalToggleButton.IsChecked = _isVerticalMode;
+                SaveTextSettings();
+                ToggleVerticalMode();
+                e.Handled = true;
             }
             else if (e.Key == Windows.System.VirtualKey.Subtract || e.Key == (Windows.System.VirtualKey)189) // - key
             {
@@ -275,6 +300,13 @@ namespace Uviewer
                  
                  SwitchToEpubMode();
                  LoadEpubSettings();
+                // If the app is currently in vertical mode, ensure UI reflects that
+                if (_isVerticalMode)
+                {
+                    if (VerticalToggleButton != null) VerticalToggleButton.IsChecked = true;
+                    // Ensure the vertical UI is activated
+                    ToggleVerticalMode();
+                }
                  
                  // 3. Load Chapter (Updated to handle pending positions)
                  if (PendingEpubChapterIndex >= 0 && PendingEpubChapterIndex < _epubSpine.Count)
@@ -1769,6 +1801,8 @@ namespace Uviewer
             // Split by Image tags
             var segments = RxEpubImgTag.Split(html);
             int lineNum = 1;
+            bool hasImages = html.Contains("<img", StringComparison.OrdinalIgnoreCase) || html.Contains("<image", StringComparison.OrdinalIgnoreCase);
+            bool isFirstContent = true;
 
             foreach (var segment in segments)
             {
@@ -1781,17 +1815,36 @@ namespace Uviewer
                     {
                         string src = match.Groups[1].Value;
                         string fullPath = ResolveRelativePath(currentPath, src);
-                        
+
                         var block = new AozoraBindingModel { SourceLineNumber = lineNum++ };
                         block.Inlines.Add(new AozoraImage { Source = fullPath });
                         blocks.Add(block);
+                        isFirstContent = false;
                     }
                 }
                 else
                 {
                     // Text segment
                     var textBlocks = ParseHtmlToAozoraTextBlocks(segment, ref lineNum);
-                    blocks.AddRange(textBlocks);
+
+                    // If this is the first content and chapter has images, skip short title-like text blocks
+                    if (isFirstContent && hasImages && textBlocks.Count == 1)
+                    {
+                        string plainText = RxEpubAnyTag.Replace(segment, "");
+                        plainText = System.Net.WebUtility.HtmlDecode(plainText).Trim();
+                        if (plainText.Length > 0 && plainText.Length < 100)
+                        {
+                            // skip this likely-title block
+                            isFirstContent = false;
+                            continue;
+                        }
+                    }
+
+                    if (textBlocks.Count > 0)
+                    {
+                        blocks.AddRange(textBlocks);
+                        isFirstContent = false;
+                    }
                 }
             }
 

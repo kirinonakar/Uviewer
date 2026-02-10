@@ -19,6 +19,7 @@ namespace Uviewer
     public sealed partial class MainWindow
     {
         private bool _isVerticalMode = false;
+        private bool _verticalKeyAttached = false;
         private List<string> _verticalPages = new();
         private int _currentVerticalPageIndex = 0;
         private System.Threading.CancellationTokenSource? _verticalPaginationCts;
@@ -35,6 +36,12 @@ namespace Uviewer
         {
             if (_isVerticalMode)
             {
+                // Attach vertical key handler
+                if (!_verticalKeyAttached && RootGrid != null)
+                {
+                    RootGrid.PreviewKeyDown += RootGrid_Vertical_PreviewKeyDown;
+                    _verticalKeyAttached = true;
+                }
                 if (VerticalTextCanvas != null) VerticalTextCanvas.Visibility = Visibility.Visible;
                 if (TextScrollViewer != null) TextScrollViewer.Visibility = Visibility.Collapsed;
                 if (AozoraPageContainer != null) AozoraPageContainer.Visibility = Visibility.Collapsed;
@@ -58,6 +65,12 @@ namespace Uviewer
             }
             else
             {
+                // Detach vertical key handler
+                if (_verticalKeyAttached && RootGrid != null)
+                {
+                    RootGrid.PreviewKeyDown -= RootGrid_Vertical_PreviewKeyDown;
+                    _verticalKeyAttached = false;
+                }
                 int currentLine = _verticalPageInfos.Count > 0 && _currentVerticalPageIndex < _verticalPageInfos.Count 
                     ? _verticalPageInfos[_currentVerticalPageIndex].StartLine : 1;
 
@@ -570,6 +583,34 @@ namespace Uviewer
                     currentLine = _verticalPageInfos[_currentVerticalPageIndex].StartLine;
                 }
                 _ = PrepareVerticalTextAsync(currentLine, _globalTextCts?.Token ?? default);
+            }
+        }
+
+        private void RootGrid_Vertical_PreviewKeyDown(object sender, Microsoft.UI.Xaml.Input.KeyRoutedEventArgs e)
+        {
+            if (e.Handled) return;
+            if (!_isVerticalMode) return;
+
+            // Only handle chapter navigation for EPUB in vertical mode
+            if (!_isEpubMode) return;
+
+            if (e.Key == Windows.System.VirtualKey.Home)
+            {
+                if (_currentEpubChapterIndex > 0)
+                {
+                    _currentEpubChapterIndex--;
+                    _ = LoadEpubChapterAsync(_currentEpubChapterIndex);
+                }
+                e.Handled = true;
+            }
+            else if (e.Key == Windows.System.VirtualKey.End)
+            {
+                if (_currentEpubChapterIndex < _epubSpine.Count - 1)
+                {
+                    _currentEpubChapterIndex++;
+                    _ = LoadEpubChapterAsync(_currentEpubChapterIndex);
+                }
+                e.Handled = true;
             }
         }
 
