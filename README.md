@@ -37,7 +37,7 @@
 
 ### 🔧 Settings
 
-#### ⚙️ Multiple Instances (다중 실행)
+#### ⚙️ Multiple Instances
 - **Allow Multiple Instances**: When enabled, each file opens in a new window instance. When disabled, files open in the already running instance using inter-process communication (NamedPipe).
   - Default: **Enabled** (`true`)
   - Toggle via Settings menu
