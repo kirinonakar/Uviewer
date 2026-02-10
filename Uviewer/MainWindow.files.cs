@@ -49,7 +49,11 @@ namespace Uviewer
 
         private async void PrevPageButton_Click(object sender, RoutedEventArgs e)
         {
-            if (_isEpubMode)
+            if (_isVerticalMode)
+            {
+                NavigateVerticalPage(-1);
+            }
+            else if (_isEpubMode)
             {
                 await NavigateEpubAsync(-1);
             }
@@ -72,7 +76,11 @@ namespace Uviewer
 
         private async void NextPageButton_Click(object sender, RoutedEventArgs e)
         {
-            if (_isEpubMode)
+            if (_isVerticalMode)
+            {
+                NavigateVerticalPage(1);
+            }
+            else if (_isEpubMode)
             {
                 await NavigateEpubAsync(1);
             }

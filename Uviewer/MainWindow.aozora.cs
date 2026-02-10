@@ -7,6 +7,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text.RegularExpressions;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace Uviewer
@@ -179,13 +180,16 @@ namespace Uviewer
                 // Set pending target
                 _aozoraPendingTargetLine = targetLine;
                 
+                CancelAndResetGlobalTextCts();
+                var token = _globalTextCts!.Token;
+
                 if (_isAozoraMode)
                 {
                     // Switch to Aozora mode display
                     if (TextScrollViewer != null) TextScrollViewer.Visibility = Visibility.Collapsed;
                     if (AozoraPageContainer != null) AozoraPageContainer.Visibility = Visibility.Visible;
                     
-                    await PrepareAozoraDisplayAsync(_currentTextContent, targetLine);
+                    await PrepareAozoraDisplayAsync(_currentTextContent, targetLine, token);
                     FileNameText.Text = GetFormattedDisplayName(fileName, _currentTextArchiveEntryKey != null);
                 }
                 else
@@ -201,7 +205,7 @@ namespace Uviewer
                     }
                     
                     // Progressive loading using cached content
-                    await LoadTextLinesProgressivelyAsync(_currentTextContent, targetLine);
+                    await LoadTextLinesProgressivelyAsync(_currentTextContent, targetLine, token);
                     
                     // Update Text Status
                     UpdateTextStatusBar(fileName, _textTotalLineCountInSource, 1);
@@ -360,7 +364,7 @@ namespace Uviewer
         private double _lastAozoraContainerWidth = 0;
         private System.Threading.CancellationTokenSource? _aozoraResizeCts;
         
-        private async Task PrepareAozoraDisplayAsync(string rawContent, int targetLine = 1)
+        private async Task PrepareAozoraDisplayAsync(string rawContent, int targetLine = 1, CancellationToken token = default)
         {
             try
             {
@@ -425,11 +429,14 @@ namespace Uviewer
                         {
                             try
                             {
+                                if (token.IsCancellationRequested) return;
                                 var restLines = lines.Skip(initialLimit).ToArray();
                                 var restBlocks = ParseAozoraLines(restLines, initialLimit + 1);
                                 
+                                if (token.IsCancellationRequested) return;
                                 this.DispatcherQueue.TryEnqueue(() => 
                                 {
+                                    if (token.IsCancellationRequested) return;
                                     if (!_isAozoraMode) return; // Mode switched?
                                     
                                     _aozoraBlocks.AddRange(restBlocks);
@@ -443,7 +450,7 @@ namespace Uviewer
                             {
                                 System.Diagnostics.Debug.WriteLine($"Background Parse Error: {ex.Message}");
                             }
-                        });
+                        }, token);
                     }
                     else
                     {
@@ -629,6 +636,14 @@ namespace Uviewer
             for (int i = startIdx; i < _aozoraBlocks.Count; i++)
             {
                 var block = _aozoraBlocks[i];
+                var p = CreateParagraphFromBlock(block, availableHeight);
+
+                // If the block is empty (e.g., missing image), skip it entirely
+                if (p.Inlines.Count == 0)
+                {
+                    endIdx = i;
+                    continue;
+                }
                 
                 // If this block has an image, it should be isolated on its own page
                 if (block.HasImage)
@@ -641,8 +656,6 @@ namespace Uviewer
                     else
                     {
                         // First block is image, add ONLY this block and stop
-                        var p = CreateParagraphFromBlock(block, availableHeight);
-                        // For image-only pages, center horizontally and vertically
                         p.TextAlignment = TextAlignment.Center;
                         
                         AozoraPageContent.Blocks.Add(p);
@@ -651,8 +664,7 @@ namespace Uviewer
                     }
                 }
 
-                var pNormal = CreateParagraphFromBlock(block, availableHeight);
-                AozoraPageContent.Blocks.Add(pNormal);
+                AozoraPageContent.Blocks.Add(p);
                 
                 // Measure the container to see current total height
                 AozoraPageContent.Measure(new Windows.Foundation.Size(AozoraPageContent.MaxWidth, double.PositiveInfinity));
@@ -661,7 +673,7 @@ namespace Uviewer
                 if (AozoraPageContent.Blocks.Count > 1 && newHeight > availableHeight)
                 {
                     // Too high, remove last and stop
-                    AozoraPageContent.Blocks.Remove(pNormal);
+                    AozoraPageContent.Blocks.Remove(p);
                     break;
                 }
                 
@@ -876,7 +888,7 @@ namespace Uviewer
             
             int startLine = _aozoraBlocks[_currentAozoraStartBlockIndex].SourceLineNumber;
             
-            ImageInfoText.Text = $"Line {startLine} / {_aozoraTotalLineCountInSource}";
+            ImageInfoText.Text = Strings.LineInfo(startLine, _aozoraTotalLineCountInSource);
             _ = AddToRecentAsync(true);
             TextProgressText.Text = $"{progress:F1}%";
             
@@ -914,6 +926,7 @@ namespace Uviewer
         private List<AozoraBindingModel> ParseAozoraContent(string text)
         {
             var lines = text.Replace("\r\n", "\n").Replace("\r", "\n").Split('\n');
+            _textTotalLineCountInSource = lines.Length;
             return ParseAozoraLines(lines, 1);
         }
 
@@ -1012,9 +1025,9 @@ namespace Uviewer
                 content = Regex.Replace(content, @"｜(.+?)《(.+?)》", "{{RUBY|$1|$2}}");
                 
                 // 2. Aozora Ruby without pipe (Kanji + Ruby): 漢字《かんじ》
-                // Heuristic: Take all adjacent Kanji before 《
-                // Regex: ([一-龠々]+)《(.+?)》
-                content = Regex.Replace(content, @"([一-龠々]+)《(.+?)》", "{{RUBY|$1|$2}}");
+                // Heuristic: Take all adjacent CJK characters before 《
+                // Broadened range to include Japanese/Korean/Chinese ideographs
+                content = Regex.Replace(content, @"([\u4E00-\u9FFF\u3400-\u4DBF\uF900-\uFAFF々]+)《(.+?)》", "{{RUBY|$1|$2}}");
                 
                 // 3. Fallback for mixed/other scripts? Aozora spec usually strictly defines this. 
                 // Some files use 《》 for other things? Assuming Ruby for now.
@@ -1522,6 +1535,26 @@ namespace Uviewer
             }
             else if (_currentArchive != null && !string.IsNullOrEmpty(_currentTextArchiveEntryKey))
             {
+                // Synchronously check if entry exists to avoid empty placeholder
+                // This prevents blank pages when an image tag refers to a missing file
+                string normKey = _currentTextArchiveEntryKey.Replace('\\', '/');
+                string? baseDir = "";
+                int lastSlash = normKey.LastIndexOf('/');
+                if (lastSlash >= 0) baseDir = normKey.Substring(0, lastSlash);
+
+                string subPath = relativePath.Replace('\\', '/').TrimStart('/');
+                string targetKey = string.IsNullOrEmpty(baseDir) ? subPath : (baseDir.TrimEnd('/') + "/" + subPath);
+                
+                // Remove redundant ./ if present
+                targetKey = targetKey.Replace("/./", "/");
+
+                // Manual search to match the logic inside the task
+                var exists = _currentArchive.Entries.Any(e => e.Key != null && 
+                             (e.Key.Replace('\\', '/') == targetKey || 
+                              string.Equals(e.Key.Replace('\\', '/'), targetKey, StringComparison.OrdinalIgnoreCase)));
+
+                if (!exists) return null;
+
                 // Archive Case (Async Load)
                 _ = Task.Run(async () =>
                 {
@@ -1531,19 +1564,7 @@ namespace Uviewer
                         byte[]? bytes = null;
                         try
                         {
-                            // Manuel path resolution for archives (don't trust Path.GetDirectoryName for keys with '/')
-                            string normKey = _currentTextArchiveEntryKey.Replace('\\', '/');
-                            string? baseDir = "";
-                            int lastSlash = normKey.LastIndexOf('/');
-                            if (lastSlash >= 0) baseDir = normKey.Substring(0, lastSlash);
-
-                            string subPath = relativePath.Replace('\\', '/').TrimStart('/');
-                            string targetKey = string.IsNullOrEmpty(baseDir) ? subPath : (baseDir.TrimEnd('/') + "/" + subPath);
-                            
-                            // Normalize targetKey (remove ./ and ../ for simplicity if needed, but for now just exact match)
-                            targetKey = targetKey.Replace("/./", "/");
-                            
-                            // Exact match or Case-insensitive match find
+                            // Re-normalization inside task to be safe and consistent
                             var entry = _currentArchive.Entries.FirstOrDefault(e => e.Key != null && e.Key.Replace('\\', '/') == targetKey) 
                                      ?? _currentArchive.Entries.FirstOrDefault(e => e.Key != null && string.Equals(e.Key.Replace('\\', '/'), targetKey, StringComparison.OrdinalIgnoreCase));
                             

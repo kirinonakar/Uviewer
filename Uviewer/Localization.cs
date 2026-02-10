@@ -40,6 +40,7 @@ namespace Uviewer
         public static string GoToPageTooltip => S("줄 이동(G)", "Go to Line (G)");
         public static string TextSizeDownTooltip => S("글자 작게(-)", "Text Smaller (-)");
         public static string TextSizeUpTooltip => S("글자 크게(+)", "Text Larger (+)");
+        public static string VerticalTooltip => S("세로쓰기(V)", "Vertical Mode (V)");
         public static string ThemeTooltip => S("배경색 변경(B)", "Change Background (B)");
         public static string FullscreenTooltip => S("전체화면(F11)", "Fullscreen (F11)");
         public static string CloseWindowTooltip => S("닫기(Esc)", "Close (Esc)");
@@ -76,10 +77,12 @@ namespace Uviewer
         public static string FastNavText => S("빠른 탐색 중...", "Fast Navigating...");
         public static string TextFastNavText => S("페이지 이동 중...", "Navigating...");
         public static string CalculatingPages => S(" (페이지 계산중...)", " (Calculating pages...)");
+        public static string Paginating => S("페이지 계산 중...", "Paginating...");
         public static string FileSelectPlaceholder => S("파일을 선택해주세요", "Select a file");
         public static string LoadImageError => S("파일을 불러올 수 없습니다.", "Cannot load file.");
         public static string AddedToFavoritesNotification => S("즐겨찾기에 추가되었습니다", "Added to Favorites");
         public static string Loading => S(" (로딩중...)", " (Loading...)");
+        public static string LineInfo(int cur, int total) => S($"줄 {cur} / {total}", $"Line {cur} / {total}");
         
         public static string EpubLoadError(string msg) => S($"EPUB 로드 실패: {msg}", $"EPUB Load Failed: {msg}");
         public static string EpubParseError(string msg) => S($"EPUB 파싱 오류: {msg}", $"EPUB Parse Error: {msg}");

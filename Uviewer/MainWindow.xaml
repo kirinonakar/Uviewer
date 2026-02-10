@@ -177,7 +177,7 @@
                         <TextBlock Text="A" FontSize="14" FontWeight="Bold"/>
                     </ToggleButton>
                     
-                    <ToggleButton x:Name="VerticalToggleButton" Click="VerticalToggleButton_Click" ToolTipService.ToolTip="세로쓰기(V)">
+                    <ToggleButton x:Name="VerticalToggleButton" Click="VerticalToggleButton_Click">
                         <TextBlock Text="V" FontSize="14" FontWeight="Bold"/>
                     </ToggleButton>
                     

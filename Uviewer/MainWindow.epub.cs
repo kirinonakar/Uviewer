@@ -1330,6 +1330,14 @@ namespace Uviewer
                 _epubPages = pages;
                 _currentEpubPageIndex = -1;
 
+                if (_isVerticalMode)
+                {
+                    _currentEpubChapterIndex = index;
+                    _aozoraBlocks = await GetEpubChapterAsAozoraBlocksAsync(index);
+                    await PrepareVerticalTextAsync(fromEnd ? 999999 : (targetLine > 0 ? targetLine : 1));
+                    return;
+                }
+
                 // Update UI Container
                 EpubPageDisplay.Children.Clear();
                 foreach (var page in _epubPages)
@@ -1721,6 +1729,149 @@ namespace Uviewer
         public void ClearEpubCache()
         {
             _epubPreloadCache.Clear();
+        }
+
+        private async Task<List<AozoraBindingModel>> GetEpubChapterAsAozoraBlocksAsync(int index)
+        {
+            if (index < 0 || index >= _epubSpine.Count) return new List<AozoraBindingModel>();
+
+            string path = _epubSpine[index];
+            var entry = _currentEpubArchive?.GetEntry(path);
+            if (entry == null) return new List<AozoraBindingModel>();
+
+            string html;
+            await _epubArchiveLock.WaitAsync();
+            try
+            {
+                using var stream = entry.Open();
+                using var reader = new StreamReader(stream);
+                html = await reader.ReadToEndAsync();
+            }
+            finally
+            {
+                _epubArchiveLock.Release();
+            }
+
+            return ParseEpubHtmlToAozoraBlocks(html, path);
+        }
+
+        private List<AozoraBindingModel> ParseEpubHtmlToAozoraBlocks(string html, string currentPath)
+        {
+            var blocks = new List<AozoraBindingModel>();
+            
+            // Cleanup
+            html = RxEpubScript.Replace(html, "");
+            html = RxEpubStyle.Replace(html, "");
+            
+            // Pre-process special tags
+            html = RxEpubBr.Replace(html, "\n");
+
+            // Split by Image tags
+            var segments = RxEpubImgTag.Split(html);
+            int lineNum = 1;
+
+            foreach (var segment in segments)
+            {
+                if (string.IsNullOrWhiteSpace(segment)) continue;
+
+                if (RxEpubIsImg.IsMatch(segment))
+                {
+                    var match = RxEpubSrc.Match(segment);
+                    if (match.Success)
+                    {
+                        string src = match.Groups[1].Value;
+                        string fullPath = ResolveRelativePath(currentPath, src);
+                        
+                        var block = new AozoraBindingModel { SourceLineNumber = lineNum++ };
+                        block.Inlines.Add(new AozoraImage { Source = fullPath });
+                        blocks.Add(block);
+                    }
+                }
+                else
+                {
+                    // Text segment
+                    var textBlocks = ParseHtmlToAozoraTextBlocks(segment, ref lineNum);
+                    blocks.AddRange(textBlocks);
+                }
+            }
+
+            _textTotalLineCountInSource = lineNum - 1;
+            return blocks;
+        }
+
+        private List<AozoraBindingModel> ParseHtmlToAozoraTextBlocks(string html, ref int lineNum)
+        {
+            var blocks = new List<AozoraBindingModel>();
+
+            // --- Ruby Processing ---
+            html = RxEpubRuby.Replace(html, m => 
+            {
+                string rubyContent = m.Groups[1].Value;
+                rubyContent = RxEpubRp.Replace(rubyContent, "");
+                
+                StringBuilder sb = new StringBuilder();
+                var rtMatches = RxEpubRt.Matches(rubyContent);
+                
+                int lastIndex = 0;
+                foreach (Match rtMatch in rtMatches)
+                {
+                    string basePart = rubyContent.Substring(lastIndex, rtMatch.Index - lastIndex);
+                    string rtPart = rtMatch.Groups[1].Value;
+                    
+                    string baseText = RxEpubAnyTag.Replace(basePart, "").Trim();
+                    string rtText = RxEpubAnyTag.Replace(rtPart, "").Trim();
+                    
+                    if (!string.IsNullOrEmpty(baseText) || !string.IsNullOrEmpty(rtText))
+                    {
+                        sb.Append($"{{{{RUBY|{baseText}|~|{rtText}}}}}");
+                    }
+                    lastIndex = rtMatch.Index + rtMatch.Length;
+                }
+                
+                if (lastIndex < rubyContent.Length)
+                {
+                    string tailText = RxEpubAnyTag.Replace(rubyContent.Substring(lastIndex), "").Trim();
+                    if (!string.IsNullOrEmpty(tailText)) sb.Append(tailText);
+                }
+                
+                return sb.ToString();
+            });
+            
+            // Strip remaining tags
+            html = RxEpubAnyTag.Replace(html, ""); 
+            html = System.Net.WebUtility.HtmlDecode(html);
+            
+            html = html.Replace("\r\n", "\n").Replace("\r", "\n");
+            var lines = html.Split('\n');
+            
+            foreach (var line in lines)
+            {
+                var trimmed = line.Replace('\u3000', ' ').Replace('\u00A0', ' ').Trim();
+                if (string.IsNullOrWhiteSpace(trimmed)) continue;
+                
+                var block = new AozoraBindingModel { SourceLineNumber = lineNum++ };
+                
+                var tokens = RxEpubRubySplit.Split(line);
+                foreach (var token in tokens)
+                {
+                    if (token.StartsWith("{{RUBY|"))
+                    {
+                        var content = token.Substring(7, token.Length - 9);
+                        var parts = content.Split(new[] { "|~|" }, StringSplitOptions.None);
+                        if (parts.Length == 2)
+                        {
+                            block.Inlines.Add(new AozoraRuby { BaseText = parts[0], RubyText = parts[1] });
+                        }
+                    }
+                    else if (!string.IsNullOrEmpty(token))
+                    {
+                        block.Inlines.Add(token);
+                    }
+                }
+                blocks.Add(block);
+            }
+            
+            return blocks;
         }
     }
 }

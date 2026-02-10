@@ -29,6 +29,7 @@ namespace Uviewer
 #pragma warning disable CS0414 // Field is assigned but never used - reserved for future loading state UI
         private bool _isTextLinesFullyLoaded = false; // Track if all lines are loaded
 #pragma warning restore CS0414
+        private CancellationTokenSource? _globalTextCts;
 
         
         
@@ -70,6 +71,17 @@ namespace Uviewer
             catch { }
         }
 
+        private void CancelAndResetGlobalTextCts()
+        {
+            try
+            {
+                _globalTextCts?.Cancel();
+                // do not dispose here because it might be in use
+            }
+            catch { }
+            _globalTextCts = new CancellationTokenSource();
+        }
+
         private async Task LoadTextFileAsync(StorageFile file)
         {
             // Save position of current file before switching
@@ -82,10 +94,16 @@ namespace Uviewer
 
             try
             {
+                CancelAndResetGlobalTextCts();
+                var token = _globalTextCts!.Token;
+
                 SwitchToTextMode();
                 string content = await ReadTextFileWithEncodingAsync(file);
-                await DisplayLoadedText(content, file.Name, file.Path);
+                if (token.IsCancellationRequested) return;
+
+                await DisplayLoadedText(content, file.Name, file.Path, token);
                 
+                if (token.IsCancellationRequested) return;
                 SyncSidebarSelection(new ImageEntry { FilePath = file.Path, DisplayName = file.Name });
             }
             catch (Exception ex)
@@ -116,9 +134,12 @@ namespace Uviewer
              
              try
              {
+                 CancelAndResetGlobalTextCts();
+                 var token = _globalTextCts!.Token;
+
                  SwitchToTextMode();
                  string content = "";
-                 await _archiveLock.WaitAsync();
+                 await _archiveLock.WaitAsync(token);
                  try
                  {
                       if (_currentArchive != null && entry.ArchiveEntryKey != null)
@@ -136,7 +157,10 @@ namespace Uviewer
                  }
                  finally { _archiveLock.Release(); }
                  
-                 await DisplayLoadedText(content, entry.DisplayName, null);
+                 if (token.IsCancellationRequested) return;
+                 await DisplayLoadedText(content, entry.DisplayName, null, token);
+                 
+                 if (token.IsCancellationRequested) return;
                  SyncSidebarSelection(entry);
              }
              catch (Exception ex) 
@@ -145,9 +169,10 @@ namespace Uviewer
              }
         }
 
-        private async Task DisplayLoadedText(string content, string name, string? uniquePath = null)
+        private async Task DisplayLoadedText(string content, string name, string? uniquePath = null, CancellationToken token = default)
         {
             _currentTextContent = content; // Save for reload
+            _aozoraBlocks.Clear(); // [핵심 수정] 새 파일을 로드할 때 이전 파일의 블록 캐시를 제거합니다.
 
             string ext = System.IO.Path.GetExtension(name).ToLower();
             if (ext == ".html" || ext == ".htm")
@@ -176,7 +201,9 @@ namespace Uviewer
 
             if (_isVerticalMode)
             {
-                await PrepareVerticalTextAsync(targetLine);
+                if (TextArea != null) TextArea.Background = GetThemeBackground();
+                await PrepareVerticalTextAsync(targetLine, token);
+                if (token.IsCancellationRequested) return;
                 if (VerticalTextCanvas != null) VerticalTextCanvas.Visibility = Visibility.Visible;
                 
                 FileNameText.Text = GetFormattedDisplayName(name, _currentTextArchiveEntryKey != null);
@@ -187,7 +214,8 @@ namespace Uviewer
             if (_isAozoraMode)
             {
                 // Use page-based container display with target line restoration
-                await PrepareAozoraDisplayAsync(content, targetLine);
+                await PrepareAozoraDisplayAsync(content, targetLine, token);
+                if (token.IsCancellationRequested) return;
                 if (AozoraPageContainer != null) AozoraPageContainer.Visibility = Visibility.Visible;
                 
                 FileNameText.Text = GetFormattedDisplayName(name, _currentTextArchiveEntryKey != null);
@@ -201,7 +229,7 @@ namespace Uviewer
                 }
                 
                 // Progressive loading for large files
-                await LoadTextLinesProgressivelyAsync(content, targetLine);
+                await LoadTextLinesProgressivelyAsync(content, targetLine, token);
                 if (TextScrollViewer != null) TextScrollViewer.Visibility = Visibility.Visible;
 
                 // Reset to top immediately if not restoring position
@@ -949,7 +977,7 @@ namespace Uviewer
         /// <summary>
         /// Progressive loading for simple text mode - loads initial chunk first, then rest in background
         /// </summary>
-        private async Task LoadTextLinesProgressivelyAsync(string content, int targetLine = 1)
+        private async Task LoadTextLinesProgressivelyAsync(string content, int targetLine = 1, CancellationToken token = default)
         {
             var lines = content.Replace("\r\n", "\n").Replace("\r", "\n").Split('\n');
             _textTotalLineCountInSource = lines.Length;
@@ -967,7 +995,7 @@ namespace Uviewer
             {
                 // 1. Parse initial chunk in background thread
                 var initialLines = lines.Take(initialLimit).ToArray();
-                _textLines = await Task.Run(() => ParseTextLinesChunk(initialLines, brush, maxW));
+                _textLines = await Task.Run(() => ParseTextLinesChunk(initialLines, brush, maxW), token);
                 
                 // 2. Update UI with initial chunk
                 if (TextItemsRepeater != null)
@@ -982,11 +1010,14 @@ namespace Uviewer
                 {
                     try
                     {
+                        if (token.IsCancellationRequested) return;
                         var restLines = lines.Skip(initialLimit).ToArray();
                         var restTextLines = ParseTextLinesChunk(restLines, brush, maxW);
                         
+                        if (token.IsCancellationRequested) return;
                         this.DispatcherQueue.TryEnqueue(() =>
                         {
+                            if (token.IsCancellationRequested) return;
                             if (_isAozoraMode) return; // Mode switched, abort
                             
                             _textLines.AddRange(restTextLines);
@@ -1009,12 +1040,12 @@ namespace Uviewer
                     {
                         System.Diagnostics.Debug.WriteLine($"Background text parse error: {ex.Message}");
                     }
-                });
+                }, token);
             }
             else
             {
                 // Small file - load all at once in background
-                _textLines = await Task.Run(() => ParseTextLinesChunk(lines, brush, maxW));
+                _textLines = await Task.Run(() => ParseTextLinesChunk(lines, brush, maxW), token);
                 _isTextLinesFullyLoaded = true;
                 
                 if (TextItemsRepeater != null)
@@ -1177,6 +1208,13 @@ namespace Uviewer
                 _ = LoadEpubChapterAsync(_currentEpubChapterIndex, targetLine: currentLine);
                 return;
             }
+            if (_isVerticalMode)
+            {
+                if (TextArea != null) TextArea.Background = GetThemeBackground();
+                VerticalTextCanvas.Invalidate();
+                UpdateTextStatusBar();
+                return;
+            }
 
             if (_isAozoraMode && !string.IsNullOrEmpty(_currentTextContent))
             {
@@ -1188,7 +1226,7 @@ namespace Uviewer
                 }
                 
                 // Re-calculate pages with new font size/settings
-                await PrepareAozoraDisplayAsync(_currentTextContent, currentLine);
+                await PrepareAozoraDisplayAsync(_currentTextContent, currentLine, _globalTextCts?.Token ?? default);
                 
                 // Content is already rendered progressively by PrepareAozoraDisplayAsync
                 if (TextArea != null)
@@ -1729,6 +1767,7 @@ namespace Uviewer
         
         private void TextArea_PointerWheelChanged(object sender, PointerRoutedEventArgs e)
         {
+            if (_isVerticalMode) return;
             var ptr = e.GetCurrentPoint(TextArea);
             var delta = ptr.Properties.MouseWheelDelta;
             

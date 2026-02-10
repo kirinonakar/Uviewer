@@ -538,6 +538,7 @@ namespace Uviewer
             ToolTipService.SetToolTip(SideBySideButton, Strings.SideBySideTooltip);
             ToolTipService.SetToolTip(NextImageSideButton, Strings.NextImageSideTooltip);
             ToolTipService.SetToolTip(AozoraToggleButton, Strings.AozoraTooltip);
+            ToolTipService.SetToolTip(VerticalToggleButton, Strings.VerticalTooltip);
             ToolTipService.SetToolTip(FontToggleButton, Strings.FontTooltip);
             ToolTipService.SetToolTip(GoToPageButton, Strings.GoToPageTooltip);
             ToolTipService.SetToolTip(TextSizeDownButton, Strings.TextSizeDownTooltip);
