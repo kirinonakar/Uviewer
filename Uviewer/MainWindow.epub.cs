@@ -1399,9 +1399,9 @@ namespace Uviewer
                     _currentEpubChapterIndex = index;
                     var blocks = await GetEpubChapterAsAozoraBlocksAsync(index);
                     
-                    // If side-by-side mode is on and current chapter ends with an image, try to pull in the next chapter's blocks
+                    // If side-by-side mode is on and current chapter is just images, try to pull in the next chapter's blocks
                     // to allow SBS grouping across chapter boundaries.
-                    if (_isSideBySideMode && blocks.Count > 0 && blocks.Last().HasImage)
+                    if (_isSideBySideMode && blocks.Count > 0 && blocks.All(b => b.HasImage))
                     {
                         int nextIdx = index + 1;
                         if (nextIdx < _epubSpine.Count)
@@ -1417,22 +1417,6 @@ namespace Uviewer
 
                     _aozoraBlocks = blocks;
                     await PrepareVerticalTextAsync(fromEnd ? 999999 : (targetLine > 0 ? targetLine : 1));
-                    
-                    // Side-by-Side 모드에서 챕터 경계 배치를 정합성 있게 하기 위한 처리
-                    // 이전 챕터로 넘어갈 때(fromEnd), 마지막 페이지가 다음 챕터의 첫 이미지를 포함하고 있다면
-                    // 이는 현재 뷰(다음 챕터 시작 부분)와 1장 겹치는 상태가 되므로, 한 페이지 더 앞을 보여주어 2장 단위 이동을 맞춥니다.
-                    if (fromEnd && _isSideBySideMode && _verticalPageInfos.Count > 1)
-                    {
-                        int lastPageIdx = _verticalPageInfos.Count - 1;
-                        var lastPage = _verticalPageInfos[lastPageIdx];
-                        // 마지막 페이지의 블록들 중 로드한 챕터(index)보다 큰 번호의 챕터(즉, 다음 챕터) 블록이 포함되어 있는지 확인
-                        if (lastPage.Blocks.Any(b => b.EpubChapterIndex > index))
-                        {
-                            _currentVerticalPageIndex = lastPageIdx - 1;
-                            VerticalTextCanvas?.Invalidate();
-                            UpdateTextStatusBar();
-                        }
-                    }
                     return;
                 }
 
@@ -1901,14 +1885,14 @@ namespace Uviewer
                     // Text segment
                     var textBlocks = ParseHtmlToAozoraTextBlocks(segment, ref lineNum, chapterIndex);
 
-                    // If this is the first content and chapter has images, skip short title-like text blocks
-                    if (isFirstContent && hasImages && textBlocks.Count == 1)
+                    // If this is the first content and chapter has images, skip short title-like text segments
+                    if (isFirstContent && hasImages)
                     {
                         string plainText = RxEpubAnyTag.Replace(segment, "");
                         plainText = System.Net.WebUtility.HtmlDecode(plainText).Trim();
-                        if (plainText.Length > 0 && plainText.Length < 100)
+                        // If total text in this segment is short (< 150 chars), skip it as a likely title
+                        if (plainText.Length > 0 && plainText.Length < 150)
                         {
-                            // skip this likely-title block
                             isFirstContent = false;
                             continue;
                         }

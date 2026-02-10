@@ -253,8 +253,8 @@ namespace Uviewer
                     pageBlocks.Add(block);
                     index++;
 
-                    // SideBySide 모드인 경우 이미지를 가로로 한 장 더 배치 (Space 키 토글 지원)
-                    if (_isSideBySideMode)
+                    // EPUB에서 SideBySide 모드인 경우 이미지를 가로로 한 장 더 배치 (Space 키 토글 지원)
+                    if (_isEpubMode && _isSideBySideMode)
                     {
                         while (index < blocks.Count)
                         {
@@ -270,9 +270,9 @@ namespace Uviewer
                                 }
                             }
 
-                            // Skip whitespace or empty blocks between images
-                            bool isWhitespace = nextBlock.Inlines.Count == 0 || nextBlock.Inlines.All(inline => 
-                                (inline is string s && (string.IsNullOrWhiteSpace(s) || s.Trim() == "\u3000" || s.Trim() == "\u00A0")) || 
+                            // Skip whitespace blocks between images
+                            bool isWhitespace = nextBlock.Inlines.All(inline => 
+                                (inline is string s && string.IsNullOrWhiteSpace(s)) || 
                                 (inline is AozoraLineBreak));
                             
                             if (isWhitespace)
@@ -280,7 +280,7 @@ namespace Uviewer
                                 index++;
                                 continue;
                             }
-                            break; // Content block found, stop grouping
+                            break; // Text block found, stop grouping
                         }
                     }
                     break;
@@ -607,19 +607,10 @@ namespace Uviewer
                         await LoadEpubChapterAsync(_currentEpubChapterIndex);
                     }
                 }
-                else if (direction < 0)
+                else if (direction < 0 && _currentEpubChapterIndex > 0)
                 {
-                    // Find the min chapter index on the current page
-                    int minChapterOnPage = _currentEpubChapterIndex;
-                    var currentPage = _verticalPageInfos[_currentVerticalPageIndex];
-                    if (currentPage.Blocks.Count > 0)
-                        minChapterOnPage = currentPage.Blocks.Min(b => b.EpubChapterIndex);
-
-                    if (minChapterOnPage > 0)
-                    {
-                        _currentEpubChapterIndex = minChapterOnPage - 1;
-                        await LoadEpubChapterAsync(_currentEpubChapterIndex, fromEnd: true);
-                    }
+                    _currentEpubChapterIndex--;
+                    await LoadEpubChapterAsync(_currentEpubChapterIndex, fromEnd: true);
                 }
             }
         }
@@ -704,6 +695,7 @@ namespace Uviewer
             }
 
             // Handle Home/End navigation (within page range or chapters)
+
             if (e.Key == Windows.System.VirtualKey.Home)
             {
                 if (_currentVerticalPageIndex > 0)
@@ -735,18 +727,6 @@ namespace Uviewer
                     _ = LoadEpubChapterAsync(_currentEpubChapterIndex);
                     e.Handled = true;
                 }
-            }
-
-            // Handle arrow keys
-            if (e.Key == Windows.System.VirtualKey.Left)
-            {
-                NavigateVerticalPage(ShouldInvertControls ? 1 : -1);
-                e.Handled = true;
-            }
-            else if (e.Key == Windows.System.VirtualKey.Right)
-            {
-                NavigateVerticalPage(ShouldInvertControls ? -1 : 1);
-                e.Handled = true;
             }
         }
 
