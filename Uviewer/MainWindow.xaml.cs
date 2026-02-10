@@ -226,7 +226,10 @@ namespace Uviewer
                 appWindow.Show();
                 if (appWindow.Presenter is OverlappedPresenter overlapped)
                 {
-                    overlapped.Restore();
+                    if (overlapped.State == OverlappedPresenterState.Minimized)
+                    {
+                        overlapped.Restore();
+                    }
                 }
                 
                 // Re-activate window
