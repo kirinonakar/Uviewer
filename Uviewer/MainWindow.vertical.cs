@@ -205,9 +205,21 @@ namespace Uviewer
                 {
                     if (_aozoraBlocks[n].SourceLineNumber >= targetLine)
                     {
-                        targetBlockIdx = n;
+                        // Exact match found
+                        if (_aozoraBlocks[n].SourceLineNumber == targetLine)
+                        {
+                            targetBlockIdx = n;
+                        }
+                        else
+                        {
+                            // Target line is before this block, so it must be roughly corresponding to the previous block (or gap)
+                            targetBlockIdx = n > 0 ? n - 1 : 0;
+                        }
                         break;
                     }
+                    // If we haven't found a match yet (SourceLineNumber < targetLine), keep going.
+                    // If loop finishes, we'll use the last index (n).
+                    targetBlockIdx = n;
                 }
                 if (targetBlockIdx > limit) limit = Math.Min(_aozoraBlocks.Count, targetBlockIdx + 500);
 
