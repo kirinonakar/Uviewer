@@ -292,7 +292,8 @@ namespace Uviewer
                 float blockTotalWidth = MeasureVerticalBlockWidth(device, block, availableHeight, fontSize);
 
                 // 공간 체크 (안전 여백 Safety Buffer 적용)
-                float safetyBuffer = fontSize * 0.5f;
+                // HitTest 정밀 계산을 위해 여백을 최소화 (5px)
+                float safetyBuffer = 5.0f;
 
                 if (pageBlocks.Count > 0 && usedWidth + blockTotalWidth > (availableWidth - safetyBuffer))
                 {
@@ -314,7 +315,6 @@ namespace Uviewer
 
             // Build text same as in Draw method
             StringBuilder sb = new StringBuilder();
-            bool hasRuby = false;
             foreach (var inline in block.Inlines)
             {
                 int start = sb.Length;
@@ -322,7 +322,6 @@ namespace Uviewer
                 else if (inline is AozoraRuby ruby)
                 {
                     sb.Append(NormalizeVerticalText(ruby.BaseText));
-                    hasRuby = true;
                 }
                 else if (inline is AozoraBold bold) sb.Append(NormalizeVerticalText(bold.Text));
                 else if (inline is AozoraItalic italic) sb.Append(NormalizeVerticalText(italic.Text));
@@ -357,11 +356,10 @@ namespace Uviewer
             // layout.SetTypography(0, text.Length, typography);
             
             float boundsWidth = (float)layout.LayoutBounds.Width;
-            float rubyFontSize = fontSize * 0.5f;
-            float rubySpace = hasRuby ? rubyFontSize : 0;
             float spacing = fontSize * 0.6f;
             
-            return boundsWidth + rubySpace + spacing;
+            // 루비 공간은 제외 (오른쪽 여백 사용)
+            return boundsWidth + spacing;
         }
 
         private void VerticalTextCanvas_CreateResources(CanvasControl sender, Microsoft.Graphics.Canvas.UI.CanvasCreateResourcesEventArgs args)
@@ -483,10 +481,8 @@ namespace Uviewer
                 var bounds = textLayout.LayoutBounds;
 
                 // 3. [핵심 수정] 왼쪽 마진 진입 여부 체크 (잘림 방지)
-                // 현재 줄 두께와 루비 공간을 합친 너비 계산
-                float currentLineThickness = (float)bounds.Width + (rubyRanges.Count > 0 ? rubyFontSize : 0);
-                // [수정] 아래 break를 제거하여 페이지네이션에서 계산된 줄이 그리기 단계에서 누락되지 않도록 함.
-                // if (currentX - currentLineThickness < margin - 5) break; 
+                // 루비 공간을 두께에 포함하지 않음 (루비는 오른쪽 여백 사용)
+                float currentLineThickness = (float)bounds.Width;
 
                 // 4. 그리기 위치(drawX) 보정
                 // 목표: 텍스트의 "오른쪽 끝(Left + Width)"이 "currentX"에 딱 맞아야 함.
@@ -498,7 +494,8 @@ namespace Uviewer
                 else if (block.Alignment == TextAlignment.Right) drawY = (float)(size.Height - bounds.Height - marginBottom);
 
                 // 5. [안전 장치] 왼쪽 여백 침범 체크 (marginLeft 사용)
-                if (currentX - currentLineThickness < marginLeft - 5) break; 
+                // 여유 공간을 조금 더 타이트하게 잡음
+                if (currentX - currentLineThickness < marginLeft) break; 
 
                 // 5. 본문 그리기
                 ds.DrawTextLayout(textLayout, drawX, drawY, textColor);
