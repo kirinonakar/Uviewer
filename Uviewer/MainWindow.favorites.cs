@@ -39,6 +39,8 @@ namespace Uviewer
             public int SavedPage { get; set; } = 0;
             public int ChapterIndex { get; set; } = 0;
             public int SavedLine { get; set; } = 1;
+            public bool IsWebDav { get; set; } = false;
+            public string? WebDavServerName { get; set; }
         }
 
         public class RecentItem
@@ -216,7 +218,27 @@ namespace Uviewer
             else if (favorite.SavedPage > 0 || favorite.ChapterIndex > 0) 
                 posString = $" ({(favorite.ChapterIndex > 0 ? $"Ch.{favorite.ChapterIndex + 1} " : "")}Line {favorite.SavedPage + 1})";
 
-            // Create TextBlock for the favorite name with left alignment and tooltip
+            // Create container for text content (and optional icon)
+            var contentPanel = new StackPanel 
+            { 
+                Orientation = Orientation.Horizontal, 
+                VerticalAlignment = VerticalAlignment.Center,
+                Margin = new Thickness(12, 0, 8, 0)
+            };
+
+            if (favorite.IsWebDav)
+            {
+                var webIcon = new FontIcon
+                {
+                    Glyph = "\uE774", // Globe icon
+                    FontSize = 12,
+                    Margin = new Thickness(0, 1, 6, 0),
+                    Foreground = new SolidColorBrush(Microsoft.UI.Colors.CornflowerBlue)
+                };
+                contentPanel.Children.Add(webIcon);
+            }
+
+            // Create TextBlock for the favorite name
             var nameTextBlock = new TextBlock
             {
                 Text = favorite.Name + posString,
@@ -224,13 +246,17 @@ namespace Uviewer
                 HorizontalAlignment = HorizontalAlignment.Left,
                 TextTrimming = TextTrimming.CharacterEllipsis,
                 TextWrapping = TextWrapping.NoWrap,
-                MaxWidth = 340, // Reserve space for delete button (400 - 12 left margin - 8 right margin - 40 for button)
-                Margin = new Thickness(12, 0, 8, 0),
+                MaxWidth = favorite.IsWebDav ? 310 : 340, // Adjust width if icon is present
                 FontSize = 13
             };
+            contentPanel.Children.Add(nameTextBlock);
             
             string tooltipText = favorite.Path + (string.IsNullOrEmpty(posString) ? "" : $"\n{posString.Trim(' ', '(', ')')}");
-            ToolTipService.SetToolTip(nameTextBlock, tooltipText);
+             if (favorite.IsWebDav && !string.IsNullOrEmpty(favorite.WebDavServerName))
+            {
+                tooltipText = $"[{favorite.WebDavServerName}] {tooltipText}";
+            }
+            ToolTipService.SetToolTip(contentPanel, tooltipText);
 
             // Create a transparent button overlay for clicking
             var nameButton = new Button
@@ -252,7 +278,7 @@ namespace Uviewer
 
             // Add both to a container grid in the first column
             var nameContainer = new Grid();
-            nameContainer.Children.Add(nameTextBlock);
+            nameContainer.Children.Add(contentPanel);
             nameContainer.Children.Add(nameButton);
 
             Grid.SetColumn(nameContainer, 0);
@@ -361,6 +387,37 @@ namespace Uviewer
                     type = "Folder";
                 }
 
+                // [추가] WebDAV 모드인 경우 경로 및 속성 재설정
+                string? webDavServerName = null;
+                bool isWebDav = false;
+
+                if (_isWebDavMode && _webDavService.CurrentServer != null)
+                {
+                    isWebDav = true;
+                    webDavServerName = _webDavService.CurrentServer.ServerName;
+                    
+                    if (type == "Archive")
+                    {
+                        // Archive 모드에서는 _currentArchivePath가 "WebDAV:/path" 형식이므로 접두어 제거
+                        if (path.StartsWith("WebDAV:"))
+                            path = path.Substring(7);
+                    }
+                    else if (type == "File")
+                    {
+                        // File 모드(이미지/텍스트/epub)에서는 로컬 임시 경로 대신 WebDAV 경로 사용
+                        if (!string.IsNullOrEmpty(_currentWebDavItemPath))
+                            path = _currentWebDavItemPath;
+                    }
+                    else if (type == "Folder")
+                    {
+                        // Folder 모드에서는 현재 WebDAV 폴더 경로 사용
+                        if (!string.IsNullOrEmpty(_currentWebDavPath))
+                            path = _currentWebDavPath;
+                    }
+
+                    // WebDAV의 경우 부모 폴더 자동 추가는 로직이 복잡하므로 일단 생략하거나 추후 구현
+                }
+
                 System.Diagnostics.Debug.WriteLine($"Final values - Name: '{name}', Path: '{path}', Type: '{type}'");
 
                 if (!string.IsNullOrEmpty(name) && !string.IsNullOrEmpty(path))
@@ -412,7 +469,9 @@ namespace Uviewer
                         ScrollOffset = (_isTextMode && TextScrollViewer != null) ? TextScrollViewer.VerticalOffset : null,
                         SavedPage = savedPage,
                         SavedLine = savedLine,
-                        ChapterIndex = _isEpubMode ? CurrentEpubChapterIndex : 0
+                        ChapterIndex = _isEpubMode ? CurrentEpubChapterIndex : 0,
+                        IsWebDav = isWebDav,
+                        WebDavServerName = webDavServerName
                     };
 
                     _favorites.Add(favorite);
@@ -455,6 +514,112 @@ namespace Uviewer
         {
             try
             {
+
+
+                if (favorite.IsWebDav && !string.IsNullOrEmpty(favorite.WebDavServerName))
+                {
+                     // WebDAV Bookmark handling
+                     try
+                     {
+                         // 1. Connect to server if needed
+                         if (!_isWebDavMode || _webDavService.CurrentServer?.ServerName != favorite.WebDavServerName)
+                         {
+                             await ConnectToWebDavServerAsync(favorite.WebDavServerName);
+                             // Connection failed?
+                             if (!_isWebDavMode) return;
+                         }
+
+                         // 2. Open file/folder
+                         var fileItem = new FileItem
+                         {
+                             Name = favorite.Name, // This might differ from actual filename but ext check uses it
+                             WebDavPath = favorite.Path,
+                             IsWebDav = true,
+                             IsDirectory = favorite.Type == "Folder",
+                             IsArchive = favorite.Type == "Archive",
+                             // We need to set flags for OpenWebDavFileAsync
+                         };
+                         // Re-derive flags based on path extension, strictly for opening logic
+                         string ext = Path.GetExtension(favorite.Path).ToLowerInvariant();
+                         fileItem.IsImage = SupportedImageExtensions.Contains(ext);
+                         fileItem.IsText = SupportedTextExtensions.Contains(ext);
+                         fileItem.IsEpub = SupportedEpubExtensions.Contains(ext);
+
+                         // Load parent folder in explorer for files and archives
+                         if (favorite.Type != "Folder")
+                         {
+                              var parentPath = Path.GetDirectoryName(favorite.Path)?.Replace("\\", "/");
+                              if (!string.IsNullOrEmpty(parentPath))
+                              {
+                                   // Ensure it starts with / if not empty, though GetDirectoryName might strip it or handle it weirdly for unix paths on windows
+                                   // WebDAV paths usually start with /
+                                   if (!parentPath.StartsWith("/")) parentPath = "/" + parentPath;
+                                   await LoadWebDavFolderAsync(parentPath);
+                              }
+                              else
+                              {
+                                   // Root
+                                   await LoadWebDavFolderAsync("/");
+                              }
+                         }
+
+                         if (favorite.Type == "Folder")
+                         {
+                             await LoadWebDavFolderAsync(favorite.Path);
+                         }
+                         else if (favorite.Type == "Archive")
+                         {
+                             await OpenWebDavArchiveAsync(fileItem);
+                             
+                             // Restore Archive Position
+                             if (!string.IsNullOrEmpty(favorite.ArchiveEntryKey))
+                             {
+                                 var entryIndex = _imageEntries.FindIndex(e => e.ArchiveEntryKey == favorite.ArchiveEntryKey);
+                                 if (entryIndex >= 0)
+                                 {
+                                     _currentIndex = entryIndex;
+                                     await DisplayCurrentImageAsync();
+                                     
+                                     if (favorite.ScrollOffset.HasValue && TextScrollViewer != null)
+                                     {
+                                         await Task.Delay(100);
+                                         TextScrollViewer.ChangeView(null, favorite.ScrollOffset.Value, null);
+                                         UpdateTextStatusBar();
+                                      }
+                                 }
+                             }
+                         }
+                         else // File
+                         {
+                             // Set pending values for restoration
+                             if (fileItem.IsEpub)
+                             {
+                                  PendingEpubChapterIndex = favorite.ChapterIndex;
+                                  PendingEpubPageIndex = favorite.SavedPage;
+                             }
+                             else if (fileItem.IsText)
+                             {
+                                  _aozoraPendingTargetLine = favorite.SavedLine > 1 ? favorite.SavedLine : (favorite.SavedPage > 0 ? -favorite.SavedPage : 1);
+                             }
+
+                             await OpenWebDavFileAsync(fileItem);
+                             
+                             if (!fileItem.IsEpub && !fileItem.IsText && favorite.Type == "File" && favorite.ScrollOffset.HasValue && TextScrollViewer != null) 
+                             {
+                                  // For simple text viewing if IsText was somehow false but type is file? Unlikely.
+                                  // Handled by LoadImageFromFileAsync logic generally.
+                             }
+                         }
+                         return; // Exit after WebDAV handling
+                     }
+                     catch (Exception ex)
+                     {
+                         System.Diagnostics.Debug.WriteLine($"Error opening WebDAV favorite: {ex.Message}");
+                         ShowNotification($"WebDAV 즐겨찾기 열기 실패: {ex.Message}");
+                         return;
+                     }
+                 }
+
                 switch (favorite.Type)
                 {
                     case "Folder":
@@ -553,6 +718,7 @@ namespace Uviewer
 
         private void CheckAndAddFolderToFavorites(string? folderPath)
         {
+            if (_isWebDavMode) return; // WebDAV 모드에서는 로컬 폴더 자동 추가 방지
             if (string.IsNullOrEmpty(folderPath) || !Directory.Exists(folderPath)) return;
 
             var folderName = Path.GetFileName(folderPath);

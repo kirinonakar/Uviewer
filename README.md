@@ -37,7 +37,7 @@
 - **Integrated Explorer**: Sidebar with Folder/Thumbnail views for easy navigation.
 - **Archive Support**: Read images directly from compressed archives (`.zip`, `.rar`, `.7z`, etc.) using **SharpCompress**.
 - **Organization**: "Favorites" and "Recent Files" management.
-- **WebDAV Support**: Read images directly from WebDAV(HTTPS) servers.
+- **WebDAV Support**: Read images directly from WebDAV (HTTPS) servers.
 
 ### 🔧 Settings
 
