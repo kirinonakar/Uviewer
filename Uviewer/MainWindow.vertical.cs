@@ -609,7 +609,21 @@ namespace Uviewer
                 }
                 else if (direction < 0 && _currentEpubChapterIndex > 0)
                 {
-                    _currentEpubChapterIndex--;
+                    int prevIndex = _currentEpubChapterIndex - 1;
+
+                    // In SideBySide mode, chapters are often merged (Current + Next). 
+                    // Going back 1 chapter loads (Prev + Current), and fromEnd puts us at End of Current.
+                    // So we must go back 2 chapters to land at End of Prev.
+                    if (_isSideBySideMode && prevIndex > 0)
+                    {
+                        var currentPage = _verticalPageInfos[_currentVerticalPageIndex];
+                        if (currentPage.Blocks.Any(b => b.HasImage))
+                        {
+                            prevIndex--;
+                        }
+                    }
+
+                    _currentEpubChapterIndex = prevIndex;
                     await LoadEpubChapterAsync(_currentEpubChapterIndex, fromEnd: true);
                 }
             }
