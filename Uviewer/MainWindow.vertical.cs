@@ -491,47 +491,56 @@ namespace Uviewer
                 // 5. 본문 그리기
                 ds.DrawTextLayout(textLayout, drawX, drawY, textColor);
 
-                // 5. 루비 그리기 (수정됨)
-                // 루비용 포맷: 루비도 세로쓰기 방향이어야 함
+                // 5. 루비 그리기 (개선됨: 겹침 방지 처리)
                 using var rubyFormat = new CanvasTextFormat
                 {
                     FontSize = rubyFontSize,
                     FontFamily = _textFontFamily,
                     Direction = CanvasTextDirection.TopToBottomThenRightToLeft,
-                    VerticalAlignment = CanvasVerticalAlignment.Top, // [수정] 세로쓰기에서 Top은 오른쪽 정렬을 의미
-                    WordWrapping = CanvasWordWrapping.NoWrap // [중요] 루비가 길어도 줄바꿈되지 않도록 설정
+                    VerticalAlignment = CanvasVerticalAlignment.Top,
+                    WordWrapping = CanvasWordWrapping.NoWrap
                 };
+
+                // [수정] 루비 겹침 방지를 위해 리스트에 먼저 담음
+                var rubyRenderInfos = new List<RubyRenderInfo>();
 
                 foreach (var ruby in rubyRanges)
                 {
-                    // [핵심] 본문 글자의 실제 좌표 영역을 가져옵니다.
                     var regions = textLayout.GetCharacterRegions(ruby.start, ruby.length);
                     if (regions.Length > 0)
                     {
-                        // firstRegion은 textLayout 내부의 상대 좌표(0,0 기준)를 가집니다.
                         var charBounds = regions[0].LayoutBounds;
 
-                        // 루비 X 위치:
-                        // (레이아웃 시작점 drawX) + (글자의 왼쪽 여백 charBounds.Left) + (글자 너비 charBounds.Width)
-                        // 여기에 약간의 여백(2.2fontSize)을 더해 오른쪽으로 더 띄웁니다.
                         float rubyX = drawX + (float)charBounds.Left + (float)charBounds.Width + (rubyFontSize * 2.2f);
+                        float rubyY = drawY + (float)charBounds.Top; // Base Y position
 
-                        // 루비 Y 위치: 글자의 시작 높이
-                        float rubyY = drawY + (float)charBounds.Top;
-                        
-                        // [수정] 루비 레이아웃 생성
-                        using var rubyLayout = new CanvasTextLayout(ds, ruby.rubyText, rubyFormat, 0.0f, rubyFontSize * 1.5f);
-                        
-                        // 루비를 본문 글자 높이(세로쓰기니까 Height가 길이)의 중앙에 오도록 보정
+                        // 루비 레이아웃 생성
+                        var rubyLayout = new CanvasTextLayout(ds, ruby.rubyText, rubyFormat, 0.0f, rubyFontSize * 1.5f);
                         float rubyHeight = (float)rubyLayout.LayoutBounds.Height;
                         float charHeight = (float)charBounds.Height;
-                        
-                        // 본문 글자보다 루비가 길면 위아래로 삐져나가게(음수), 짧으면 중앙에 오게(양수) 계산됨
-                        float yOffset = (charHeight - rubyHeight) / 2;
 
-                        // 루비 그리기
-                        ds.DrawTextLayout(rubyLayout, rubyX, rubyY + yOffset, textColor);
+                        // 본문 글자 높이의 중앙에 정렬했을 때의 이상적인 Top 위치
+                        float idealTop = rubyY + (charHeight - rubyHeight) / 2;
+
+                        rubyRenderInfos.Add(new RubyRenderInfo
+                        {
+                            Layout = rubyLayout,
+                            IdealY = idealTop,
+                            Height = rubyHeight,
+                            X = rubyX,
+                            Y = idealTop // 초기값은 Ideal position
+                        });
                     }
+                }
+
+                // [수정] 겹침 해결 로직 적용
+                ResolveRubyOverlaps(rubyRenderInfos);
+
+                // [수정] 최종 위치에 그리기
+                foreach (var info in rubyRenderInfos)
+                {
+                    ds.DrawTextLayout(info.Layout, info.X, info.Y, textColor);
+                    info.Layout.Dispose(); // 중요: 자원 해제
                 }
 
                 // 7. 다음 줄 위치 계산
@@ -799,6 +808,101 @@ namespace Uviewer
                 _verticalImageCache[path] = null!;
                 _ = LoadVerticalImageAsync(path);
             }
+        }
+
+        private void ResolveRubyOverlaps(List<RubyRenderInfo> rubies)
+        {
+            if (rubies.Count == 0) return;
+
+            // X 좌표가 같은 그룹끼리 처리 (줄바꿈이 발생할 경우 X가 다름)
+            int startIndex = 0;
+            while (startIndex < rubies.Count)
+            {
+                int endIndex = startIndex;
+                float currentX = rubies[startIndex].X;
+
+                // 같은 X 좌표 라인 찾기 (오차 범위 2px)
+                while (endIndex + 1 < rubies.Count && Math.Abs(rubies[endIndex + 1].X - currentX) < 2.0f)
+                {
+                    endIndex++;
+                }
+
+                // 해당 라인 내에서 충돌 해결
+                ResolveRubyOverlapsInColumn(rubies, startIndex, endIndex);
+                startIndex = endIndex + 1;
+            }
+        }
+
+        private void ResolveRubyOverlapsInColumn(List<RubyRenderInfo> rubies, int start, int end)
+        {
+            float prevBottom = -10000f; // 초기값 (충분히 작은 값)
+
+            int i = start;
+            while (i <= end)
+            {
+                // 클러스터 시작 (현재 루비)
+                float clusterSumCenter = rubies[i].IdealY + rubies[i].Height / 2.0f;
+                float clusterTotalHeight = rubies[i].Height;
+                int clusterCount = 1;
+                int clusterEnd = i;
+
+                // 다음 루비들과 충돌 체크 및 병합
+                while (clusterEnd + 1 <= end)
+                {
+                    var next = rubies[clusterEnd + 1];
+                    
+                    // 현재까지 클러스터의 가상 Top/Bottom 계산 (중심 기준 재배치 시뮬레이션)
+                    float currentHypotheticalTop = (clusterSumCenter / clusterCount) - (clusterTotalHeight / 2.0f);
+                    float currentHypotheticalBottom = currentHypotheticalTop + clusterTotalHeight;
+
+                    // 겹침 여부 확인 (Bottom > Next.IdealTop)
+                    // 주의: next.IdealY는 "이상적인 위치"의 Top입니다.
+                    // 클러스터가 확장되면서 아래로 밀려날 수 있으므로, 현재 클러스터의 Bottom이 다음 녀석의 Ideal Top을 침범하면 병합 대상입니다.
+                    if (currentHypotheticalBottom > next.IdealY)
+                    {
+                        // 병합
+                        clusterEnd++;
+                        clusterSumCenter += (next.IdealY + next.Height / 2.0f);
+                        clusterTotalHeight += next.Height;
+                        clusterCount++;
+                    }
+                    else
+                    {
+                        break; // 겹치지 않으면 중단
+                    }
+                }
+
+                // 병합된 클러스터를 재배치 (중심 유지 전략)
+                float finalTop = (clusterSumCenter / clusterCount) - (clusterTotalHeight / 2.0f);
+
+                // [수정] 위쪽 방향으로의 이동 제한 (이전 루비와 겹치지 않도록 함)
+                // 만약 계산된 위치가 이전 루비의 끝보다 위라면(작다면), 이전 루비 끝에 맞춤 (Push Down 효과)
+                if (finalTop < prevBottom)
+                {
+                    finalTop = prevBottom;
+                }
+
+                // 실제 위치 적용
+                for (int k = i; k <= clusterEnd; k++)
+                {
+                    rubies[k].Y = finalTop;
+                    finalTop += rubies[k].Height;
+                }
+
+                // 다음 루비를 위한 prevBottom 갱신
+                prevBottom = finalTop;
+
+                i = clusterEnd + 1;
+            }
+        }
+
+        private class RubyRenderInfo
+        {
+            public required CanvasTextLayout Layout;
+            public float IdealY;
+            public float Height;
+            public float X;
+            public float Y;
         }
 
         private bool DoesVerticalImageExist(string relativePath)
