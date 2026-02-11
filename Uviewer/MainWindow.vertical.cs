@@ -318,15 +318,15 @@ namespace Uviewer
             foreach (var inline in block.Inlines)
             {
                 int start = sb.Length;
-                if (inline is string s) sb.Append(s);
+                if (inline is string s) sb.Append(NormalizeVerticalText(s));
                 else if (inline is AozoraRuby ruby)
                 {
-                    sb.Append(ruby.BaseText);
+                    sb.Append(NormalizeVerticalText(ruby.BaseText));
                     hasRuby = true;
                 }
-                else if (inline is AozoraBold bold) sb.Append(bold.Text);
-                else if (inline is AozoraItalic italic) sb.Append(italic.Text);
-                else if (inline is AozoraCode code) sb.Append(code.Text);
+                else if (inline is AozoraBold bold) sb.Append(NormalizeVerticalText(bold.Text));
+                else if (inline is AozoraItalic italic) sb.Append(NormalizeVerticalText(italic.Text));
+                else if (inline is AozoraCode code) sb.Append(NormalizeVerticalText(code.Text));
                 else if (inline is AozoraLineBreak) sb.Append("\n");
             }
             if (block.IsTable && block.TableRows.Count > 0)
@@ -350,6 +350,11 @@ namespace Uviewer
 
             // Using same measureWidth (fontSize * 2f) as in Draw method
             using var layout = new CanvasTextLayout(device, text, format, fontSize * 2.0f, availableHeight);
+            
+            // [롤백]
+            // using var typography = new CanvasTypography();
+            // typography.AddFeature(CanvasTypographyFeatureName.ProportionalAlternateWidths, 1);
+            // layout.SetTypography(0, text.Length, typography);
             
             float boundsWidth = (float)layout.LayoutBounds.Width;
             float rubyFontSize = fontSize * 0.5f;
@@ -434,23 +439,26 @@ namespace Uviewer
                 foreach (var inline in block.Inlines)
                 {
                     int start = sb.Length;
-                    if (inline is string s) sb.Append(s);
+                    if (inline is string s) sb.Append(NormalizeVerticalText(s));
                     else if (inline is AozoraRuby ruby)
                     {
-                        sb.Append(ruby.BaseText);
-                        rubyRanges.Add((start, ruby.BaseText.Length, ruby.RubyText));
+                        var normBase = NormalizeVerticalText(ruby.BaseText);
+                        sb.Append(normBase);
+                        rubyRanges.Add((start, normBase.Length, ruby.RubyText));
                     }
                     else if (inline is AozoraBold bold)
                     {
-                        sb.Append(bold.Text);
-                        boldRanges.Add((start, bold.Text.Length));
+                        var normText = NormalizeVerticalText(bold.Text);
+                        sb.Append(normText);
+                        boldRanges.Add((start, normText.Length));
                     }
                     else if (inline is AozoraItalic italic)
                     {
-                        sb.Append(italic.Text);
-                        italicRanges.Add((start, italic.Text.Length));
+                        var normText = NormalizeVerticalText(italic.Text);
+                        sb.Append(normText);
+                        italicRanges.Add((start, normText.Length));
                     }
-                    else if (inline is AozoraCode code) sb.Append(code.Text);
+                    else if (inline is AozoraCode code) sb.Append(NormalizeVerticalText(code.Text));
                     else if (inline is AozoraLineBreak) sb.Append("\n");
                 }
 
@@ -462,7 +470,11 @@ namespace Uviewer
                 string blockText = sb.ToString();
 
                 // 1. 텍스트 레이아웃 생성
+                // 1. 텍스트 레이아웃 생성
                 using var textLayout = new CanvasTextLayout(ds, blockText, format, measureWidth, drawHeight);
+
+                // [수정] 괄호 간격 수동 조정 (여는/닫는 괄호의 자간을 좁힘)
+                ApplyVerticalBracketSpacing(textLayout, blockText, fontSize);
                 
                 foreach (var r in boldRanges) textLayout.SetFontWeight(r.start, r.length, Microsoft.UI.Text.FontWeights.Bold);
                 foreach (var r in italicRanges) textLayout.SetFontStyle(r.start, r.length, Windows.UI.Text.FontStyle.Italic);
@@ -1039,6 +1051,30 @@ namespace Uviewer
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"LoadVerticalImageAsync failed: {ex.Message}");
+            }
+        }
+        private string NormalizeVerticalText(string text)
+        {
+            // [롤백] 글자 자체를 변환하지 않고 그대로 반환 (사용자가 이전과 같다고 하여 스페이싱 조정 방식으로 변경)
+            return text;
+        }
+
+        private void ApplyVerticalBracketSpacing(CanvasTextLayout layout, string text, float fontSize)
+        {
+            if (string.IsNullOrEmpty(text)) return;
+
+            // 조정할 괄호 목록
+            string brackets = "()[]{}<>（）「」『』【】〈〉《》";
+            float spacingReduction = -fontSize * 0.4f; // 40% 정도 좁힘
+
+            for (int i = 0; i < text.Length; i++)
+            {
+                if (brackets.Contains(text[i]))
+                {
+                    // 해당 글자의 자간을 줄임 (Trailing Spacing을 줄임)
+                    // Win2D SetCharacterSpacing(idx, count, leading, trailing, minAdvance)
+                    layout.SetCharacterSpacing(i, 1, 0, spacingReduction, 0);
+                }
             }
         }
     }
