@@ -50,14 +50,36 @@ namespace Uviewer
                 
                 int currentLine = 1;
                 if (_isAozoraMode) currentLine = (_aozoraBlocks != null && _aozoraBlocks.Count > _currentAozoraStartBlockIndex) ? _aozoraBlocks[_currentAozoraStartBlockIndex].SourceLineNumber : 1;
+
                 else if (_isEpubMode)
                 {
+                    _aozoraBlocks = await GetEpubChapterAsAozoraBlocksAsync(_currentEpubChapterIndex);
+
                     if (_epubPages != null && _currentEpubPageIndex >= 0 && _currentEpubPageIndex < _epubPages.Count)
                     {
-                        if (_epubPages[_currentEpubPageIndex] is Grid g && g.Tag is EpubPageInfoTag tag)
-                            currentLine = tag.StartLine;
+                        var page = _epubPages[_currentEpubPageIndex];
+                        if (page is Grid g)
+                        {
+                            if (g.Tag is EpubPageInfoTag tag)
+                            {
+                                currentLine = tag.StartLine;
+                            }
+                            else if (g.Tag is EpubImageTag imgTag)
+                            {
+                                // Find the block with this image source
+                                if (_aozoraBlocks != null)
+                                {
+                                    var targetBlock = _aozoraBlocks.FirstOrDefault(b => 
+                                        b.Inlines.OfType<AozoraImage>().Any(img => img.Source == imgTag.FullPath));
+                                    
+                                    if (targetBlock != null)
+                                    {
+                                        currentLine = targetBlock.SourceLineNumber;
+                                    }
+                                }
+                            }
+                        }
                     }
-                    _aozoraBlocks = await GetEpubChapterAsAozoraBlocksAsync(_currentEpubChapterIndex);
                 }
                 else if (TextScrollViewer != null) currentLine = GetTopVisibleLineIndex();
 
@@ -696,6 +718,9 @@ namespace Uviewer
         {
             if (_isVerticalMode && (!string.IsNullOrEmpty(_currentTextContent) || _isEpubMode))
             {
+                // [Fix] Avoid clearing screen during loading or mode switch if content not ready
+                if (_isEpubMode && (_aozoraBlocks == null || _aozoraBlocks.Count == 0)) return;
+
                 int currentLine = 1;
                 if (_verticalPageInfos.Count > 0 && _currentVerticalPageIndex >= 0 && _currentVerticalPageIndex < _verticalPageInfos.Count)
                 {

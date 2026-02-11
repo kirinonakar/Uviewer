@@ -105,7 +105,7 @@ namespace Uviewer
 
         private static readonly string[] SupportedImageExtensions =
         {
-            ".jpg", ".jpeg", ".png", ".bmp", ".gif", ".webp", ".avif", ".ico", ".tiff", ".tif"
+            ".jpg", ".jpeg", ".png", ".bmp", ".gif", ".webp", ".avif", ".jxl", ".ico", ".tiff", ".tif"
         };
         
         private static readonly string[] SupportedTextExtensions =

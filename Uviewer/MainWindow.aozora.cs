@@ -614,13 +614,18 @@ namespace Uviewer
             
             if (isImagePage)
             {
+                if (AozoraPageContainer != null) AozoraPageContainer.Padding = new Thickness(0);
                 AozoraPageContent.Padding = new Thickness(0);
-                availableHeight -= 40; // Only Grid Padding
+                availableWidth = AozoraPageContainer?.ActualWidth ?? 800; // Recalculate full width without padding
+                innerWidth = availableWidth; // No grid padding
+                availableHeight = AozoraPageContainer?.ActualHeight ?? 800; // Reset height to full container
+                
                 AozoraPageContent.MaxWidth = innerWidth; // Bypass GetUrlMaxWidth() for images to allow full screen width
                 AozoraPageContent.VerticalAlignment = VerticalAlignment.Center;
             }
             else
             {
+                if (AozoraPageContainer != null) AozoraPageContainer.Padding = new Thickness(20);
                 AozoraPageContent.Padding = new Thickness(0, 15, 0, 0);
                 availableHeight -= 55; // Grid Padding + Ruby safety gap
                 AozoraPageContent.MaxWidth = _isMarkdownRenderMode ? innerWidth : Math.Min(innerWidth, GetUrlMaxWidth());
@@ -637,7 +642,7 @@ namespace Uviewer
             for (int i = startIdx; i < _aozoraBlocks.Count; i++)
             {
                 var block = _aozoraBlocks[i];
-                var p = CreateParagraphFromBlock(block, availableHeight);
+                var p = CreateParagraphFromBlock(block, availableHeight, innerWidth);
 
                 // If the block is empty (e.g., missing image), skip it entirely
                 if (p.Inlines.Count == 0)
@@ -659,6 +664,12 @@ namespace Uviewer
                         // First block is image, add ONLY this block and stop
                         p.TextAlignment = TextAlignment.Center;
                         
+                        // [Fix] Ensure container allows full width for the image
+                        if (AozoraPageContainer != null) AozoraPageContainer.Padding = new Thickness(0);
+                        AozoraPageContent.MaxWidth = innerWidth;
+                        AozoraPageContent.Padding = new Thickness(0);
+                        AozoraPageContent.VerticalAlignment = VerticalAlignment.Center;
+
                         AozoraPageContent.Blocks.Add(p);
                         endIdx = i;
                         break;
@@ -697,7 +708,7 @@ namespace Uviewer
             }
         }
 
-        private Paragraph CreateParagraphFromBlock(AozoraBindingModel block, double availableHeight = 0)
+        private Paragraph CreateParagraphFromBlock(AozoraBindingModel block, double availableHeight = 0, double targetWidth = -1)
         {
             if (block.IsTable)
             {
@@ -750,7 +761,7 @@ namespace Uviewer
                 }
                 else if (item is AozoraImage img)
                 {
-                    var ui = CreateImageInline(img.Source, availableHeight);
+                    var ui = CreateImageInline(img.Source, availableHeight, targetWidth);
                     if (ui != null) p.Inlines.Add(ui);
                 }
             }
@@ -1472,7 +1483,7 @@ namespace Uviewer
             return new InlineUIContainer { Child = grid }; 
         }
 
-        private InlineUIContainer? CreateImageInline(string relativePath, double maxHeight = 0)
+        private InlineUIContainer? CreateImageInline(string relativePath, double maxHeight = 0, double targetWidth = -1)
         {
             if (string.IsNullOrEmpty(_currentTextFilePath) && (_currentArchive == null || string.IsNullOrEmpty(_currentTextArchiveEntryKey))) return null;
             
@@ -1482,8 +1493,10 @@ namespace Uviewer
             img.Stretch = Stretch.Uniform;
             img.Margin = new Thickness(0);
             
-            double maxWidth = AozoraPageContent.MaxWidth;
-            if (double.IsInfinity(maxWidth) || maxWidth < 100) maxWidth = 800;
+            double maxWidth = targetWidth > 0 ? targetWidth : (AozoraPageContainer?.ActualWidth ?? 800);
+            if (targetWidth <= 0 && maxWidth > 40) maxWidth -= 40; // Safety padding only if not explicit targetWidth
+            if (maxWidth < 100) maxWidth = 800; // Minimal width
+            
             img.Width = maxWidth;
             if (maxHeight > 0) img.Height = maxHeight * 0.98; // 위아래 크기를 화면보다 약간 줄임 (약 90% 수준)
             
