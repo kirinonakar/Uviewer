@@ -24,9 +24,12 @@ namespace Uviewer
         private int _currentVerticalPageIndex = 0;
         private System.Threading.CancellationTokenSource? _verticalPaginationCts;
         private Dictionary<string, CanvasBitmap> _verticalImageCache = new();
+        private int? _pendingVerticalScrollLine = null;
 
-        private void VerticalToggleButton_Click(object sender, RoutedEventArgs e)
+        private async void VerticalToggleButton_Click(object sender, RoutedEventArgs e)
         {
+            // Save current position before switching mode
+            await AddToRecentAsync(true);
             _isVerticalMode = VerticalToggleButton?.IsChecked ?? false;
             SaveTextSettings();
             ToggleVerticalMode();
@@ -102,6 +105,7 @@ namespace Uviewer
             }
             else
             {
+                _pendingVerticalScrollLine = null;
                 // Detach vertical key handler
                 if (_verticalKeyAttached && RootGrid != null)
                 {
@@ -163,6 +167,7 @@ namespace Uviewer
             using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(externalToken, _verticalPaginationCts.Token);
             var token = linkedCts.Token;
 
+            _pendingVerticalScrollLine = targetLine;
             _verticalPageInfos.Clear();
             _currentVerticalPageIndex = 0;
             _verticalImageCache.Clear();
@@ -225,6 +230,7 @@ namespace Uviewer
                             if (idx > 0 && info.StartLine > targetLine) idx--;
                             _currentVerticalPageIndex = idx;
                             foundTargetPage = true;
+                            _pendingVerticalScrollLine = null;
                         }
                     }
                     if (i >= limit) break;
@@ -737,6 +743,13 @@ namespace Uviewer
                 if (progress > 100) progress = 100;
                 TextProgressText.Text = $"{progress:F1}%";
             }
+
+            // Throttle Recent update: only if line changed
+            if (currentLine != _lastRecentSaveLine)
+            {
+                _lastRecentSaveLine = currentLine;
+                _ = AddToRecentAsync(true);
+            }
         }
 
         private void VerticalTextCanvas_SizeChanged(object sender, SizeChangedEventArgs e)
@@ -747,7 +760,11 @@ namespace Uviewer
                 if (_isEpubMode && (_aozoraBlocks == null || _aozoraBlocks.Count == 0)) return;
 
                 int currentLine = 1;
-                if (_verticalPageInfos.Count > 0 && _currentVerticalPageIndex >= 0 && _currentVerticalPageIndex < _verticalPageInfos.Count)
+                if (_pendingVerticalScrollLine.HasValue)
+                {
+                    currentLine = _pendingVerticalScrollLine.Value;
+                }
+                else if (_verticalPageInfos.Count > 0 && _currentVerticalPageIndex >= 0 && _currentVerticalPageIndex < _verticalPageInfos.Count)
                 {
                     currentLine = _verticalPageInfos[_currentVerticalPageIndex].StartLine;
                 }

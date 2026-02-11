@@ -1591,6 +1591,7 @@ namespace Uviewer
              }
              else if (e.Key == Windows.System.VirtualKey.V)
              {
+                 _ = AddToRecentAsync(true);
                  _isVerticalMode = !_isVerticalMode;
                  if (VerticalToggleButton != null) VerticalToggleButton.IsChecked = _isVerticalMode;
                  SaveTextSettings();

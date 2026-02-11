@@ -391,9 +391,16 @@ namespace Uviewer
                         if (_aozoraBlocks.Count > 0 && _currentAozoraStartBlockIndex >= 0 && _currentAozoraStartBlockIndex < _aozoraBlocks.Count)
                             savedLine = _aozoraBlocks[_currentAozoraStartBlockIndex].SourceLineNumber;
                     }
-                    else if (_isTextMode && TextScrollViewer != null)
+                    else if (_isTextMode)
                     {
-                        savedLine = GetTopVisibleLineIndex();
+                        if (_isVerticalMode && _verticalPageInfos.Count > 0 && _currentVerticalPageIndex >= 0 && _currentVerticalPageIndex < _verticalPageInfos.Count)
+                        {
+                            savedLine = _verticalPageInfos[_currentVerticalPageIndex].StartLine;
+                        }
+                        else if (TextScrollViewer != null)
+                        {
+                            savedLine = GetTopVisibleLineIndex();
+                        }
                     }
 
                     var favorite = new FavoriteItem
@@ -850,33 +857,47 @@ namespace Uviewer
                         {
                             targetPage = CurrentEpubPageIndex;
                             targetChapter = CurrentEpubChapterIndex;
-                            if (EpubSelectedItem is Grid g && g.Tag is EpubPageInfoTag tag)
+                            
+                            if (_isVerticalMode && _verticalPageInfos.Count > 0 && _currentVerticalPageIndex >= 0 && _currentVerticalPageIndex < _verticalPageInfos.Count)
+                            {
+                                targetLine = _verticalPageInfos[_currentVerticalPageIndex].StartLine;
+                                targetPage = 0; // Use line for restoration in vertical mode
+                            }
+                            else if (EpubSelectedItem is Grid g && g.Tag is EpubPageInfoTag tag)
                                 targetLine = tag.StartLine;
                         }
                     }
-                    else if (_isTextMode && TextScrollViewer != null)
+                    else if (_isTextMode)
                     {
-                        double currentOffset = TextScrollViewer.VerticalOffset;
-                        
-                        // 오프셋이 0인데 기존에 읽던 기록(>0)이 있다면, 기존 값 유지
-                        if (currentOffset == 0 && existing != null && existing.ScrollOffset > 0)
+                        if (_isVerticalMode && _verticalPageInfos.Count > 0 && _currentVerticalPageIndex >= 0 && _currentVerticalPageIndex < _verticalPageInfos.Count)
                         {
-                            targetOffset = existing.ScrollOffset;
-                            targetLine = existing.SavedLine;
-                            System.Diagnostics.Debug.WriteLine($"[SafeGuard] Text offset 0 detected. Keeping previous offset: {targetOffset}");
+                            targetLine = _verticalPageInfos[_currentVerticalPageIndex].StartLine;
+                            targetOffset = 0;
                         }
-                        else
+                        else if (TextScrollViewer != null)
                         {
-                            targetOffset = currentOffset;
-                            double lineH = _textFontSize * 1.8; // 폰트 사이즈가 0이면 Infinity가 될 수 있음 주의
-                            if (lineH > 0)
-                            {
-                                targetLine = (int)(currentOffset / lineH) + 1;
-                            }
+                            double currentOffset = TextScrollViewer.VerticalOffset;
                             
-                            // 아오조라 모드 보정
-                            if (_isAozoraMode && _aozoraBlocks.Count > 0 && _currentAozoraStartBlockIndex >= 0)
-                                targetLine = _aozoraBlocks[_currentAozoraStartBlockIndex].SourceLineNumber;
+                            // 오프셋이 0인데 기존에 읽던 기록(>0)이 있다면, 기존 값 유지
+                            if (currentOffset == 0 && existing != null && existing.ScrollOffset > 0)
+                            {
+                                targetOffset = existing.ScrollOffset;
+                                targetLine = existing.SavedLine;
+                                System.Diagnostics.Debug.WriteLine($"[SafeGuard] Text offset 0 detected. Keeping previous offset: {targetOffset}");
+                            }
+                            else
+                            {
+                                targetOffset = currentOffset;
+                                double lineH = _textFontSize * 1.8; 
+                                if (lineH > 0)
+                                {
+                                    targetLine = (int)(currentOffset / lineH) + 1;
+                                }
+                                
+                                // 아오조라 모드 보정
+                                if (_isAozoraMode && _aozoraBlocks.Count > 0 && _currentAozoraStartBlockIndex >= 0)
+                                    targetLine = _aozoraBlocks[_currentAozoraStartBlockIndex].SourceLineNumber;
+                            }
                         }
                     }
                     else if (type == "Archive" && _currentIndex >= 0 && _currentIndex < _imageEntries.Count)
