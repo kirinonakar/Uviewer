@@ -62,7 +62,22 @@ namespace Uviewer
                         {
                             if (g.Tag is EpubPageInfoTag tag)
                             {
-                                currentLine = tag.StartLine;
+                                // [Fix] Visual Line -> Source Line Mapping (Ratio-based)
+                                if (tag.TotalLinesInChapter > 0 && _aozoraBlocks.Count > 0)
+                                {
+                                    // Get max source line number
+                                    int maxSourceLine = _aozoraBlocks[_aozoraBlocks.Count - 1].SourceLineNumber;
+                                    // Calculate simple ratio
+                                    double ratio = (double)tag.StartLine / tag.TotalLinesInChapter;
+                                    if (ratio > 1.0) ratio = 1.0;
+                                    
+                                    currentLine = (int)(maxSourceLine * ratio);
+                                    if (currentLine < 1) currentLine = 1;
+                                }
+                                else
+                                {
+                                    currentLine = tag.StartLine;
+                                }
                             }
                             else if (g.Tag is EpubImageTag imgTag)
                             {
@@ -101,7 +116,17 @@ namespace Uviewer
                 {
                     if (EpubArea != null) EpubArea.Visibility = Visibility.Visible;
                     if (TextArea != null) TextArea.Visibility = Visibility.Collapsed;
-                    await LoadEpubChapterAsync(_currentEpubChapterIndex, targetLine: currentLine);
+                    
+                    // [Fix] Calculate progress ratio for EPUB
+                    double? progress = null;
+                    if (_aozoraBlocks != null && _aozoraBlocks.Count > 0)
+                    {
+                         int maxSource = _aozoraBlocks[_aozoraBlocks.Count - 1].SourceLineNumber;
+                         if (maxSource > 0) progress = (double)currentLine / maxSource;
+                         if (progress > 1.0) progress = 1.0;
+                    }
+
+                    await LoadEpubChapterAsync(_currentEpubChapterIndex, targetLine: currentLine, progress: progress);
                 }
                 else if (_isAozoraMode)
                 {

@@ -11,6 +11,9 @@ namespace Uviewer
 
         private void RootGrid_PreviewKeyDown(object sender, KeyRoutedEventArgs e)
         {
+            // Allow text input controls to function normally (e.g. WebDAV dialog)
+            if (e.OriginalSource is TextBox || e.OriginalSource is PasswordBox || e.OriginalSource is NumberBox) return;
+
             var ctrlPressed = Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(
                 Windows.System.VirtualKey.Control).HasFlag(Windows.UI.Core.CoreVirtualKeyStates.Down);
 
@@ -42,6 +45,9 @@ namespace Uviewer
 
         private async void RootGrid_KeyDown(object sender, KeyRoutedEventArgs e)
         {
+            // Allow text input controls to function normally (e.g. WebDAV dialog)
+            if (e.OriginalSource is TextBox || e.OriginalSource is PasswordBox || e.OriginalSource is NumberBox) return;
+
             var ctrlPressed = Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(
                 Windows.System.VirtualKey.Control).HasFlag(Windows.UI.Core.CoreVirtualKeyStates.Down);
 

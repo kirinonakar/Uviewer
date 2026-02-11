@@ -771,6 +771,13 @@ namespace Uviewer
 
         private async Task HandleFileSelectionAsync(FileItem item)
         {
+            // WebDAV 항목 처리
+            if (item.IsWebDav)
+            {
+                await HandleWebDavFileSelectionAsync(item);
+                return;
+            }
+
             if (item.IsDirectory)
             {
                 // Do not auto-navigate to folder on selection (Arrow keys/Single click)
@@ -832,12 +839,29 @@ namespace Uviewer
         {
             if (e.ClickedItem is FileItem item && item.IsDirectory)
             {
-                LoadExplorerFolder(item.FullPath);
+                if (item.IsWebDav && !string.IsNullOrEmpty(item.WebDavPath))
+                {
+                    _ = LoadWebDavFolderAsync(item.WebDavPath);
+                }
+                else
+                {
+                    LoadExplorerFolder(item.FullPath);
+                }
             }
         }
 
         private async Task NavigateToParentFolderAsync()
         {
+            // WebDAV 모드에서 상위 폴더 이동
+            if (_isWebDavMode && !string.IsNullOrEmpty(_currentWebDavPath) && _currentWebDavPath != "/")
+            {
+                var parentPath = _currentWebDavPath.TrimEnd('/');
+                var lastSlash = parentPath.LastIndexOf('/');
+                var parent = lastSlash > 0 ? parentPath.Substring(0, lastSlash + 1) : "/";
+                await LoadWebDavFolderAsync(parent);
+                return;
+            }
+
             if (!string.IsNullOrEmpty(_currentExplorerPath))
             {
                 var parentDir = Directory.GetParent(_currentExplorerPath);

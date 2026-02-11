@@ -1350,7 +1350,7 @@ namespace Uviewer
             return null;
         }
 
-        private async Task LoadEpubChapterAsync(int index, bool fromEnd = false, int targetLine = -1, int targetPage = -1)
+        private async Task LoadEpubChapterAsync(int index, bool fromEnd = false, int targetLine = -1, int targetPage = -1, double? progress = null)
         {
             if (index < 0 || index >= _epubSpine.Count) return;
 
@@ -1431,6 +1431,11 @@ namespace Uviewer
                 if (targetPage >= 0)
                 {
                     finalTargetPage = Math.Min(targetPage, pages.Count - 1);
+                }
+                else if (progress.HasValue)
+                {
+                    int maxPage = Math.Max(0, pages.Count - 1);
+                    finalTargetPage = (int)(maxPage * progress.Value);
                 }
                 else if (targetLine > 0)
                 {

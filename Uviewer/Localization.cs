@@ -104,5 +104,18 @@ namespace Uviewer
         public static string DialogTitle => S("줄 이동", "Go to Line", "行移動");
         public static string DialogPrimary => S("이동", "Go", "移動");
         public static string DialogClose => S("취소", "Cancel", "キャンセル");
+
+        // WebDAV
+        public static string WebDavTooltip => S("webdav 연결", "WebDAV Connect", "WebDAV接続");
+        public static string AddWebDavServer => S("➕ webdav 서버 추가", "➕ Add WebDAV Server", "➕ WebDAVサーバー追加");
+        public static string WebDavServerName => S("서버 이름", "Server Name", "サーバー名");
+        public static string WebDavAddress => S("주소", "Address", "アドレス");
+        public static string WebDavPort => S("포트", "Port", "ポート");
+        public static string WebDavId => S("ID", "ID", "ID");
+        public static string WebDavPassword => S("비밀번호", "Password", "パスワード");
+        public static string WebDavSave => S("저장", "Save", "保存");
+        public static string WebDavCancel => S("취소", "Cancel", "キャンセル");
+        public static string WebDavConnecting => S("연결 중...", "Connecting...", "接続中...");
+        public static string WebDavConnectionFailed => S("연결 실패", "Connection Failed", "接続失敗");
     }
 }

@@ -1002,6 +1002,7 @@ namespace Uviewer
                 {
                     TextItemsRepeater.ItemsSource = null;
                     TextItemsRepeater.ItemsSource = _textLines;
+                    if (targetLine > 1) ScrollToLine(targetLine);
                 }
                 if (TextArea != null) TextArea.Background = GetThemeBackground();
                 
@@ -1052,6 +1053,7 @@ namespace Uviewer
                 {
                     TextItemsRepeater.ItemsSource = null;
                     TextItemsRepeater.ItemsSource = _textLines;
+                    if (targetLine > 1) ScrollToLine(targetLine);
                 }
                 if (TextArea != null) TextArea.Background = GetThemeBackground();
             }

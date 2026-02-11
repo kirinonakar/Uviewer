@@ -164,6 +164,8 @@ namespace Uviewer
             public bool IsText { get; set; }
             public bool IsEpub { get; set; }
             public bool IsParentDirectory { get; set; }
+            public bool IsWebDav { get; set; }
+            public string? WebDavPath { get; set; }
 
             private ImageSource? _thumbnail;
             public ImageSource? Thumbnail
@@ -402,6 +404,8 @@ namespace Uviewer
             {
                 // Win2D 캔버스 디바이스가 초기화될 시간을 아주 잠깐 확보 (안전장치)
                 await Task.Delay(50);
+                // 이전 비정상 종료 시 남은 WebDAV 임시 파일 정리
+                WebDavService.CleanupTempFiles();
                 await InitializeAsync(launchFilePath);
             };
 
@@ -469,6 +473,11 @@ namespace Uviewer
                     // Dispose semaphores
                     _archiveLock.Dispose();
                     _thumbnailSemaphore.Dispose();
+
+                    // Cleanup WebDAV
+                    _webDavService?.Dispose();
+                    _webDavCts?.Cancel();
+                    _webDavCts?.Dispose();
 
                     // Dispose cancellation tokens
                     _imageLoadingCts?.Dispose();
@@ -553,6 +562,8 @@ namespace Uviewer
             ToolTipService.SetToolTip(SidebarRecentButton, Strings.RecentTooltip);
             ToolTipService.SetToolTip(FavoritesButton, Strings.FavoritesTooltip);
             ToolTipService.SetToolTip(BrowseFolderButton, Strings.BrowseFolderTooltip);
+            ToolTipService.SetToolTip(WebDavButton, Strings.WebDavTooltip);
+            if (AddWebDavButton != null) AddWebDavButton.Content = Strings.AddWebDavServer;
             ToolTipService.SetToolTip(TocButton, Strings.TocTooltip);
             ToolTipService.SetToolTip(SettingsButton, Strings.SettingsTooltip);
             UpdateThemeToggleButtonTooltip();
@@ -1777,12 +1788,16 @@ namespace Uviewer
 
         private async Task NavigateToFileAsync(bool isNext)
         {
-            // Save current position before navigating away
+             // Save current position before navigating away
             await AddToRecentAsync(true);
 
             // Find current file/archive in the list
             string? currentPath = null;
-            if (_currentArchive != null && !string.IsNullOrEmpty(_currentArchivePath))
+            if (_isWebDavMode)
+            {
+                currentPath = _currentWebDavItemPath;
+            }
+            else if (_currentArchive != null && !string.IsNullOrEmpty(_currentArchivePath))
             {
                 currentPath = _currentArchivePath;
             }
@@ -1802,19 +1817,22 @@ namespace Uviewer
             if (string.IsNullOrEmpty(currentPath))
                 return;
 
-            // Ensure explorer path is set if missing (e.g. opened from Recent Files)
-            if (string.IsNullOrEmpty(_currentExplorerPath))
+            if (!_isWebDavMode)
             {
-                _currentExplorerPath = Path.GetDirectoryName(currentPath);
-            }
+                // Ensure explorer path is set if missing (e.g. opened from Recent Files)
+                if (string.IsNullOrEmpty(_currentExplorerPath))
+                {
+                    _currentExplorerPath = Path.GetDirectoryName(currentPath);
+                }
 
-            if (string.IsNullOrEmpty(_currentExplorerPath))
-                return;
+                if (string.IsNullOrEmpty(_currentExplorerPath))
+                    return;
 
-            // Ensure file list is loaded and contains the current path
-            if (_fileItems.Count == 0 || !_fileItems.Any(f => f.FullPath.Equals(currentPath, StringComparison.OrdinalIgnoreCase)))
-            {
-                LoadExplorerFolder(_currentExplorerPath);
+                // Ensure file list is loaded and contains the current path
+                if (_fileItems.Count == 0 || !_fileItems.Any(f => f.FullPath.Equals(currentPath, StringComparison.OrdinalIgnoreCase)))
+                {
+                    LoadExplorerFolder(_currentExplorerPath);
+                }
             }
 
             if (string.IsNullOrEmpty(currentPath))
@@ -1823,10 +1841,21 @@ namespace Uviewer
             var currentItemIndex = -1;
             for (int i = 0; i < _fileItems.Count; i++)
             {
-                if (_fileItems[i].FullPath.Equals(currentPath, StringComparison.OrdinalIgnoreCase))
+                if (_isWebDavMode)
                 {
-                    currentItemIndex = i;
-                    break;
+                    if (_fileItems[i].WebDavPath == currentPath)
+                    {
+                        currentItemIndex = i;
+                        break;
+                    }
+                }
+                else
+                {
+                    if (_fileItems[i].FullPath.Equals(currentPath, StringComparison.OrdinalIgnoreCase))
+                    {
+                        currentItemIndex = i;
+                        break;
+                    }
                 }
             }
 
@@ -1845,10 +1874,16 @@ namespace Uviewer
                 if (item.IsDirectory || item.IsParentDirectory)
                     continue; // Skip directories
 
-
                 try
                 {
-                    if (item.IsArchive)
+                    if (_isWebDavMode && item.IsWebDav)
+                    {
+                        await AddToRecentAsync(true);
+                        await HandleWebDavFileSelectionAsync(item);
+                        SyncExplorerSelection(item);
+                        return;
+                    }
+                    else if (item.IsArchive)
                     {
                         await AddToRecentAsync(true); // Save current before switching
                         await LoadImagesFromArchiveAsync(item.FullPath);
@@ -1867,7 +1902,7 @@ namespace Uviewer
                 catch (Exception ex)
                 {
                     System.Diagnostics.Debug.WriteLine($"Error navigating to file: {ex.Message}");
-                    // If error, continue to next file
+                    // Continue to next file on error
                 }
             }
         }
