@@ -41,6 +41,7 @@ namespace Uviewer
             public int SavedLine { get; set; } = 1;
             public bool IsWebDav { get; set; } = false;
             public string? WebDavServerName { get; set; }
+            public bool IsVertical { get; set; } = false;
         }
 
         public class RecentItem
@@ -337,6 +338,7 @@ namespace Uviewer
                 {
                     // Text File mode
                     name = Path.GetFileName(_currentTextFilePath);
+                    if (_isVerticalMode) name = $"[V] {name}";
                     path = _currentTextFilePath;
                     type = "File";
                     CheckAndAddFolderToFavorites(Path.GetDirectoryName(path));
@@ -345,6 +347,7 @@ namespace Uviewer
                 {
                     // Epub Mode
                     name = Path.GetFileName(_currentEpubFilePath);
+                    if (_isVerticalMode) name = $"[V] {name}";
                     path = _currentEpubFilePath;
                     type = "File";
                     CheckAndAddFolderToFavorites(Path.GetDirectoryName(path));
@@ -393,29 +396,53 @@ namespace Uviewer
 
                 if (_isWebDavMode && _webDavService.CurrentServer != null)
                 {
-                    isWebDav = true;
-                    webDavServerName = _webDavService.CurrentServer.ServerName;
-                    
+                    bool validWebDav = false;
+
                     if (type == "Archive")
                     {
                         // Archive 모드에서는 _currentArchivePath가 "WebDAV:/path" 형식이므로 접두어 제거
-                        if (path.StartsWith("WebDAV:"))
+                        // 또는 _currentWebDavItemPath가 원본 경로를 가지고 있음
+                        if (!string.IsNullOrEmpty(_currentWebDavItemPath))
+                        {
+                            path = _currentWebDavItemPath;
+                            validWebDav = true;
+                        }
+                        else if (path.StartsWith("WebDAV:"))
+                        {
                             path = path.Substring(7);
+                            validWebDav = true;
+                        }
                     }
                     else if (type == "File")
                     {
-                        // File 모드(이미지/텍스트/epub)에서는 로컬 임시 경로 대신 WebDAV 경로 사용
+                        // File 모드에서는 로컬 임시 경로 대신 WebDAV 경로 사용
                         if (!string.IsNullOrEmpty(_currentWebDavItemPath))
+                        {
                             path = _currentWebDavItemPath;
+                            validWebDav = true;
+                        }
                     }
-                    else if (type == "Folder")
+                    else if (type == "Folder" || string.IsNullOrEmpty(type))
                     {
                         // Folder 모드에서는 현재 WebDAV 폴더 경로 사용
                         if (!string.IsNullOrEmpty(_currentWebDavPath))
+                        {
                             path = _currentWebDavPath;
+                            type = "Folder";
+                            if (string.IsNullOrEmpty(name) || name == _currentWebDavPath)
+                            {
+                                name = Path.GetFileName(_currentWebDavPath.TrimEnd('/'));
+                                if (string.IsNullOrEmpty(name)) name = "/";
+                            }
+                            validWebDav = true;
+                        }
                     }
 
-                    // WebDAV의 경우 부모 폴더 자동 추가는 로직이 복잡하므로 일단 생략하거나 추후 구현
+                    if (validWebDav)
+                    {
+                        isWebDav = true;
+                        webDavServerName = _webDavService.CurrentServer.ServerName;
+                    }
                 }
 
                 System.Diagnostics.Debug.WriteLine($"Final values - Name: '{name}', Path: '{path}', Type: '{type}'");
@@ -471,7 +498,8 @@ namespace Uviewer
                         SavedLine = savedLine,
                         ChapterIndex = _isEpubMode ? CurrentEpubChapterIndex : 0,
                         IsWebDav = isWebDav,
-                        WebDavServerName = webDavServerName
+                        WebDavServerName = webDavServerName,
+                        IsVertical = _isVerticalMode
                     };
 
                     _favorites.Add(favorite);

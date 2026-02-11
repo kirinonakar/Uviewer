@@ -1690,17 +1690,9 @@ namespace Uviewer
                  {
                      if (_aozoraBlocks[i].SourceLineNumber >= line)
                      {
-                         if (_aozoraBlocks[i].SourceLineNumber == line)
-                         {
-                             targetIdx = i;
-                         }
-                         else
-                         {
-                             targetIdx = i > 0 ? i - 1 : 0;
-                         }
+                         targetIdx = i;
                          break;
                      }
-                     targetIdx = i;
                  }
                  
                  _aozoraNavHistory.Clear();

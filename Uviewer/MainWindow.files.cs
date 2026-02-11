@@ -378,6 +378,9 @@ namespace Uviewer
         {
             try
             {
+                // Reset WebDAV state since we are loading a local folder
+                _isWebDavMode = false;
+                _currentWebDavItemPath = null;
                 _currentExplorerPath = path;
                 _fileItems.Clear();
 

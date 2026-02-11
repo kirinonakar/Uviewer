@@ -472,20 +472,9 @@ namespace Uviewer
                     // Find block by line number
                     for (int i = 0; i < _aozoraBlocks.Count; i++)
                     {
-                        // Default to current index as fallback (for lines beyond end)
-                        startIdx = i;
-
                         if (_aozoraBlocks[i].SourceLineNumber >= targetLine)
                         {
-                            if (_aozoraBlocks[i].SourceLineNumber == targetLine)
-                            {
-                                startIdx = i;
-                            }
-                            else
-                            {
-                                // Target is between previous block and this block
-                                startIdx = i > 0 ? i - 1 : 0;
-                            }
+                            startIdx = i;
                             break;
                         }
                     }
@@ -942,17 +931,9 @@ namespace Uviewer
             {
                 if (_aozoraBlocks[i].SourceLineNumber >= targetLine)
                 {
-                    if (_aozoraBlocks[i].SourceLineNumber == targetLine)
-                    {
-                        startIdx = i;
-                    }
-                    else
-                    {
-                        startIdx = i > 0 ? i - 1 : 0;
-                    }
+                    startIdx = i;
                     break;
                 }
-                startIdx = i;
             }
             
             _aozoraNavHistory.Push(_currentAozoraStartBlockIndex);
