@@ -236,7 +236,7 @@ namespace Uviewer
                         var info = new VerticalPageInfo { Blocks = pageBlocks, StartLine = pageBlocks[0].SourceLineNumber };
                         _verticalPageInfos.Add(info);
                         
-                        if (!foundTargetPage && (info.StartLine >= targetLine || i >= targetBlockIdx))
+                        if (!foundTargetPage && (info.StartLine >= targetLine || i > targetBlockIdx))
                         {
                             int idx = _verticalPageInfos.Count - 1;
                             if (idx > 0 && info.StartLine > targetLine) idx--;
@@ -536,8 +536,8 @@ namespace Uviewer
                 // 1. 텍스트 레이아웃 생성
                 using var textLayout = new CanvasTextLayout(ds, blockText, format, measureWidth, drawHeight);
 
-                // [수정] 괄호 간격 수동 조정 (여는/닫는 괄호의 자간을 좁힘)
-                ApplyVerticalBracketSpacing(textLayout, blockText, fontSize);
+                // [수정] 괄호 간격 수동 조정 (하단 여백이 있는 경우만 자간을 좁힘)
+                ApplyVerticalBracketSpacing(ds, format, textLayout, blockText, fontSize);
                 
                 foreach (var r in boldRanges) textLayout.SetFontWeight(r.start, r.length, Microsoft.UI.Text.FontWeights.Bold);
                 foreach (var r in italicRanges) textLayout.SetFontStyle(r.start, r.length, Windows.UI.Text.FontStyle.Italic);
@@ -1135,21 +1135,44 @@ namespace Uviewer
             return text;
         }
 
-        private void ApplyVerticalBracketSpacing(CanvasTextLayout layout, string text, float fontSize)
+        private void ApplyVerticalBracketSpacing(ICanvasResourceCreator resourceCreator, CanvasTextFormat format, CanvasTextLayout layout, string text, float fontSize)
         {
             if (string.IsNullOrEmpty(text)) return;
 
             // 조정할 괄호 목록
             string brackets = "()[]{}<>（）「」『』【】〈〉《》";
-            float spacingReduction = -fontSize * 0.4f; // 40% 정도 좁힘
+            float baseReduction = -fontSize * 0.4f;
 
             for (int i = 0; i < text.Length; i++)
             {
                 if (brackets.Contains(text[i]))
                 {
-                    // 해당 글자의 자간을 줄임 (Trailing Spacing을 줄임)
-                    // Win2D SetCharacterSpacing(idx, count, leading, trailing, minAdvance)
-                    layout.SetCharacterSpacing(i, 1, 0, spacingReduction, 0);
+                    // 폰트에 따라 괄호의 잉크 위치가 다르므로 실제 측정을 통해 공백 여부 판단
+                    using var tmpFormat = new CanvasTextFormat
+                    {
+                        FontFamily = format.FontFamily,
+                        FontSize = fontSize,
+                        Direction = format.Direction,
+                        VerticalAlignment = CanvasVerticalAlignment.Top // 측정을 위해 상단 정렬
+                    };
+                    
+                    using var tmpLayout = new CanvasTextLayout(resourceCreator, text[i].ToString(), tmpFormat, fontSize * 2, fontSize * 2);
+                    var drawBounds = tmpLayout.DrawBounds;
+                    var layoutBounds = tmpLayout.LayoutBounds;
+
+                    // 세로 모드(TopToBottom)에서 자간 조정은 아래쪽 글자를 끌어올리는 방식임.
+                    // 따라서 현재 글자의 하단(slotBottom)과 실제 잉크의 하단(inkBottom) 사이에 여백이 있을 때만 안전하게 적용 가능.
+                    float slotBottom = (float)(layoutBounds.Y + layoutBounds.Height);
+                    float inkBottom = (float)(drawBounds.Y + drawBounds.Height);
+                    float gapBelow = slotBottom - inkBottom;
+
+                    // 하단 여백이 폰트 크기의 15% 이상일 때만 조정을 적용하여 겹침 방지
+                    if (gapBelow > fontSize * 0.15f)
+                    {
+                        // 여백보다 과하게 겹치지 않도록 실제 여백 크기에 맞춰 조정값 결정
+                        float actualReduction = Math.Max(baseReduction, -gapBelow * 0.85f);
+                        layout.SetCharacterSpacing(i, 1, 0, actualReduction, 0);
+                    }
                 }
             }
         }

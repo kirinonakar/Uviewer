@@ -41,6 +41,7 @@ namespace Uviewer
             public int SavedLine { get; set; } = 1;
             public bool IsWebDav { get; set; } = false;
             public string? WebDavServerName { get; set; }
+            public bool IsVertical { get; set; } = false;
         }
 
         public class RecentItem
@@ -54,6 +55,7 @@ namespace Uviewer
             public int SavedPage { get; set; } = 0;
             public int ChapterIndex { get; set; } = 0;
             public int SavedLine { get; set; } = 1;
+            public bool IsVertical { get; set; } = false;
         }
 
         public class TextSettings
@@ -209,12 +211,16 @@ namespace Uviewer
             itemGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
             itemGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
 
+            string vMark = favorite.IsVertical ? "[V] " : "";
             string posString = "";
             if (favorite.Path.EndsWith(".epub", StringComparison.OrdinalIgnoreCase))
             {
                 posString = $" (Ch.{favorite.ChapterIndex + 1} P.{favorite.SavedPage + 1} L.{favorite.SavedLine})";
             }
-            else if (favorite.SavedLine > 1) posString = $" (Line {favorite.SavedLine})";
+            else if (favorite.Type == "File")
+            {
+                posString = $" (Line {favorite.SavedLine})";
+            }
             else if (favorite.SavedPage > 0 || favorite.ChapterIndex > 0) 
                 posString = $" ({(favorite.ChapterIndex > 0 ? $"Ch.{favorite.ChapterIndex + 1} " : "")}Line {favorite.SavedPage + 1})";
 
@@ -241,7 +247,7 @@ namespace Uviewer
             // Create TextBlock for the favorite name
             var nameTextBlock = new TextBlock
             {
-                Text = favorite.Name + posString,
+                Text = vMark + favorite.Name + posString,
                 VerticalAlignment = VerticalAlignment.Center,
                 HorizontalAlignment = HorizontalAlignment.Left,
                 TextTrimming = TextTrimming.CharacterEllipsis,
@@ -437,7 +443,12 @@ namespace Uviewer
                     if (_isEpubMode)
                     {
                         savedPage = CurrentEpubPageIndex;
-                        if (EpubSelectedItem is Grid g && g.Tag is EpubPageInfoTag tag)
+                        if (_isVerticalMode && _verticalPageInfos.Count > 0 && _currentVerticalPageIndex >= 0 && _currentVerticalPageIndex < _verticalPageInfos.Count)
+                        {
+                            savedLine = _verticalPageInfos[_currentVerticalPageIndex].StartLine;
+                            savedPage = 0; // Use line for restoration in vertical mode
+                        }
+                        else if (EpubSelectedItem is Grid g && g.Tag is EpubPageInfoTag tag)
                         {
                             savedLine = tag.StartLine;
                         }
@@ -445,7 +456,11 @@ namespace Uviewer
                     else if (_isAozoraMode)
                     {
                         savedPage = 0; 
-                        if (_aozoraBlocks.Count > 0 && _currentAozoraStartBlockIndex >= 0 && _currentAozoraStartBlockIndex < _aozoraBlocks.Count)
+                        if (_isVerticalMode && _verticalPageInfos.Count > 0 && _currentVerticalPageIndex >= 0 && _currentVerticalPageIndex < _verticalPageInfos.Count)
+                        {
+                            savedLine = _verticalPageInfos[_currentVerticalPageIndex].StartLine;
+                        }
+                        else if (_aozoraBlocks.Count > 0 && _currentAozoraStartBlockIndex >= 0 && _currentAozoraStartBlockIndex < _aozoraBlocks.Count)
                             savedLine = _aozoraBlocks[_currentAozoraStartBlockIndex].SourceLineNumber;
                     }
                     else if (_isTextMode)
@@ -471,7 +486,8 @@ namespace Uviewer
                         SavedLine = savedLine,
                         ChapterIndex = _isEpubMode ? CurrentEpubChapterIndex : 0,
                         IsWebDav = isWebDav,
-                        WebDavServerName = webDavServerName
+                        WebDavServerName = webDavServerName,
+                        IsVertical = _isVerticalMode
                     };
 
                     _favorites.Add(favorite);
@@ -849,19 +865,23 @@ namespace Uviewer
                 itemGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
                 itemGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
 
+                string vMark = recent.IsVertical ? "[V] " : "";
                 string posString = "";
                 if (recent.Path.EndsWith(".epub", StringComparison.OrdinalIgnoreCase))
                 {
                     posString = $" (Ch.{recent.ChapterIndex + 1} P.{recent.SavedPage + 1} L.{recent.SavedLine})";
                 }
-                else if (recent.SavedLine > 1) posString = $" (Line {recent.SavedLine})";
+                else if (recent.Type == "File")
+                {
+                    posString = $" (Line {recent.SavedLine})";
+                }
                 else if (recent.SavedPage > 0 || recent.ChapterIndex > 0) 
                     posString = $" ({(recent.ChapterIndex > 0 ? $"Ch.{recent.ChapterIndex + 1} " : "")}Line {recent.SavedPage + 1})";
                 
                 // Create TextBlock for the recent item name with left alignment and tooltip
                 var nameTextBlock = new TextBlock
                 {
-                    Text = recent.Name + posString,
+                    Text = vMark + recent.Name + posString,
                     VerticalAlignment = VerticalAlignment.Center,
                     HorizontalAlignment = HorizontalAlignment.Left,
                     TextTrimming = TextTrimming.CharacterEllipsis,
@@ -1087,7 +1107,8 @@ namespace Uviewer
                     ScrollOffset = targetOffset,
                     SavedPage = targetPage,
                     ChapterIndex = targetChapter,
-                    SavedLine = targetLine
+                    SavedLine = targetLine,
+                    IsVertical = _isVerticalMode
                 };
 
                 _recentItems.Insert(0, newItem);

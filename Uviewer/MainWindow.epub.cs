@@ -339,10 +339,10 @@ namespace Uviewer
                  if (PendingEpubChapterIndex >= 0 && PendingEpubChapterIndex < _epubSpine.Count)
                  {
                      _currentEpubChapterIndex = PendingEpubChapterIndex;
-                     await LoadEpubChapterAsync(_currentEpubChapterIndex);
+                     await LoadEpubChapterAsync(_currentEpubChapterIndex, targetLine: _aozoraPendingTargetLine, targetPage: PendingEpubPageIndex);
 
                      // Page navigation (wait for items to be populated)
-                     if (PendingEpubPageIndex > 0)
+                     if (!_isVerticalMode && PendingEpubPageIndex > 0)
                      {
                          await Task.Delay(100);
                          if (PendingEpubPageIndex < _epubPages.Count)
@@ -360,6 +360,7 @@ namespace Uviewer
                  // Reset pending values
                 PendingEpubChapterIndex = -1;
                 PendingEpubPageIndex = -1;
+                _aozoraPendingTargetLine = 0;
                 _epubChapterHasText.Clear();
                  
                  // 4. Load TOC (Background)
