@@ -376,6 +376,14 @@ namespace Uviewer
 
         private void LoadExplorerFolder(string path)
         {
+            // WebDAV 모드에서 로컬 폴더로 이동 시 모드 해제
+            if (_isWebDavMode)
+            {
+                // DisconnectWebDav는 private이지만 같은 partial class이므로 호출 가능
+                DisconnectWebDav();
+                _currentWebDavItemPath = null; 
+            }
+
             try
             {
                 _currentExplorerPath = path;
