@@ -42,6 +42,7 @@ namespace Uviewer
             public bool IsWebDav { get; set; } = false;
             public string? WebDavServerName { get; set; }
             public bool IsVertical { get; set; } = false;
+            public double Progress { get; set; } = 0; // 0-100 reading progress
         }
 
         public class RecentItem
@@ -56,6 +57,7 @@ namespace Uviewer
             public int ChapterIndex { get; set; } = 0;
             public int SavedLine { get; set; } = 1;
             public bool IsVertical { get; set; } = false;
+            public double Progress { get; set; } = 0; // 0-100 reading progress
         }
 
         public class TextSettings
@@ -208,7 +210,7 @@ namespace Uviewer
             {
                 Margin = new Thickness(0, 1, 0, 1),
                 Background = new SolidColorBrush(Microsoft.UI.Colors.Transparent),
-                MinHeight = 36
+                MinHeight = favorite.Type != "Folder" ? 44 : 36
             };
             itemGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
             itemGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
@@ -226,13 +228,16 @@ namespace Uviewer
             else if (favorite.SavedPage > 0 || favorite.ChapterIndex > 0) 
                 posString = $" ({(favorite.ChapterIndex > 0 ? $"Ch.{favorite.ChapterIndex + 1} " : "")}Line {favorite.SavedPage + 1})";
 
-            // Create container for text content (and optional icon)
+            // Create vertical container for text content + progress bar
             var contentPanel = new StackPanel 
             { 
-                Orientation = Orientation.Horizontal, 
+                Orientation = Orientation.Vertical, 
                 VerticalAlignment = VerticalAlignment.Center,
-                Margin = new Thickness(12, 0, 8, 0)
+                Margin = new Thickness(12, 4, 8, 4)
             };
+
+            // Create horizontal row for icon + name
+            var nameRow = new StackPanel { Orientation = Orientation.Horizontal };
 
             if (favorite.IsWebDav)
             {
@@ -243,7 +248,7 @@ namespace Uviewer
                     Margin = new Thickness(0, 1, 6, 0),
                     Foreground = new SolidColorBrush(Microsoft.UI.Colors.CornflowerBlue)
                 };
-                contentPanel.Children.Add(webIcon);
+                nameRow.Children.Add(webIcon);
             }
 
             // Create TextBlock for the favorite name
@@ -257,13 +262,84 @@ namespace Uviewer
                 MaxWidth = favorite.IsWebDav ? 310 : 340, // Adjust width if icon is present
                 FontSize = 13
             };
-            contentPanel.Children.Add(nameTextBlock);
+            nameRow.Children.Add(nameTextBlock);
+            contentPanel.Children.Add(nameRow);
+
+            // Add progress bar for non-folder items
+            if (favorite.Type != "Folder")
+            {
+                var progressRow = new Grid { Margin = new Thickness(0, 3, 0, 0) };
+                progressRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+                progressRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+                // Progress bar container (transparent background = clean look)
+                var progressBarBg = new Border
+                {
+                    Height = 3,
+                    CornerRadius = new CornerRadius(1.5),
+                    Background = new SolidColorBrush(Microsoft.UI.Colors.Transparent),
+                    HorizontalAlignment = HorizontalAlignment.Stretch
+                };
+
+                var progressBarFill = new Border
+                {
+                    Height = 3,
+                    CornerRadius = new CornerRadius(1.5),
+                    Background = new SolidColorBrush(Microsoft.UI.Colors.CornflowerBlue),
+                    HorizontalAlignment = HorizontalAlignment.Left,
+                    MaxWidth = 280
+                };
+
+                // Use a Grid to overlay fill on background
+                var progressBarGrid = new Grid
+                {
+                    HorizontalAlignment = HorizontalAlignment.Stretch,
+                    VerticalAlignment = VerticalAlignment.Center,
+                    MaxWidth = 280
+                };
+                progressBarGrid.Children.Add(progressBarBg);
+                progressBarGrid.Children.Add(progressBarFill);
+
+                // Set width based on progress
+                double progress = Math.Min(Math.Max(favorite.Progress, 0), 100);
+                progressBarFill.Loaded += (s, e) =>
+                {
+                    if (progressBarGrid.ActualWidth > 0)
+                        progressBarFill.Width = progressBarGrid.ActualWidth * (progress / 100.0);
+                    else
+                        progressBarFill.Width = 280 * (progress / 100.0);
+                };
+                progressBarGrid.SizeChanged += (s, e) =>
+                {
+                    if (e.NewSize.Width > 0)
+                        progressBarFill.Width = e.NewSize.Width * (progress / 100.0);
+                };
+
+                Grid.SetColumn(progressBarGrid, 0);
+                progressRow.Children.Add(progressBarGrid);
+
+                // Progress percentage text
+                var progressText = new TextBlock
+                {
+                    Text = $"{progress:F0}%",
+                    FontSize = 10,
+                    Foreground = new SolidColorBrush(Microsoft.UI.Colors.Gray),
+                    Margin = new Thickness(6, -2, 0, 0),
+                    VerticalAlignment = VerticalAlignment.Center
+                };
+                Grid.SetColumn(progressText, 1);
+                progressRow.Children.Add(progressText);
+
+                contentPanel.Children.Add(progressRow);
+            }
             
             string tooltipText = favorite.Path + (string.IsNullOrEmpty(posString) ? "" : $"\n{posString.Trim(' ', '(', ')')}");
              if (favorite.IsWebDav && !string.IsNullOrEmpty(favorite.WebDavServerName))
             {
                 tooltipText = $"[{favorite.WebDavServerName}] {tooltipText}";
             }
+            if (favorite.Type != "Folder")
+                tooltipText += $"\n진행: {favorite.Progress:F1}%";
             ToolTipService.SetToolTip(contentPanel, tooltipText);
 
             // Create a transparent button overlay for clicking
@@ -455,26 +531,45 @@ namespace Uviewer
                             savedLine = tag.StartLine;
                         }
                     }
-                    else if (_isAozoraMode)
-                    {
-                        savedPage = 0; 
-                        if (_isVerticalMode && _verticalPageInfos.Count > 0 && _currentVerticalPageIndex >= 0 && _currentVerticalPageIndex < _verticalPageInfos.Count)
-                        {
-                            savedLine = _verticalPageInfos[_currentVerticalPageIndex].StartLine;
-                        }
-                        else if (_aozoraBlocks.Count > 0 && _currentAozoraStartBlockIndex >= 0 && _currentAozoraStartBlockIndex < _aozoraBlocks.Count)
-                            savedLine = _aozoraBlocks[_currentAozoraStartBlockIndex].SourceLineNumber;
-                    }
                     else if (_isTextMode)
                     {
                         if (_isVerticalMode && _verticalPageInfos.Count > 0 && _currentVerticalPageIndex >= 0 && _currentVerticalPageIndex < _verticalPageInfos.Count)
                         {
                             savedLine = _verticalPageInfos[_currentVerticalPageIndex].StartLine;
                         }
+                        else if (_isAozoraMode && _aozoraBlocks.Count > 0 && _currentAozoraStartBlockIndex >= 0 && _currentAozoraStartBlockIndex < _aozoraBlocks.Count)
+                        {
+                            savedLine = _aozoraBlocks[_currentAozoraStartBlockIndex].SourceLineNumber;
+                        }
                         else if (TextScrollViewer != null)
                         {
                             savedLine = GetTopVisibleLineIndex();
                         }
+                    }
+
+                    // Calculate progress using already-computed position values
+                    double calcProgress = 0;
+                    int chapterIndex = _isEpubMode ? CurrentEpubChapterIndex : 0;
+                    if (_isEpubMode && _epubSpine.Count > 0)
+                    {
+                        int totalPages = _epubPages.Count > 0 ? _epubPages.Count : 1;
+                        double chapterProg = (double)chapterIndex / _epubSpine.Count;
+                        double pageProg = (double)savedPage / totalPages / _epubSpine.Count;
+                        calcProgress = Math.Min((chapterProg + pageProg) * 100.0, 100);
+                    }
+                    else if (_isTextMode)
+                    {
+                        int totalLines = _textTotalLineCountInSource > 0 ? _textTotalLineCountInSource : _aozoraTotalLineCountInSource;
+                        if (totalLines > 0)
+                            calcProgress = Math.Min((double)savedLine / totalLines * 100.0, 100);
+                    }
+                    else if (_currentArchive != null && _imageEntries.Count > 0)
+                    {
+                        calcProgress = Math.Min((double)(_currentIndex + 1) / _imageEntries.Count * 100.0, 100);
+                    }
+                    else if (_imageEntries.Count > 0 && _currentIndex >= 0)
+                    {
+                        calcProgress = Math.Min((double)(_currentIndex + 1) / _imageEntries.Count * 100.0, 100);
                     }
 
                     var favorite = new FavoriteItem
@@ -486,10 +581,11 @@ namespace Uviewer
                         ScrollOffset = (_isTextMode && TextScrollViewer != null) ? TextScrollViewer.VerticalOffset : null,
                         SavedPage = savedPage,
                         SavedLine = savedLine,
-                        ChapterIndex = _isEpubMode ? CurrentEpubChapterIndex : 0,
+                        ChapterIndex = chapterIndex,
                         IsWebDav = isWebDav,
                         WebDavServerName = webDavServerName,
-                        IsVertical = _isVerticalMode
+                        IsVertical = _isVerticalMode,
+                        Progress = Math.Max(calcProgress, 0)
                     };
 
                     _favorites.Add(favorite);
@@ -756,6 +852,59 @@ namespace Uviewer
             }
         }
 
+        private double GetCurrentProgress()
+        {
+            try
+            {
+                if (_isEpubMode)
+                {
+                    if (_epubSpine.Count > 0)
+                    {
+                        int currentPage = _currentEpubPageIndex + 1;
+                        int totalPages = _epubPages.Count > 0 ? _epubPages.Count : 1;
+                        double chapterProgress = (double)_currentEpubChapterIndex / _epubSpine.Count;
+                        double pageProgressInChapter = (double)(currentPage - 1) / totalPages / _epubSpine.Count;
+                        double progress = (chapterProgress + pageProgressInChapter) * 100.0;
+                        return Math.Min(Math.Max(progress, 0), 100);
+                    }
+                }
+                else if (_isTextMode)
+                {
+                    int totalLines = _textTotalLineCountInSource > 0 ? _textTotalLineCountInSource : _aozoraTotalLineCountInSource;
+                    if (totalLines > 0)
+                    {
+                        int currentLine = 1;
+                        if (_isVerticalMode && _verticalPageInfos.Count > 0 && _currentVerticalPageIndex >= 0 && _currentVerticalPageIndex < _verticalPageInfos.Count)
+                        {
+                            currentLine = _verticalPageInfos[_currentVerticalPageIndex].StartLine;
+                        }
+                        else if (_isAozoraMode && _aozoraBlocks.Count > 0 && _currentAozoraStartBlockIndex >= 0 && _currentAozoraStartBlockIndex < _aozoraBlocks.Count)
+                        {
+                            currentLine = _aozoraBlocks[_currentAozoraStartBlockIndex].SourceLineNumber;
+                        }
+                        else if (TextScrollViewer != null)
+                        {
+                            currentLine = GetTopVisibleLineIndex();
+                        }
+                        double progress = (double)currentLine / totalLines * 100.0;
+                        return Math.Min(Math.Max(progress, 0), 100);
+                    }
+                }
+                else if (_currentArchive != null && _imageEntries.Count > 0)
+                {
+                    double progress = (double)(_currentIndex + 1) / _imageEntries.Count * 100.0;
+                    return Math.Min(Math.Max(progress, 0), 100);
+                }
+                else if (_imageEntries.Count > 0 && _currentIndex >= 0)
+                {
+                    double progress = (double)(_currentIndex + 1) / _imageEntries.Count * 100.0;
+                    return Math.Min(Math.Max(progress, 0), 100);
+                }
+            }
+            catch { }
+            return 0;
+        }
+
         #endregion
 
         #region Recent Items
@@ -862,7 +1011,7 @@ namespace Uviewer
                 {
                     Margin = new Thickness(0, 1, 0, 1),
                     Background = new SolidColorBrush(Microsoft.UI.Colors.Transparent),
-                    MinHeight = 36
+                    MinHeight = recent.Type != "Folder" ? 44 : 36
                 };
                 itemGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
                 itemGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
@@ -880,6 +1029,14 @@ namespace Uviewer
                 else if (recent.SavedPage > 0 || recent.ChapterIndex > 0) 
                     posString = $" ({(recent.ChapterIndex > 0 ? $"Ch.{recent.ChapterIndex + 1} " : "")}Line {recent.SavedPage + 1})";
                 
+                // Create vertical container for name + progress bar
+                var contentPanel = new StackPanel
+                {
+                    Orientation = Orientation.Vertical,
+                    VerticalAlignment = VerticalAlignment.Center,
+                    Margin = new Thickness(12, 4, 8, 4)
+                };
+
                 // Create TextBlock for the recent item name with left alignment and tooltip
                 var nameTextBlock = new TextBlock
                 {
@@ -889,12 +1046,82 @@ namespace Uviewer
                     TextTrimming = TextTrimming.CharacterEllipsis,
                     TextWrapping = TextWrapping.NoWrap,
                     MaxWidth = 340, 
-                    Margin = new Thickness(12, 0, 8, 0),
                     FontSize = 13
                 };
+                contentPanel.Children.Add(nameTextBlock);
+
+                // Add progress bar for non-folder items
+                if (recent.Type != "Folder")
+                {
+                    var progressRow = new Grid { Margin = new Thickness(0, 3, 0, 0) };
+                    progressRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+                    progressRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+                    // Progress bar container (transparent background = clean look)
+                    var progressBarBg = new Border
+                    {
+                        Height = 3,
+                        CornerRadius = new CornerRadius(1.5),
+                        Background = new SolidColorBrush(Microsoft.UI.Colors.Transparent),
+                        HorizontalAlignment = HorizontalAlignment.Stretch
+                    };
+
+                    var progressBarFill = new Border
+                    {
+                        Height = 3,
+                        CornerRadius = new CornerRadius(1.5),
+                        Background = new SolidColorBrush(Microsoft.UI.Colors.CornflowerBlue),
+                        HorizontalAlignment = HorizontalAlignment.Left,
+                        MaxWidth = 280
+                    };
+
+                    // Use a Grid to overlay fill on background
+                    var progressBarGrid = new Grid
+                    {
+                        HorizontalAlignment = HorizontalAlignment.Stretch,
+                        VerticalAlignment = VerticalAlignment.Center,
+                        MaxWidth = 280
+                    };
+                    progressBarGrid.Children.Add(progressBarBg);
+                    progressBarGrid.Children.Add(progressBarFill);
+
+                    // Set width based on progress
+                    double progress = Math.Min(Math.Max(recent.Progress, 0), 100);
+                    progressBarFill.Loaded += (s, e) =>
+                    {
+                        if (progressBarGrid.ActualWidth > 0)
+                            progressBarFill.Width = progressBarGrid.ActualWidth * (progress / 100.0);
+                        else
+                            progressBarFill.Width = 280 * (progress / 100.0);
+                    };
+                    progressBarGrid.SizeChanged += (s, e) =>
+                    {
+                        if (e.NewSize.Width > 0)
+                            progressBarFill.Width = e.NewSize.Width * (progress / 100.0);
+                    };
+
+                    Grid.SetColumn(progressBarGrid, 0);
+                    progressRow.Children.Add(progressBarGrid);
+
+                    // Progress percentage text
+                    var progressText = new TextBlock
+                    {
+                        Text = $"{progress:F0}%",
+                        FontSize = 10,
+                        Foreground = new SolidColorBrush(Microsoft.UI.Colors.Gray),
+                        Margin = new Thickness(6, -2, 0, 0),
+                        VerticalAlignment = VerticalAlignment.Center
+                    };
+                    Grid.SetColumn(progressText, 1);
+                    progressRow.Children.Add(progressText);
+
+                    contentPanel.Children.Add(progressRow);
+                }
                 
                 string tooltipText = recent.Path + (string.IsNullOrEmpty(posString) ? "" : $"\n{posString.Trim(' ', '(', ')')}");
-                ToolTipService.SetToolTip(nameTextBlock, tooltipText);
+                if (recent.Type != "Folder")
+                    tooltipText += $"\n진행: {recent.Progress:F1}%";
+                ToolTipService.SetToolTip(contentPanel, tooltipText);
 
                 // Create a transparent button overlay for clicking
                 var nameButton = new Button
@@ -916,7 +1143,7 @@ namespace Uviewer
 
                 // Add both to a container grid in the first column
                 var nameContainer = new Grid();
-                nameContainer.Children.Add(nameTextBlock);
+                nameContainer.Children.Add(contentPanel);
                 nameContainer.Children.Add(nameButton);
 
                 Grid.SetColumn(nameContainer, 0);
@@ -1110,7 +1337,8 @@ namespace Uviewer
                     SavedPage = targetPage,
                     ChapterIndex = targetChapter,
                     SavedLine = targetLine,
-                    IsVertical = _isVerticalMode
+                    IsVertical = _isVerticalMode,
+                    Progress = saveCurrentPosition ? GetCurrentProgress() : (existing?.Progress ?? 0)
                 };
 
                 _recentItems.Insert(0, newItem);

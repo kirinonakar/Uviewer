@@ -23,6 +23,7 @@ namespace Uviewer
     {
         private List<TextLine> _textLines = new();
         private string _currentTextContent = ""; // Stores raw text for mode switching
+        private string _userSelectedEncodingName = "Auto"; // User selected encoding
         private double _textFontSize = 18;
         private string _textFontFamily = "Yu Gothic Medium";
         private int _themeIndex = 0; // 0: White, 1: Beige, 2: Dark, 3: Custom
@@ -59,6 +60,57 @@ namespace Uviewer
         private string? _currentTextFilePath = null;
         private string? _currentTextArchiveEntryKey = null; // Track entry key if viewing from archive
         private int _lastRecentSaveLine = -1;
+
+
+        // New Helper: Select encoding based on user choice or auto-detect
+        private Encoding GetTextEncoding(byte[] bytes)
+        {
+            switch (_userSelectedEncodingName)
+            {
+                case "UTF-8": return Encoding.UTF8;
+                case "EUC-KR": return Encoding.GetEncoding(949);
+                case "Shift-JIS": return Encoding.GetEncoding(932);
+                case "Johab": return Encoding.GetEncoding(1361);
+                case "Auto":
+                default:
+                    return DetectEncoding(bytes);
+            }
+        }
+
+        private async void EncodingItem_Click(object sender, RoutedEventArgs e)
+        {
+            if (sender is ToggleMenuFlyoutItem item && item.Tag is string tag)
+            {
+                _userSelectedEncodingName = tag;
+
+                // Update UI Check States
+                if (EncAutoItem != null) EncAutoItem.IsChecked = (tag == "Auto Detect");
+                if (EncUtf8Item != null) EncUtf8Item.IsChecked = (tag == "UTF-8");
+                if (EncEucKrItem != null) EncEucKrItem.IsChecked = (tag == "EUC-KR");
+                if (EncSjisItem != null) EncSjisItem.IsChecked = (tag == "Shift-JIS");
+                if (EncJohabItem != null) EncJohabItem.IsChecked = (tag == "Johab");
+
+                // Reload current text
+                if (!string.IsNullOrEmpty(_currentTextFilePath))
+                {
+                    try
+                    {
+                        var file = await StorageFile.GetFileFromPathAsync(_currentTextFilePath);
+                        await LoadTextFileAsync(file);
+                    }
+                    catch { }
+                }
+                else if (_currentTextArchiveEntryKey != null && _currentArchive != null)
+                {
+                    try
+                    {
+                        var entry = new ImageEntry { ArchiveEntryKey = _currentTextArchiveEntryKey, DisplayName = FileNameText.Text };
+                        await LoadTextFromArchiveEntryAsync(entry);
+                    }
+                    catch { }
+                }
+            }
+        }
 
         private void InitializeText()
         {
@@ -155,7 +207,7 @@ namespace Uviewer
                                using var entryStream = archEntry.OpenEntryStream();
                                entryStream.CopyTo(ms);
                                var bytes = ms.ToArray();
-                               content = DetectEncoding(bytes).GetString(bytes);
+                               content = GetTextEncoding(bytes).GetString(bytes);
                           }
                       }
                  }
@@ -460,7 +512,7 @@ namespace Uviewer
             dataReader.ReadBytes(bytes);
 
             // Detect Encoding
-            Encoding encoding = DetectEncoding(bytes);
+            Encoding encoding = GetTextEncoding(bytes);
             return encoding.GetString(bytes);
         }
 
