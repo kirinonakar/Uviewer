@@ -592,6 +592,12 @@ namespace Uviewer
             if (AddToFavoritesButton != null) AddToFavoritesButton.Content = Strings.AddToFavorites;
             if (SidebarAddToFavoritesButton != null) SidebarAddToFavoritesButton.Content = Strings.AddToFavorites;
             if (ChangeFontMenuItem != null) ChangeFontMenuItem.Text = Strings.ChangeFont;
+            if (EncodingMenuItem != null) EncodingMenuItem.Text = Strings.EncodingMenu;
+            if (EncAutoItem != null) EncAutoItem.Text = Strings.EncAuto;
+            if (EncUtf8Item != null) EncUtf8Item.Text = Strings.EncUtf8;
+            if (EncEucKrItem != null) EncEucKrItem.Text = Strings.EncEucKr;
+            if (EncSjisItem != null) EncSjisItem.Text = Strings.EncSjis;
+            if (EncJohabItem != null) EncJohabItem.Text = Strings.EncJohab;
             if (MatchControlDirectionMenuItem != null)
             {
                 MatchControlDirectionMenuItem.Text = Strings.MatchControlDirection;

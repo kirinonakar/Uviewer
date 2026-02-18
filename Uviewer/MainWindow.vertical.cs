@@ -158,7 +158,7 @@ namespace Uviewer
             if (string.IsNullOrEmpty(_currentTextContent) && !_isEpubMode) return;
 
             // 로딩 상태 표시 (Status Bar)
-            FileNameText.Text = Strings.Paginating;
+            ImageInfoText.Text = Strings.Paginating;
 
             _verticalPaginationCts?.Cancel();
             _verticalPaginationCts = new System.Threading.CancellationTokenSource();

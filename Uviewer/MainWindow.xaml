@@ -62,7 +62,7 @@
                                     <FontIcon Glyph="&#xE8D2;"/>
                                 </MenuFlyoutItem.Icon>
                             </MenuFlyoutItem>
-                            <MenuFlyoutSubItem Text="인코딩 (Encoding)">
+                            <MenuFlyoutSubItem x:Name="EncodingMenuItem" Text="인코딩 (Encoding)">
                                 <MenuFlyoutSubItem.Icon>
                                     <FontIcon Glyph="&#xE8AB;"/>
                                 </MenuFlyoutSubItem.Icon>

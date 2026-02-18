@@ -43,7 +43,7 @@ namespace Uviewer
         public static string NextFileTooltip => S("다음 파일", "Next File", "次のファイル");
         public static string PrevPageTooltip => S("이전 이미지/페이지", "Previous Image/Page", "前の画像/ページ");
         public static string NextPageTooltip => S("다음 이미지/페이지", "Next Image/Page", "次の画像/ページ");
-        public static string AozoraTooltip => S("푸른하늘문고/md(A)", "Aozora/md(A)", "青空文庫/md (A)");
+        public static string AozoraTooltip => S("아오조라문고/md(A)", "Aozora/md(A)", "青空文庫/md (A)");
         public static string FontTooltip => S("폰트 변경(F)", "Change Font (F)", "フォント変更 (F)");
         public static string GoToPageTooltip => S("줄 이동(G)", "Go to Line (G)", "行移動 (G)");
         public static string TextSizeDownTooltip => S("글자 작게(-)", "Text Smaller (-)", "文字を小さく (-)");
@@ -112,6 +112,14 @@ namespace Uviewer
         public static string DialogTitle => S("줄 이동", "Go to Line", "行移動");
         public static string DialogPrimary => S("이동", "Go", "移動");
         public static string DialogClose => S("취소", "Cancel", "キャンセル");
+
+        // Encoding
+        public static string EncodingMenu => S("인코딩 (Encoding)", "Encoding", "エンコーディング");
+        public static string EncAuto => S("자동 (Detect)", "Auto (Detect)", "自動 (Detect)");
+        public static string EncUtf8 => S("UTF-8", "UTF-8", "UTF-8");
+        public static string EncEucKr => S("한국어 (EUC-KR)", "Korean (EUC-KR)", "韓国語 (EUC-KR)");
+        public static string EncSjis => S("일본어 (Shift-JIS)", "Japanese (Shift-JIS)", "日本語 (Shift-JIS)");
+        public static string EncJohab => S("한국어 (Johab)", "Korean (Johab)", "韓国語 (Johab)");
 
         // WebDAV
         public static string WebDavTooltip => S("webdav 연결", "WebDAV Connect", "WebDAV接続");
