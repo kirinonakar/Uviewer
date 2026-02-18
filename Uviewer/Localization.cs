@@ -66,9 +66,17 @@ namespace Uviewer
         public static string SettingsTooltip => S("설정", "Settings", "設定");
         public static string LightModeTooltip => S("라이트 모드", "Light Mode", "ライトモード");
         public static string DarkModeTooltip => S("다크 모드", "Dark Mode", "ダークモード");
-        public static string ChangeFont => S("폰트 변경", "Change Font", "フォント変更");
+        public static string ChangeFont => S("폰트 변경", "Change Font", "フォント 변경");
         public static string FontSelectionTitle => S("폰트 선택", "Font Selection", "フォント選択");
         public static string FontSearchPlaceholder => S("폰트 검색...", "Search Fonts...", "フォント検索...");
+
+        public static string ChangeColors => S("배경색/글자색", "Background/Text Colors", "背景色/文字色");
+        public static string BackgroundColor => S("배경색", "Background Color", "背景色");
+        public static string TextColor => S("글자색", "Text Color", "文字色");
+        public static string Hue => S("색상", "Hue", "色相");
+        public static string Saturation => S("채도", "Saturation", "彩도");
+        public static string Lightness => S("명도", "Lightness", "明度");
+        public static string Preview => S("미리보기", "Preview", "プレビュー");
 
         public static string MatchControlDirection => S("컨트롤 방향 일치", "Match Control Direction", "コントロール方向を一致させる");
         public static string MatchControlDirectionTooltip => S("페이지 진행 방향에 따라 컨트롤 방향을 변경", "Change control direction based on page progression direction", "ページの進行方向に合わせてコントロール方向を変更する");

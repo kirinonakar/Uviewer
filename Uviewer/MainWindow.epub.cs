@@ -13,6 +13,7 @@ using System.IO.Compression;
 using System.Linq;
 using System.Text;
 using System.Text.RegularExpressions;
+using Windows.UI;
 using System.Threading;
 using System.Threading.Tasks;
 using Windows.Storage;
@@ -1672,6 +1673,7 @@ namespace Uviewer
         private Brush GetEpubThemeForeground()
         {
             if (_themeIndex == 2) return new SolidColorBrush(Microsoft.UI.ColorHelper.FromArgb(255, 204, 204, 204)); // Dark theme
+            if (_themeIndex == 3 && _customForegroundColor.HasValue) return new SolidColorBrush(_customForegroundColor.Value);
             return new SolidColorBrush(Colors.Black);
         }
         
@@ -1679,6 +1681,7 @@ namespace Uviewer
         {
              if (_themeIndex == 0) return new SolidColorBrush(Colors.White);
              if (_themeIndex == 1) return new SolidColorBrush(Microsoft.UI.ColorHelper.FromArgb(255, 255, 249, 235)); // Beige
+             if (_themeIndex == 3 && _customBackgroundColor.HasValue) return new SolidColorBrush(_customBackgroundColor.Value);
              return new SolidColorBrush(Microsoft.UI.ColorHelper.FromArgb(255, 30, 30, 30)); // Dark
         }
 

@@ -626,6 +626,7 @@ namespace Uviewer
         private Color GetVerticalTextColor()
         {
             if (_themeIndex == 2) return Microsoft.UI.ColorHelper.FromArgb(255, 204, 204, 204); // Dark theme matching GetThemeForeground
+            if (_themeIndex == 3 && _customForegroundColor.HasValue) return _customForegroundColor.Value;
             return Colors.Black; // Light and Beige themes
         }
 
@@ -633,6 +634,7 @@ namespace Uviewer
         {
             if (_themeIndex == 0) return Colors.White;
             if (_themeIndex == 1) return Microsoft.UI.ColorHelper.FromArgb(255, 255, 249, 235); // Beige
+            if (_themeIndex == 3 && _customBackgroundColor.HasValue) return _customBackgroundColor.Value;
             return Microsoft.UI.ColorHelper.FromArgb(255, 30, 30, 30); // Dark
         }
 

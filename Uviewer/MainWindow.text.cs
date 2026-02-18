@@ -1,5 +1,6 @@
 using Microsoft.Graphics.Canvas.Text;
 using Microsoft.UI;
+using Microsoft.UI.Text;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Documents;
@@ -13,6 +14,7 @@ using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using Windows.Foundation;
+using Windows.UI;
 using Windows.Storage;
 
 namespace Uviewer
@@ -23,7 +25,9 @@ namespace Uviewer
         private string _currentTextContent = ""; // Stores raw text for mode switching
         private double _textFontSize = 18;
         private string _textFontFamily = "Yu Gothic Medium";
-        private int _themeIndex = 0; // 0: White, 1: Beige, 2: Dark
+        private int _themeIndex = 0; // 0: White, 1: Beige, 2: Dark, 3: Custom
+        private Color? _customBackgroundColor = null;
+        private Color? _customForegroundColor = null;
         private bool _isTextMode = false;
         private int _textTotalLineCountInSource = 0; // Total lines in source file for simple text mode
 #pragma warning disable CS0414 // Field is assigned but never used - reserved for future loading state UI
@@ -377,6 +381,8 @@ namespace Uviewer
                         _textFontFamily = settings.FontFamily;
                         _themeIndex = settings.ThemeIndex;
                         _isVerticalMode = settings.IsVerticalMode;
+                        if (settings.CustomBackgroundColor != null) _customBackgroundColor = ParseHexColor(settings.CustomBackgroundColor);
+                        if (settings.CustomForegroundColor != null) _customForegroundColor = ParseHexColor(settings.CustomForegroundColor);
                         if (VerticalToggleButton != null) VerticalToggleButton.IsChecked = _isVerticalMode;
                     }
                 }
@@ -408,7 +414,9 @@ namespace Uviewer
                     FontSize = _textFontSize,
                     FontFamily = _textFontFamily,
                     ThemeIndex = _themeIndex,
-                    IsVerticalMode = _isVerticalMode
+                    IsVerticalMode = _isVerticalMode,
+                    CustomBackgroundColor = _customBackgroundColor?.ToString(),
+                    CustomForegroundColor = _customForegroundColor?.ToString()
                 };
                 
                 var settingsFile = GetTextSettingsFilePath();
@@ -1185,6 +1193,7 @@ namespace Uviewer
         private Brush GetThemeForeground()
         {
             if (_themeIndex == 2) return new SolidColorBrush(Microsoft.UI.ColorHelper.FromArgb(255, 204, 204, 204)); // Dark theme
+            if (_themeIndex == 3 && _customForegroundColor.HasValue) return new SolidColorBrush(_customForegroundColor.Value);
             return new SolidColorBrush(Colors.Black);
         }
         
@@ -1192,7 +1201,33 @@ namespace Uviewer
         {
              if (_themeIndex == 0) return new SolidColorBrush(Colors.White);
              if (_themeIndex == 1) return new SolidColorBrush(Microsoft.UI.ColorHelper.FromArgb(255, 255, 249, 235)); // Beige
+             if (_themeIndex == 3 && _customBackgroundColor.HasValue) return new SolidColorBrush(_customBackgroundColor.Value);
              return new SolidColorBrush(Microsoft.UI.ColorHelper.FromArgb(255, 30, 30, 30)); // Dark
+        }
+
+        private Color ParseHexColor(string hex)
+        {
+            try
+            {
+                if (hex.StartsWith("#")) hex = hex.Substring(1);
+                if (hex.Length == 8) // ARGB
+                {
+                    byte a = Convert.ToByte(hex.Substring(0, 2), 16);
+                    byte r = Convert.ToByte(hex.Substring(2, 2), 16);
+                    byte g = Convert.ToByte(hex.Substring(4, 2), 16);
+                    byte b = Convert.ToByte(hex.Substring(6, 2), 16);
+                    return Color.FromArgb(a, r, g, b);
+                }
+                else if (hex.Length == 6) // RGB
+                {
+                    byte r = Convert.ToByte(hex.Substring(0, 2), 16);
+                    byte g = Convert.ToByte(hex.Substring(2, 2), 16);
+                    byte b = Convert.ToByte(hex.Substring(4, 2), 16);
+                    return Color.FromArgb(255, r, g, b);
+                }
+            }
+            catch { }
+            return Colors.White;
         }
 
         private async Task RefreshTextDisplay(bool resetScroll = false)
@@ -1318,6 +1353,144 @@ namespace Uviewer
         // --- Toolbar Handlers ---
 
         // --- Toolbar Handlers ---
+
+        private void ColorsMenu_Click(object sender, RoutedEventArgs e)
+        {
+            _ = ShowColorPickerDialog();
+        }
+
+        private async Task ShowColorPickerDialog()
+        {
+            var bgHsl = ToHsl(_customBackgroundColor ?? ((SolidColorBrush)GetThemeBackground()).Color);
+            var fgHsl = ToHsl(_customForegroundColor ?? ((SolidColorBrush)GetThemeForeground()).Color);
+
+            var previewBorder = new Border
+            {
+                Height = 60,
+                Margin = new Thickness(0, 0, 0, 10),
+                BorderBrush = new SolidColorBrush(Colors.Gray),
+                BorderThickness = new Thickness(1),
+                Background = new SolidColorBrush(FromHsl(bgHsl.h, bgHsl.s, bgHsl.l)),
+                Child = new TextBlock
+                {
+                    Text = Strings.Preview + " - Abc 가나다 123",
+                    HorizontalAlignment = HorizontalAlignment.Center,
+                    VerticalAlignment = VerticalAlignment.Center,
+                    FontSize = 18,
+                    Foreground = new SolidColorBrush(FromHsl(fgHsl.h, fgHsl.s, fgHsl.l))
+                }
+            };
+
+            var previewText = (TextBlock)previewBorder.Child;
+
+            Slider CreateSlider(string label, double min, double max, double val, Action<double> onChange)
+            {
+                var slider = new Slider { Minimum = min, Maximum = max, Value = val, Margin = new Thickness(0, 0, 0, 8) };
+                slider.ValueChanged += (s, e) => onChange(e.NewValue);
+                return slider;
+            }
+
+            var stackPanel = new StackPanel { Width = 300 };
+            stackPanel.Children.Add(previewBorder);
+
+            stackPanel.Children.Add(new TextBlock { Text = Strings.BackgroundColor, FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 8, 0, 4) });
+            stackPanel.Children.Add(new TextBlock { Text = Strings.Hue, FontSize = 12 });
+            var bgHSlider = CreateSlider(Strings.Hue, 0, 360, bgHsl.h, v => { bgHsl.h = v; previewBorder.Background = new SolidColorBrush(FromHsl(bgHsl.h, bgHsl.s, bgHsl.l)); });
+            stackPanel.Children.Add(bgHSlider);
+            stackPanel.Children.Add(new TextBlock { Text = Strings.Saturation, FontSize = 12 });
+            var bgSSlider = CreateSlider(Strings.Saturation, 0, 100, bgHsl.s, v => { bgHsl.s = v; previewBorder.Background = new SolidColorBrush(FromHsl(bgHsl.h, bgHsl.s, bgHsl.l)); });
+            stackPanel.Children.Add(bgSSlider);
+            stackPanel.Children.Add(new TextBlock { Text = Strings.Lightness, FontSize = 12 });
+            var bgLSlider = CreateSlider(Strings.Lightness, 0, 100, bgHsl.l, v => { bgHsl.l = v; previewBorder.Background = new SolidColorBrush(FromHsl(bgHsl.h, bgHsl.s, bgHsl.l)); });
+            stackPanel.Children.Add(bgLSlider);
+
+            stackPanel.Children.Add(new TextBlock { Text = Strings.TextColor, FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 12, 0, 4) });
+            stackPanel.Children.Add(new TextBlock { Text = Strings.Hue, FontSize = 12 });
+            var fgHSlider = CreateSlider(Strings.Hue, 0, 360, fgHsl.h, v => { fgHsl.h = v; previewText.Foreground = new SolidColorBrush(FromHsl(fgHsl.h, fgHsl.s, fgHsl.l)); });
+            stackPanel.Children.Add(fgHSlider);
+            stackPanel.Children.Add(new TextBlock { Text = Strings.Saturation, FontSize = 12 });
+            var fgSSlider = CreateSlider(Strings.Saturation, 0, 100, fgHsl.s, v => { fgHsl.s = v; previewText.Foreground = new SolidColorBrush(FromHsl(fgHsl.h, fgHsl.s, fgHsl.l)); });
+            stackPanel.Children.Add(fgSSlider);
+            stackPanel.Children.Add(new TextBlock { Text = Strings.Lightness, FontSize = 12 });
+            var fgLSlider = CreateSlider(Strings.Lightness, 0, 100, fgHsl.l, v => { fgHsl.l = v; previewText.Foreground = new SolidColorBrush(FromHsl(fgHsl.h, fgHsl.s, fgHsl.l)); });
+            stackPanel.Children.Add(fgLSlider);
+
+            var dialog = new ContentDialog
+            {
+                Title = Strings.ChangeColors,
+                Content = stackPanel,
+                PrimaryButtonText = Strings.DialogPrimary,
+                CloseButtonText = Strings.DialogClose,
+                XamlRoot = this.Content.XamlRoot,
+                DefaultButton = ContentDialogButton.Primary,
+                RequestedTheme = RootGrid.ActualTheme
+            };
+
+            if (await dialog.ShowAsync() == ContentDialogResult.Primary)
+            {
+                _customBackgroundColor = FromHsl(bgHsl.h, bgHsl.s, bgHsl.l);
+                _customForegroundColor = FromHsl(fgHsl.h, fgHsl.s, fgHsl.l);
+                _themeIndex = 3; // Custom
+                SaveTextSettings();
+                await RefreshTextDisplay();
+            }
+        }
+
+        private (double h, double s, double l) ToHsl(Color color)
+        {
+            double r = color.R / 255.0;
+            double g = color.G / 255.0;
+            double b = color.B / 255.0;
+            double max = Math.Max(r, Math.Max(g, b));
+            double min = Math.Min(r, Math.Min(g, b));
+            double h, s, l = (max + min) / 2.0;
+
+            if (max == min)
+            {
+                h = s = 0; // achromatic
+            }
+            else
+            {
+                double d = max - min;
+                s = l > 0.5 ? d / (2.0 - max - min) : d / (max + min);
+                if (max == r) h = (g - b) / d + (g < b ? 6 : 0);
+                else if (max == g) h = (b - r) / d + 2;
+                else h = (r - g) / d + 4;
+                h /= 6.0;
+            }
+            return (h * 360, s * 100, l * 100);
+        }
+
+        private Color FromHsl(double h, double s, double l)
+        {
+            h /= 360.0;
+            s /= 100.0;
+            l /= 100.0;
+            double r, g, b;
+            if (s == 0)
+            {
+                r = g = b = l; // achromatic
+            }
+            else
+            {
+                double q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+                double p = 2 * l - q;
+                r = HueToRgb(p, q, h + 1.0 / 3.0);
+                g = HueToRgb(p, q, h);
+                b = HueToRgb(p, q, h - 1.0 / 3.0);
+            }
+            return Color.FromArgb(255, (byte)Math.Clamp(r * 255, 0, 255), (byte)Math.Clamp(g * 255, 0, 255), (byte)Math.Clamp(b * 255, 0, 255));
+        }
+
+        private double HueToRgb(double p, double q, double t)
+        {
+            if (t < 0) t += 1;
+            if (t > 1) t -= 1;
+            if (t < 1.0 / 6.0) return p + (q - p) * 6.0 * t;
+            if (t < 1.0 / 2.0) return q;
+            if (t < 2.0 / 3.0) return p + (q - p) * (2.0 / 3.0 - t) * 6.0;
+            return p;
+        }
 
         private void FontToggleButton_Click(object sender, RoutedEventArgs e)
         {

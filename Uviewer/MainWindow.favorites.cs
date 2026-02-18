@@ -64,6 +64,8 @@ namespace Uviewer
              public string FontFamily { get; set; } = "Yu Gothic Medium";
              public int ThemeIndex { get; set; } = 0;
              public bool IsVerticalMode { get; set; } = false;
+             public string? CustomBackgroundColor { get; set; }
+             public string? CustomForegroundColor { get; set; }
         }
 
         private const string TextSettingsFilePath = "text_settings.json";
