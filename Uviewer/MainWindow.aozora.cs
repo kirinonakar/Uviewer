@@ -411,6 +411,19 @@ namespace Uviewer
                 else
                 {
                     _isMarkdownRenderMode = false;
+
+                    // [Bold Preprocessing] Handle "last start wins" logic globally across lines
+                    string boldStartTag = @"［＃(?:ここから太字)］";
+                    string boldEndTag = @"［＃(?:ここで太字終わり)］";
+                    rawContent = Regex.Replace(rawContent, $"{boldStartTag}(.*?){boldEndTag}", (m) => {
+                        string inner = m.Groups[1].Value;
+                        var startRegex = new Regex(boldStartTag);
+                        var parts = startRegex.Split(inner);
+                        if (parts.Length <= 1) return $"@@BOLD_START@@{inner}@@BOLD_END@@";
+                        string prefix = string.Join("", parts.Take(parts.Length - 1));
+                        string boldContent = parts.Last();
+                        return $"{prefix}@@BOLD_START@@{boldContent}@@BOLD_END@@";
+                    }, RegexOptions.Singleline);
                     
                     // Optimized Loading for Large Files
                     // User Request: "File first open, then TOC background calculate"
@@ -976,12 +989,11 @@ namespace Uviewer
             UpdateAozoraStatusBar();
         }
 
-        private List<AozoraBindingModel> ParseAozoraContent(string text)
+        private string PreprocessAozoraBold(string text)
         {
-            // [Bold Preprocessing] Handle "last start wins" logic globally across lines
-            string boldStartTag = @"［＃(?:여기서 태그 시작|ここから太字)］";
-            string boldEndTag = @"［＃(?:여기서 태그 끝|ここで太字終わり|太字終わり)］";
-            text = Regex.Replace(text, $"{boldStartTag}(.*?){boldEndTag}", (m) => {
+            string boldStartTag = @"［＃(?:ここから太字)］";
+            string boldEndTag = @"［＃(?:여기서 태그 끝)］";
+            return Regex.Replace(text, $"{boldStartTag}(.*?){boldEndTag}", (m) => {
                 string inner = m.Groups[1].Value;
                 var startRegex = new Regex(boldStartTag);
                 var parts = startRegex.Split(inner);
@@ -990,9 +1002,13 @@ namespace Uviewer
                 string boldContent = parts.Last();
                 return $"{prefix}@@BOLD_START@@{boldContent}@@BOLD_END@@";
             }, RegexOptions.Singleline);
+        }
 
+        private List<AozoraBindingModel> ParseAozoraContent(string text)
+        {
+            text = PreprocessAozoraBold(text);
             var lines = text.Replace("\r\n", "\n").Replace("\r", "\n").Split('\n');
-            _textTotalLineCountInSource = lines.Length;
+            _aozoraTotalLineCountInSource = lines.Length;
             return ParseAozoraLines(lines, 1);
         }
 
@@ -1022,7 +1038,6 @@ namespace Uviewer
                          Inlines = { "" }, 
                          Margin = new Thickness(0, 0, 0, _textFontSize),
                          SourceLineNumber = startLineOffset + i,
-                         IsBold = currentBold,
                          BlockIndent = currentIndentEm * _textFontSize
                      });
                      lastWasEmpty = true;
@@ -1039,17 +1054,8 @@ namespace Uviewer
                     content = Regex.Replace(content, @"［＃(?:改ページ|改페이지|改頁)］", "");
                 }
 
-                // 2. Multi-line Bold (using preprocessed markers)
-                if (content.Contains("@@BOLD_START@@"))
-                {
-                    currentBold = true;
-                    content = content.Replace("@@BOLD_START@@", "");
-                }
-                if (content.Contains("@@BOLD_END@@"))
-                {
-                    currentBold = false;
-                    content = content.Replace("@@BOLD_END@@", "");
-                }
+                // 2. Multi-line Bold (Markers handled by tokenizer)
+
 
                 // 3. Indents
                 var indentMatch = Regex.Match(content, @"［＃ここから(?:(\d+)|([０-９]+))字下げ］");
@@ -1129,7 +1135,6 @@ namespace Uviewer
                 var model = new AozoraBindingModel { 
                     SourceLineNumber = startLineOffset + i,
                     IsPageBreak = isPageBreak,
-                    IsBold = currentBold,
                     BlockIndent = currentIndentEm * _textFontSize
                 };
                 model.Margin = new Thickness(0);
@@ -1193,7 +1198,7 @@ namespace Uviewer
                 // Tokenize
                 string pattern = @"(\{\{RUBY\|.*?\|.*?\}\}|\{\{IMG\|.*?\}\}|\{\{TCY\|.*?\}\}|@@BOLD_START@@|@@BOLD_END@@)";
                 var parts = Regex.Split(content, pattern);
-                bool inlineBold = false;
+                bool inlineBold = currentBold;
                 
                 foreach (var part in parts)
                 {
@@ -1231,6 +1236,7 @@ namespace Uviewer
                     }
                 }
                 
+                currentBold = inlineBold;
                 blocks.Add(model);
             }
 
