@@ -4,8 +4,6 @@ using Microsoft.Graphics.Canvas.UI.Xaml;
 using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml;
 using SharpCompress.Archives;
-using SixLabors.ImageSharp;
-using SixLabors.ImageSharp.PixelFormats;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -13,7 +11,6 @@ using System.Linq;
 using System.Threading.Tasks;
 using Windows.Graphics.DirectX;
 using System.Diagnostics;
-using SixLabors.ImageSharp.Processing;
 
 namespace Uviewer
 {
@@ -24,9 +21,10 @@ namespace Uviewer
         private List<byte[]>? _animatedWebpFramePixels;
         private List<int>? _animatedWebpDelaysMs;
         private int _animatedWebpFrameIndex;
-        private int _animatedWebpWidth;  // <-- 추가: 프레임 너비
-        private int _animatedWebpHeight; // <-- 추가: 프레임 높이
-        private const int DefaultWebpFrameDelayMs = 100;
+        private int _animatedWebpWidth;
+        private int _animatedWebpHeight;
+        private const int DefaultWebpFrameDelayMs = 30;
+        private volatile bool _isDecodingAnimatedImage = false;
 
         // Sharpen (Win2D GPU-based sharpening)
         private bool _sharpenEnabled;
@@ -171,23 +169,27 @@ namespace Uviewer
         }
 
 
+
         private void StopAnimatedWebp()
         {
+            _isDecodingAnimatedImage = false; // 진행 중인 백그라운드 디코딩 중지
+            
             _animatedWebpTimer?.Stop();
             _animatedWebpTimer = null;
-            // _animatedWebpBitmap = null; // <-- 삭제
-            _animatedWebpFramePixels = null;
-            _animatedWebpDelaysMs = null;
-            _animatedWebpWidth = 0;        // <-- 추가
-            _animatedWebpHeight = 0;       // <-- 추가
 
-            // Clear sharpened frame cache
+            _animatedWebpFramePixels?.Clear();
+            _animatedWebpFramePixels = null;
+            _animatedWebpDelaysMs?.Clear();
+            _animatedWebpDelaysMs = null;
+
+            _animatedWebpWidth = 0;
+            _animatedWebpHeight = 0;
+            _animatedWebpFrameIndex = 0;
+
             lock (_animatedWebpSharpenedCache)
             {
                 foreach (var bmp in _animatedWebpSharpenedCache.Values)
                 {
-                    // 현재 사용 중인 비트맵(화면에 출력 중인 것)은 해제하지 않습니다.
-                    // 나중에 _currentBitmap이 교체될 때 IsBitmapInCache 체크를 통해 해제됩니다.
                     if (bmp != _currentBitmap && bmp != _leftBitmap && bmp != _rightBitmap)
                     {
                         bmp.Dispose();
@@ -213,22 +215,38 @@ namespace Uviewer
             if (_animatedWebpFramePixels == null || _animatedWebpDelaysMs == null || _animatedWebpFramePixels.Count == 0)
                 return;
 
-            // 1. 처리 시간 측정을 위한 스톱워치 시작
             var stopwatch = Stopwatch.StartNew();
-
-            sender.Stop(); // 타이머 일시 정지 (다음 딜레이 설정을 위해)
+            sender.Stop();
 
             try
             {
-                // 1. 다음 프레임 인덱스 계산
-                _animatedWebpFrameIndex = (_animatedWebpFrameIndex + 1) % _animatedWebpFramePixels.Count;
+                // 인덱스가 범위를 벗어났다면 0으로 안전하게 초기화
+                if (_animatedWebpFrameIndex >= _animatedWebpFramePixels.Count)
+                {
+                    _animatedWebpFrameIndex = 0;
+                }
 
-                // 2. 현재 캔버스 디바이스 확인 (창이 닫히거나 디바이스가 없으면 중단)
+                // 스트리밍을 위한 인덱스 계산 로직 변경
+                int nextIndex = _animatedWebpFrameIndex + 1;
+                if (nextIndex >= _animatedWebpFramePixels.Count)
+                {
+                    if (_isDecodingAnimatedImage)
+                    {
+                        // 아직 백그라운드에서 다음 프레임을 디코딩 중이면, 인덱스를 넘기지 않고 대기
+                        nextIndex = _animatedWebpFrameIndex; 
+                    }
+                    else
+                    {
+                        // 모든 프레임 로드가 완료되었으면 처음으로 루프
+                        nextIndex = 0;
+                    }
+                }
+                _animatedWebpFrameIndex = nextIndex;
+
                 if (MainCanvas.Device == null) return;
 
                 CanvasBitmap? newBitmap = null;
 
-                // 3. 샤프닝이 활성화된 경우 캐시 확인 및 적용
                 if (_sharpenEnabled)
                 {
                     lock (_animatedWebpSharpenedCache)
@@ -241,7 +259,6 @@ namespace Uviewer
 
                     if (newBitmap == null)
                     {
-                        // 원본 프레임 생성
                         using var originalBitmap = CanvasBitmap.CreateFromBytes(
                             MainCanvas,
                             _animatedWebpFramePixels[_animatedWebpFrameIndex],
@@ -249,10 +266,8 @@ namespace Uviewer
                             _animatedWebpHeight,
                             DirectXPixelFormat.B8G8R8A8UIntNormalized);
 
-                        // 샤프닝 적용
                         newBitmap = await ApplySharpenToBitmapAsync(originalBitmap, MainCanvas, skipUpscale: true);
 
-                        // 다시 UI 스레드로 돌아왔을 때 애니메이션이 중단되었는지 확인
                         if (_animatedWebpFramePixels == null || MainCanvas.Device == null)
                         {
                             newBitmap?.Dispose();
@@ -269,7 +284,6 @@ namespace Uviewer
                     }
                 }
 
-                // 4. 샤프닝이 없거나 실패한 경우 일반 프레임 생성
                 if (newBitmap == null)
                 {
                     newBitmap = CanvasBitmap.CreateFromBytes(
@@ -280,26 +294,22 @@ namespace Uviewer
                         DirectXPixelFormat.B8G8R8A8UIntNormalized);
                 }
 
-                // 5. 기존 비트맵 정리 및 교체 (캐시된 비트맵은 Dispose하지 않도록 주의)
                 var oldBitmap = _currentBitmap;
                 _currentBitmap = newBitmap;
 
                 if (oldBitmap != null && !IsBitmapInCache(oldBitmap))
                 {
-                    // 애니메이션 캐시에도 없는 경우에만 Dispose
                     bool isInAnimationCache = false;
                     lock (_animatedWebpSharpenedCache)
                     {
                         isInAnimationCache = _animatedWebpSharpenedCache.ContainsValue(oldBitmap);
                     }
-
                     if (!isInAnimationCache)
                     {
                         oldBitmap.Dispose();
                     }
                 }
 
-                // 6. 화면 갱신 요청
                 MainCanvas.Invalidate();
             }
             catch (Exception ex)
@@ -308,20 +318,11 @@ namespace Uviewer
             }
             finally
             {
-                // 2. 스톱워치 종료 및 시간 계산
                 stopwatch.Stop();
-                long elapsedMs = stopwatch.ElapsedMilliseconds;
-
-                // 7. 다음 프레임 딜레이 설정 및 타이머 재시작
-                if (_animatedWebpDelaysMs != null)
+                if (_animatedWebpDelaysMs != null && _animatedWebpFrameIndex < _animatedWebpDelaysMs.Count)
                 {
-                    // 원래 기다려야 할 시간
                     int targetDelay = _animatedWebpDelaysMs[_animatedWebpFrameIndex];
-
-                    // 보정된 시간 = (원래 딜레이) - (작업에 걸린 시간)
-                    // 최소 0ms (음수가 되면 즉시 실행해야 함)
-                    int adjustedDelay = Math.Max(0, targetDelay - (int)elapsedMs);
-
+                    int adjustedDelay = Math.Max(1, targetDelay - (int)stopwatch.ElapsedMilliseconds);
                     sender.Interval = TimeSpan.FromMilliseconds(adjustedDelay);
                     sender.Start();
                 }
@@ -329,75 +330,180 @@ namespace Uviewer
         }
 
 
-        private async Task<(List<byte[]>? framePixels, List<int>? delaysMs, int width, int height)> TryLoadAnimatedImageFramesAsync(byte[] imageBytes)
+        private async Task<(List<byte[]>? framePixels, List<int>? delaysMs, int width, int height)> TryLoadAnimatedImageFramesNativeAsync(byte[] imageBytes)
         {
             try
             {
-                using var inputStream = new MemoryStream(imageBytes);
-                
-                // [최적화 1] Bgra32로 로드
-                using var image = await Task.Run(() => SixLabors.ImageSharp.Image.Load<Bgra32>(inputStream));
+                using var stream = new Windows.Storage.Streams.InMemoryRandomAccessStream();
+                await stream.WriteAsync(System.Runtime.InteropServices.WindowsRuntime.WindowsRuntimeBufferExtensions.AsBuffer(imageBytes));
+                stream.Seek(0);
 
-                if (image.Frames.Count <= 1)
-                    return (null, null, 0, 0);
+                var decoder = await Windows.Graphics.Imaging.BitmapDecoder.CreateAsync(stream);
+                if (decoder.FrameCount <= 1) return (null, null, 0, 0);
 
-                int w = image.Width;
-                int h = image.Height;
+                int w = (int)decoder.PixelWidth;
+                int h = (int)decoder.PixelHeight;
+
                 var framePixels = new List<byte[]>();
                 var delaysMs = new List<int>();
 
-                int bytesPerFrame = w * h * 4;
+                // 스레드에 구애받지 않고 디코딩하기 위해 공유 디바이스 사용
+                var device = CanvasDevice.GetSharedDevice();
 
-                // 프레임 구성을 위한 베이스 이미지
-                using var composed = new SixLabors.ImageSharp.Image<Bgra32>(w, h);
+                int initialDisposal = 0;
+                Windows.Foundation.Rect initialRect = Windows.Foundation.Rect.Empty;
 
-                for (int i = 0; i < image.Frames.Count; i++)
+                // 1. 프레임 0(첫 화면)만 동기적으로 즉시 추출하여 대기 시간 최소화
+                using (var renderTarget = new CanvasRenderTarget(device, w, h, 96.0f))
                 {
-                    var currentFrame = image.Frames[i];
-                    
-                    await Task.Run(() =>
+                    using (var ds = renderTarget.CreateDrawingSession())
                     {
-                        using var frameImg = image.Frames.CloneFrame(i);
-                        
-                        // [핵심] 겹침 현상(Ghosting) 해결
-                        // PixelAlphaCompositionMode.Src를 사용하여 투명한 영역도 이전 프레임을 덮어씌우도록 합니다.
-                        // 이 방식은 대부분의 전체 크기 애니메이션 GIF의 잔상 문제를 해결합니다.
-                        composed.Mutate(ctx => ctx.DrawImage(frameImg, PixelColorBlendingMode.Normal, PixelAlphaCompositionMode.Src, 1f));
-                    });
-
-                    var bytes = new byte[bytesPerFrame];
-                    composed.CopyPixelDataTo(bytes);
-                    framePixels.Add(bytes);
-
-                    int delayMs = DefaultWebpFrameDelayMs;
-                    
-                    // GIF 딜레이 정보
-                    var gifFrameMeta = currentFrame.Metadata.GetGifMetadata();
-                    // WebP 딜레이 정보
-                    var webpFrameMeta = currentFrame.Metadata.GetWebpMetadata();
-
-                    if (webpFrameMeta != null && webpFrameMeta.FrameDelay > 0)
-                    {
-                        // WebP delay (ms)
-                        delayMs = (int)Math.Max(10, webpFrameMeta.FrameDelay);
+                        ds.Clear(Windows.UI.Color.FromArgb(0, 0, 0, 0));
                     }
-                    else if (gifFrameMeta != null && gifFrameMeta.FrameDelay > 0)
-                    {
-                        // GIF delay: 1/100s -> ms
-                        delayMs = (int)Math.Max(10, gifFrameMeta.FrameDelay * 10);
-                        if (delayMs <= 20) delayMs = 100; // 브라우저 관례 보정
-                    }
+                    var (delay0, disposal0, rect0) = await DecodeAndDrawSingleFrameAsync(decoder, 0, renderTarget);
+                    delaysMs.Add(delay0);
+                    framePixels.Add(renderTarget.GetPixelBytes());
 
-                    delaysMs.Add(delayMs);
+                    // 0번 프레임의 처분 방식 저장
+                    initialDisposal = disposal0;
+                    initialRect = rect0;
                 }
 
+                // 2. 나머지 프레임들은 백그라운드 스레드에서 비동기로 스트리밍 로드
+                _isDecodingAnimatedImage = true;
+                _ = Task.Run(async () =>
+                {
+                    try
+                    {
+                        using var bgRenderTarget = new CanvasRenderTarget(device, w, h, 96.0f);
+                        using var backupRenderTarget = new CanvasRenderTarget(device, w, h, 96.0f); // Disposal=3 복원용 백업
+
+                        using (var ds = bgRenderTarget.CreateDrawingSession())
+                        {
+                            ds.Clear(Windows.UI.Color.FromArgb(0, 0, 0, 0));
+                            // 1번 프레임을 그리기 전, 0번 프레임의 이미지를 베이스로 깔아둠 (상태 복원)
+                            using var bmp0 = CanvasBitmap.CreateFromBytes(device, framePixels[0], w, h, DirectXPixelFormat.B8G8R8A8UIntNormalized);
+                            ds.DrawImage(bmp0);
+                        }
+
+                        int previousDisposal = initialDisposal;
+                        Windows.Foundation.Rect previousRect = initialRect;
+
+                        for (uint i = 1; i < decoder.FrameCount; i++)
+                        {
+                            if (!_isDecodingAnimatedImage) break; // 사용자가 창을 넘기면 로딩 즉시 중단
+
+                            // [중요] 다음 프레임을 그리기 전, 이전 프레임의 메타데이터 요구에 따라 캔버스를 정리합니다.
+                            if (previousDisposal == 2) // Restore to Background
+                            {
+                                using (var ds = bgRenderTarget.CreateDrawingSession())
+                                {
+                                    // 이전 프레임이 그려졌던 영역만 다시 투명하게 덮어씌웁니다.
+                                    ds.Blend = CanvasBlend.Copy;
+                                    ds.FillRectangle(previousRect, Windows.UI.Color.FromArgb(0, 0, 0, 0));
+                                }
+                            }
+                            else if (previousDisposal == 3) // Restore to Previous
+                            {
+                                using (var ds = bgRenderTarget.CreateDrawingSession())
+                                {
+                                    // 이전 프레임이 그려지기 전의 전체 상태로 되돌립니다.
+                                    ds.Blend = CanvasBlend.Copy;
+                                    ds.DrawImage(backupRenderTarget);
+                                }
+                            }
+
+                            // 현재 상태를 백업 (다음 루프에서 Disposal=3을 만날 경우를 대비)
+                            using (var ds = backupRenderTarget.CreateDrawingSession())
+                            {
+                                ds.Blend = CanvasBlend.Copy;
+                                ds.DrawImage(bgRenderTarget);
+                            }
+
+                            // 현재 프레임 디코딩 및 그리기
+                            var (delay, disposal, rect) = await DecodeAndDrawSingleFrameAsync(decoder, i, bgRenderTarget);
+                            var pixels = bgRenderTarget.GetPixelBytes();
+
+                            // 다음 루프를 위해 현재 프레임의 데이터 업데이트
+                            previousDisposal = disposal;
+                            previousRect = rect;
+
+                            // 디코딩 완료된 프레임을 UI 스레드의 List에 실시간 병합
+                            this.DispatcherQueue.TryEnqueue(() =>
+                            {
+                                if (_isDecodingAnimatedImage)
+                                {
+                                    delaysMs.Add(delay);
+                                    framePixels.Add(pixels);
+                                }
+                            });
+                        }
+                    }
+                    catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"Bg Decode Error: {ex.Message}"); }
+                    finally { _isDecodingAnimatedImage = false; }
+                });
+
+                // 프레임 1개만 로드된 상태로 즉시 반환하여 애니메이션 바로 시작
                 return (framePixels, delaysMs, w, h);
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"Animated Image Parse Error: {ex.Message}");
+                System.Diagnostics.Debug.WriteLine($"Native Decode Error: {ex.Message}");
                 return (null, null, 0, 0);
             }
+        }
+
+        // 헬퍼 메서드: 단일 프레임을 디코딩하고 Delay, Disposal, Frame 영역을 반환합니다.
+        private async Task<(int delayMs, int disposal, Windows.Foundation.Rect frameRect)> DecodeAndDrawSingleFrameAsync(
+            Windows.Graphics.Imaging.BitmapDecoder decoder, 
+            uint frameIndex, 
+            CanvasRenderTarget renderTarget)
+        {
+            var frame = await decoder.GetFrameAsync(frameIndex);
+            int delayMs = DefaultWebpFrameDelayMs;
+            int disposal = 0; // 0: Unspecified, 1: Do not dispose, 2: Restore to background, 3: Restore to previous
+            double offsetX = 0, offsetY = 0;
+
+            try
+            {
+                // Disposal 속성(처분 방법)을 추가로 읽어옵니다.
+                var props = await frame.BitmapProperties.GetPropertiesAsync(new[] { 
+                    "/grctlext/Delay", 
+                    "/imgdesc/Left", 
+                    "/imgdesc/Top",
+                    "/grctlext/Disposal" 
+                });
+
+                if (props.TryGetValue("/grctlext/Delay", out var dProp) && dProp.Value != null)
+                {
+                    int delay10ms = Convert.ToInt32(dProp.Value);
+                    if (delay10ms > 1) delayMs = delay10ms * 10;
+                }
+                if (props.TryGetValue("/imgdesc/Left", out var lProp) && lProp.Value != null)
+                    offsetX = Convert.ToDouble(lProp.Value);
+                if (props.TryGetValue("/imgdesc/Top", out var tProp) && tProp.Value != null)
+                    offsetY = Convert.ToDouble(tProp.Value);
+                if (props.TryGetValue("/grctlext/Disposal", out var dispProp) && dispProp.Value != null)
+                    disposal = Convert.ToInt32(dispProp.Value);
+            }
+            catch { }
+
+            using var softwareBitmap = await frame.GetSoftwareBitmapAsync(
+                Windows.Graphics.Imaging.BitmapPixelFormat.Bgra8,
+                Windows.Graphics.Imaging.BitmapAlphaMode.Premultiplied);
+                
+            using var canvasBmp = CanvasBitmap.CreateFromSoftwareBitmap(renderTarget.Device, softwareBitmap);
+
+            // 그려지는 프레임의 실제 영역
+            var frameRect = new Windows.Foundation.Rect(offsetX, offsetY, canvasBmp.SizeInPixels.Width, canvasBmp.SizeInPixels.Height);
+
+            using (var ds = renderTarget.CreateDrawingSession())
+            {
+                // 델타 프레임을 위해 Blend.Copy 없이 일반 덧그리기(SourceOver) 사용
+                ds.DrawImage(canvasBmp, frameRect, canvasBmp.Bounds);
+            }
+
+            return (delayMs, disposal, frameRect);
         }
 
     }

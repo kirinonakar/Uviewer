@@ -1125,13 +1125,19 @@ namespace Uviewer
 
                             if (imageBytes == null || token.IsCancellationRequested) return;
 
-                            // 애니메이션 프레임 로드 (내부에서 애니메이션 여부 자동 확인)
-                            var (framePixels, delays, width, height) = await TryLoadAnimatedImageFramesAsync(imageBytes);
+                            // 애니메이션 프레임 초기화 (Win2D GPU 합성 및 바이트 캐싱 방식)
+                            var (framePixels, delaysMs, w, h) = await TryLoadAnimatedImageFramesNativeAsync(imageBytes);
+                            bool success = framePixels != null;
 
                             if (token.IsCancellationRequested) return;
 
-                            if (framePixels != null && framePixels.Count > 1 && width > 0 && height > 0)
+                            if (success)
                             {
+                                _animatedWebpFramePixels = framePixels;
+                                _animatedWebpDelaysMs = delaysMs;
+                                _animatedWebpWidth = w;
+                                _animatedWebpHeight = h;
+
                                 DispatcherQueue.TryEnqueue(() =>
                                 {
                                     if (token.IsCancellationRequested) return;
@@ -1145,15 +1151,14 @@ namespace Uviewer
 
                                     if (isStillCurrent)
                                     {
-                                        _animatedWebpFramePixels = framePixels;
-                                        _animatedWebpDelaysMs = delays ?? Enumerable.Repeat(DefaultWebpFrameDelayMs, framePixels.Count).ToList();
-                                        _animatedWebpFrameIndex = 0;
-                                        _animatedWebpWidth = width;
-                                        _animatedWebpHeight = height;
-                                        
                                         // 로딩 완료 후 상태바 복구
                                         UpdateStatusBar(entry, _currentBitmap!);
                                         StartAnimatedWebpTimer();
+                                    }
+                                    else
+                                    {
+                                        // 이미 다른 이미지로 넘어갔다면 리소스 해제
+                                        StopAnimatedWebp();
                                     }
                                 });
                             }
