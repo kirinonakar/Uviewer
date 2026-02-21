@@ -347,13 +347,12 @@ namespace Uviewer
                 var framePixels = new List<byte[]>();
                 var delaysMs = new List<int>();
 
-                // 스레드에 구애받지 않고 디코딩하기 위해 공유 디바이스 사용
                 var device = CanvasDevice.GetSharedDevice();
 
                 int initialDisposal = 0;
                 Windows.Foundation.Rect initialRect = Windows.Foundation.Rect.Empty;
 
-                // 1. 프레임 0(첫 화면)만 동기적으로 즉시 추출하여 대기 시간 최소화
+                // 1. 프레임 0(첫 화면)
                 using (var renderTarget = new CanvasRenderTarget(device, w, h, 96.0f))
                 {
                     using (var ds = renderTarget.CreateDrawingSession())
@@ -364,24 +363,29 @@ namespace Uviewer
                     delaysMs.Add(delay0);
                     framePixels.Add(renderTarget.GetPixelBytes());
 
-                    // 0번 프레임의 처분 방식 저장
                     initialDisposal = disposal0;
                     initialRect = rect0;
                 }
 
-                // 2. 나머지 프레임들은 백그라운드 스레드에서 비동기로 스트리밍 로드
+                // 2. 나머지 프레임 백그라운드 디코딩
                 _isDecodingAnimatedImage = true;
                 _ = Task.Run(async () =>
                 {
                     try
                     {
                         using var bgRenderTarget = new CanvasRenderTarget(device, w, h, 96.0f);
-                        using var backupRenderTarget = new CanvasRenderTarget(device, w, h, 96.0f); // Disposal=3 복원용 백업
+                        using var backupRenderTarget = new CanvasRenderTarget(device, w, h, 96.0f);
 
+                        // 빈 캔버스로 초기화 (Disposal 3 복원 대비용)
+                        using (var ds = backupRenderTarget.CreateDrawingSession())
+                        {
+                            ds.Clear(Windows.UI.Color.FromArgb(0, 0, 0, 0));
+                        }
+
+                        // 1번 프레임을 그리기 전 상태 세팅
                         using (var ds = bgRenderTarget.CreateDrawingSession())
                         {
                             ds.Clear(Windows.UI.Color.FromArgb(0, 0, 0, 0));
-                            // 1번 프레임을 그리기 전, 0번 프레임의 이미지를 베이스로 깔아둠 (상태 복원)
                             using var bmp0 = CanvasBitmap.CreateFromBytes(device, framePixels[0], w, h, DirectXPixelFormat.B8G8R8A8UIntNormalized);
                             ds.DrawImage(bmp0);
                         }
@@ -391,15 +395,14 @@ namespace Uviewer
 
                         for (uint i = 1; i < decoder.FrameCount; i++)
                         {
-                            if (!_isDecodingAnimatedImage) break; // 사용자가 창을 넘기면 로딩 즉시 중단
+                            if (!_isDecodingAnimatedImage) break;
 
-                            // [중요] 다음 프레임을 그리기 전, 이전 프레임의 메타데이터 요구에 따라 캔버스를 정리합니다.
+                            // [STEP 1] 이전 프레임의 Disposal 지시에 따라 배경 정리
                             if (previousDisposal == 2) // Restore to Background
                             {
                                 using (var ds = bgRenderTarget.CreateDrawingSession())
                                 {
-                                    // 이전 프레임이 그려졌던 영역만 다시 투명하게 덮어씌웁니다.
-                                    ds.Blend = CanvasBlend.Copy;
+                                    ds.Blend = CanvasBlend.Copy; 
                                     ds.FillRectangle(previousRect, Windows.UI.Color.FromArgb(0, 0, 0, 0));
                                 }
                             }
@@ -407,28 +410,26 @@ namespace Uviewer
                             {
                                 using (var ds = bgRenderTarget.CreateDrawingSession())
                                 {
-                                    // 이전 프레임이 그려지기 전의 전체 상태로 되돌립니다.
                                     ds.Blend = CanvasBlend.Copy;
                                     ds.DrawImage(backupRenderTarget);
                                 }
                             }
 
-                            // 현재 상태를 백업 (다음 루프에서 Disposal=3을 만날 경우를 대비)
+                            // [STEP 2] 현재 상태 백업 
+                            // (다음 루프에서 Disposal 3이 발생할 경우 현재 그려지기 전 상태로 복원하기 위함)
                             using (var ds = backupRenderTarget.CreateDrawingSession())
                             {
                                 ds.Blend = CanvasBlend.Copy;
                                 ds.DrawImage(bgRenderTarget);
                             }
 
-                            // 현재 프레임 디코딩 및 그리기
+                            // [STEP 3] 현재 프레임 디코딩 및 병합
                             var (delay, disposal, rect) = await DecodeAndDrawSingleFrameAsync(decoder, i, bgRenderTarget);
                             var pixels = bgRenderTarget.GetPixelBytes();
 
-                            // 다음 루프를 위해 현재 프레임의 데이터 업데이트
                             previousDisposal = disposal;
                             previousRect = rect;
 
-                            // 디코딩 완료된 프레임을 UI 스레드의 List에 실시간 병합
                             this.DispatcherQueue.TryEnqueue(() =>
                             {
                                 if (_isDecodingAnimatedImage)
@@ -443,7 +444,6 @@ namespace Uviewer
                     finally { _isDecodingAnimatedImage = false; }
                 });
 
-                // 프레임 1개만 로드된 상태로 즉시 반환하여 애니메이션 바로 시작
                 return (framePixels, delaysMs, w, h);
             }
             catch (Exception ex)
@@ -464,29 +464,31 @@ namespace Uviewer
             int disposal = 0; // 0: Unspecified, 1: Do not dispose, 2: Restore to background, 3: Restore to previous
             double offsetX = 0, offsetY = 0;
 
-            try
+            // [핵심 수정] 메타데이터를 개별적으로 하나씩 읽어와 누락 시 예외가 전체 플로우를 망치는 것을 방지합니다.
+            string[] propertiesToRead = { "/grctlext/Delay", "/imgdesc/Left", "/imgdesc/Top", "/grctlext/Disposal" };
+            
+            foreach (var propName in propertiesToRead)
             {
-                // Disposal 속성(처분 방법)을 추가로 읽어옵니다.
-                var props = await frame.BitmapProperties.GetPropertiesAsync(new[] { 
-                    "/grctlext/Delay", 
-                    "/imgdesc/Left", 
-                    "/imgdesc/Top",
-                    "/grctlext/Disposal" 
-                });
-
-                if (props.TryGetValue("/grctlext/Delay", out var dProp) && dProp.Value != null)
+                try
                 {
-                    int delay10ms = Convert.ToInt32(dProp.Value);
-                    if (delay10ms > 1) delayMs = delay10ms * 10;
+                    var prop = await frame.BitmapProperties.GetPropertiesAsync(new[] { propName });
+                    if (prop.TryGetValue(propName, out var p) && p.Value != null)
+                    {
+                        if (propName == "/grctlext/Delay")
+                        {
+                            int delay10ms = Convert.ToInt32(p.Value);
+                            if (delay10ms > 1) delayMs = delay10ms * 10;
+                        }
+                        else if (propName == "/imgdesc/Left") offsetX = Convert.ToDouble(p.Value);
+                        else if (propName == "/imgdesc/Top") offsetY = Convert.ToDouble(p.Value);
+                        else if (propName == "/grctlext/Disposal") disposal = Convert.ToInt32(p.Value);
+                    }
                 }
-                if (props.TryGetValue("/imgdesc/Left", out var lProp) && lProp.Value != null)
-                    offsetX = Convert.ToDouble(lProp.Value);
-                if (props.TryGetValue("/imgdesc/Top", out var tProp) && tProp.Value != null)
-                    offsetY = Convert.ToDouble(tProp.Value);
-                if (props.TryGetValue("/grctlext/Disposal", out var dispProp) && dispProp.Value != null)
-                    disposal = Convert.ToInt32(dispProp.Value);
+                catch
+                {
+                    // 해당 메타데이터가 프레임에 없는 경우 무시하고 기본값 유지
+                }
             }
-            catch { }
 
             using var softwareBitmap = await frame.GetSoftwareBitmapAsync(
                 Windows.Graphics.Imaging.BitmapPixelFormat.Bgra8,
