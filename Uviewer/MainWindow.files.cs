@@ -3,7 +3,6 @@ using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
 using SharpCompress.Archives;
-using SixLabors.ImageSharp;
 using System;
 using System.Collections.Generic;
 using System.IO;

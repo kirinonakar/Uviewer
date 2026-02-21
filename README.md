@@ -120,7 +120,6 @@ dotnet build Uviewer.sln -c Release
 ## 🏗️ Architecture
 - **WinUI 3**: Modern UI framework.
 - **Win2D**: Hardware-accelerated 2D graphics for images.
-- **ImageSharp**: Cross-platform image processing.
 - **SharpCompress**: Archive extraction.
 
 ## 📝 License
