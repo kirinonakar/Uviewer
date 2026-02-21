@@ -1036,7 +1036,7 @@ namespace Uviewer
                      // Empty line -> Spacer
                      blocks.Add(new AozoraBindingModel { 
                          Inlines = { "" }, 
-                         Margin = new Thickness(0, 0, 0, _textFontSize),
+                         Margin = new Thickness(0),
                          SourceLineNumber = startLineOffset + i,
                          BlockIndent = currentIndentEm * _textFontSize
                      });
@@ -1330,7 +1330,7 @@ namespace Uviewer
                 if (string.IsNullOrEmpty(content)) 
                 {
                      // Spacer
-                     blocks.Add(new AozoraBindingModel { Inlines = { "" }, Margin = new Thickness(0, 0, 0, _textFontSize) });
+                     blocks.Add(new AozoraBindingModel { Inlines = { "" }, Margin = new Thickness(0) });
                      continue;
                 }
 
