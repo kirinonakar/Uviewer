@@ -3,9 +3,11 @@ using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Documents;
 using Microsoft.UI.Xaml.Media;
+using Windows.UI.Text;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
@@ -51,13 +53,17 @@ namespace Uviewer
             public string HeadingText { get; set; } = "";
             public bool HasImage => Inlines.Any(i => i is AozoraImage);
             public int EpubChapterIndex { get; set; } = -1;
+            public bool IsPageBreak { get; set; } = false;
+            public bool IsBold { get; set; } = false;
+            public double BlockIndent { get; set; } = 0;
         }
 
         public class AozoraBold { public string Text { get; set; } = ""; }
         public class AozoraItalic { public string Text { get; set; } = ""; }
         public class AozoraCode { public string Text { get; set; } = ""; }
         public class AozoraLineBreak { }
-        public class AozoraRuby { public string BaseText { get; set; } = ""; public string RubyText { get; set; } = ""; }
+        public class AozoraRuby { public string BaseText { get; set; } = ""; public string RubyText { get; set; } = ""; public bool IsBold { get; set; } = false; }
+        public class AozoraTCY { public string Text { get; set; } = ""; public bool IsBold { get; set; } = false; }
         public class AozoraImage { public string Source { get; set; } = ""; }
 
         // Settings
@@ -286,7 +292,7 @@ namespace Uviewer
 
                     var block = _aozoraBlocks[i];
                     
-                    if (block.HasImage)
+                    if (block.HasImage || block.IsPageBreak)
                     {
                         if (currentPageHeight > 0)
                         {
@@ -295,7 +301,7 @@ namespace Uviewer
                             blockToPageMap[i] = pageCount;
                         }
 
-                        // Image block takes its own page
+                        // Image/PageBreak block takes its own page
                         pageCount++;
                         currentPageHeight = 0;
                         continue;
@@ -662,24 +668,27 @@ namespace Uviewer
                     continue;
                 }
                 
-                // If this block has an image, it should be isolated on its own page
-                if (block.HasImage)
+                // If this block has an image or is a page break, it should be isolated on its own page
+                if (block.HasImage || block.IsPageBreak)
                 {
                     if (AozoraPageContent.Blocks.Count > 0)
                     {
-                        // Finish current page before image
+                        // Finish current page before image or page break
                         break;
                     }
                     else
                     {
-                        // First block is image, add ONLY this block and stop
-                        p.TextAlignment = TextAlignment.Center;
-                        
-                        // [Fix] Ensure container allows full width for the image
-                        if (AozoraPageContainer != null) AozoraPageContainer.Padding = new Thickness(0);
-                        AozoraPageContent.MaxWidth = innerWidth;
-                        AozoraPageContent.Padding = new Thickness(0);
-                        AozoraPageContent.VerticalAlignment = VerticalAlignment.Center;
+                        // First block is image or page break
+                        if (block.HasImage)
+                        {
+                            p.TextAlignment = TextAlignment.Center;
+                            
+                            // [Fix] Ensure container allows full width for the image
+                            if (AozoraPageContainer != null) AozoraPageContainer.Padding = new Thickness(0);
+                            AozoraPageContent.MaxWidth = innerWidth;
+                            AozoraPageContent.Padding = new Thickness(0);
+                            AozoraPageContent.VerticalAlignment = VerticalAlignment.Center;
+                        }
 
                         AozoraPageContent.Blocks.Add(p);
                         endIdx = i;
@@ -740,9 +749,10 @@ namespace Uviewer
                 p.LineHeight = _textFontSize * block.FontSizeScale * 2; // Increased multiplier for better ruby spacing
                 p.LineStackingStrategy = LineStackingStrategy.BlockLineHeight;
             }
-            p.Margin = new Thickness(0, block.Margin.Top, 0, block.Margin.Bottom);
+            p.Margin = new Thickness(block.BlockIndent > 0 ? block.BlockIndent : 0, block.Margin.Top, 0, block.Margin.Bottom);
             p.TextAlignment = block.Alignment;
             p.FontFamily = block.FontFamily != null ? new FontFamily(block.FontFamily) : new FontFamily(_textFontFamily);
+            p.FontWeight = block.IsBold ? Microsoft.UI.Text.FontWeights.Bold : Microsoft.UI.Text.FontWeights.Normal;
             
             foreach (var item in block.Inlines)
             {
@@ -768,7 +778,13 @@ namespace Uviewer
                 }
                 else if (item is AozoraRuby ruby)
                 {
-                    p.Inlines.Add(CreateRubyInline(ruby.BaseText, ruby.RubyText, _textFontSize * block.FontSizeScale));
+                    var weight = (ruby.IsBold || block.IsBold) ? Microsoft.UI.Text.FontWeights.Bold : Microsoft.UI.Text.FontWeights.Normal;
+                    p.Inlines.Add(CreateRubyInline(ruby.BaseText, ruby.RubyText, _textFontSize * block.FontSizeScale, weight));
+                }
+                else if (item is AozoraTCY tcy)
+                {
+                    var weight = (tcy.IsBold || block.IsBold) ? Microsoft.UI.Text.FontWeights.Bold : Microsoft.UI.Text.FontWeights.Normal;
+                    p.Inlines.Add(new Run { Text = tcy.Text, FontSize = _textFontSize * block.FontSizeScale, FontWeight = weight });
                 }
                 else if (item is AozoraImage img)
                 {
@@ -962,6 +978,19 @@ namespace Uviewer
 
         private List<AozoraBindingModel> ParseAozoraContent(string text)
         {
+            // [Bold Preprocessing] Handle "last start wins" logic globally across lines
+            string boldStartTag = @"［＃(?:여기서 태그 시작|ここから太字)］";
+            string boldEndTag = @"［＃(?:여기서 태그 끝|ここで太字終わり|太字終わり)］";
+            text = Regex.Replace(text, $"{boldStartTag}(.*?){boldEndTag}", (m) => {
+                string inner = m.Groups[1].Value;
+                var startRegex = new Regex(boldStartTag);
+                var parts = startRegex.Split(inner);
+                if (parts.Length <= 1) return $"@@BOLD_START@@{inner}@@BOLD_END@@";
+                string prefix = string.Join("", parts.Take(parts.Length - 1));
+                string boldContent = parts.Last();
+                return $"{prefix}@@BOLD_START@@{boldContent}@@BOLD_END@@";
+            }, RegexOptions.Singleline);
+
             var lines = text.Replace("\r\n", "\n").Replace("\r", "\n").Split('\n');
             _textTotalLineCountInSource = lines.Length;
             return ParseAozoraLines(lines, 1);
@@ -971,6 +1000,12 @@ namespace Uviewer
         {
             var blocks = new List<AozoraBindingModel>();
             bool lastWasEmpty = false;
+
+            // Flags for multi-line tags
+            bool currentBold = false;
+            double currentIndentEm = 0;
+            bool inKeigakomi = false;
+            int smallTextLevel = 0;
 
             for (int i = 0; i < lines.Length; i++)
             {
@@ -986,17 +1021,128 @@ namespace Uviewer
                      blocks.Add(new AozoraBindingModel { 
                          Inlines = { "" }, 
                          Margin = new Thickness(0, 0, 0, _textFontSize),
-                         SourceLineNumber = startLineOffset + i
+                         SourceLineNumber = startLineOffset + i,
+                         IsBold = currentBold,
+                         BlockIndent = currentIndentEm * _textFontSize
                      });
                      lastWasEmpty = true;
                      continue;
                 }
                 lastWasEmpty = false;
 
-                var model = new AozoraBindingModel { SourceLineNumber = startLineOffset + i };
+                // --- State Updates and Tag Support ---
+                // 1. Page Break
+                bool isPageBreak = false;
+                if (Regex.IsMatch(content, @"［＃(?:改ページ|改페이지|改頁)］"))
+                {
+                    isPageBreak = true;
+                    content = Regex.Replace(content, @"［＃(?:改ページ|改페이지|改頁)］", "");
+                }
+
+                // 2. Multi-line Bold (using preprocessed markers)
+                if (content.Contains("@@BOLD_START@@"))
+                {
+                    currentBold = true;
+                    content = content.Replace("@@BOLD_START@@", "");
+                }
+                if (content.Contains("@@BOLD_END@@"))
+                {
+                    currentBold = false;
+                    content = content.Replace("@@BOLD_END@@", "");
+                }
+
+                // 3. Indents
+                var indentMatch = Regex.Match(content, @"［＃ここから(?:(\d+)|([０-９]+))字下げ］");
+                if (indentMatch.Success)
+                {
+                    string val = indentMatch.Groups[1].Value;
+                    if (string.IsNullOrEmpty(val)) val = indentMatch.Groups[2].Value;
+                    currentIndentEm = ConvertFullWidthToDouble(val);
+                    content = content.Replace(indentMatch.Value, "");
+                }
+                if (content.Contains("［＃ここで字下げ終わり］"))
+                {
+                    currentIndentEm = 0;
+                    content = content.Replace("［＃ここで字下げ終わり］", "");
+                }
+
+                // 4. Keigakomi
+                if (content.Contains("［＃ここから罫囲み］"))
+                {
+                    inKeigakomi = true;
+                    content = content.Replace("［＃ここから罫囲み］", "");
+                }
+                if (content.Contains("［＃ここで罫囲み終わり］"))
+                {
+                    inKeigakomi = false;
+                    content = content.Replace("［＃ここで罫囲み終わり］", "");
+                }
+
+                // 5. Small text
+                if (content.Contains("［＃ここから２段階小さな文字］"))
+                {
+                    smallTextLevel = 2;
+                    content = content.Replace("［＃ここから２段階小さな文字］", "");
+                }
+                if (content.Contains("［＃ここで小さな文字終わり］"))
+                {
+                    smallTextLevel = 0;
+                    content = content.Replace("［＃ここで小さな文字終わり］", "");
+                }
+
+                // --- Specific Tag Support (Bouten, TCY, BoldSpecific) ---
+                // Bouten
+                var boutenMatches = Regex.Matches(content, @"［＃「(.+?)」에傍点］|［＃「(.+?)」に傍点］");
+                foreach (Match m in boutenMatches)
+                {
+                    string targetWord = m.Groups[1].Value;
+                    if (string.IsNullOrEmpty(targetWord)) targetWord = m.Groups[2].Value;
+                    string fullTag = m.Value;
+                    string targetPattern = Regex.Escape(targetWord) + Regex.Escape(fullTag);
+                    content = Regex.Replace(content, targetPattern, (match) => {
+                        StringBuilder sb = new StringBuilder();
+                        foreach (char c in targetWord) sb.Append($"{{{{RUBY|{c}|﹅}}}}");
+                        return sb.ToString();
+                    });
+                }
+
+                // TCY
+                var tcyMatches = Regex.Matches(content, @"［＃「(.+?)」は縦中横］");
+                foreach (Match m in tcyMatches)
+                {
+                    string targetWord = m.Groups[1].Value;
+                    string fullTag = m.Value;
+                    string targetPattern = Regex.Escape(targetWord) + Regex.Escape(fullTag);
+                    content = Regex.Replace(content, targetPattern, $"{{{{TCY|{targetWord}}}}}");
+                }
+
+                // Bold Specific
+                var boldSpecificMatches = Regex.Matches(content, @"［＃「(.+?)」[は는은]太字］");
+                foreach (Match m in boldSpecificMatches)
+                {
+                    string targetWord = m.Groups[1].Value;
+                    string fullTag = m.Value;
+                    string targetPattern = Regex.Escape(targetWord) + Regex.Escape(fullTag);
+                    content = Regex.Replace(content, targetPattern, $"@@BOLD_START@@{targetWord}@@BOLD_END@@");
+                }
+
+                var model = new AozoraBindingModel { 
+                    SourceLineNumber = startLineOffset + i,
+                    IsPageBreak = isPageBreak,
+                    IsBold = currentBold,
+                    BlockIndent = currentIndentEm * _textFontSize
+                };
                 model.Margin = new Thickness(0);
 
-                // --- Aozora Tag Parsing --- (Rest is same)
+                if (inKeigakomi)
+                {
+                     model.BorderColor = Colors.Gray;
+                     model.BorderThickness = new Thickness(1);
+                     model.Padding = new Thickness(10);
+                }
+                if (smallTextLevel == 2) model.FontSizeScale = 0.75;
+
+                // --- Aozora Tag Parsing ---
                 // Headers
                 if (content.Contains("［＃大見出し］") || content.StartsWith("# "))
                 {
@@ -1025,22 +1171,6 @@ namespace Uviewer
                     model.Margin = new Thickness(0, 0, 60, 0);
                     content = content.Replace("［＃地から３字上げ］", "");
                 }
-                
-                // Indents
-                if (content.Contains("［＃ここから２字下げ］"))
-                {
-                    model.Margin = new Thickness(40, 0, 0, 0); // Accumulate?
-                    content = content.Replace("［＃ここから２字下げ］", "");
-                }
-                
-                // Decorations
-                if (content.Contains("［＃ここから罫囲み］"))
-                {
-                     model.BorderColor = Colors.Gray;
-                     model.BorderThickness = new Thickness(1);
-                     model.Padding = new Thickness(10);
-                     content = content.Replace("［＃ここから罫囲み］", "");
-                }
 
                 // 4. Image tags: <img src="file.jpg"> or ［＃挿絵（img/file.jpg）入る］
                 // IMPORTANT: Parse images BEFORE cleaning up all ［＃...］ tags
@@ -1051,62 +1181,53 @@ namespace Uviewer
                 content = Regex.Replace(content, @"［＃[^］]+］", "");
 
                 // --- Inline Parsing (Ruby & Bold) ---
-                // Pattern: 
-                // Ruby: ｜Base《Ruby》 or Base《Ruby》 (Complex regex needed to avoid partial matches)
-                // Bold: **Text**
-                
-                // We tokenize carefully.
-                // Pre-process Ruby into a temp unique format like {{RUBY|Base|Text}} to simplify regex splitting
-                
                 // 1. Aozora Ruby with pipe: ｜漢字《かんじ》
                 content = Regex.Replace(content, @"｜(.+?)《(.+?)》", "{{RUBY|$1|$2}}");
                 
                 // 2. Aozora Ruby without pipe (Kanji + Ruby): 漢字《かんじ》
-                // Heuristic: Take all adjacent CJK characters before 《
-                // Broadened range to include Japanese/Korean/Chinese ideographs
                 content = Regex.Replace(content, @"([\u4E00-\u9FFF\u3400-\u4DBF\uF900-\uFAFF々]+)《(.+?)》", "{{RUBY|$1|$2}}");
                 
-                // 3. Fallback for mixed/other scripts? Aozora spec usually strictly defines this. 
-                // Some files use 《》 for other things? Assuming Ruby for now.
-                
-                // (Image parsing moved above cleanup)
+                // Markdown Bold **...** 
+                content = Regex.Replace(content, @"(\*\*|__)(.*?)\1", "@@BOLD_START@@$2@@BOLD_END@@");
 
                 // Tokenize
-                // Split by {{RUBY|...}}, {{IMG|...}} AND **...**
-                // Regex split captures delimiters if in parenthesis.
-                
-                string pattern = @"(\{\{RUBY\|.*?\|.*?\}\}|\{\{IMG\|.*?\}\}|\*\*.*?\*\*)";
+                string pattern = @"(\{\{RUBY\|.*?\|.*?\}\}|\{\{IMG\|.*?\}\}|\{\{TCY\|.*?\}\}|@@BOLD_START@@|@@BOLD_END@@)";
                 var parts = Regex.Split(content, pattern);
+                bool inlineBold = false;
                 
                 foreach (var part in parts)
                 {
                     if (string.IsNullOrEmpty(part)) continue;
                     
+                    if (part == "@@BOLD_START@@") { inlineBold = true; continue; }
+                    if (part == "@@BOLD_END@@") { inlineBold = false; continue; }
+
                     if (part.StartsWith("{{RUBY|"))
                     {
                         var inner = part.Trim('{', '}'); // RUBY|Base|Ruby
                         var p = inner.Split('|');
                         if (p.Length >= 3)
                         {
-                            model.Inlines.Add(new AozoraRuby { BaseText = p[1], RubyText = p[2] });
+                            model.Inlines.Add(new AozoraRuby { BaseText = p[1], RubyText = p[2], IsBold = inlineBold });
                         }
                     }
                     else if (part.StartsWith("{{IMG|"))
                     {
                         var src = part.Substring(6, part.Length - 8);
-                        // Strip parameters after comma if present (e.g., img.jpg,横50％)
                         int commaIdx = src.IndexOfAny(new[] { ',', '，', '、' });
                         if (commaIdx >= 0) src = src.Substring(0, commaIdx).Trim();
                         
                         model.Inlines.Add(new AozoraImage { Source = src });
                     }
-                    else if (part.StartsWith("**") && part.EndsWith("**") && part.Length > 4)
+                    else if (part.StartsWith("{{TCY|"))
                     {
-                        model.Inlines.Add(new AozoraBold { Text = part.Substring(2, part.Length - 4) });
+                        var textStr = part.Substring(6, part.Length - 8);
+                        model.Inlines.Add(new AozoraTCY { Text = textStr, IsBold = inlineBold });
                     }
                     else
                     {
-                        model.Inlines.Add(part); // String
+                        if (inlineBold) model.Inlines.Add(new AozoraBold { Text = part });
+                        else model.Inlines.Add(part); // String
                     }
                 }
                 
@@ -1330,6 +1451,19 @@ namespace Uviewer
             return blocks;
         }
 
+        private double ConvertFullWidthToDouble(string input)
+        {
+            if (string.IsNullOrEmpty(input)) return 0;
+            var sb = new StringBuilder();
+            foreach (char c in input)
+            {
+                if (c >= '０' && c <= '９') sb.Append((char)(c - '０' + '0'));
+                else sb.Append(c);
+            }
+            double.TryParse(sb.ToString(), out double result);
+            return result;
+        }
+
         private void PrepareAozoraElement(RichTextBlock rtb, int index, double availableHeight = 0)
         {
             if (index < 0 || index >= _aozoraBlocks.Count) return;
@@ -1340,10 +1474,9 @@ namespace Uviewer
             rtb.FontFamily = block.FontFamily != null ? new FontFamily(block.FontFamily) : new FontFamily(_textFontFamily);
             rtb.Foreground = GetThemeForeground();
             rtb.TextAlignment = block.Alignment;
-            rtb.Margin = block.Margin;
+            rtb.Margin = new Thickness(block.BlockIndent > 0 ? block.BlockIndent : block.Margin.Left, block.Margin.Top, block.Margin.Right, block.Margin.Bottom);
             rtb.Padding = block.Padding;
-            rtb.Margin = block.Margin;
-            rtb.Padding = block.Padding;
+            rtb.FontWeight = block.IsBold ? Microsoft.UI.Text.FontWeights.Bold : Microsoft.UI.Text.FontWeights.Normal;
             
             if (_isMarkdownRenderMode)
             {
@@ -1400,7 +1533,8 @@ namespace Uviewer
             var p = new Paragraph(); // We put everything in one paragraph per "Block" (Line)
             p.LineHeight = rtb.FontSize * 2.2; // Increased multiplier for better ruby spacing
             p.LineStackingStrategy = LineStackingStrategy.BlockLineHeight; // Enforce consistent line height
-            
+            p.FontWeight = block.IsBold ? Microsoft.UI.Text.FontWeights.Bold : Microsoft.UI.Text.FontWeights.Normal;
+
             // Build Inlines
             foreach (var item in block.Inlines)
             {
@@ -1427,7 +1561,13 @@ namespace Uviewer
                 }
                 else if (item is AozoraRuby ruby)
                 {
-                    p.Inlines.Add(CreateRubyInline(ruby.BaseText, ruby.RubyText, rtb.FontSize));
+                    var weight = (ruby.IsBold || block.IsBold) ? Microsoft.UI.Text.FontWeights.Bold : Microsoft.UI.Text.FontWeights.Normal;
+                    p.Inlines.Add(CreateRubyInline(ruby.BaseText, ruby.RubyText, rtb.FontSize, weight));
+                }
+                else if (item is AozoraTCY tcy)
+                {
+                    var weight = (tcy.IsBold || block.IsBold) ? Microsoft.UI.Text.FontWeights.Bold : Microsoft.UI.Text.FontWeights.Normal;
+                    p.Inlines.Add(new Run { Text = tcy.Text, FontWeight = weight });
                 }
                 else if (item is AozoraImage img)
                 {
@@ -1439,7 +1579,7 @@ namespace Uviewer
             rtb.Blocks.Add(p);
         }
 
-        private InlineUIContainer CreateRubyInline(string baseText, string rubyText, double baseFontSize)
+        private InlineUIContainer CreateRubyInline(string baseText, string rubyText, double baseFontSize, FontWeight? fontWeight = null)
         {
             var grid = new Grid();
             
@@ -1457,7 +1597,8 @@ namespace Uviewer
                 Opacity = 1,
                 TextLineBounds = TextLineBounds.Tight, // 여백 없이 텍스트 영역만 차지
                 IsHitTestVisible = false,
-                Margin = new Thickness(0, 0, 0, 4)
+                Margin = new Thickness(0, 0, 0, 4),
+                FontWeight = fontWeight ?? Microsoft.UI.Text.FontWeights.Normal
             };
 
             // [추가] 루비가 너무 길어지는 경우 장평(ScaleX)을 75%로 설정
@@ -1480,7 +1621,8 @@ namespace Uviewer
                 Foreground = GetThemeForeground(),
                 TextLineBounds = TextLineBounds.Tight, // 주변 텍스트와 높이 맞춤을 위해 Tight 유지
                 Margin = new Thickness(0, 0, 0, 0),
-                Padding = new Thickness(0)
+                Padding = new Thickness(0),
+                FontWeight = fontWeight ?? Microsoft.UI.Text.FontWeights.Normal
             };
             Grid.SetRow(rb, 1);
             

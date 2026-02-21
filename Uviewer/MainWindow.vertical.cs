@@ -391,6 +391,7 @@ namespace Uviewer
                 else if (inline is AozoraBold bold) sb.Append(NormalizeVerticalText(bold.Text));
                 else if (inline is AozoraItalic italic) sb.Append(NormalizeVerticalText(italic.Text));
                 else if (inline is AozoraCode code) sb.Append(NormalizeVerticalText(code.Text));
+                else if (inline is AozoraTCY tcy) sb.Append(NormalizeVerticalText(tcy.Text));
                 else if (inline is AozoraLineBreak) sb.Append("\n");
             }
             if (block.IsTable && block.TableRows.Count > 0)
@@ -497,6 +498,7 @@ namespace Uviewer
                 StringBuilder sb = new StringBuilder();
                 var rubyRanges = new List<(int start, int length, string rubyText)>();
                 var boldRanges = new List<(int start, int length)>();
+                var tcyRanges = new List<(int start, int length)>();
                 var italicRanges = new List<(int start, int length)>();
 
                 foreach (var inline in block.Inlines)
@@ -522,6 +524,13 @@ namespace Uviewer
                         italicRanges.Add((start, normText.Length));
                     }
                     else if (inline is AozoraCode code) sb.Append(NormalizeVerticalText(code.Text));
+                    else if (inline is AozoraTCY tcy)
+                    {
+                        var normText = NormalizeVerticalText(tcy.Text);
+                        sb.Append(normText);
+                        tcyRanges.Add((start, normText.Length));
+                        if (tcy.IsBold) boldRanges.Add((start, normText.Length));
+                    }
                     else if (inline is AozoraLineBreak) sb.Append("\n");
                 }
 
@@ -533,14 +542,16 @@ namespace Uviewer
                 string blockText = sb.ToString();
 
                 // 1. 텍스트 레이아웃 생성
-                // 1. 텍스트 레이아웃 생성
                 using var textLayout = new CanvasTextLayout(ds, blockText, format, measureWidth, drawHeight);
 
                 // [수정] 괄호 간격 수동 조정 (하단 여백이 있는 경우만 자간을 좁힘)
                 ApplyVerticalBracketSpacing(ds, format, textLayout, blockText, fontSize);
                 
+                if (block.IsBold) textLayout.SetFontWeight(0, blockText.Length, Microsoft.UI.Text.FontWeights.Bold);
                 foreach (var r in boldRanges) textLayout.SetFontWeight(r.start, r.length, Microsoft.UI.Text.FontWeights.Bold);
                 foreach (var r in italicRanges) textLayout.SetFontStyle(r.start, r.length, Windows.UI.Text.FontStyle.Italic);
+                // Note: SetVerticalGlyphOrientation is not supported in this version of Win2D for ranges.
+                // TCY will be shown but may be rotated depending on font/character.
 
                 // 2. [핵심 수정] 텍스트의 실제 점유 영역(Bounding Box) 계산
                 var bounds = textLayout.LayoutBounds;
@@ -590,6 +601,13 @@ namespace Uviewer
 
                         // 루비 레이아웃 생성
                         var rubyLayout = new CanvasTextLayout(ds, ruby.rubyText, rubyFormat, 0.0f, rubyFontSize * 1.5f);
+                        
+                        // [추가] 본문(BaseText) 또는 블록이 볼드이면 루비도 볼드 처리
+                        if (block.IsBold || boldRanges.Any(br => ruby.start >= br.start && ruby.start < br.start + br.length))
+                        {
+                            rubyLayout.SetFontWeight(0, ruby.rubyText.Length, Microsoft.UI.Text.FontWeights.Bold);
+                        }
+
                         float rubyHeight = (float)rubyLayout.LayoutBounds.Height;
                         float charHeight = (float)charBounds.Height;
 
