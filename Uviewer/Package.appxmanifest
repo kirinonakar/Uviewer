@@ -8,15 +8,15 @@
   IgnorableNamespaces="uap rescap">
 
   <Identity
-    Name="407f1f0a-0987-40f1-9ee4-3fab7a5cddbc"
-    Publisher="kirinonakar"
-    Version="1.0.0.0" />
+    Name="kirinonakar.Uviewer"
+    Publisher="CN=5F40B554-380B-47DB-92AD-D044EB10269C"
+    Version="1.2.2.0" />
 
-  <mp:PhoneIdentity PhoneProductId="407f1f0a-0987-40f1-9ee4-3fab7a5cddbc" PhonePublisherId="00000000-0000-0000-0000-000000000000"/>
+  <mp:PhoneIdentity PhoneProductId="447c5999-c770-49a8-ba98-f88ab037896c" PhonePublisherId="00000000-0000-0000-0000-000000000000"/>
 
   <Properties>
     <DisplayName>Uviewer</DisplayName>
-    <PublisherDisplayName>totor</PublisherDisplayName>
+    <PublisherDisplayName>kirinonakar</PublisherDisplayName>
     <Logo>Assets\StoreLogo.png</Logo>
   </Properties>
 

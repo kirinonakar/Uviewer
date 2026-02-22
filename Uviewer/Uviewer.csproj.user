@@ -4,7 +4,8 @@
     <DebuggerFlavor>ProjectDebugger</DebuggerFlavor>
   </PropertyGroup>
   <PropertyGroup>
-    <ActiveDebugProfile>Uviewer (Unpackaged)</ActiveDebugProfile>
+    <ActiveDebugProfile>Uviewer (Package)</ActiveDebugProfile>
+    <AppxShowAllApps>False</AppxShowAllApps>
   </PropertyGroup>
   <ItemGroup>
     <None Update="App.xaml">
