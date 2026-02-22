@@ -422,9 +422,9 @@ namespace Uviewer
             // layout.SetTypography(0, text.Length, typography);
             
             float boundsWidth = (float)layout.LayoutBounds.Width;
-            float spacing = fontSize * 0.6f;
+            float spacing = fontSize * (block.IsBlankLine ? 0.2f : 0.6f);
             
-            // 루비 공간은 제외 (오른쪽 여백 사용)
+            if (block.IsBlankLine) return (boundsWidth * 0.5f) + spacing;
             return boundsWidth + spacing;
         }
 
@@ -559,6 +559,7 @@ namespace Uviewer
                 // 3. [핵심 수정] 왼쪽 마진 진입 여부 체크 (잘림 방지)
                 // 루비 공간을 두께에 포함하지 않음 (루비는 오른쪽 여백 사용)
                 float currentLineThickness = (float)bounds.Width;
+                if (block.IsBlankLine) currentLineThickness *= 0.5f;
 
                 // 4. 그리기 위치(drawX) 보정
                 // 목표: 텍스트의 "오른쪽 끝(Left + Width)"이 "currentX"에 딱 맞아야 함.
@@ -636,7 +637,7 @@ namespace Uviewer
                 }
 
                 // 7. 다음 줄 위치 계산
-                float spacing = fontSize * 0.6f; 
+                float spacing = fontSize * (block.IsBlankLine ? 0.2f : 0.6f); 
                 currentX -= (currentLineThickness + spacing);
             }
         }

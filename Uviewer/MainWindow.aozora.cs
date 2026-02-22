@@ -56,6 +56,7 @@ namespace Uviewer
             public bool IsPageBreak { get; set; } = false;
             public bool IsBold { get; set; } = false;
             public double BlockIndent { get; set; } = 0;
+            public bool IsBlankLine { get; set; } = false;
         }
 
         public class AozoraBold { public string Text { get; set; } = ""; }
@@ -759,7 +760,7 @@ namespace Uviewer
             }
             else
             {
-                p.LineHeight = _textFontSize * block.FontSizeScale * 2; // Increased multiplier for better ruby spacing
+                p.LineHeight = _textFontSize * block.FontSizeScale * (block.IsBlankLine ? 1.0 : 2.0); // Reduced multiplier for blank lines
                 p.LineStackingStrategy = LineStackingStrategy.BlockLineHeight;
             }
             p.Margin = new Thickness(block.BlockIndent > 0 ? block.BlockIndent : 0, block.Margin.Top, 0, block.Margin.Bottom);
@@ -826,7 +827,7 @@ namespace Uviewer
 
             var p = new Paragraph();
             // 실제 렌더링 시 사용하는 배수와 동일하게 설정
-            p.LineHeight = rtb.FontSize * 2.2;
+            p.LineHeight = rtb.FontSize * (block.IsBlankLine ? 1.1 : 2.2);
             p.LineStackingStrategy = LineStackingStrategy.BlockLineHeight;
 
             foreach (var item in block.Inlines)
@@ -992,7 +993,7 @@ namespace Uviewer
         private string PreprocessAozoraBold(string text)
         {
             string boldStartTag = @"［＃(?:ここから太字)］";
-            string boldEndTag = @"［＃(?:여기서 태그 끝)］";
+            string boldEndTag = @"［＃(?:ここで太字終わり)］";
             return Regex.Replace(text, $"{boldStartTag}(.*?){boldEndTag}", (m) => {
                 string inner = m.Groups[1].Value;
                 var startRegex = new Regex(boldStartTag);
@@ -1038,7 +1039,8 @@ namespace Uviewer
                          Inlines = { "" }, 
                          Margin = new Thickness(0),
                          SourceLineNumber = startLineOffset + i,
-                         BlockIndent = currentIndentEm * _textFontSize
+                         BlockIndent = currentIndentEm * _textFontSize,
+                         IsBlankLine = true
                      });
                      lastWasEmpty = true;
                      continue;
@@ -1048,10 +1050,10 @@ namespace Uviewer
                 // --- State Updates and Tag Support ---
                 // 1. Page Break
                 bool isPageBreak = false;
-                if (Regex.IsMatch(content, @"［＃(?:改ページ|改페이지|改頁)］"))
+                if (Regex.IsMatch(content, @"［＃(?:改ページ|改頁)］"))
                 {
                     isPageBreak = true;
-                    content = Regex.Replace(content, @"［＃(?:改ページ|改페이지|改頁)］", "");
+                    content = Regex.Replace(content, @"［＃(?:改ページ|改頁)］", "");
                 }
 
                 // 2. Multi-line Bold (Markers handled by tokenizer)
@@ -1098,7 +1100,7 @@ namespace Uviewer
 
                 // --- Specific Tag Support (Bouten, TCY, BoldSpecific) ---
                 // Bouten
-                var boutenMatches = Regex.Matches(content, @"［＃「(.+?)」에傍点］|［＃「(.+?)」に傍点］");
+                var boutenMatches = Regex.Matches(content, @"［＃「(.+?)」に傍点］");
                 foreach (Match m in boutenMatches)
                 {
                     string targetWord = m.Groups[1].Value;
@@ -1123,7 +1125,7 @@ namespace Uviewer
                 }
 
                 // Bold Specific
-                var boldSpecificMatches = Regex.Matches(content, @"［＃「(.+?)」[は는은]太字］");
+                var boldSpecificMatches = Regex.Matches(content, @"［＃「(.+?)」[は]太字］");
                 foreach (Match m in boldSpecificMatches)
                 {
                     string targetWord = m.Groups[1].Value;
@@ -1145,7 +1147,7 @@ namespace Uviewer
                      model.BorderThickness = new Thickness(1);
                      model.Padding = new Thickness(10);
                 }
-                if (smallTextLevel == 2) model.FontSizeScale = 0.75;
+                if (smallTextLevel == 2) model.FontSizeScale = 0.85;
 
                 // --- Aozora Tag Parsing ---
                 // Headers
@@ -1330,7 +1332,7 @@ namespace Uviewer
                 if (string.IsNullOrEmpty(content)) 
                 {
                      // Spacer
-                     blocks.Add(new AozoraBindingModel { Inlines = { "" }, Margin = new Thickness(0) });
+                     blocks.Add(new AozoraBindingModel { Inlines = { "" }, Margin = new Thickness(0), IsBlankLine = true });
                      continue;
                 }
 
