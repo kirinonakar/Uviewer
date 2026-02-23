@@ -36,6 +36,8 @@ namespace Uviewer
         private static bool _allowMultipleInstances = true;
         private static CancellationTokenSource? _pipeCts;
         private uint _comCookie;
+        private bool _isComActivation = false;
+
 
         [DllImport("ole32.dll")]
         private static extern int CoRegisterClassObject(ref Guid rclsid, IntPtr pUnk, uint dwClsContext, uint flags, out uint lpdwCookie);
@@ -65,11 +67,13 @@ namespace Uviewer
                 // Handle COM activation for Windows 11 context menu
                 if (args.Any(a => a.Equals("-Embedding", StringComparison.OrdinalIgnoreCase)))
                 {
+                    _isComActivation = true;
                     Guid clsid = Guid.Parse("D9614E4F-E02D-4E3F-8C3B-76C1B323E0B9");
                     IntPtr factoryPtr = Marshal.GetIUnknownForObject(new UviewerExplorerCommandFactory());
                     CoRegisterClassObject(ref clsid, factoryPtr, 4, 1, out _comCookie); // CLSCTX_LOCAL_SERVER, REGCLS_MULTIPLEUSE
                     
-                    // Keep the app running in COM mode without showing window
+                    // Initialize basics but return to prevent window creation
+                    InitializeComponent();
                     return;
                 }
 
@@ -185,6 +189,7 @@ namespace Uviewer
         /// <param name="args">Details about the launch request and process.</param>
         protected override void OnLaunched(Microsoft.UI.Xaml.LaunchActivatedEventArgs args)
         {
+            if (_isComActivation) return;
             try
             {
                 _window = new MainWindow(LaunchFilePath);
