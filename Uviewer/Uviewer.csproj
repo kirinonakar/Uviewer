@@ -76,6 +76,7 @@
     <AppxAutoIncrementPackageRevision>False</AppxAutoIncrementPackageRevision>
     <GenerateTestArtifacts>True</GenerateTestArtifacts>
     <AppxBundle>Never</AppxBundle>
+    <PublishTrimmed>false</PublishTrimmed>
     <HoursBetweenUpdateChecks>0</HoursBetweenUpdateChecks>
     <SupportedOSPlatformVersion>10.0.19041.0</SupportedOSPlatformVersion>
     <PackageCertificateThumbprint>4CFC5CB91F46D35ADA6FA190EC62806B86F4C55D</PackageCertificateThumbprint>
