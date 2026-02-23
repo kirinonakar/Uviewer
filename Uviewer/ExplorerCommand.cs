@@ -58,8 +58,9 @@ namespace Uviewer
 
         public void GetIcon(IShellItemArray psiItemArray, out string ppszIcon)
         {
-            // Use the app icon
-            ppszIcon = Path.Combine(AppContext.BaseDirectory, "Assets", "Uviewer.ico");
+            // Use the executable itself as the icon source (resource index 0)
+            // This is more reliable for shell extensions to resolve the icon
+            ppszIcon = Path.Combine(AppContext.BaseDirectory, "Uviewer.exe");
         }
 
         public void GetToolTip(IShellItemArray psiItemArray, out string ppszInfotip)
