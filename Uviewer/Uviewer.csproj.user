@@ -6,7 +6,7 @@
   <PropertyGroup>
     <ActiveDebugProfile>Uviewer (Package)</ActiveDebugProfile>
     <AppxShowAllApps>False</AppxShowAllApps>
-    <UapAppxPackageBuildMode>SideloadOnly</UapAppxPackageBuildMode>
+    <UapAppxPackageBuildMode>StoreAndSideload</UapAppxPackageBuildMode>
     <AppxBuildConfigurationSelection>x64</AppxBuildConfigurationSelection>
     <PackageOptionalProjectsInIdeBuilds>False</PackageOptionalProjectsInIdeBuilds>
     <Source>D:\ASUNA\Tools\Visual_studio\Uviewer\Uviewer\Assets\Uviewer2.png</Source>
@@ -23,9 +23,6 @@
       <SubType>Designer</SubType>
     </None>
     <None Update="MainWindow.xaml">
-      <SubType>Designer</SubType>
-    </None>
-    <None Update="Package.appxmanifest">
       <SubType>Designer</SubType>
     </None>
   </ItemGroup>

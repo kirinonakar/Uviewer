@@ -76,9 +76,16 @@
     <AppxAutoIncrementPackageRevision>False</AppxAutoIncrementPackageRevision>
     <GenerateTestArtifacts>True</GenerateTestArtifacts>
     <AppxBundle>Never</AppxBundle>
-    <PublishTrimmed>false</PublishTrimmed>
+    <PublishTrimmed>True</PublishTrimmed>
     <HoursBetweenUpdateChecks>0</HoursBetweenUpdateChecks>
     <SupportedOSPlatformVersion>10.0.19041.0</SupportedOSPlatformVersion>
-    <PackageCertificateThumbprint>4CFC5CB91F46D35ADA6FA190EC62806B86F4C55D</PackageCertificateThumbprint>
+    <PackageCertificateThumbprint>5CAA27D7025C66B313695ACBD2A28F00084BE89E</PackageCertificateThumbprint>
+    <GenerateTemporaryStoreCertificate>True</GenerateTemporaryStoreCertificate>
   </PropertyGroup>
+
+  <ItemGroup>
+    <TrimmerRootAssembly Include="Microsoft.Windows.SDK.NET" />
+    <TrimmerRootAssembly Include="WinRT.Runtime" />
+  </ItemGroup>
+  
 </Project>
