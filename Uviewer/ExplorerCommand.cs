@@ -1,7 +1,5 @@
 using System;
 using System.Runtime.InteropServices;
-using System.Runtime.InteropServices.ComTypes;
-using System.Collections.Generic;
 using System.IO;
 
 namespace Uviewer
@@ -37,79 +35,110 @@ namespace Uviewer
     [Guid("a08ce4d0-fa25-44ab-b57c-c7b1c323e0b9")]
     public interface IExplorerCommand
     {
-        void GetTitle(IShellItemArray psiItemArray, [MarshalAs(UnmanagedType.LPWStr)] out string ppszName);
-        void GetIcon(IShellItemArray psiItemArray, [MarshalAs(UnmanagedType.LPWStr)] out string ppszIcon);
-        void GetToolTip(IShellItemArray psiItemArray, [MarshalAs(UnmanagedType.LPWStr)] out string ppszInfotip);
-        void GetCanonicalName(out Guid pguidCommandName);
-        void GetState(IShellItemArray psiItemArray, bool fOkToBeSlow, out uint pCommandState);
-        void Invoke(IShellItemArray psiItemArray, IntPtr pbc);
-        void GetFlags(out uint pdwFlags);
-        void EnumSubCommands(out IntPtr ppEnum);
+        // 마샬링 크래시를 막기 위해 IShellItemArray 대신 IntPtr 사용
+        [PreserveSig]
+        int GetTitle([In] IntPtr psiItemArray, out IntPtr ppszName);
+
+        [PreserveSig]
+        int GetIcon([In] IntPtr psiItemArray, out IntPtr ppszIcon);
+
+        [PreserveSig]
+        int GetToolTip([In] IntPtr psiItemArray, out IntPtr ppszInfotip);
+
+        [PreserveSig]
+        int GetCanonicalName(out Guid pguidCommandName);
+
+        [PreserveSig]
+        int GetState([In] IntPtr psiItemArray, [MarshalAs(UnmanagedType.Bool)] bool fOkToBeSlow, out uint pCommandState);
+
+        [PreserveSig]
+        int Invoke([In] IntPtr psiItemArray, [In] IntPtr pbc);
+
+        [PreserveSig]
+        int GetFlags(out uint pdwFlags);
+
+        [PreserveSig]
+        int EnumSubCommands(out IntPtr ppEnum);
     }
 
     [Guid("D9614E4F-E02D-4E3F-8C3B-76C1B323E0B9")]
     [ComVisible(true)]
     public class UviewerExplorerCommand : IExplorerCommand
     {
-        public void GetTitle(IShellItemArray psiItemArray, out string ppszName)
+        public int GetTitle(IntPtr psiItemArray, out IntPtr ppszName)
         {
-            ppszName = "Open in Uviewer";
+            App.MarkActivity();
+            ppszName = Marshal.StringToCoTaskMemUni("Open in Uviewer");
+            return 0; // S_OK
         }
 
-        public void GetIcon(IShellItemArray psiItemArray, out string ppszIcon)
+        public int GetIcon(IntPtr psiItemArray, out IntPtr ppszIcon)
         {
-            // Use the executable itself as the icon source (resource index 0)
-            // This is more reliable for shell extensions to resolve the icon
-            ppszIcon = Path.Combine(AppContext.BaseDirectory, "Uviewer.exe");
+            ppszIcon = Marshal.StringToCoTaskMemUni(Path.Combine(AppContext.BaseDirectory, "Assets", "Uviewer.ico"));
+            return 0; // S_OK
         }
 
-        public void GetToolTip(IShellItemArray psiItemArray, out string ppszInfotip)
+        public int GetToolTip(IntPtr psiItemArray, out IntPtr ppszInfotip)
         {
-            ppszInfotip = "Open the selected item in Uviewer";
+            ppszInfotip = IntPtr.Zero;
+            return unchecked((int)0x80004001); // E_NOTIMPL
         }
 
-        public void GetCanonicalName(out Guid pguidCommandName)
+        public int GetCanonicalName(out Guid pguidCommandName)
         {
-            pguidCommandName = Guid.Parse("D9614E4F-E02D-4E3F-8C3B-76C1B323E0B9");
+            pguidCommandName = Guid.Empty;
+            return unchecked((int)0x80004001); // E_NOTIMPL
         }
 
-        public void GetState(IShellItemArray psiItemArray, bool fOkToBeSlow, out uint pCommandState)
+        public int GetState(IntPtr psiItemArray, bool fOkToBeSlow, out uint pCommandState)
         {
+            App.MarkActivity();
             pCommandState = 0; // ECS_ENABLED
+            return 0; // S_OK
         }
 
-        public void Invoke(IShellItemArray psiItemArray, IntPtr pbc)
+        public int Invoke(IntPtr psiItemArray, IntPtr pbc)
         {
-            if (psiItemArray != null)
+            App.MarkActivity();
+            if (psiItemArray != IntPtr.Zero)
             {
-                psiItemArray.GetCount(out uint count);
-                if (count > 0)
+                try
                 {
-                    psiItemArray.GetItemAt(0, out IShellItem item);
-                    item.GetDisplayName(0x80058000, out string path); // SIGDN_FILESYSPATH
-
-                    // Launch Uviewer.exe with the path
-                    // Since we are already in Uviewer.exe (running as COM server), 
-                    // we can either start a new process or use the existing logic.
-                    // The simplest is to start a new instance or let the App handle it.
-                    System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+                    // IntPtr로 받은 후 안전하게 수동 캐스팅
+                    var array = (IShellItemArray)Marshal.GetObjectForIUnknown(psiItemArray);
+                    array.GetCount(out uint count);
+                    if (count > 0)
                     {
-                        FileName = Path.Combine(AppContext.BaseDirectory, "Uviewer.exe"),
-                        Arguments = $"\"{path}\"",
-                        UseShellExecute = true
-                    });
+                        array.GetItemAt(0, out IShellItem item);
+                        item.GetDisplayName(0x80058000, out string path); // SIGDN_FILESYSPATH
+
+                        System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+                        {
+                            FileName = Path.Combine(AppContext.BaseDirectory, "Uviewer.exe"),
+                            Arguments = $"\"{path}\"",
+                            UseShellExecute = true
+                        });
+                    }
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"Invoke error: {ex.Message}");
                 }
             }
+            return 0; // S_OK
         }
 
-        public void GetFlags(out uint pdwFlags)
+        public int GetFlags(out uint pdwFlags)
         {
+            App.MarkActivity();
             pdwFlags = 0;
+            return 0; // S_OK
         }
 
-        public void EnumSubCommands(out IntPtr ppEnum)
+        public int EnumSubCommands(out IntPtr ppEnum)
         {
             ppEnum = IntPtr.Zero;
+            return unchecked((int)0x80004001); // E_NOTIMPL
         }
     }
 
@@ -118,28 +147,41 @@ namespace Uviewer
     [InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
     public interface IClassFactory
     {
-        void CreateInstance(IntPtr pUnkOuter, ref Guid riid, out IntPtr ppvObject);
-        void LockServer(bool fLock);
+        [PreserveSig]
+        int CreateInstance(IntPtr pUnkOuter, ref Guid riid, out IntPtr ppvObject);
+        [PreserveSig]
+        int LockServer(bool fLock);
     }
 
+    // 외부 COM에서 접근 가능하도록 ComVisible 속성 추가
+    [ComVisible(true)]
     public class UviewerExplorerCommandFactory : IClassFactory
     {
-        public void CreateInstance(IntPtr pUnkOuter, ref Guid riid, out IntPtr ppvObject)
+        public int CreateInstance(IntPtr pUnkOuter, ref Guid riid, out IntPtr ppvObject)
         {
-            if (pUnkOuter != IntPtr.Zero)
-                throw new COMException("Not supported", -2147221232); // CLASS_E_NOAGGREGATION
+            App.MarkActivity();
+            ppvObject = IntPtr.Zero;
 
-            if (riid == typeof(IExplorerCommand).GUID || riid == Guid.Parse("00000000-0000-0000-C000-000000000046")) // IUnknown
+            if (pUnkOuter != IntPtr.Zero)
+                return unchecked((int)0x80040110); // CLASS_E_NOAGGREGATION
+
+            try
             {
                 var cmd = new UviewerExplorerCommand();
-                ppvObject = Marshal.GetComInterfaceForObject(cmd, typeof(IExplorerCommand));
+                IntPtr pUnk = Marshal.GetIUnknownForObject(cmd);
+                int hr = Marshal.QueryInterface(pUnk, in riid, out ppvObject);
+                Marshal.Release(pUnk);
+                return hr;
             }
-            else
+            catch
             {
-                throw new COMException("No such interface", -2147467262); // E_NOINTERFACE
+                return unchecked((int)0x80004005); // E_FAIL
             }
         }
 
-        public void LockServer(bool fLock) { }
+        public int LockServer(bool fLock)
+        {
+            return 0; // S_OK
+        }
     }
 }

@@ -36,8 +36,12 @@ namespace Uviewer
         private static bool _allowMultipleInstances = true;
         private static CancellationTokenSource? _pipeCts;
         private uint _comCookie;
-        private bool _isComActivation = false;
+        private static bool _isComActivation = false;
+        private static System.Threading.Timer? _exitTimer;
+        private static Microsoft.UI.Dispatching.DispatcherQueue? _dispatcherQueue;
 
+        // 추가 1: GC(가비지 컬렉터) 수집을 방지하기 위한 정적 변수
+        private static UviewerExplorerCommandFactory? _commandFactory;
 
         [DllImport("ole32.dll")]
         private static extern int CoRegisterClassObject(ref Guid rclsid, IntPtr pUnk, uint dwClsContext, uint flags, out uint lpdwCookie);
@@ -45,58 +49,85 @@ namespace Uviewer
         [DllImport("ole32.dll")]
         private static extern int CoRevokeClassObject(uint dwCookie);
 
-        /// <summary>
-        /// Initializes the singleton application object.  This is the first line of authored code
-        /// executed, and as such is the logical equivalent of main() or WinMain().
-        /// </summary>
         public App()
         {
+            // 추가 2: COM 실행 모드에서도 무조건 App SDK 경로가 설정되도록 최상단으로 이동
             this.UnhandledException += App_UnhandledException;
+            Environment.SetEnvironmentVariable("MICROSOFT_WINDOWSAPPRUNTIME_BASE_DIRECTORY", AppContext.BaseDirectory);
 
+            _dispatcherQueue = Microsoft.UI.Dispatching.DispatcherQueue.GetForCurrentThread();
+
+            // args.Any() 대신 CommandLine 전체 문자열 검사가 더 안정적입니다.
+            string cmdLine = Environment.CommandLine;
+            if (cmdLine.Contains("-Embedding", StringComparison.OrdinalIgnoreCase))
+            {
+                _isComActivation = true;
+                try
+                {
+                    Guid clsid = Guid.Parse("D9614E4F-E02D-4E3F-8C3B-76C1B323E0B9");
+
+                    // 정적 변수에 할당하여 앱이 살아있는 동안 Factory가 삭제되지 않도록 보호
+                    _commandFactory = new UviewerExplorerCommandFactory();
+                    IntPtr factoryPtr = Marshal.GetIUnknownForObject(_commandFactory);
+
+                    CoRegisterClassObject(ref clsid, factoryPtr, 4, 1, out _comCookie);
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"COM Registration Error: {ex.Message}");
+                }
+            }
+            else
+            {
+                try
+                {
+                    LoadSettings();
+
+                    var args = Environment.GetCommandLineArgs();
+                    if (args.Length > 1)
+                    {
+                        LaunchFilePath = args[1];
+                    }
+
+                    if (!_allowMultipleInstances)
+                    {
+                        if (TrySendToExistingInstance(LaunchFilePath))
+                        {
+                            Environment.Exit(0);
+                            return;
+                        }
+                        StartPipeServer();
+                    }
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"Error in App constructor: {ex.Message}");
+                }
+            }
+
+            if (_isComActivation)
+            {
+                _exitTimer = new System.Threading.Timer((_) =>
+                {
+                    Interlocked.Exchange(ref _exitTimer, null)?.Dispose();
+                    _dispatcherQueue?.TryEnqueue(() =>
+                    {
+                        Application.Current.Exit();
+                    });
+                }, null, 15000, Timeout.Infinite);
+            }
+
+            InitializeComponent();
+        }
+
+        public static void MarkActivity()
+        {
+            if (!_isComActivation) return;
             try
             {
-                // Set Windows App SDK runtime base directory for single-file publish
-                Environment.SetEnvironmentVariable("MICROSOFT_WINDOWSAPPRUNTIME_BASE_DIRECTORY", AppContext.BaseDirectory);
-                
-                // Load settings
-                LoadSettings();
-
-                // Get command line arguments
-                var args = Environment.GetCommandLineArgs();
-                
-                // Handle COM activation for Windows 11 context menu
-                if (args.Any(a => a.Equals("-Embedding", StringComparison.OrdinalIgnoreCase)))
-                {
-                    _isComActivation = true;
-                    Guid clsid = Guid.Parse("D9614E4F-E02D-4E3F-8C3B-76C1B323E0B9");
-                    IntPtr factoryPtr = Marshal.GetIUnknownForObject(new UviewerExplorerCommandFactory());
-                    CoRegisterClassObject(ref clsid, factoryPtr, 4, 1, out _comCookie); // CLSCTX_LOCAL_SERVER, REGCLS_MULTIPLEUSE
-                    
-                    // Initialize basics but return to prevent window creation
-                    InitializeComponent();
-                    return;
-                }
-
-                if (args.Length > 1)
-                {
-                    LaunchFilePath = args[1];
-                }
-
-                if (!_allowMultipleInstances)
-                {
-                    if (TrySendToExistingInstance(LaunchFilePath))
-                    {
-                        Environment.Exit(0);
-                        return;
-                    }
-                    StartPipeServer();
-                }
+                _exitTimer?.Change(15000, Timeout.Infinite);
             }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"Error in App constructor: {ex.Message}");
-            }
-            InitializeComponent();
+            catch { }
         }
 
         private void LoadSettings()
