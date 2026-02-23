@@ -63,11 +63,11 @@
 					<desktop4:FileExplorerContextMenus>
 
 						<desktop4:ItemType Type="*">
-							<desktop4:Verb Id="OpenUviewerFile" Clsid="D9614E4F-E02D-4E3F-8C3B-76C1B323E0B9" Icon="Assets\Square44x44Logo.png" />
+							<desktop4:Verb Id="OpenUviewerFile" Clsid="D9614E4F-E02D-4E3F-8C3B-76C1B323E0B9" />
 						</desktop4:ItemType>
 
 						<desktop5:ItemType Type="Directory">
-							<desktop5:Verb Id="OpenUviewerDir" Clsid="D9614E4F-E02D-4E3F-8C3B-76C1B323E0B9" Icon="Assets\Square44x44Logo.png" />
+							<desktop5:Verb Id="OpenUviewerDir" Clsid="D9614E4F-E02D-4E3F-8C3B-76C1B323E0B9" />
 						</desktop5:ItemType>
 
 					</desktop4:FileExplorerContextMenus>
