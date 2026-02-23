@@ -1,51 +1,82 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
-
 <Package
   xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10"
   xmlns:mp="http://schemas.microsoft.com/appx/2014/phone/manifest"
   xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10"
   xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities"
-  IgnorableNamespaces="uap rescap">
+  xmlns:desktop4="http://schemas.microsoft.com/appx/manifest/desktop/windows10/4"
+  xmlns:desktop5="http://schemas.microsoft.com/appx/manifest/desktop/windows10/5"
+  xmlns:uap3="http://schemas.microsoft.com/appx/manifest/uap/windows10/3"
+  xmlns:desktop="http://schemas.microsoft.com/appx/manifest/desktop/windows10"
+  xmlns:com="http://schemas.microsoft.com/appx/manifest/com/windows10"
+  IgnorableNamespaces="uap rescap desktop4 desktop5 uap3 desktop com">
 
-  <Identity
-    Name="kirinonakar.Uviewer"
-    Publisher="CN=5F40B554-380B-47DB-92AD-D044EB10269C"
-    Version="1.2.2.0" />
+	<Identity
+	  Name="kirinonakar.Uviewer"
+	  Publisher="CN=kirinonakar"
+	  Version="1.2.2.0" />
 
-  <mp:PhoneIdentity PhoneProductId="447c5999-c770-49a8-ba98-f88ab037896c" PhonePublisherId="00000000-0000-0000-0000-000000000000"/>
+	<mp:PhoneIdentity PhoneProductId="447c5999-c770-49a8-ba98-f88ab037896c" PhonePublisherId="00000000-0000-0000-0000-000000000000"/>
 
-  <Properties>
-    <DisplayName>Uviewer</DisplayName>
-    <PublisherDisplayName>kirinonakar</PublisherDisplayName>
-    <Logo>Assets\StoreLogo.png</Logo>
-  </Properties>
+	<Properties>
+		<DisplayName>Uviewer</DisplayName>
+		<PublisherDisplayName>kirinonakar</PublisherDisplayName>
+		<Logo>Assets\StoreLogo.png</Logo>
+	</Properties>
 
-  <Dependencies>
-    <TargetDeviceFamily Name="Windows.Universal" MinVersion="10.0.17763.0" MaxVersionTested="10.0.19041.0" />
-    <TargetDeviceFamily Name="Windows.Desktop" MinVersion="10.0.17763.0" MaxVersionTested="10.0.19041.0" />
-  </Dependencies>
+	<Dependencies>
+		<TargetDeviceFamily Name="Windows.Desktop" MinVersion="10.0.19041.0" MaxVersionTested="10.0.22621.0" />
+	</Dependencies>
 
-  <Resources>
-    <Resource Language="x-generate"/>
-  </Resources>
+	<Resources>
+		<Resource Language="x-generate"/>
+	</Resources>
 
-  <Applications>
-    <Application Id="App"
-      Executable="$targetnametoken$.exe"
-      EntryPoint="$targetentrypoint$">
-      <uap:VisualElements
-        DisplayName="Uviewer"
-        Description="Uviewer"
-        BackgroundColor="transparent"
-        Square150x150Logo="Assets\Square150x150Logo.png"
-        Square44x44Logo="Assets\Square44x44Logo.png">
-        <uap:DefaultTile Wide310x150Logo="Assets\Wide310x150Logo.png" />
-        <uap:SplashScreen Image="Assets\SplashScreen.png" />
-      </uap:VisualElements>
-    </Application>
-  </Applications>
+	<Applications>
+		<Application Id="App" Executable="$targetnametoken$.exe" EntryPoint="$targetentrypoint$">
+			<uap:VisualElements
+			  DisplayName="Uviewer"
+			  Description="Uviewer"
+			  BackgroundColor="transparent"
+			  Square150x150Logo="Assets\Square150x150Logo.png"
+			  Square44x44Logo="Assets\Square44x44Logo.png">
+				<uap:DefaultTile Wide310x150Logo="Assets\Wide310x150Logo.png"  Square71x71Logo="Assets\SmallTile.png" Square310x310Logo="Assets\LargeTile.png"/>
+				<uap:SplashScreen Image="Assets\SplashScreen.png" />
+			</uap:VisualElements>
 
-  <Capabilities>
-    <rescap:Capability Name="runFullTrust" />
-  </Capabilities>
+			<Extensions>
+				<uap3:Extension Category="windows.appExecutionAlias">
+					<uap3:AppExecutionAlias>
+						<desktop:ExecutionAlias Alias="Uviewer.exe" />
+					</uap3:AppExecutionAlias>
+				</uap3:Extension>
+
+				<com:Extension Category="windows.comServer">
+					<com:ComServer>
+						<com:ExeServer Executable="Uviewer.exe" DisplayName="Uviewer Explorer Command Server">
+							<com:Class Id="D9614E4F-E02D-4E3F-8C3B-76C1B323E0B9" DisplayName="Open in Uviewer Command" />
+						</com:ExeServer>
+					</com:ComServer>
+				</com:Extension>
+
+				<desktop4:Extension Category="windows.fileExplorerContextMenus">
+					<desktop4:FileExplorerContextMenus>
+
+						<desktop4:ItemType Type="*">
+							<desktop4:Verb Id="OpenUviewerFile" Clsid="D9614E4F-E02D-4E3F-8C3B-76C1B323E0B9" />
+						</desktop4:ItemType>
+
+						<desktop5:ItemType Type="Directory">
+							<desktop5:Verb Id="OpenUviewerDir" Clsid="D9614E4F-E02D-4E3F-8C3B-76C1B323E0B9" />
+						</desktop5:ItemType>
+
+					</desktop4:FileExplorerContextMenus>
+				</desktop4:Extension>
+			</Extensions>
+		</Application>
+	</Applications>
+
+	<Capabilities>
+		<rescap:Capability Name="runFullTrust" />
+	</Capabilities>
 </Package>

@@ -6,6 +6,17 @@
   <PropertyGroup>
     <ActiveDebugProfile>Uviewer (Package)</ActiveDebugProfile>
     <AppxShowAllApps>False</AppxShowAllApps>
+    <UapAppxPackageBuildMode>SideloadOnly</UapAppxPackageBuildMode>
+    <AppxBuildConfigurationSelection>x64</AppxBuildConfigurationSelection>
+    <PackageOptionalProjectsInIdeBuilds>False</PackageOptionalProjectsInIdeBuilds>
+    <Source>D:\ASUNA\Tools\Visual_studio\Uviewer\Uviewer\Assets\Uviewer2.png</Source>
+    <SmallTileSource>D:\ASUNA\Tools\Visual_studio\Uviewer\Uviewer\Assets\Uviewer2.png</SmallTileSource>
+    <MediumTileSource>D:\ASUNA\Tools\Visual_studio\Uviewer\Uviewer\Assets\Uviewer2.png</MediumTileSource>
+    <WideTileSource>D:\ASUNA\Tools\Visual_studio\Uviewer\Uviewer\Assets\Uviewer2.png</WideTileSource>
+    <LargeTileSource>D:\ASUNA\Tools\Visual_studio\Uviewer\Uviewer\Assets\Uviewer2.png</LargeTileSource>
+    <AppIconSource>D:\ASUNA\Tools\Visual_studio\Uviewer\Uviewer\Assets\Uviewer2.png</AppIconSource>
+    <SplashScreenSource>D:\ASUNA\Tools\Visual_studio\Uviewer\Uviewer\Assets\Uviewer2.png</SplashScreenSource>
+    <PackageLogoSource>D:\ASUNA\Tools\Visual_studio\Uviewer\Uviewer\Assets\Uviewer2.png</PackageLogoSource>
   </PropertyGroup>
   <ItemGroup>
     <None Update="App.xaml">

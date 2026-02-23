@@ -18,6 +18,8 @@ using Windows.Foundation.Collections;
 using System.IO.Pipes;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Runtime.InteropServices;
+using System.Diagnostics.CodeAnalysis;
 
 // To learn more about WinUI, the WinUI project structure,
 // and more about our project templates, see: http://aka.ms/winui-project-info.
@@ -33,6 +35,13 @@ namespace Uviewer
         public static string? LaunchFilePath { get; set; }
         private static bool _allowMultipleInstances = true;
         private static CancellationTokenSource? _pipeCts;
+        private uint _comCookie;
+
+        [DllImport("ole32.dll")]
+        private static extern int CoRegisterClassObject(ref Guid rclsid, IntPtr pUnk, uint dwClsContext, uint flags, out uint lpdwCookie);
+
+        [DllImport("ole32.dll")]
+        private static extern int CoRevokeClassObject(uint dwCookie);
 
         /// <summary>
         /// Initializes the singleton application object.  This is the first line of authored code
@@ -52,6 +61,18 @@ namespace Uviewer
 
                 // Get command line arguments
                 var args = Environment.GetCommandLineArgs();
+                
+                // Handle COM activation for Windows 11 context menu
+                if (args.Any(a => a.Equals("-Embedding", StringComparison.OrdinalIgnoreCase)))
+                {
+                    Guid clsid = Guid.Parse("D9614E4F-E02D-4E3F-8C3B-76C1B323E0B9");
+                    IntPtr factoryPtr = Marshal.GetIUnknownForObject(new UviewerExplorerCommandFactory());
+                    CoRegisterClassObject(ref clsid, factoryPtr, 4, 1, out _comCookie); // CLSCTX_LOCAL_SERVER, REGCLS_MULTIPLEUSE
+                    
+                    // Keep the app running in COM mode without showing window
+                    return;
+                }
+
                 if (args.Length > 1)
                 {
                     LaunchFilePath = args[1];
