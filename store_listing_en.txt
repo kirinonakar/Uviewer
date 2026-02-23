@@ -1,0 +1,47 @@
+Product Name: Uviewer - Modern Image & Novel Reader
+
+Short Description:
+A versatile viewer for images, text, and EPUBs with Aozora Bunko (Vertical Text) and Archive support. Modern high-performance experience built on WinUI 3.
+
+Description:
+Uviewer is a versatile, integrated viewer for Windows that delivers a modern, high-performance experience built on WinUI 3 and .NET 10. It seamlessly handles images, text, and EPUB documents, offering advanced capabilities such as direct image viewing from archives, side-by-side viewing modes, and robust support for Aozora Bunko—complete with vertical text rendering. 
+
+Designed for flexibility, it also features integrated Markdown support, smart encoding detection, and WebDAV connectivity to streamline your digital reading and viewing workflow.
+
+Key Features:
+
+🖼️ Image Viewing
+- Broad Format Support: JPEG, PNG, GIF, BMP, TIFF, ICO, SVG, WebP, AVIF, JXL and Animated WebP.
+- High-Performance Rendering: Powered by Win2D (Direct2D) for smooth zooming and panning.
+- Smart Scaling: Customizable zoom levels (0.1x to 10x), fit-to-window, and actual size.
+- Tools: Sharpening filter, Side-by-Side view mode, Match Control Direction (R-to-L navigation), and Fast Navigation overlay.
+
+📝 Text & Novel Viewing
+- Advanced Text Engine: Immediate loading of large files.
+- Aozora Bunko Support: Native rendering of Ruby text (Furigana), emphasis, indentation, and images.
+- Markdown Support: Custom-built rendering including tables and code blocks.
+- Smart Encoding Detection: Handles UTF-8, EUC-KR, Shift-JIS, and more.
+- Vertical Mode (Tategaki): Comprehensive support for vertical text with pixel-accurate layout.
+- Navigation: TOC extraction and "Go to Line" support.
+
+📖 EPUB Reader
+- Full Support: Page-based navigation with chapter tracking.
+- TOC Navigation: Quickly jump between chapters.
+- Vertical Support: View EPUBs in vertical mode for a traditional reading experience.
+
+📂 File Management
+- Archive Support: Read images directly from .zip, .rar, .7z, etc.
+- Organization: Favorites and Recent Files management.
+- WebDAV Support: Access images directly from remote servers.
+
+🌍 Localization
+- Multi-language Support: English, Korean, and Japanese.
+
+Features:
+- Seamless viewing of images, text, and EPUBs in one app.
+- Direct image viewing from ZIP/7z/RAR archives without extraction.
+- Beautiful Aozora Bunko (vertical text) rendering with Ruby support.
+- Hardware-accelerated image rendering for smooth performance.
+- Smart encoding auto-detection for text files.
+- WebDAV support for remote reading and viewing.
+- Modern Windows 11-style interface with Dark/Light mode.
