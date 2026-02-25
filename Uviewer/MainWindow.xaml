@@ -229,7 +229,7 @@
                                         <ListView.ItemTemplate>
                                             <DataTemplate>
                                                 <TextBlock Text="{Binding HeadingText}" Margin="{Binding Margin}" FontSize="14" 
-                                                           FontFamily="{ThemeResource ControlContentThemeFontFamily}"
+                                                           FontFamily="{ThemeResource ContentControlThemeFontFamily}"
                                                            ToolTipService.ToolTip="{Binding HeadingText}" TextTrimming="CharacterEllipsis"/>
                                             </DataTemplate>
                                         </ListView.ItemTemplate>
@@ -432,7 +432,7 @@
                                               Foreground="{Binding IconColor}"/>
                                     <TextBlock Grid.Column="1" Text="{Binding Name}" 
                                                VerticalAlignment="Center"
-                                               FontFamily="{ThemeResource ControlContentThemeFontFamily}"
+                                               FontFamily="{ThemeResource ContentControlThemeFontFamily}"
                                                TextTrimming="CharacterEllipsis"
                                                ToolTipService.ToolTip="{Binding Name}"/>
                                 </Grid>
@@ -463,7 +463,7 @@
                                     </Grid>
 
                                     <TextBlock Grid.Row="1" Text="{Binding Name}" FontSize="11" 
-                                               FontFamily="{ThemeResource ControlContentThemeFontFamily}"
+                                               FontFamily="{ThemeResource ContentControlThemeFontFamily}"
                                                TextTrimming="CharacterEllipsis" HorizontalAlignment="Center" 
                                                MaxLines="2" TextAlignment="Center" Margin="0,4,0,0"/>
                                 </Grid>
