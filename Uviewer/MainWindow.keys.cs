@@ -13,6 +13,21 @@ namespace Uviewer
         {
             // Allow text input controls to function normally (e.g. WebDAV dialog)
             if (e.OriginalSource is TextBox || e.OriginalSource is PasswordBox || e.OriginalSource is NumberBox) return;
+            
+            // Exit Fullscreen or Close App with Escape (moved to PreviewKeyDown for better reliability)
+            if (e.Key == Windows.System.VirtualKey.Escape)
+            {
+                if (_isFullscreen)
+                {
+                    ToggleFullscreen();
+                }
+                else
+                {
+                    CloseWindowButton_Click(sender, new RoutedEventArgs());
+                }
+                e.Handled = true;
+                return;
+            }
 
             var ctrlPressed = Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(
                 Windows.System.VirtualKey.Control).HasFlag(Windows.UI.Core.CoreVirtualKeyStates.Down);
@@ -53,18 +68,7 @@ namespace Uviewer
 
             switch (e.Key)
             {
-                case Windows.System.VirtualKey.Escape when !_isFullscreen:
-                    // Close the app when ESC is pressed (but not in fullscreen)
-                    CloseWindowButton_Click(sender, new RoutedEventArgs());
-                    e.Handled = true;
-                    break;
-
                 case Windows.System.VirtualKey.F11:
-                    ToggleFullscreen();
-                    e.Handled = true;
-                    break;
-
-                case Windows.System.VirtualKey.Escape when _isFullscreen:
                     ToggleFullscreen();
                     e.Handled = true;
                     break;

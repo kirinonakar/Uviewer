@@ -330,6 +330,7 @@ namespace Uviewer
         public MainWindow(string? launchFilePath = null)
         {
             InitializeComponent();
+            LoadTextSettings();
 
             try
             {
@@ -402,11 +403,21 @@ namespace Uviewer
              // 화면 UI(RootGrid)가 로드된 후에 초기화 작업을 시작합니다.
             RootGrid.Loaded += async (s, e) =>
             {
+                UpdateTitleBarColors();
+                RootGrid.Focus(FocusState.Programmatic);
                 // Win2D 캔버스 디바이스가 초기화될 시간을 아주 잠깐 확보 (안전장치)
                 await Task.Delay(50);
                 // 이전 비정상 종료 시 남은 WebDAV 임시 파일 정리
                 WebDavService.CleanupTempFiles();
                 await InitializeAsync(launchFilePath);
+            };
+
+            this.Activated += (s, e) =>
+            {
+                if (e.WindowActivationState != WindowActivationState.Deactivated)
+                {
+                    RootGrid.Focus(FocusState.Programmatic);
+                }
             };
 
 
@@ -592,12 +603,14 @@ namespace Uviewer
             if (AddToFavoritesButton != null) AddToFavoritesButton.Content = Strings.AddToFavorites;
             if (SidebarAddToFavoritesButton != null) SidebarAddToFavoritesButton.Content = Strings.AddToFavorites;
             if (ChangeFontMenuItem != null) ChangeFontMenuItem.Text = Strings.ChangeFont;
+            if (ChangeUiFontMenuItem != null) ChangeUiFontMenuItem.Text = Strings.ChangeUiFont;
             if (EncodingMenuItem != null) EncodingMenuItem.Text = Strings.EncodingMenu;
             if (EncAutoItem != null) EncAutoItem.Text = Strings.EncAuto;
             if (EncUtf8Item != null) EncUtf8Item.Text = Strings.EncUtf8;
             if (EncEucKrItem != null) EncEucKrItem.Text = Strings.EncEucKr;
             if (EncSjisItem != null) EncSjisItem.Text = Strings.EncSjis;
             if (EncJohabItem != null) EncJohabItem.Text = Strings.EncJohab;
+            if (ChangeColorsMenuItem != null) ChangeColorsMenuItem.Text = Strings.ChangeColors;
             if (MatchControlDirectionMenuItem != null)
             {
                 MatchControlDirectionMenuItem.Text = Strings.MatchControlDirection;
@@ -609,6 +622,14 @@ namespace Uviewer
                 ToolTipService.SetToolTip(AllowMultipleInstancesMenuItem, Strings.AllowMultipleInstancesTooltip);
             }
             if (NotificationText != null) NotificationText.Text = Strings.AddedToFavoritesNotification;
+
+            if (LanguageMenuItem != null) LanguageMenuItem.Text = Strings.LanguageSelection;
+            if (LangAutoItem != null) LangAutoItem.Text = Strings.LanguageAuto;
+            if (LangKoItem != null) LangKoItem.Text = Strings.LanguageKorean;
+            if (LangEnItem != null) LangEnItem.Text = Strings.LanguageEnglish;
+            if (LangJaItem != null) LangJaItem.Text = Strings.LanguageJapanese;
+
+            UpdateLanguageMenuCheckmark();
         }
 
         private void AppWindow_Changed(AppWindow sender, AppWindowChangedEventArgs args)
@@ -637,6 +658,10 @@ namespace Uviewer
                         }
                     }
                 }
+
+                // [Important] Re-focus RootGrid after window state changes (Maximize/Restore/Resize)
+                // This ensures keyboard shortcuts keep working without an extra click.
+                RootGrid?.Focus(FocusState.Programmatic);
             }
         }
 
@@ -676,11 +701,13 @@ namespace Uviewer
                     SplitterGrid.Visibility = Visibility.Collapsed;
                 }
                 FullscreenIcon.Glyph = "\uE740"; // Fullscreen icon
+                ExtendsContentIntoTitleBar = true; // Ensure title bar is extended again when exiting
                 _isFullscreen = false;
             }
             else
             {
                 // Enter fullscreen
+                ExtendsContentIntoTitleBar = false; // Disable extension to let OS hide title bar area completely
                 appWindow.SetPresenter(AppWindowPresenterKind.FullScreen);
                 AppTitleBar.Visibility = Visibility.Collapsed;
                 ToolbarGrid.Visibility = Visibility.Collapsed;
@@ -696,6 +723,10 @@ namespace Uviewer
                 _isFullscreen = true;
                 StopFullscreenHoverTimers();
             }
+
+            // [Important] Refresh title bar colors and re-focus RootGrid after window state change
+            UpdateTitleBarColors();
+            RootGrid?.Focus(FocusState.Programmatic);
         }
 
         private void StopFullscreenHoverTimers()
@@ -903,9 +934,19 @@ namespace Uviewer
         private void SetTheme(ElementTheme theme)
         {
             _currentTheme = theme;
+            
+            // Set theme on the root content to ensure all theme resources (including Mica) update
+            if (this.Content is FrameworkElement root)
+            {
+                root.RequestedTheme = theme;
+            }
+
             if (RootGrid != null)
             {
+                // Force child elements to re-evaluate their theme resources
                 RootGrid.RequestedTheme = theme;
+                // [Important] Changing theme can cause focus loss; re-focus to keep shortcuts working
+                RootGrid.Focus(FocusState.Programmatic);
             }
 
             // Update icon
@@ -930,13 +971,27 @@ namespace Uviewer
             if (appWindow != null && AppWindowTitleBar.IsCustomizationSupported())
             {
                 var titleBar = appWindow.TitleBar;
-                // Get the background color of the toolbar/titlebar to match buttons
-                // Default is transparent for buttons to let our background show through
-                titleBar.ButtonBackgroundColor = Colors.Transparent;
-                titleBar.ButtonInactiveBackgroundColor = Colors.Transparent;
-
+                
                 if (_currentTheme == ElementTheme.Dark)
                 {
+                    // Use solid dark color to prevent white flicker during maximize/fullscreen
+                    var darkBg = ColorHelper.FromArgb(255, 28, 28, 28);
+                    titleBar.BackgroundColor = darkBg;
+                    titleBar.InactiveBackgroundColor = darkBg;
+                    
+                    // When extended, we want transparent buttons to blend with our custom UI.
+                    // When NOT extended (e.g. in Fullscreen), we want solid background to match the system title bar.
+                    if (ExtendsContentIntoTitleBar)
+                    {
+                        titleBar.ButtonBackgroundColor = Colors.Transparent;
+                        titleBar.ButtonInactiveBackgroundColor = Colors.Transparent;
+                    }
+                    else
+                    {
+                        titleBar.ButtonBackgroundColor = darkBg;
+                        titleBar.ButtonInactiveBackgroundColor = darkBg;
+                    }
+                    
                     titleBar.ButtonForegroundColor = Colors.White;
                     titleBar.ButtonHoverForegroundColor = Colors.White;
                     titleBar.ButtonHoverBackgroundColor = ColorHelper.FromArgb(0x33, 0xFF, 0xFF, 0xFF);
@@ -946,6 +1001,22 @@ namespace Uviewer
                 }
                 else
                 {
+                    // Use solid light color for light theme
+                    var lightBg = ColorHelper.FromArgb(255, 243, 243, 243);
+                    titleBar.BackgroundColor = lightBg;
+                    titleBar.InactiveBackgroundColor = lightBg;
+                    
+                    if (ExtendsContentIntoTitleBar)
+                    {
+                        titleBar.ButtonBackgroundColor = Colors.Transparent;
+                        titleBar.ButtonInactiveBackgroundColor = Colors.Transparent;
+                    }
+                    else
+                    {
+                        titleBar.ButtonBackgroundColor = lightBg;
+                        titleBar.ButtonInactiveBackgroundColor = lightBg;
+                    }
+                    
                     titleBar.ButtonForegroundColor = Colors.Black;
                     titleBar.ButtonHoverForegroundColor = Colors.Black;
                     titleBar.ButtonHoverBackgroundColor = ColorHelper.FromArgb(0x33, 0x00, 0x00, 0x00);

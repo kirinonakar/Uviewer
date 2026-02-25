@@ -1,3 +1,4 @@
+using System.IO;
 using Microsoft.Graphics.Canvas.Text;
 using Microsoft.UI;
 using Microsoft.UI.Text;
@@ -26,7 +27,9 @@ namespace Uviewer
         private string _userSelectedEncodingName = "Auto"; // User selected encoding
         private double _textFontSize = 18;
         private string _textFontFamily = "Yu Gothic Medium";
+        private string _uiFontFamily = ""; // Default empty (system default)
         private int _themeIndex = 0; // 0: White, 1: Beige, 2: Dark, 3: Custom
+        private string _languageSetting = "Auto"; // Store "Auto", "ko-KR", etc.
         private Color? _customBackgroundColor = null;
         private Color? _customForegroundColor = null;
         private bool _isTextMode = false;
@@ -436,6 +439,25 @@ namespace Uviewer
                         if (settings.CustomBackgroundColor != null) _customBackgroundColor = ParseHexColor(settings.CustomBackgroundColor);
                         if (settings.CustomForegroundColor != null) _customForegroundColor = ParseHexColor(settings.CustomForegroundColor);
                         if (VerticalToggleButton != null) VerticalToggleButton.IsChecked = _isVerticalMode;
+                        
+                        if (!string.IsNullOrEmpty(settings.UIFontFamily))
+                        {
+                            _uiFontFamily = settings.UIFontFamily;
+                            this.DispatcherQueue.TryEnqueue(() => SetUiFont(_uiFontFamily));
+                        }
+
+                        try {
+                            _languageSetting = settings.Language ?? "Auto";
+                            ApplyLanguage(_languageSetting);
+                            this.DispatcherQueue.TryEnqueue(async () => {
+                                await Task.Delay(100);
+                                Strings.Reload();
+                                ApplyLocalization();
+                                UpdateLanguageMenuCheckmark();
+                            });
+                        } catch (Exception ex) {
+                            System.Diagnostics.Debug.WriteLine($"Language load error: {ex.Message}");
+                        }
                     }
                 }
             }
@@ -468,7 +490,9 @@ namespace Uviewer
                     ThemeIndex = _themeIndex,
                     IsVerticalMode = _isVerticalMode,
                     CustomBackgroundColor = _customBackgroundColor?.ToString(),
-                    CustomForegroundColor = _customForegroundColor?.ToString()
+                    CustomForegroundColor = _customForegroundColor?.ToString(),
+                    Language = _languageSetting,
+                    UIFontFamily = _uiFontFamily
                 };
                 
                 var settingsFile = GetTextSettingsFilePath();
@@ -1411,6 +1435,63 @@ namespace Uviewer
             _ = ShowColorPickerDialog();
         }
 
+        private async void LanguageItem_Click(object sender, RoutedEventArgs e)
+        {
+            if (sender is ToggleMenuFlyoutItem item && item.Tag is string lang)
+            {
+                ApplyLanguage(lang);
+                SaveTextSettings();
+                
+                // Give a moment for the system to process the language change
+                await Task.Delay(100);
+                
+                // Reload strings
+                Strings.Reload();
+                
+                // Refresh UI
+                ApplyLocalization();
+                UpdateLanguageMenuCheckmark();
+            }
+        }
+
+        private void ApplyLanguage(string lang)
+        {
+            _languageSetting = lang;
+            try {
+                if (lang == "Auto" || string.IsNullOrEmpty(lang))
+                {
+                    // For Auto, we explicitly fetch the first available language from system preferences
+                    // and set it as the override to force the app's resource manager to switch.
+                    var systemLanguages = Windows.System.UserProfile.GlobalizationPreferences.Languages;
+                    if (systemLanguages.Count > 0)
+                    {
+                        Microsoft.Windows.Globalization.ApplicationLanguages.PrimaryLanguageOverride = systemLanguages[0];
+                    }
+                    else
+                    {
+                        Microsoft.Windows.Globalization.ApplicationLanguages.PrimaryLanguageOverride = "";
+                    }
+                }
+                else
+                {
+                    Microsoft.Windows.Globalization.ApplicationLanguages.PrimaryLanguageOverride = lang;
+                }
+            } catch (Exception ex) {
+                System.Diagnostics.Debug.WriteLine($"Language apply error: {ex.Message}");
+            }
+        }
+
+        private void UpdateLanguageMenuCheckmark()
+        {
+            string current = _languageSetting;
+            if (string.IsNullOrEmpty(current)) current = "Auto";
+
+            if (LangAutoItem != null) LangAutoItem.IsChecked = current == "Auto";
+            if (LangKoItem != null) LangKoItem.IsChecked = current == "ko-KR";
+            if (LangEnItem != null) LangEnItem.IsChecked = current == "en-US";
+            if (LangJaItem != null) LangJaItem.IsChecked = current == "ja-JP";
+        }
+
         private async Task ShowColorPickerDialog()
         {
             var bgHsl = ToHsl(_customBackgroundColor ?? ((SolidColorBrush)GetThemeBackground()).Color);
@@ -1637,6 +1718,149 @@ namespace Uviewer
             _textFontFamily = fontFamily;
             SaveTextSettings();
             await RefreshTextDisplay();
+        }
+
+        private void UiFontMenu_Click(object sender, RoutedEventArgs e)
+        {
+            _ = ShowUiFontPickerDialog();
+        }
+
+        private async Task ShowUiFontPickerDialog()
+        {
+            try
+            {
+                var fonts = CanvasTextFormat.GetSystemFontFamilies()
+                    .OrderBy(f => f)
+                    .ToList();
+
+                var searchBox = new AutoSuggestBox
+                {
+                    PlaceholderText = Strings.FontSearchPlaceholder,
+                    QueryIcon = new SymbolIcon(Symbol.Find),
+                    Margin = new Thickness(0, 0, 0, 10),
+                    Width = 300
+                };
+
+                var fontList = new ListView
+                {
+                    ItemsSource = fonts,
+                    SelectionMode = ListViewSelectionMode.Single,
+                    MaxHeight = 400,
+                    Width = 300,
+                    ItemTemplate = (DataTemplate)Microsoft.UI.Xaml.Markup.XamlReader.Load(
+                        @"<DataTemplate xmlns='http://schemas.microsoft.com/winfx/2006/xaml/presentation'>
+                            <TextBlock Text='{Binding}' FontFamily='{Binding}' FontSize='16' VerticalAlignment='Center' Padding='4'/>
+                        </DataTemplate>")
+                };
+
+                // Pre-select current UI font
+                string currentFont = _uiFontFamily;
+                if (string.IsNullOrEmpty(currentFont))
+                {
+                    // Try to get current default font if possible, or just don't select
+                }
+                else
+                {
+                    fontList.SelectedItem = fonts.FirstOrDefault(f => f.Equals(currentFont, StringComparison.OrdinalIgnoreCase));
+                }
+
+                if (fontList.SelectedItem != null) fontList.ScrollIntoView(fontList.SelectedItem);
+
+                searchBox.TextChanged += (s, e) =>
+                {
+                    if (e.Reason == AutoSuggestionBoxTextChangeReason.UserInput)
+                    {
+                        var filtered = fonts.Where(f => f.Contains(s.Text, StringComparison.OrdinalIgnoreCase)).ToList();
+                        fontList.ItemsSource = filtered;
+                    }
+                };
+
+                var stackPanel = new StackPanel();
+                stackPanel.Children.Add(searchBox);
+                stackPanel.Children.Add(fontList);
+
+                var dialog = new ContentDialog
+                {
+                    Title = Strings.UIFontSelectionTitle,
+                    Content = stackPanel,
+                    PrimaryButtonText = Strings.DialogPrimary,
+                    CloseButtonText = Strings.DialogClose,
+                    XamlRoot = this.Content.XamlRoot,
+                    DefaultButton = ContentDialogButton.Primary,
+                    RequestedTheme = RootGrid.ActualTheme
+                };
+
+                // PreviewKeyDown for ESC
+                stackPanel.PreviewKeyDown += (s, e) =>
+                {
+                    if (e.Key == Windows.System.VirtualKey.Escape)
+                    {
+                        dialog.Hide();
+                        e.Handled = true;
+                    }
+                };
+
+                if (await dialog.ShowAsync() == ContentDialogResult.Primary && fontList.SelectedItem is string selectedFont)
+                {
+                    SetUiFont(selectedFont);
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error showing UI font picker: {ex.Message}");
+            }
+        }
+
+        private void SetUiFont(string fontFamily)
+        {
+            _uiFontFamily = fontFamily;
+            var ff = new FontFamily(fontFamily);
+            
+            if (RootFontControl != null)
+            {
+                RootFontControl.FontFamily = ff;
+            }
+
+            // Explicitly set on sidebar containers to ensure inheritance in virtualized templates
+            if (FileListView != null) FileListView.FontFamily = ff;
+            if (FileGridView != null) FileGridView.FontFamily = ff;
+            
+            // Cast to FrameworkElement/Control/TextBlock to avoid build ambiguity
+            if (CurrentPathText is TextBlock cpt) cpt.FontFamily = ff;
+            if (NotificationText is TextBlock nt) nt.FontFamily = ff;
+            if (FileNameText is TextBlock fnt) fnt.FontFamily = ff;
+            if (ZoomLevelText is TextBlock zlt) zlt.FontFamily = ff;
+            if (TextSizeLevelText is TextBlock tslt) tslt.FontFamily = ff;
+            
+            // Update app resources to affect popups/dialogs and theme-bound items
+            try
+            {
+                var resources = Application.Current.Resources;
+                resources["ContentControlThemeFontFamily"] = ff;
+                resources["ControlContentThemeFontFamily"] = ff;
+                resources["TextControlFontFamily"] = ff;
+                resources["ComboBoxPlaceholderTextThemeFontFamily"] = ff;
+                resources["ContentPresenterFontFamily"] = ff;
+                resources["ListViewItemFontFamily"] = ff;
+                resources["GridViewItemFontFamily"] = ff;
+                resources["MenuFlyoutItemFontFamily"] = ff;
+                resources["PickerPlaceholderTextFontFamily"] = ff;
+                
+                // Force WinUI to re-evaluate all {ThemeResource} bindings by toggling the theme
+                if (RootGrid != null)
+                {
+                    var currentTheme = RootGrid.RequestedTheme;
+                    // Switch to an explicit theme then back to force reload
+                    RootGrid.RequestedTheme = (currentTheme == ElementTheme.Dark) ? ElementTheme.Light : ElementTheme.Dark;
+                    RootGrid.RequestedTheme = currentTheme;
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Font resource update error: {ex.Message}");
+            }
+            
+            SaveTextSettings();
         }
 
 

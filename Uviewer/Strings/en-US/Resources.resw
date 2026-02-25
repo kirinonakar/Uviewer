@@ -1,0 +1,347 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <xsd:schema id="root" xmlns="" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:msdata="urn:schemas-microsoft-com:xml-msdata">
+    <xsd:import namespace="http://www.w3.org/XML/1998/namespace" />
+    <xsd:element name="root" msdata:IsDataSet="true">
+      <xsd:complexType>
+        <xsd:choice maxOccurs="unbounded">
+          <xsd:element name="metadata">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" />
+              </xsd:sequence>
+              <xsd:attribute name="name" use="required" type="xsd:string" />
+              <xsd:attribute name="type" type="xsd:string" />
+              <xsd:attribute name="mimetype" type="xsd:string" />
+              <xsd:attribute ref="xml:space" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="assembly">
+            <xsd:complexType>
+              <xsd:attribute name="alias" type="xsd:string" />
+              <xsd:attribute name="name" type="xsd:string" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="data">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+                <xsd:element name="comment" type="xsd:string" minOccurs="0" msdata:Ordinal="2" />
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" use="required" msdata:Ordinal="1" />
+              <xsd:attribute name="type" type="xsd:string" msdata:Ordinal="3" />
+              <xsd:attribute name="mimetype" type="xsd:string" msdata:Ordinal="4" />
+              <xsd:attribute ref="xml:space" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="resheader">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" use="required" />
+            </xsd:complexType>
+          </xsd:element>
+        </xsd:choice>
+      </xsd:complexType>
+    </xsd:element>
+  </xsd:schema>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <data name="ToggleSidebarTooltip" xml:space="preserve">
+    <value>Toggle Sidebar (Ctrl+B)</value>
+  </data>
+  <data name="OpenFileTooltip" xml:space="preserve">
+    <value>Open File (Ctrl+O)</value>
+  </data>
+  <data name="OpenFolderTooltip" xml:space="preserve">
+    <value>Open Folder</value>
+  </data>
+  <data name="ZoomOutTooltip" xml:space="preserve">
+    <value>Zoom Out (-)</value>
+  </data>
+  <data name="ZoomInTooltip" xml:space="preserve">
+    <value>Zoom In (+)</value>
+  </data>
+  <data name="ZoomFitTooltip" xml:space="preserve">
+    <value>Fit to Window</value>
+  </data>
+  <data name="ZoomActualTooltip" xml:space="preserve">
+    <value>Actual Size</value>
+  </data>
+  <data name="SharpenTooltip" xml:space="preserve">
+    <value>Sharpen (S)</value>
+  </data>
+  <data name="SideBySideTooltip" xml:space="preserve">
+    <value>Side by Side (Space)</value>
+  </data>
+  <data name="NextImageSideTooltip" xml:space="preserve">
+    <value>Next Image Position</value>
+  </data>
+  <data name="PrevFileTooltip" xml:space="preserve">
+    <value>Previous File</value>
+  </data>
+  <data name="NextFileTooltip" xml:space="preserve">
+    <value>Next File</value>
+  </data>
+  <data name="PrevPageTooltip" xml:space="preserve">
+    <value>Previous Image/Page</value>
+  </data>
+  <data name="NextPageTooltip" xml:space="preserve">
+    <value>Next Image/Page</value>
+  </data>
+  <data name="AozoraTooltip" xml:space="preserve">
+    <value>Aozora/md(A)</value>
+  </data>
+  <data name="FontTooltip" xml:space="preserve">
+    <value>Change Font (F)</value>
+  </data>
+  <data name="GoToPageTooltip" xml:space="preserve">
+    <value>Go to Line (G)</value>
+  </data>
+  <data name="TextSizeDownTooltip" xml:space="preserve">
+    <value>Text Smaller (-)</value>
+  </data>
+  <data name="TextSizeUpTooltip" xml:space="preserve">
+    <value>Text Larger (+)</value>
+  </data>
+  <data name="VerticalTooltip" xml:space="preserve">
+    <value>Vertical Mode (V)</value>
+  </data>
+  <data name="ThemeTooltip" xml:space="preserve">
+    <value>Change Background (B)</value>
+  </data>
+  <data name="FullscreenTooltip" xml:space="preserve">
+    <value>Fullscreen (F11)</value>
+  </data>
+  <data name="CloseWindowTooltip" xml:space="preserve">
+    <value>Close (Esc)</value>
+  </data>
+  <data name="ToggleViewTooltip" xml:space="preserve">
+    <value>Thumbnail View</value>
+  </data>
+  <data name="ListViewTooltip" xml:space="preserve">
+    <value>List View</value>
+  </data>
+  <data name="ParentFolderTooltip" xml:space="preserve">
+    <value>Up Level (Backspace)</value>
+  </data>
+  <data name="RecentTooltip" xml:space="preserve">
+    <value>Recent Files</value>
+  </data>
+  <data name="NoRecentFiles" xml:space="preserve">
+    <value>No Recent Files</value>
+  </data>
+  <data name="FavoritesTooltip" xml:space="preserve">
+    <value>Favorites (Ctrl+S)</value>
+  </data>
+  <data name="NoFavorites" xml:space="preserve">
+    <value>No Favorites</value>
+  </data>
+  <data name="TocTooltip" xml:space="preserve">
+    <value>Table of Contents</value>
+  </data>
+  <data name="TocTitle" xml:space="preserve">
+    <value>Contents</value>
+  </data>
+  <data name="NoTocContent" xml:space="preserve">
+    <value>No Table of Contents</value>
+  </data>
+  <data name="BrowseFolderTooltip" xml:space="preserve">
+    <value>Browse Folder</value>
+  </data>
+  <data name="SettingsTooltip" xml:space="preserve">
+    <value>Settings</value>
+  </data>
+  <data name="LightModeTooltip" xml:space="preserve">
+    <value>Light Mode</value>
+  </data>
+  <data name="DarkModeTooltip" xml:space="preserve">
+    <value>Dark Mode</value>
+  </data>
+  <data name="ChangeFont" xml:space="preserve">
+    <value>Change Font</value>
+  </data>
+  <data name="FontSelectionTitle" xml:space="preserve">
+    <value>Font Selection</value>
+  </data>
+  <data name="FontSearchPlaceholder" xml:space="preserve">
+    <value>Search Fonts...</value>
+  </data>
+  <data name="ChangeColors" xml:space="preserve">
+    <value>Background/Text Colors</value>
+  </data>
+  <data name="BackgroundColor" xml:space="preserve">
+    <value>Background Color</value>
+  </data>
+  <data name="TextColor" xml:space="preserve">
+    <value>Text Color</value>
+  </data>
+  <data name="Hue" xml:space="preserve">
+    <value>Hue</value>
+  </data>
+  <data name="Saturation" xml:space="preserve">
+    <value>Saturation</value>
+  </data>
+  <data name="Lightness" xml:space="preserve">
+    <value>Lightness</value>
+  </data>
+  <data name="Preview" xml:space="preserve">
+    <value>Preview</value>
+  </data>
+  <data name="MatchControlDirection" xml:space="preserve">
+    <value>Match Control Direction</value>
+  </data>
+  <data name="MatchControlDirectionTooltip" xml:space="preserve">
+    <value>Change control direction based on page progression direction</value>
+  </data>
+  <data name="AllowMultipleInstances" xml:space="preserve">
+    <value>Allow Multiple Instances</value>
+  </data>
+  <data name="AllowMultipleInstancesTooltip" xml:space="preserve">
+    <value>Allows multiple instances of the app. If disabled, images will open in the already running instance.</value>
+  </data>
+  <data name="CurrentPathPlaceholder" xml:space="preserve">
+    <value>Select a folder</value>
+  </data>
+  <data name="EmptyStateDrag" xml:space="preserve">
+    <value>Drag files here or</value>
+  </data>
+  <data name="EmptyStateClick" xml:space="preserve">
+    <value>Click 'Open Button'</value>
+  </data>
+  <data name="EmptyStateButton" xml:space="preserve">
+    <value>Open File</value>
+  </data>
+  <data name="FastNavText" xml:space="preserve">
+    <value>Fast Navigating...</value>
+  </data>
+  <data name="TextFastNavText" xml:space="preserve">
+    <value>Navigating...</value>
+  </data>
+  <data name="CalculatingPages" xml:space="preserve">
+    <value> (Calculating pages...)</value>
+  </data>
+  <data name="Paginating" xml:space="preserve">
+    <value>Paginating...</value>
+  </data>
+  <data name="FileSelectPlaceholder" xml:space="preserve">
+    <value>Select a file</value>
+  </data>
+  <data name="LoadImageError" xml:space="preserve">
+    <value>Cannot load file.</value>
+  </data>
+  <data name="AddedToFavoritesNotification" xml:space="preserve">
+    <value>Added to Favorites</value>
+  </data>
+  <data name="Loading" xml:space="preserve">
+    <value> (Loading...)</value>
+  </data>
+  <data name="AddToFavorites" xml:space="preserve">
+    <value>➕ Add to Favorites (Ctrl+S)</value>
+  </data>
+  <data name="DialogTitle" xml:space="preserve">
+    <value>Go to Line</value>
+  </data>
+  <data name="DialogPrimary" xml:space="preserve">
+    <value>Go</value>
+  </data>
+  <data name="DialogClose" xml:space="preserve">
+    <value>Cancel</value>
+  </data>
+  <data name="EncodingMenu" xml:space="preserve">
+    <value>Encoding</value>
+  </data>
+  <data name="EncAuto" xml:space="preserve">
+    <value>Auto (Detect)</value>
+  </data>
+  <data name="EncUtf8" xml:space="preserve">
+    <value>UTF-8</value>
+  </data>
+  <data name="EncEucKr" xml:space="preserve">
+    <value>Korean (EUC-KR)</value>
+  </data>
+  <data name="EncSjis" xml:space="preserve">
+    <value>Japanese (Shift-JIS)</value>
+  </data>
+  <data name="EncJohab" xml:space="preserve">
+    <value>Korean (Johab)</value>
+  </data>
+  <data name="WebDavTooltip" xml:space="preserve">
+    <value>WebDAV Connect</value>
+  </data>
+  <data name="AddWebDavServer" xml:space="preserve">
+    <value>➕ Add WebDAV Server</value>
+  </data>
+  <data name="WebDavServerName" xml:space="preserve">
+    <value>Server Name</value>
+  </data>
+  <data name="WebDavAddress" xml:space="preserve">
+    <value>Address</value>
+  </data>
+  <data name="WebDavPort" xml:space="preserve">
+    <value>Port</value>
+  </data>
+  <data name="WebDavId" xml:space="preserve">
+    <value>ID</value>
+  </data>
+  <data name="WebDavPassword" xml:space="preserve">
+    <value>Password</value>
+  </data>
+  <data name="WebDavSave" xml:space="preserve">
+    <value>Save</value>
+  </data>
+  <data name="WebDavCancel" xml:space="preserve">
+    <value>Cancel</value>
+  </data>
+  <data name="WebDavConnecting" xml:space="preserve">
+    <value>Connecting...</value>
+  </data>
+  <data name="WebDavConnectionFailed" xml:space="preserve">
+    <value>Connection Failed</value>
+  </data>
+  <data name="LineInfo" xml:space="preserve">
+    <value>Line {0} / {1}</value>
+  </data>
+  <data name="EpubLoadError" xml:space="preserve">
+    <value>EPUB Load Failed: {0}</value>
+  </data>
+  <data name="EpubParseError" xml:space="preserve">
+    <value>EPUB Parse Error: {0}</value>
+  </data>
+  <data name="EpubPageInfo" xml:space="preserve">
+    <value>Page {0}/{1} Line {2}/{3} (Ch.{4}/{5})</value>
+  </data>
+
+  <data name="LanguageSelection" xml:space="preserve">
+    <value>Language Selection</value>
+  </data>
+  <data name="LanguageAuto" xml:space="preserve">
+    <value>Auto (Default)</value>
+  </data>
+  <data name="LanguageKorean" xml:space="preserve">
+    <value>Korean</value>
+  </data>
+  <data name="LanguageEnglish" xml:space="preserve">
+    <value>English</value>
+  </data>
+  <data name="LanguageJapanese" xml:space="preserve">
+    <value>Japanese</value>
+  </data>
+  <data name="ChangeUiFont" xml:space="preserve">
+    <value>Change UI Font</value>
+  </data>
+  <data name="UIFontSelectionTitle" xml:space="preserve">
+    <value>UI Font Selection</value>
+  </data>
+</root>
