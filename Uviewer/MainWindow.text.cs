@@ -2240,6 +2240,7 @@ namespace Uviewer
                  }
                  
                  e.Handled = true;
+                 RootGrid.Focus(FocusState.Programmatic);
              }
         }
         

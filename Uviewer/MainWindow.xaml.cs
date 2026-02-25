@@ -224,12 +224,6 @@ namespace Uviewer
         {
             try
             {
-                // Subscribe to global PreviewKeyDown to intercept navigation keys
-                if (RootGrid != null)
-                {
-                    RootGrid.PreviewKeyDown += RootGrid_Global_PreviewKeyDown;
-                }
-
                 // Load favorites
                 await LoadFavorites();
                 UpdateFavoritesMenu();
@@ -384,9 +378,12 @@ namespace Uviewer
                 UpdateNextImageSideButtonState();
                 UpdateSharpenButtonState();
 
-                // Enable keyboard shortcuts
-                RootGrid.PreviewKeyDown += RootGrid_PreviewKeyDown;
-                RootGrid.KeyDown += RootGrid_KeyDown;
+                // Enable keyboard shortcuts on the root content to ensure they catch everything
+                if (this.Content is FrameworkElement fe)
+                {
+                    fe.PreviewKeyDown += RootGrid_PreviewKeyDown;
+                    fe.KeyDown += RootGrid_KeyDown;
+                }
 
                 // Initialize file list
                 FileListView.ItemsSource = _fileItems;
@@ -416,6 +413,7 @@ namespace Uviewer
             {
                 if (e.WindowActivationState != WindowActivationState.Deactivated)
                 {
+                    // Ensure focus is restored to the root grid on activation
                     RootGrid.Focus(FocusState.Programmatic);
                 }
             };
@@ -819,6 +817,12 @@ namespace Uviewer
             }
         }
 
+        private void RootGrid_PointerPressed(object sender, PointerRoutedEventArgs e)
+        {
+            // Focus RootGrid whenever it is clicked directly or via transparent child
+            RootGrid.Focus(FocusState.Programmatic);
+        }
+
         private void RootGrid_PointerExited(object sender, PointerRoutedEventArgs e)
         {
             if (!_isFullscreen) return;
@@ -1054,28 +1058,29 @@ namespace Uviewer
             {
                 await LoadTextEntryAsync(entry);
                 await AddToRecentAsync(false);
-                return;
             }
             else if (IsEpubEntry(entry))
             {
                 await LoadEpubEntryAsync(entry);
                 await AddToRecentAsync(false);
-                return;
-            }
-
-            SwitchToImageMode(); // Ensure Image Mode is active
-
-
-            if (_isSideBySideMode)
-            {
-                await DisplaySideBySideImagesAsync(token); // <-- token 전달
             }
             else
             {
-                await DisplaySingleImageAsync(token); // <-- token 전달
+                SwitchToImageMode(); // Ensure Image Mode is active
+
+                if (_isSideBySideMode)
+                {
+                    await DisplaySideBySideImagesAsync(token); // <-- token 전달
+                }
+                else
+                {
+                    await DisplaySingleImageAsync(token); // <-- token 전달
+                }
+
+                await AddToRecentAsync(false);
             }
 
-            await AddToRecentAsync(false);
+            RootGrid.Focus(FocusState.Programmatic);
         }
 
         private void SyncSidebarSelection(ImageEntry entry)
@@ -1783,6 +1788,7 @@ namespace Uviewer
             }
 
             e.Handled = true;
+            RootGrid.Focus(FocusState.Programmatic);
         }
 
         #endregion

@@ -673,6 +673,7 @@ namespace Uviewer
                 NavigateVerticalPage(-1);
             }
             e.Handled = true;
+            RootGrid.Focus(FocusState.Programmatic);
         }
 
         private void VerticalTextCanvas_PointerWheelChanged(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)

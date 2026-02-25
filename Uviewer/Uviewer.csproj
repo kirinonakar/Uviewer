@@ -15,6 +15,7 @@
     <Nullable>enable</Nullable>
     <WindowsPackageType>MSIX</WindowsPackageType>
     <WindowsAppSDKSelfContained>true</WindowsAppSDKSelfContained>
+    <AppxSymbolPackageEnabled>false</AppxSymbolPackageEnabled>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(Platform)' != ''">

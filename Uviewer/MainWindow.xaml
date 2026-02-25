@@ -16,10 +16,11 @@
     </Window.SystemBackdrop>
 
     <ContentControl x:Name="RootFontControl" HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch">
-        <Grid x:Name="RootGrid" AllowDrop="True" IsTabStop="True"
+        <Grid x:Name="RootGrid" AllowDrop="True" IsTabStop="True" Background="Transparent"
               DragOver="Grid_DragOver" Drop="Grid_Drop"
               PointerMoved="RootGrid_PointerMoved"
-              PointerExited="RootGrid_PointerExited">
+              PointerExited="RootGrid_PointerExited"
+              PointerPressed="RootGrid_PointerPressed">
         <Grid.Resources>
             <DataTemplate x:Key="TextItemTemplate">
                 <TextBlock TextWrapping="Wrap" HorizontalAlignment="Left" />
@@ -36,7 +37,7 @@
         </Grid.RowDefinitions>
 
         <!-- Custom Title Bar -->
-        <Grid x:Name="AppTitleBar" Grid.Row="0" Height="32" Background="{ThemeResource LayerFillColorDefaultBrush}">
+        <Grid x:Name="AppTitleBar" Grid.Row="0" Height="32" Background="{ThemeResource LayerFillColorDefaultBrush}" IsTabStop="False">
             <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center" Margin="12,0,0,0">
                 <FontIcon Glyph="&#xE8B9;" FontSize="16" Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
                 <TextBlock Text="Uviewer" FontWeight="SemiBold" FontSize="12" VerticalAlignment="Center" Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
@@ -46,7 +47,8 @@
         <!-- Title Bar & Toolbar -->
         <Grid x:Name="ToolbarGrid" Grid.Row="1" Padding="12,8" 
               Background="{ThemeResource LayerFillColorDefaultBrush}"
-              BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="0,0,0,1">
+              BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="0,0,0,1"
+              IsTabStop="False">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="Auto"/>
                 <ColumnDefinition Width="*"/>
@@ -308,8 +310,8 @@
                 <ColumnDefinition Width="*"/>
             </Grid.ColumnDefinitions>
 
-            <!-- Sidebar - Folder Explorer -->
-            <Grid x:Name="SidebarGrid" Grid.Column="0" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+            <!-- Sidebar Area -->
+            <Grid x:Name="SidebarGrid" Grid.Column="0" Background="{ThemeResource LayerFillColorDefaultBrush}" IsTabStop="False"
                   BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="0,0,1,0">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto"/>
@@ -484,6 +486,7 @@
 
             <!-- Image Area with Win2D CanvasControl -->
             <Grid Grid.Column="2" x:Name="ImageArea" Background="{ThemeResource SolidBackgroundFillColorBaseBrush}"
+                  IsTabStop="False"
                   SizeChanged="ImageArea_SizeChanged"
                   PointerWheelChanged="ImageArea_PointerWheelChanged"
                   PointerPressed="ImageArea_PointerPressed">
@@ -521,6 +524,7 @@
                 <canvas:CanvasControl x:Name="MainCanvas" 
                                      Draw="MainCanvas_Draw"
                                      Visibility="Collapsed"
+                                     IsTabStop="False"
                                      CreateResources="MainCanvas_CreateResources"/>
 
                 <!-- Side-by-Side Image Display with Win2D -->
@@ -532,11 +536,13 @@
 
                     <canvas:CanvasControl x:Name="LeftCanvas" 
                                          Grid.Column="0"
+                                         IsTabStop="False"
                                          Draw="LeftCanvas_Draw"
                                          CreateResources="LeftCanvas_CreateResources"/>
 
                     <canvas:CanvasControl x:Name="RightCanvas" 
                                          Grid.Column="1"
+                                         IsTabStop="False"
                                          Draw="RightCanvas_Draw"
                                          CreateResources="RightCanvas_CreateResources"/>
                 </Grid>
@@ -544,6 +550,7 @@
 
             <!-- Text Display Area -->
             <Grid Grid.Column="2" x:Name="TextArea" Visibility="Collapsed" Background="{ThemeResource SolidBackgroundFillColorBaseBrush}"
+                  IsTabStop="False"
                   PointerPressed="TextArea_PointerPressed" PointerWheelChanged="TextArea_PointerWheelChanged"
                   SizeChanged="TextArea_SizeChanged">
                  <ScrollViewer x:Name="TextScrollViewer" 
@@ -595,6 +602,7 @@
                 <!-- Vertical Text Display (Win2D) -->
                 <canvas:CanvasControl x:Name="VerticalTextCanvas"
                                      Visibility="Collapsed"
+                                     IsTabStop="False"
                                      Draw="VerticalTextCanvas_Draw"
                                      CreateResources="VerticalTextCanvas_CreateResources"
                                      PointerPressed="VerticalTextCanvas_PointerPressed"
@@ -603,7 +611,8 @@
             </Grid>
             
             <!-- Epub Display Area -->
-            <Grid Grid.Column="2" x:Name="EpubArea" Visibility="Collapsed" Background="{ThemeResource SolidBackgroundFillColorBaseBrush}">
+            <Grid Grid.Column="2" x:Name="EpubArea" Visibility="Collapsed" Background="{ThemeResource SolidBackgroundFillColorBaseBrush}"
+                  IsTabStop="False">
                 <Grid x:Name="EpubPageDisplay" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" />
                 <!-- Touch Overlay for Page Navigation (left half = prev, right half = next) -->
                 <Grid x:Name="EpubTouchOverlay" 
@@ -616,9 +625,10 @@
         </Grid>
 
         <!-- Status Bar -->
-        <Grid x:Name="StatusBarGrid" Grid.Row="3" Padding="12,8" 
+        <Grid x:Name="StatusBarGrid" Grid.Row="3" Height="28" Padding="12,0" 
               Background="{ThemeResource LayerFillColorDefaultBrush}"
-              BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="0,1,0,0">
+              BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="0,1,0,0"
+              IsTabStop="False">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*"/>
                 <ColumnDefinition Width="180"/>

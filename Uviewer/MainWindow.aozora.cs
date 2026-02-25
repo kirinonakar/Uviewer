@@ -882,6 +882,7 @@ namespace Uviewer
                     () => NavigateAozoraPage(1));
                 
                 e.Handled = true;
+                RootGrid.Focus(FocusState.Programmatic);
             }
         }
         

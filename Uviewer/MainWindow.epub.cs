@@ -739,6 +739,7 @@ namespace Uviewer
                      () => _ = NavigateEpubAsync(-1), 
                      () => _ = NavigateEpubAsync(1));
                  e.Handled = true;
+                 RootGrid.Focus(FocusState.Programmatic);
              }
         }
 
