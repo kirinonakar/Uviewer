@@ -699,13 +699,11 @@ namespace Uviewer
                     SplitterGrid.Visibility = Visibility.Collapsed;
                 }
                 FullscreenIcon.Glyph = "\uE740"; // Fullscreen icon
-                ExtendsContentIntoTitleBar = true; // Ensure title bar is extended again when exiting
                 _isFullscreen = false;
             }
             else
             {
                 // Enter fullscreen
-                ExtendsContentIntoTitleBar = false; // Disable extension to let OS hide title bar area completely
                 appWindow.SetPresenter(AppWindowPresenterKind.FullScreen);
                 AppTitleBar.Visibility = Visibility.Collapsed;
                 ToolbarGrid.Visibility = Visibility.Collapsed;
@@ -722,8 +720,7 @@ namespace Uviewer
                 StopFullscreenHoverTimers();
             }
 
-            // [Important] Refresh title bar colors and re-focus RootGrid after window state change
-            UpdateTitleBarColors();
+            // [Important] Re-focus RootGrid after window state change
             RootGrid?.Focus(FocusState.Programmatic);
         }
 
