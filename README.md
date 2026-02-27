@@ -98,6 +98,8 @@
 You can download the latest version from the [Releases Page](https://github.com/kirinonakar/Uviewer/releases).
 Unzip the file and run `Uviewer.exe`.
 
+- [Microsoft Store](https://apps.microsoft.com/detail/9N6DL9Q4S6FK?hl=ko-kr&gl=KR&ocid=pdpshare)
+
 
 ### From Source
 1. Clone the repository:
