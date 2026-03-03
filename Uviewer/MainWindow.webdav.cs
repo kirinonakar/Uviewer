@@ -185,6 +185,13 @@ namespace Uviewer
                 itemGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
 
                 // 서버 이름 버튼 (클릭하면 연결)
+                var nameTb = new TextBlock { Text = name, VerticalAlignment = VerticalAlignment.Center };
+                if (!string.IsNullOrEmpty(_uiFontFamily) && _uiFontFamily != "Unknown")
+                {
+                    try { nameTb.FontFamily = new FontFamily(_uiFontFamily); }
+                    catch { }
+                }
+
                 var serverButton = new Button
                 {
                     Content = new StackPanel
@@ -194,7 +201,7 @@ namespace Uviewer
                         Children =
                         {
                             new FontIcon { Glyph = "\uE774", FontSize = 14, Foreground = new SolidColorBrush(Colors.CornflowerBlue) },
-                            new TextBlock { Text = name, VerticalAlignment = VerticalAlignment.Center, FontFamily = string.IsNullOrEmpty(_uiFontFamily) ? null : new FontFamily(_uiFontFamily) }
+                            nameTb
                         }
                     },
                     HorizontalAlignment = HorizontalAlignment.Stretch,

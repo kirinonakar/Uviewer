@@ -1813,8 +1813,16 @@ namespace Uviewer
 
         private void SetUiFont(string fontFamily)
         {
+            if (string.IsNullOrEmpty(fontFamily) || fontFamily == "Unknown")
+            {
+                _uiFontFamily = "";
+                return; // Or reset to system default
+            }
+
             _uiFontFamily = fontFamily;
-            var ff = new FontFamily(fontFamily);
+            FontFamily ff;
+            try { ff = new FontFamily(fontFamily); }
+            catch { return; }
             
             if (RootFontControl != null)
             {

@@ -171,9 +171,13 @@ namespace Uviewer
                     Text = Strings.NoFavorites,
                     Foreground = new SolidColorBrush(Microsoft.UI.Colors.Gray),
                     Margin = new Thickness(12, 8, 12, 8),
-                    FontSize = 13,
-                    FontFamily = string.IsNullOrEmpty(_uiFontFamily) ? null : new FontFamily(_uiFontFamily)
+                    FontSize = 13
                 };
+                if (!string.IsNullOrEmpty(_uiFontFamily) && _uiFontFamily != "Unknown")
+                {
+                    try { emptyText.FontFamily = new FontFamily(_uiFontFamily); }
+                    catch { }
+                }
                 filePanel.Children.Add(emptyText);
             }
             else
@@ -191,9 +195,13 @@ namespace Uviewer
                     Text = Strings.NoFavorites,
                     Foreground = new SolidColorBrush(Microsoft.UI.Colors.Gray),
                     Margin = new Thickness(12, 8, 12, 8),
-                    FontSize = 13,
-                    FontFamily = string.IsNullOrEmpty(_uiFontFamily) ? null : new FontFamily(_uiFontFamily)
+                    FontSize = 13
                 };
+                if (!string.IsNullOrEmpty(_uiFontFamily) && _uiFontFamily != "Unknown")
+                {
+                    try { emptyText.FontFamily = new FontFamily(_uiFontFamily); }
+                    catch { }
+                }
                 folderPanel.Children.Add(emptyText);
             }
             else
@@ -265,9 +273,15 @@ namespace Uviewer
                 TextTrimming = TextTrimming.CharacterEllipsis,
                 TextWrapping = TextWrapping.NoWrap,
                 MaxWidth = favorite.IsWebDav ? 270 : 300,
-                FontSize = 13,
-                FontFamily = string.IsNullOrEmpty(_uiFontFamily) ? null : new FontFamily(_uiFontFamily)
+                FontSize = 13
             };
+
+            // Set font family with validation to prevent 'Unknown' crash
+            if (!string.IsNullOrEmpty(_uiFontFamily) && _uiFontFamily != "Unknown")
+            {
+                try { nameTextBlock.FontFamily = new FontFamily(_uiFontFamily); }
+                catch { /* Fallback to default if invalid */ }
+            }
             if (favorite.IsWebDav && !string.IsNullOrEmpty(_uiFontFamily))
             {
                 // Ensure webIcon also uses UI font if possible, though it's likely FontIcon anyway
@@ -1034,9 +1048,13 @@ namespace Uviewer
                     Text = Strings.NoRecentFiles,
                     Foreground = new SolidColorBrush(Microsoft.UI.Colors.Gray),
                     Margin = new Thickness(12, 8, 12, 8),
-                    FontSize = 13,
-                    FontFamily = string.IsNullOrEmpty(_uiFontFamily) ? null : new FontFamily(_uiFontFamily)
+                    FontSize = 13
                 };
+                if (!string.IsNullOrEmpty(_uiFontFamily) && _uiFontFamily != "Unknown")
+                {
+                    try { emptyText.FontFamily = new FontFamily(_uiFontFamily); }
+                    catch { }
+                }
                 panel.Children.Add(emptyText);
                 return;
             }
@@ -1086,9 +1104,13 @@ namespace Uviewer
                     TextTrimming = TextTrimming.CharacterEllipsis,
                     TextWrapping = TextWrapping.NoWrap,
                     MaxWidth = 340,
-                    FontSize = 13,
-                    FontFamily = string.IsNullOrEmpty(_uiFontFamily) ? null : new FontFamily(_uiFontFamily)
+                    FontSize = 13
                 };
+                if (!string.IsNullOrEmpty(_uiFontFamily) && _uiFontFamily != "Unknown")
+                {
+                    try { nameTextBlock.FontFamily = new FontFamily(_uiFontFamily); }
+                    catch { }
+                }
                 contentPanel.Children.Add(nameTextBlock);
 
                 // Add progress bar for non-folder items
