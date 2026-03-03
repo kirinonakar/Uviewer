@@ -14,7 +14,7 @@
 	<Identity
 	  Name="kirinonakar.Uviewer"
 	  Publisher="CN=5F40B554-380B-47DB-92AD-D044EB10269C"
-	  Version="1.2.4.0" />
+	  Version="1.2.5.0" />
 
 	<mp:PhoneIdentity PhoneProductId="1f1bbe1e-f7df-4bac-99f6-90c00ddd6baf" PhonePublisherId="00000000-0000-0000-0000-000000000000"/>
 
