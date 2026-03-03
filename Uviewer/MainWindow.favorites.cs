@@ -43,6 +43,7 @@ namespace Uviewer
             public string? WebDavServerName { get; set; }
             public bool IsVertical { get; set; } = false;
             public double Progress { get; set; } = 0; // 0-100 reading progress
+            public bool IsPinned { get; set; } = false;
         }
 
         public class RecentItem
@@ -149,57 +150,58 @@ namespace Uviewer
 
         private void UpdateFavoritesMenu()
         {
-            UpdateFavoritesPanel(FavoritesPanel);
-            UpdateFavoritesPanel(SidebarFavoritesPanel);
+            UpdateFavoritesPanel(FileFavoritesPanel, FolderFavoritesPanel);
+            UpdateFavoritesPanel(SidebarFileFavoritesPanel, SidebarFolderFavoritesPanel);
         }
 
-        private void UpdateFavoritesPanel(StackPanel panel)
+        private void UpdateFavoritesPanel(StackPanel filePanel, StackPanel folderPanel)
         {
-            if (panel == null) return;
+            if (filePanel == null || folderPanel == null) return;
 
-            // Remove all dynamic items (keep only the first 2: Add button and separator)
-            while (panel.Children.Count > 2)
-            {
-                panel.Children.RemoveAt(panel.Children.Count - 1);
-            }
+            filePanel.Children.Clear();
+            folderPanel.Children.Clear();
 
-            if (_favorites.Count == 0)
+            var fileFavorites = _favorites.Where(f => f.Type != "Folder").OrderByDescending(f => f.IsPinned).ThenByDescending(f => f.CreatedAt).ToList();
+            var folderFavorites = _favorites.Where(f => f.Type == "Folder").OrderByDescending(f => f.IsPinned).ThenByDescending(f => f.CreatedAt).ToList();
+
+            if (fileFavorites.Count == 0)
             {
                 var emptyText = new TextBlock
                 {
                     Text = Strings.NoFavorites,
                     Foreground = new SolidColorBrush(Microsoft.UI.Colors.Gray),
                     Margin = new Thickness(12, 8, 12, 8),
-                    FontSize = 13
+                    FontSize = 13,
+                    FontFamily = string.IsNullOrEmpty(_uiFontFamily) ? null : new FontFamily(_uiFontFamily)
                 };
-                panel.Children.Add(emptyText);
-                return;
+                filePanel.Children.Add(emptyText);
             }
-
-            var fileFavorites = _favorites.Where(f => f.Type != "Folder").OrderByDescending(f => f.CreatedAt).ToList();
-            var folderFavorites = _favorites.Where(f => f.Type == "Folder").OrderByDescending(f => f.CreatedAt).ToList();
-
-            foreach (var fav in fileFavorites)
+            else
             {
-                panel.Children.Add(CreateFavoriteItemControl(fav));
-            }
-
-            if (fileFavorites.Count > 0 && folderFavorites.Count > 0)
-            {
-                // Add Separator
-                var separator = new Border
+                foreach (var fav in fileFavorites)
                 {
-                    Height = 1,
-                    Background = new SolidColorBrush(Microsoft.UI.Colors.Gray) { Opacity = 0.3 },
-                    Margin = new Thickness(12, 4, 12, 4),
-                    HorizontalAlignment = HorizontalAlignment.Stretch
-                };
-                panel.Children.Add(separator);
+                    filePanel.Children.Add(CreateFavoriteItemControl(fav));
+                }
             }
 
-            foreach (var fav in folderFavorites)
+            if (folderFavorites.Count == 0)
             {
-                panel.Children.Add(CreateFavoriteItemControl(fav));
+                var emptyText = new TextBlock
+                {
+                    Text = Strings.NoFavorites,
+                    Foreground = new SolidColorBrush(Microsoft.UI.Colors.Gray),
+                    Margin = new Thickness(12, 8, 12, 8),
+                    FontSize = 13,
+                    FontFamily = string.IsNullOrEmpty(_uiFontFamily) ? null : new FontFamily(_uiFontFamily)
+                };
+                folderPanel.Children.Add(emptyText);
+            }
+            else
+            {
+                foreach (var fav in folderFavorites)
+                {
+                    folderPanel.Children.Add(CreateFavoriteItemControl(fav));
+                }
             }
         }
 
@@ -215,6 +217,7 @@ namespace Uviewer
                 MinHeight = favorite.Type != "Folder" ? 44 : 36
             };
             itemGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            itemGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
             itemGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
 
             string vMark = favorite.IsVertical ? "[V] " : "";
@@ -261,9 +264,14 @@ namespace Uviewer
                 HorizontalAlignment = HorizontalAlignment.Left,
                 TextTrimming = TextTrimming.CharacterEllipsis,
                 TextWrapping = TextWrapping.NoWrap,
-                MaxWidth = favorite.IsWebDav ? 310 : 340, // Adjust width if icon is present
-                FontSize = 13
+                MaxWidth = favorite.IsWebDav ? 270 : 300,
+                FontSize = 13,
+                FontFamily = string.IsNullOrEmpty(_uiFontFamily) ? null : new FontFamily(_uiFontFamily)
             };
+            if (favorite.IsWebDav && !string.IsNullOrEmpty(_uiFontFamily))
+            {
+                // Ensure webIcon also uses UI font if possible, though it's likely FontIcon anyway
+            }
             nameRow.Children.Add(nameTextBlock);
             contentPanel.Children.Add(nameRow);
 
@@ -341,7 +349,7 @@ namespace Uviewer
                 tooltipText = $"[{favorite.WebDavServerName}] {tooltipText}";
             }
             if (favorite.Type != "Folder")
-                tooltipText += $"\n진행: {favorite.Progress:F1}%";
+                tooltipText += $"\n{Strings.ProgressLabel}: {favorite.Progress:F1}%";
             ToolTipService.SetToolTip(contentPanel, tooltipText);
 
             // Create a transparent button overlay for clicking
@@ -370,6 +378,35 @@ namespace Uviewer
             Grid.SetColumn(nameContainer, 0);
             itemGrid.Children.Add(nameContainer);
 
+            // Create pin button
+            var pinButton = new Button
+            {
+                Content = new FontIcon { 
+                    Glyph = favorite.IsPinned ? "\uE840" : "\uE718", 
+                    FontSize = 14,
+                    Foreground = favorite.IsPinned 
+                        ? (Brush)Application.Current.Resources["AccentFillColorDefaultBrush"] 
+                        : new SolidColorBrush(Microsoft.UI.Colors.Gray) { Opacity = 0.5 }
+                },
+                Width = 32,
+                Height = 32,
+                Background = new SolidColorBrush(Microsoft.UI.Colors.Transparent),
+                BorderThickness = new Thickness(0),
+                Padding = new Thickness(0),
+                VerticalAlignment = VerticalAlignment.Center,
+                HorizontalAlignment = HorizontalAlignment.Right,
+                Margin = new Thickness(0, 0, 0, 0)
+            };
+            ToolTipService.SetToolTip(pinButton, favorite.IsPinned ? Strings.UnpinFavorite : Strings.PinFavorite);
+            pinButton.Click += async (s, e) =>
+            {
+                favorite.IsPinned = !favorite.IsPinned;
+                await SaveFavorites();
+                UpdateFavoritesMenu();
+            };
+            Grid.SetColumn(pinButton, 1);
+            itemGrid.Children.Add(pinButton);
+
             // Create delete button with X icon - right aligned
             var deleteButton = new Button
             {
@@ -383,13 +420,13 @@ namespace Uviewer
                 VerticalAlignment = VerticalAlignment.Center,
                 HorizontalAlignment = HorizontalAlignment.Right
             };
-            ToolTipService.SetToolTip(deleteButton, "삭제");
+            ToolTipService.SetToolTip(deleteButton, Strings.RemoveFavorite);
             deleteButton.Click += async (s, e) =>
             {
                 System.Diagnostics.Debug.WriteLine($"Delete button clicked for: {currentFavorite.Name}");
                 await RemoveFavoriteAsync(currentFavorite);
             };
-            Grid.SetColumn(deleteButton, 1);
+            Grid.SetColumn(deleteButton, 2);
             itemGrid.Children.Add(deleteButton);
 
             return itemGrid;
@@ -997,7 +1034,8 @@ namespace Uviewer
                     Text = Strings.NoRecentFiles,
                     Foreground = new SolidColorBrush(Microsoft.UI.Colors.Gray),
                     Margin = new Thickness(12, 8, 12, 8),
-                    FontSize = 13
+                    FontSize = 13,
+                    FontFamily = string.IsNullOrEmpty(_uiFontFamily) ? null : new FontFamily(_uiFontFamily)
                 };
                 panel.Children.Add(emptyText);
                 return;
@@ -1047,8 +1085,9 @@ namespace Uviewer
                     HorizontalAlignment = HorizontalAlignment.Left,
                     TextTrimming = TextTrimming.CharacterEllipsis,
                     TextWrapping = TextWrapping.NoWrap,
-                    MaxWidth = 340, 
-                    FontSize = 13
+                    MaxWidth = 340,
+                    FontSize = 13,
+                    FontFamily = string.IsNullOrEmpty(_uiFontFamily) ? null : new FontFamily(_uiFontFamily)
                 };
                 contentPanel.Children.Add(nameTextBlock);
 

@@ -50,6 +50,12 @@ namespace Uviewer
         public static string NoRecentFiles => GetString("NoRecentFiles");
         public static string FavoritesTooltip => GetString("FavoritesTooltip");
         public static string NoFavorites => GetString("NoFavorites");
+        public static string FavoritesFiles => GetString("FavoritesFiles");
+        public static string FavoritesFolders => GetString("FavoritesFolders");
+        public static string PinFavorite => GetString("PinFavorite");
+        public static string UnpinFavorite => GetString("UnpinFavorite");
+        public static string RemoveFavorite => GetString("RemoveFavorite");
+        public static string ProgressLabel => GetString("ProgressLabel");
         public static string TocTooltip => GetString("TocTooltip");
         public static string TocTitle => GetString("TocTitle");
         public static string NoTocContent => GetString("NoTocContent");

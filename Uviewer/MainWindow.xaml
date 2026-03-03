@@ -123,17 +123,37 @@
                     <FontIcon Glyph="&#xE734;" FontSize="14"/>
                     <Button.Flyout>
                         <Flyout x:Name="FavoritesFlyout" Placement="Bottom">
-                            <ScrollViewer MaxHeight="400" Width="400" 
-                                         HorizontalScrollBarVisibility="Disabled" 
-                                         VerticalScrollBarVisibility="Auto">
-                                <StackPanel x:Name="FavoritesPanel" Spacing="2">
-                                    <Button x:Name="AddToFavoritesButton" Content="➕ 즐겨찾기 추가" Click="AddToFavoritesMenuItem_Click" 
-                                            HorizontalAlignment="Stretch" HorizontalContentAlignment="Left"
-                                            Background="Transparent" BorderThickness="0"/>
-                                    <Border Height="1" Background="{ThemeResource DividerStrokeColorDefaultBrush}" Margin="0,4"/>
-                                    <!-- Favorites will be added dynamically -->
-                                </StackPanel>
-                            </ScrollViewer>
+                            <StackPanel Width="400" MaxHeight="500">
+                                <Button x:Name="AddToFavoritesButton" Content="➕ 즐겨찾기 추가" Click="AddToFavoritesMenuItem_Click" 
+                                        HorizontalAlignment="Stretch" HorizontalContentAlignment="Left"
+                                        Background="Transparent" BorderThickness="0"/>
+                                <Border Height="1" Background="{ThemeResource DividerStrokeColorDefaultBrush}" Margin="0,4"/>
+                                <Pivot x:Name="FavoritesPivot">
+                                    <Pivot.HeaderTemplate>
+                                        <DataTemplate>
+                                            <TextBlock Text="{Binding}" FontSize="14" FontWeight="SemiBold"/>
+                                        </DataTemplate>
+                                    </Pivot.HeaderTemplate>
+                                    <PivotItem x:Name="FileFavoritesPivotItem" Header="{x:Bind local:Strings.FavoritesFiles}">
+                                        <ScrollViewer MaxHeight="400" 
+                                                     HorizontalScrollBarVisibility="Disabled" 
+                                                     VerticalScrollBarVisibility="Auto">
+                                            <StackPanel x:Name="FileFavoritesPanel" Spacing="2">
+                                                <!-- Favorites will be added dynamically -->
+                                            </StackPanel>
+                                        </ScrollViewer>
+                                    </PivotItem>
+                                    <PivotItem x:Name="FolderFavoritesPivotItem" Header="{x:Bind local:Strings.FavoritesFolders}">
+                                        <ScrollViewer MaxHeight="400" 
+                                                     HorizontalScrollBarVisibility="Disabled" 
+                                                     VerticalScrollBarVisibility="Auto">
+                                            <StackPanel x:Name="FolderFavoritesPanel" Spacing="2">
+                                                <!-- Favorites will be added dynamically -->
+                                            </StackPanel>
+                                        </ScrollViewer>
+                                    </PivotItem>
+                                </Pivot>
+                            </StackPanel>
                         </Flyout>
                     </Button.Flyout>
                 </Button>
@@ -344,17 +364,37 @@
                         <FontIcon Glyph="&#xE734;" FontSize="16"/>
                         <Button.Flyout>
                             <Flyout x:Name="SidebarFavoritesFlyout" Placement="Bottom">
-                                <ScrollViewer MaxHeight="400" Width="400" 
-                                             HorizontalScrollBarVisibility="Disabled" 
-                                             VerticalScrollBarVisibility="Auto">
-                                    <StackPanel x:Name="SidebarFavoritesPanel" Spacing="2">
-                                        <Button x:Name="SidebarAddToFavoritesButton" Content="➕ 즐겨찾기 추가" Click="AddToFavoritesMenuItem_Click" 
-                                                HorizontalAlignment="Stretch" HorizontalContentAlignment="Left"
-                                                Background="Transparent" BorderThickness="0"/>
-                                        <Border Height="1" Background="{ThemeResource DividerStrokeColorDefaultBrush}" Margin="0,4"/>
-                                        <!-- Favorites will be added dynamically -->
-                                    </StackPanel>
-                                </ScrollViewer>
+                                <StackPanel Width="400" MaxHeight="500">
+                                    <Button x:Name="SidebarAddToFavoritesButton" Content="➕ 즐겨찾기 추가" Click="AddToFavoritesMenuItem_Click" 
+                                            HorizontalAlignment="Stretch" HorizontalContentAlignment="Left"
+                                            Background="Transparent" BorderThickness="0"/>
+                                    <Border Height="1" Background="{ThemeResource DividerStrokeColorDefaultBrush}" Margin="0,4"/>
+                                    <Pivot x:Name="SidebarFavoritesPivot">
+                                        <Pivot.HeaderTemplate>
+                                            <DataTemplate>
+                                                <TextBlock Text="{Binding}" FontSize="14" FontWeight="SemiBold"/>
+                                            </DataTemplate>
+                                        </Pivot.HeaderTemplate>
+                                        <PivotItem x:Name="SidebarFileFavoritesPivotItem" Header="{x:Bind local:Strings.FavoritesFiles}">
+                                            <ScrollViewer MaxHeight="400" 
+                                                         HorizontalScrollBarVisibility="Disabled" 
+                                                         VerticalScrollBarVisibility="Auto">
+                                                <StackPanel x:Name="SidebarFileFavoritesPanel" Spacing="2">
+                                                    <!-- Favorites will be added dynamically -->
+                                                </StackPanel>
+                                            </ScrollViewer>
+                                        </PivotItem>
+                                        <PivotItem x:Name="SidebarFolderFavoritesPivotItem" Header="{x:Bind local:Strings.FavoritesFolders}">
+                                            <ScrollViewer MaxHeight="400" 
+                                                         HorizontalScrollBarVisibility="Disabled" 
+                                                         VerticalScrollBarVisibility="Auto">
+                                                <StackPanel x:Name="SidebarFolderFavoritesPanel" Spacing="2">
+                                                    <!-- Favorites will be added dynamically -->
+                                                </StackPanel>
+                                            </ScrollViewer>
+                                        </PivotItem>
+                                    </Pivot>
+                                </StackPanel>
                             </Flyout>
                         </Button.Flyout>
                     </Button>

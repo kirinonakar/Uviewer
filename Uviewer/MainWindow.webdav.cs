@@ -194,7 +194,7 @@ namespace Uviewer
                         Children =
                         {
                             new FontIcon { Glyph = "\uE774", FontSize = 14, Foreground = new SolidColorBrush(Colors.CornflowerBlue) },
-                            new TextBlock { Text = name, VerticalAlignment = VerticalAlignment.Center }
+                            new TextBlock { Text = name, VerticalAlignment = VerticalAlignment.Center, FontFamily = string.IsNullOrEmpty(_uiFontFamily) ? null : new FontFamily(_uiFontFamily) }
                         }
                     },
                     HorizontalAlignment = HorizontalAlignment.Stretch,

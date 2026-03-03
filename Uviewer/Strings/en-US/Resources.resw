@@ -148,6 +148,24 @@
   <data name="NoFavorites" xml:space="preserve">
     <value>No Favorites</value>
   </data>
+  <data name="FavoritesFiles" xml:space="preserve">
+    <value>Files</value>
+  </data>
+  <data name="FavoritesFolders" xml:space="preserve">
+    <value>Folders</value>
+  </data>
+  <data name="PinFavorite" xml:space="preserve">
+    <value>Pin</value>
+  </data>
+  <data name="UnpinFavorite" xml:space="preserve">
+    <value>Unpin</value>
+  </data>
+  <data name="RemoveFavorite" xml:space="preserve">
+    <value>Remove</value>
+  </data>
+  <data name="ProgressLabel" xml:space="preserve">
+    <value>Progress</value>
+  </data>
   <data name="TocTooltip" xml:space="preserve">
     <value>Table of Contents</value>
   </data>

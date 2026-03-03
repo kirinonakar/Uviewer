@@ -148,6 +148,24 @@
   <data name="NoFavorites" xml:space="preserve">
     <value>お気に入りなし</value>
   </data>
+  <data name="FavoritesFiles" xml:space="preserve">
+    <value>ファイル</value>
+  </data>
+  <data name="FavoritesFolders" xml:space="preserve">
+    <value>フォルダ</value>
+  </data>
+  <data name="PinFavorite" xml:space="preserve">
+    <value>ピン留め</value>
+  </data>
+  <data name="UnpinFavorite" xml:space="preserve">
+    <value>ピン留め解除</value>
+  </data>
+  <data name="RemoveFavorite" xml:space="preserve">
+    <value>削除</value>
+  </data>
+  <data name="ProgressLabel" xml:space="preserve">
+    <value>進行</value>
+  </data>
   <data name="TocTooltip" xml:space="preserve">
     <value>目次</value>
   </data>

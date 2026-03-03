@@ -1832,6 +1832,15 @@ namespace Uviewer
             if (ZoomLevelText is TextBlock zlt) zlt.FontFamily = ff;
             if (TextSizeLevelText is TextBlock tslt) tslt.FontFamily = ff;
             
+            // Favorites & Recent Containers (Pivots are Controls, so they have FontFamily)
+            if (FavoritesPivot != null) FavoritesPivot.FontFamily = ff;
+            if (SidebarFavoritesPivot != null) SidebarFavoritesPivot.FontFamily = ff;
+
+            // Refresh dynamic items to apply font to already created elements
+            UpdateFavoritesMenu();
+            UpdateRecentMenu();
+            UpdateWebDavServerList();
+            
             // Update app resources to affect popups/dialogs and theme-bound items
             try
             {

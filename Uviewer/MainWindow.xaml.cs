@@ -626,6 +626,15 @@ namespace Uviewer
             if (LangKoItem != null) LangKoItem.Text = Strings.LanguageKorean;
             if (LangEnItem != null) LangEnItem.Text = Strings.LanguageEnglish;
             if (LangJaItem != null) LangJaItem.Text = Strings.LanguageJapanese;
+            
+            // Favorites Pivot Headers
+            if (FileFavoritesPivotItem != null) FileFavoritesPivotItem.Header = Strings.FavoritesFiles;
+            if (FolderFavoritesPivotItem != null) FolderFavoritesPivotItem.Header = Strings.FavoritesFolders;
+            if (SidebarFileFavoritesPivotItem != null) SidebarFileFavoritesPivotItem.Header = Strings.FavoritesFiles;
+            if (SidebarFolderFavoritesPivotItem != null) SidebarFolderFavoritesPivotItem.Header = Strings.FavoritesFolders;
+            
+            // Clear and re-populate favorites to refresh tooltips
+            UpdateFavoritesMenu();
 
             UpdateLanguageMenuCheckmark();
         }
