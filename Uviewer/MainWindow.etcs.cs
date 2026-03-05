@@ -167,7 +167,16 @@ namespace Uviewer
                 {
                     var fitRatio = Math.Min(containerWidth / _currentBitmap.Size.Width,
                                             containerHeight / _currentBitmap.Size.Height);
-                    _zoomLevel = 1.0 / fitRatio; // This will make the image show at actual size
+                    
+                    if (_currentPdfDocument != null)
+                    {
+                        // Fit to width
+                        _zoomLevel = containerWidth / (_currentBitmap.Size.Width * fitRatio);
+                    }
+                    else
+                    {
+                        _zoomLevel = 1.0 / fitRatio; // Actual size
+                    }
                     ApplyZoom();
                 }
             }
@@ -200,7 +209,7 @@ namespace Uviewer
             var containerHeight = ImageArea.ActualHeight;
 
             // Trigger canvas redraw for new zoom level
-            if (!_isSideBySideMode)
+            if (!_isSideBySideMode || _currentPdfDocument != null)
             {
                 MainCanvas?.Invalidate();
             }

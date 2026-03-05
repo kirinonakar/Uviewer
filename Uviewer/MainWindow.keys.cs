@@ -50,13 +50,13 @@ namespace Uviewer
                     e.Handled = true;
                     if (e.Key == Windows.System.VirtualKey.Left)
                     {
-                        if (ShouldInvertControls) _ = NavigateToNextAsync();
-                        else _ = NavigateToPreviousAsync();
+                        if (ShouldInvertControls) _ = NavigateToNextAsync(true);
+                        else _ = NavigateToPreviousAsync(true);
                     }
                     else
                     {
-                        if (ShouldInvertControls) _ = NavigateToPreviousAsync();
-                        else _ = NavigateToNextAsync();
+                        if (ShouldInvertControls) _ = NavigateToPreviousAsync(true);
+                        else _ = NavigateToNextAsync(true);
                     }
                     return;
                 }

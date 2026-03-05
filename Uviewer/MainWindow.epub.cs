@@ -309,6 +309,11 @@ namespace Uviewer
              await AddToRecentAsync(true);
              InitializeEpub();
              StopAnimatedWebp();
+
+             // Close other formats first
+             CloseCurrentArchive();
+             CloseCurrentPdf();
+
              _currentEpubFilePath = file.Path;
              
               try
@@ -379,6 +384,27 @@ namespace Uviewer
         // ... [Rest of File, ensuring CreateTextPages wraps in ScrollViewer] ...
 
 
+        private void CloseCurrentEpub()
+        {
+            if (_currentEpubArchive == null && _currentEpubFilePath == null) return;
+
+            if (_epubArchiveLock.Wait(TimeSpan.FromSeconds(5)))
+            {
+                try
+                {
+                    _currentEpubArchive?.Dispose();
+                    _currentEpubArchive = null;
+                    _currentEpubFilePath = null;
+                    _epubSpine.Clear();
+                    _epubPages.Clear();
+                    _epubPreloadCache.Clear();
+                }
+                finally
+                {
+                    _epubArchiveLock.Release();
+                }
+            }
+        }
 
         private void SwitchToEpubMode()
         {

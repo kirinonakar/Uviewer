@@ -522,7 +522,8 @@ namespace Uviewer
             
             ImageToolbarPanel.Visibility = Visibility.Visible;
             TextToolbarPanel.Visibility = Visibility.Collapsed;
-            SideBySideToolbarPanel.Visibility = Visibility.Visible;
+            SideBySideToolbarPanel.Visibility = (_currentPdfDocument != null) ? Visibility.Collapsed : Visibility.Visible;
+            SharpenButton.Visibility = (_currentPdfDocument != null) ? Visibility.Collapsed : Visibility.Visible;
             UpdateSideBySideButtonState();
             UpdateNextImageSideButtonState();
         }

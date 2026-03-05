@@ -129,7 +129,7 @@ namespace Uviewer
             }
 
             // Add text extensions
-            foreach (var ext in SupportedTextExtensions)
+            foreach (var ext in SupportedFileExtensions)
             {
                 picker.FileTypeFilter.Add(ext);
             }
@@ -138,12 +138,18 @@ namespace Uviewer
 
             if (file != null)
             {
-                var ext = Path.GetExtension(file.Name).ToLowerInvariant();
-
-                if (SupportedArchiveExtensions.Contains(ext))
+                var extension = Path.GetExtension(file.Path).ToLowerInvariant();
+                if (SupportedArchiveExtensions.Contains(extension))
                 {
-                    await AddToRecentAsync(true);
                     await LoadImagesFromArchiveAsync(file.Path);
+                }
+                else if (SupportedPdfExtensions.Contains(extension))
+                {
+                    await LoadImagesFromPdfAsync(file.Path);
+                }
+                else if (SupportedEpubExtensions.Contains(extension))
+                {
+                    await LoadEpubFileAsync(file);
                 }
                 else
                 {
@@ -182,6 +188,9 @@ namespace Uviewer
         private async Task LoadImageFromFileAsync(StorageFile file)
         {
             CloseCurrentArchive();
+            CloseCurrentPdf();
+            CloseCurrentEpub();
+
 
             // Get all images in the same folder
             var folder = await file.GetParentAsync();
@@ -215,6 +224,9 @@ namespace Uviewer
         private async Task LoadImagesFromFolderAsync(StorageFolder folder)
         {
             CloseCurrentArchive();
+            CloseCurrentPdf();
+            CloseCurrentEpub();
+
 
             var files = await folder.GetFilesAsync();
             _imageEntries = files
@@ -240,6 +252,10 @@ namespace Uviewer
 
         private async Task LoadImagesFromArchiveAsync(string archivePath)
         {
+            // Close other formats first
+            CloseCurrentPdf();
+            CloseCurrentEpub();
+
             try
             {
                 // Lock을 사용하여 아카이브를 닫고 새로 여는 과정 보호
@@ -296,6 +312,8 @@ namespace Uviewer
 
         private void CloseCurrentArchive()
         {
+            if (_currentArchive == null) return;
+
             // 외부에서 호출될 때 Lock 대기 (타임아웃 설정으로 데드락 방지)
             if (_archiveLock.Wait(TimeSpan.FromSeconds(5)))
             {
@@ -432,8 +450,9 @@ namespace Uviewer
                     var isArchive = SupportedArchiveExtensions.Contains(ext);
                     var isText = SupportedTextExtensions.Contains(ext);
                     var isEpub = SupportedEpubExtensions.Contains(ext);
+                    var isPdf = SupportedPdfExtensions.Contains(ext);
 
-                    if (isImage || isArchive || isText || isEpub)
+                    if (isImage || isArchive || isText || isEpub || isPdf)
                     {
                         _fileItems.Add(new FileItem
                         {
@@ -443,7 +462,8 @@ namespace Uviewer
                             IsImage = isImage,
                             IsArchive = isArchive,
                             IsText = isText,
-                            IsEpub = isEpub
+                            IsEpub = isEpub,
+                            IsPdf = isPdf
                         });
                     }
                 }
@@ -794,6 +814,11 @@ namespace Uviewer
             {
                 await AddToRecentAsync(true);
                 await LoadImagesFromArchiveAsync(item.FullPath);
+            }
+            else if (item.IsPdf)
+            {
+                await AddToRecentAsync(true);
+                await LoadImagesFromPdfAsync(item.FullPath);
             }
             else if (item.IsImage || item.IsText || item.IsEpub)
             {

@@ -4,12 +4,12 @@
 
 ![Uviewer Screenshot](Uviewer/Assets/screenshot.jpg)
 
-**Uviewer** is a versatile, integrated viewer for Windows that delivers a modern, high-performance experience built on **WinUI 3** and **.NET 10**. It seamlessly handles images, text, and EPUB documents, offering advanced capabilities such as direct image viewing from **archives**, **side-by-side viewing modes**, and robust support for **Aozora Bunko**—complete with **vertical text rendering**. Designed for flexibility, it also features integrated **Markdown support**, smart encoding detection, and **WebDAV connectivity** to streamline your digital reading and viewing workflow.
+**Uviewer** is a versatile, integrated viewer for Windows that delivers a modern, high-performance experience built on **WinUI 3** and **.NET 10**. It seamlessly handles images, text, PDF and EPUB documents, offering advanced capabilities such as direct image viewing from **archives**, **side-by-side viewing modes**, and robust support for **Aozora Bunko**—complete with **vertical text rendering**. Designed for flexibility, it also features integrated **Markdown support**, smart encoding detection, and **WebDAV connectivity** to streamline your digital reading and viewing workflow.
 
 ## ✨ Key Features
 
-### 🖼️ Image Viewing
-- **Broad Format Support**: JPEG, PNG, GIF, BMP, TIFF, ICO, SVG, WebP, AVIF (AV1 Video Extension required), JXL (JPEG XL Image Extension required) and **Animated WebP**.
+### 🖼️ Image & PDF Viewing
+- **Broad Format Support**: PDF, JPEG, PNG, GIF, BMP, TIFF, ICO, SVG, WebP, AVIF (AV1 Video Extension required), JXL (JPEG XL Image Extension required) and **Animated WebP**.
 - **High-Performance Rendering**: Powered by **Win2D** (Direct2D) for smooth zooming and panning.
 - **Smart Scaling**: Customizable zoom levels (0.1x to 10x), fit-to-window, and actual size.
 - **Tools**: Sharpening filter, Side-by-Side view mode, **Match Control Direction** (R-to-L navigation support), and Fast Navigation overlay.
@@ -24,7 +24,7 @@
   - **Adjustable Styling**: Change font size, font family (Yu Gothic Medium/Yu Mincho/Custom), and background themes (Light/Beige/Dark). (Recommendation: We suggest installing and using [**Noto Sans/Serif CJK**](https://fonts.google.com/noto) for the best multilingual reading experience.)
   - **Vertical Mode (Tategaki)**: Comprehensive support for vertical text rendering with pixel-accurate layout.
 - **Go to Line**: Jump directly to a specific line (G).
-- **Table of Contents (TOC)**: Automatically extracts headings (Markdown `#` or Aozora `［＃...］` tags) for quick navigation.
+- **Table of Contents (TOC)**: Automatically extracts headings from textual documents (Markdown `#` or Aozora `［＃...］` tags) and **PDF Bookmarks** for quick navigation.
 - **Line Bookmark**: Save your reading progress (Line number) to Favorites and resume exactly where you left off.
 
 ### 📖 EPUB Reader
@@ -122,6 +122,8 @@ dotnet build Uviewer.sln -c Release
 ## 🏗️ Architecture
 - **WinUI 3**: Modern UI framework.
 - **Win2D**: Hardware-accelerated 2D graphics for images.
+- **Windows.Data.Pdf**: Integrated OS-level PDF rendering.
+- **PdfPig**: Used for parsing PDF tables of contents.
 - **SharpCompress**: Archive extraction.
 
 ## 📝 License

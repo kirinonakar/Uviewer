@@ -1914,7 +1914,11 @@ namespace Uviewer
 
             List<TocItem> items = new();
 
-            if ((_isAozoraMode || _isVerticalMode) && _aozoraBlocks.Count > 0)
+            if (_currentPdfDocument != null && _pdfToc.Count > 0)
+            {
+                items = _pdfToc.ToList();
+            }
+            else if ((_isAozoraMode || _isVerticalMode) && _aozoraBlocks.Count > 0)
             {
                 items = _aozoraBlocks
                     .Where(b => b.HeadingLevel > 0)
@@ -1997,15 +2001,20 @@ namespace Uviewer
                             if (string.Equals(linkPath, currentSpinePath, StringComparison.OrdinalIgnoreCase))
                             {
                                 currentIndex = i;
-                                // Keep searching to find the *last* matching TOC entry (e.g. sub-chapters) 
-                                // that starts at this file? No, usually TOC is ordered. 
-                                // If "Chapter 1" (chap1.html) and "Section 1.1" (chap1.html#sec1), 
-                                // we can't distinguish which one purely by file path without hash/line checking.
-                                // For now, taking the first one is safer as a "Chapter" marker.
                                 break; 
                             }
                         }
                     }
+                }
+            }
+            else if (_currentPdfDocument != null && items.Count > 0)
+            {
+                for (int i = 0; i < items.Count; i++)
+                {
+                    if (items[i].SourceLineNumber <= _currentIndex)
+                        currentIndex = i;
+                    else
+                        break;
                 }
             }
             else
@@ -2076,6 +2085,14 @@ namespace Uviewer
                      {
                          JumpToEpubTocItem(epubItem);
                      }
+                }
+                else if (item.Tag?.ToString() == "PDF")
+                {
+                    if (item.SourceLineNumber >= 0 && item.SourceLineNumber < _imageEntries.Count)
+                    {
+                        _currentIndex = item.SourceLineNumber;
+                        _ = DisplayCurrentImageAsync();
+                    }
                 }
                 else if (item.SourceLineNumber > 0)
                 {

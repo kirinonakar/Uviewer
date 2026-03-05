@@ -211,6 +211,30 @@
                         <TextBlock Text="1:1" FontSize="12" FontWeight="SemiBold"/>
                     </Button>
 
+                    <Button x:Name="PdfTocButton" Click="PdfTocButton_Click" Visibility="Collapsed" ToolTipService.ToolTip="목차(T)">
+                        <FontIcon Glyph="&#xE8FD;" FontSize="14"/>
+                        <Button.Flyout>
+                            <Flyout x:Name="PdfTocFlyout" Placement="Bottom">
+                                <Grid Width="300" Height="400">
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="*"/>
+                                    </Grid.RowDefinitions>
+                                    <TextBlock Text="목차" FontSize="18" FontWeight="SemiBold" Margin="0,0,0,12"/>
+                                    <ListView x:Name="PdfTocListView" Grid.Row="1" SelectionMode="Single" IsItemClickEnabled="True" ItemClick="PdfTocListView_ItemClick">
+                                        <ListView.ItemTemplate>
+                                            <DataTemplate>
+                                                <TextBlock Text="{Binding HeadingText}" Margin="{Binding Margin}" FontSize="14" 
+                                                           FontFamily="{ThemeResource ContentControlThemeFontFamily}"
+                                                           ToolTipService.ToolTip="{Binding HeadingText}" TextTrimming="CharacterEllipsis"/>
+                                            </DataTemplate>
+                                        </ListView.ItemTemplate>
+                                    </ListView>
+                                </Grid>
+                            </Flyout>
+                        </Button.Flyout>
+                    </Button>
+
                     <AppBarSeparator/>
 
                     <ToggleButton x:Name="SharpenButton" Click="SharpenButton_Click" ToolTipService.ToolTip="샤프닝(S)">
@@ -578,12 +602,14 @@
                                          Grid.Column="0"
                                          IsTabStop="False"
                                          Draw="LeftCanvas_Draw"
+                                         PointerPressed="ImageArea_PointerPressed"
                                          CreateResources="LeftCanvas_CreateResources"/>
 
                     <canvas:CanvasControl x:Name="RightCanvas" 
                                          Grid.Column="1"
                                          IsTabStop="False"
                                          Draw="RightCanvas_Draw"
+                                         PointerPressed="ImageArea_PointerPressed"
                                          CreateResources="RightCanvas_CreateResources"/>
                 </Grid>
             </Grid>

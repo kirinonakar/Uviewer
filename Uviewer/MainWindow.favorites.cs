@@ -599,6 +599,10 @@ namespace Uviewer
                             savedLine = GetTopVisibleLineIndex();
                         }
                     }
+                    else if (_currentPdfDocument != null)
+                    {
+                        savedPage = _currentIndex;
+                    }
 
                     // Calculate progress using already-computed position values
                     double calcProgress = 0;
@@ -804,6 +808,10 @@ namespace Uviewer
                                 PendingEpubChapterIndex = favorite.ChapterIndex;
                                 PendingEpubPageIndex = favorite.SavedPage;
                             }
+                            else if (favorite.Path.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase))
+                            {
+                                _pendingPdfPageIndex = favorite.SavedPage;
+                            }
 
                             // Set pending target line BEFORE loading triggers
                             // Unified navigation: Set pending target line for both modes
@@ -818,7 +826,15 @@ namespace Uviewer
                             }
                             
                             var file = await StorageFile.GetFileFromPathAsync(favorite.Path);
-                            await LoadImageFromFileAsync(file);
+                            
+                            if (favorite.Path.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase))
+                            {
+                                await LoadImagesFromPdfAsync(favorite.Path);
+                            }
+                            else
+                            {
+                                await LoadImageFromFileAsync(file);
+                            }
                         }
                         break;
                     case "Archive":
@@ -1378,6 +1394,10 @@ namespace Uviewer
                             }
                         }
                     }
+                    else if (_currentPdfDocument != null)
+                    {
+                        targetPage = _currentIndex;
+                    }
                     else if (type == "Archive" && _currentIndex >= 0 && _currentIndex < _imageEntries.Count)
                     {
                         // 아카이브의 경우 인덱스가 명확하므로 업데이트 (단, 0번 인덱스일 때 기존 키가 있다면 고민해볼 수 있으나 보통 의도된 이동임)
@@ -1477,6 +1497,10 @@ namespace Uviewer
                                 PendingEpubChapterIndex = targetChapter;
                                 PendingEpubPageIndex = targetPage;
                             }
+                            else if (targetPath.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase))
+                            {
+                                _pendingPdfPageIndex = targetPage;
+                            }
 
                             // 텍스트/아오조라용 Pending 설정
                             _aozoraPendingTargetLine = targetLine > 1 ? targetLine : (targetPage > 0 ? -targetPage : 1);
@@ -1499,7 +1523,14 @@ namespace Uviewer
                             var file = await StorageFile.GetFileFromPathAsync(targetPath);
 
                             // [로드] 파일 열기 (내부에서 AddToRecentAsync가 호출되지만, 위에서 건 플래그 때문에 무시됨)
-                            await LoadImageFromFileAsync(file);
+                            if (targetPath.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase))
+                            {
+                                await LoadImagesFromPdfAsync(targetPath);
+                            }
+                            else
+                            {
+                                await LoadImageFromFileAsync(file);
+                            }
                         }
                         break;
 
