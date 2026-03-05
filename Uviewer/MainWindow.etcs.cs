@@ -86,22 +86,30 @@ namespace Uviewer
             _fastNavOverlayTimer.Start();
         }
 
-        private async Task ResetFastNavigation()
+        private Task ResetFastNavigation()
         {
-            // 타이머와 오버레이를 먼저 끈다
+            var tcs = new TaskCompletionSource();
             DispatcherQueue.TryEnqueue(async () =>
             {
-                _isFastNavigation = false;
-                FastNavOverlay.Visibility = Visibility.Collapsed;
+                _fastNavOverlayTimer?.Stop(); // 로딩 중에는 타이머에 의해 일찍 꺼지지 않게 함
 
-                // 중요: 빠른 탐색이 끝난 시점의 인덱스 이미지를 실제로 로드함
-                if (_currentIndex >= 0 && _currentIndex < _imageEntries.Count)
+                try
                 {
-                    // 단순히 DisplayCurrentImageAsync를 호출하는 것보다 
-                    // 현재 상태가 "빠른 탐색"이 아님을 명시하고 호출
-                    await DisplayCurrentImageAsync();
+                    if (_currentIndex >= 0 && _currentIndex < _imageEntries.Count)
+                    {
+                        await DisplayCurrentImageAsync();
+                    }
+                }
+                finally
+                {
+                    // 화면 로딩이 완전히 끝난 후 오버레이를 닫고 그리기 허용
+                    _isFastNavigation = false;
+                    FastNavOverlay.Visibility = Visibility.Collapsed;
+                    MainCanvas?.Invalidate();
+                    tcs.TrySetResult();
                 }
             });
+            return tcs.Task;
         }
 
         private void ShowFilenameOnly()

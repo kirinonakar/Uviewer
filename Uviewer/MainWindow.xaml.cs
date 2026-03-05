@@ -2038,6 +2038,9 @@ namespace Uviewer
             if (!pt.Properties.IsLeftButtonPressed)
                 return;
 
+            if (_currentPdfDocument != null && e.Pointer.PointerDeviceType == Microsoft.UI.Input.PointerDeviceType.Touch)
+                return; // Prevent touch click from navigating pages in PDF (interferes with swipe)
+
             double half = ImageArea.ActualWidth * 0.5;
     if (pt.Position.X < half)
     {
@@ -2291,7 +2294,7 @@ namespace Uviewer
 
         private void MainCanvas_Draw(CanvasControl sender, CanvasDrawEventArgs args)
         {
-            if (_currentBitmap != null && !_isFastNavigation)
+            if (_currentBitmap != null)
             {
                 try
                 {
@@ -2545,10 +2548,10 @@ namespace Uviewer
                 if (_imageEntries.Count == 0) return;
                 if (token.IsCancellationRequested) return;
 
-                var startIndex = Math.Max(0, _currentIndex - 1);
-        var endIndex = Math.Min(_imageEntries.Count - 1, _currentIndex + PreloadCount);
+                var startIndex = _currentPdfDocument != null ? Math.Max(0, _currentIndex - 5) : Math.Max(0, _currentIndex - 1);
+                var endIndex = _currentPdfDocument != null ? Math.Min(_imageEntries.Count - 1, _currentIndex + 5) : Math.Min(_imageEntries.Count - 1, _currentIndex + PreloadCount);
 
-        var tasks = new List<Task>();
+                var tasks = new List<Task>();
 
         for (int i = startIndex; i <= endIndex; i++)
         {
@@ -2662,8 +2665,8 @@ namespace Uviewer
                 if (_imageEntries.Count == 0) return;
                 if (token.IsCancellationRequested) return;
 
-                var startIndex = Math.Max(0, _currentIndex - PreloadCount);
-                var endIndex = _currentIndex - 1;
+                var startIndex = _currentPdfDocument != null ? Math.Max(0, _currentIndex - 5) : Math.Max(0, _currentIndex - PreloadCount);
+                var endIndex = _currentPdfDocument != null ? Math.Min(_imageEntries.Count - 1, _currentIndex + 5) : _currentIndex - 1;
 
                 var tasks = new List<Task>();
 
@@ -2696,7 +2699,13 @@ namespace Uviewer
                             if (token.IsCancellationRequested) return;
 
                             CanvasBitmap? bitmap = null;
-                            if (entry.IsArchiveEntry && _currentArchive != null)
+                            bool isPdf = entry.IsPdfEntry && _currentPdfDocument != null;
+                            
+                            if (isPdf)
+                            {
+                                bitmap = await LoadPdfPageBitmapAsync(entry.PdfPageIndex, MainCanvas, token);
+                            }
+                            else if (entry.IsArchiveEntry && _currentArchive != null)
                             {
                                 bitmap = await LoadImageFromArchiveEntryAsync(entry.ArchiveEntryKey!, MainCanvas, token);
                             }
@@ -2757,7 +2766,7 @@ namespace Uviewer
             lock (_preloadedImages)
             {
                 // Keep only images within a reasonable range of current index
-                var keepRange = PreloadCount * 2;
+                var keepRange = _currentPdfDocument != null ? 6 : PreloadCount * 2;
                 var keysToRemove = _preloadedImages.Keys
                     .Where(index => Math.Abs(index - _currentIndex) > keepRange)
                     .ToList();
