@@ -553,7 +553,10 @@
                   IsTabStop="False"
                   SizeChanged="ImageArea_SizeChanged"
                   PointerWheelChanged="ImageArea_PointerWheelChanged"
-                  PointerPressed="ImageArea_PointerPressed">
+                  PointerPressed="ImageArea_PointerPressed"
+                  ManipulationMode="None"
+                  ManipulationDelta="ImageArea_ManipulationDelta"
+                  ManipulationCompleted="ImageArea_ManipulationCompleted">
                 <!-- Empty State -->
                 <StackPanel x:Name="EmptyStatePanel" HorizontalAlignment="Center" VerticalAlignment="Center" 
                             Spacing="16" Visibility="Visible">

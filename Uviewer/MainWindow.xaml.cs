@@ -64,6 +64,8 @@ namespace Uviewer
         private bool _matchControlDirection = false;
         private int _pendingPdfPageIndex = -1;
         private double _pdfPanY = 0;
+        private double _pdfPanX = 0;
+        private bool _isPdfTransitioning = false;
         private int _pdfScrollDirection = 1; // 1 for next (start top), -1 for prev (start bottom)
         private bool _isSeamlessScroll = false;
         private bool _allowMultipleInstances = true;
@@ -310,6 +312,8 @@ namespace Uviewer
         {
             try
             {
+                launchFilePath = launchFilePath.Trim('\"');
+                launchFilePath = Path.GetFullPath(launchFilePath);
                 if (File.Exists(launchFilePath))
                 {
                     var fileFolder = Path.GetDirectoryName(launchFilePath);
@@ -1192,14 +1196,23 @@ namespace Uviewer
                     if (_currentPdfDocument == null)
                     {
                         _zoomLevel = 1.0;
+                        _pdfPanX = 0;
+                        _pdfPanY = 0;
                         FitToWindow();
                     }
                     else
                     {
-                        // PDF: Set initial pan to top of page
+                        // PDF: Set initial pan to top or bottom of page depending on direction
                         if (!_isSeamlessScroll)
                         {
-                            _pdfPanY = 0;
+                            var canvasSize = MainCanvas.Size;
+                            var imageSize = bitmap.Size;
+                            var fitRatio = Math.Min(canvasSize.Width / imageSize.Width, canvasSize.Height / imageSize.Height);
+                            var scaledH = imageSize.Height * fitRatio * _zoomLevel;
+                            double maxPan = (scaledH > canvasSize.Height) ? (scaledH - canvasSize.Height) / 2 : 0;
+                            _pdfPanY = (_pdfScrollDirection == 1) ? maxPan : -maxPan;
+                            _pdfPanX = 0;
+                            _isPdfTransitioning = false;
                         }
                     }
                     ShowImageUI();
@@ -1315,6 +1328,9 @@ namespace Uviewer
 
         private bool IsBitmapInCache(CanvasBitmap bitmap)
         {
+            if (bitmap == null) return false;
+            if (bitmap == _currentBitmap) return true;
+            
             lock (_preloadedImages)
             {
                 if (_preloadedImages.ContainsValue(bitmap)) return true;
@@ -1412,10 +1428,14 @@ namespace Uviewer
             else
             {
                 // PDF: Set initial pan state based on direction
-                if (!_isSeamlessScroll)
+                if (!_isSeamlessScroll && leftBitmap != null)
                 {
-                    // Use a large but finite value to indicate "end" without causing math overflow issues
-                    _pdfPanY = (_pdfScrollDirection == 1) ? 999999 : -999999;
+                    var canvasSize = LeftCanvas.Size;
+                    var imageSize = leftBitmap.Size;
+                    var fitRatio = Math.Min(canvasSize.Width / imageSize.Width, canvasSize.Height / imageSize.Height);
+                    var scaledH = imageSize.Height * fitRatio * _zoomLevel;
+                    double maxPan = (scaledH > canvasSize.Height) ? (scaledH - canvasSize.Height) / 2 : 0;
+                    _pdfPanY = (_pdfScrollDirection == 1) ? maxPan : -maxPan;
                 }
             }
 
@@ -1816,41 +1836,86 @@ namespace Uviewer
         }
 
         private async void ImageArea_PointerWheelChanged(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
-{
-    var properties = e.GetCurrentPoint(ImageArea).Properties;
-    var wheelDelta = properties.MouseWheelDelta;
-
-    if (_currentPdfDocument != null && _currentBitmap != null)
-    {
-        // PDF always resets fast navigation - PDFs should never use fast-skip mode
-        _isFastNavigation = false;
-
-        var canvasSize = MainCanvas.Size;
-        var imageSize = _currentBitmap.Size;
-        var fitRatio = Math.Min(canvasSize.Width / imageSize.Width, canvasSize.Height / imageSize.Height);
-        var scaledSize = new Windows.Foundation.Size(imageSize.Width * fitRatio * _zoomLevel, imageSize.Height * fitRatio * _zoomLevel);
-
-        if (scaledSize.Height > canvasSize.Height)
         {
-            // Zoomed PDF - continuous scrolling with seamless page transitions
-            double step = 80;
-            double gap = 20 * _zoomLevel;
+            var properties = e.GetCurrentPoint(ImageArea).Properties;
+            var wheelDelta = properties.MouseWheelDelta;
 
-            if (wheelDelta > 0) // Scroll up
+            if (_currentPdfDocument != null && _currentBitmap != null)
             {
-                _pdfPanY += step;
+                // PDF 연속 스크롤 처리
+                double step = 80;
+                double deltaY = (wheelDelta > 0) ? step : -step;
+                await HandlePdfScrollAsync(0, deltaY);
+                e.Handled = true;
+                return;
+            }
+
+            // 일반 이미지 내비게이션
+            if (wheelDelta < 0) await NavigateToNextAsync();
+            else if (wheelDelta > 0) await NavigateToPreviousAsync();
+
+            e.Handled = true;
+        }
+
+        private async void ImageArea_ManipulationDelta(object sender, Microsoft.UI.Xaml.Input.ManipulationDeltaRoutedEventArgs e)
+        {
+            if (_currentPdfDocument == null || _currentBitmap == null) return;
+
+            // 1. 핀치 줌 처리
+            if (e.Delta.Scale != 1.0f)
+            {
+                _zoomLevel *= e.Delta.Scale;
+                _zoomLevel = Math.Clamp(_zoomLevel, MinZoom, MaxZoom);
+            }
+
+            // 2. 드래그/스와이프 스크롤 처리
+            await HandlePdfScrollAsync(e.Delta.Translation.X, e.Delta.Translation.Y);
+
+            e.Handled = true;
+        }
+
+        private void ImageArea_ManipulationCompleted(object sender, Microsoft.UI.Xaml.Input.ManipulationCompletedRoutedEventArgs e)
+        {
+            _isPdfTransitioning = false;
+        }
+
+        private async Task HandlePdfScrollAsync(double deltaX, double deltaY)
+        {
+            if (_currentPdfDocument == null || _currentBitmap == null || _isPdfTransitioning) return;
+
+            try
+            {
+                var canvasSize = MainCanvas.Size;
+                if (canvasSize.Width <= 0 || canvasSize.Height <= 0) return;
                 
-                // Transition to Previous
-                double maxPan = (scaledSize.Height - canvasSize.Height) / 2;
-                if (_pdfPanY > maxPan + 100 && _currentIndex > 0)
+                var imageSize = _currentBitmap.Size;
+                var fitRatio = Math.Min(canvasSize.Width / imageSize.Width, canvasSize.Height / imageSize.Height);
+                var scaledSize = new Windows.Foundation.Size(imageSize.Width * fitRatio * _zoomLevel, imageSize.Height * fitRatio * _zoomLevel);
+
+            // 가로 스크롤/팬 처리
+            _pdfPanX += deltaX;
+            double maxPanX = Math.Max(0, (scaledSize.Width - canvasSize.Width) / 2);
+            if (_pdfPanX > maxPanX) _pdfPanX = maxPanX;
+            if (_pdfPanX < -maxPanX) _pdfPanX = -maxPanX;
+
+            // 세로 스크롤 및 페이지 전환 처리
+            double gap = 20 * _zoomLevel;
+            double maxPanY = Math.Max(0, (scaledSize.Height - canvasSize.Height) / 2);
+
+            if (deltaY > 0) // 위로 스크롤 (이전 페이지로)
+            {
+                _pdfPanY += deltaY;
+                
+                // 이전 페이지로 전환
+                if (_pdfPanY > maxPanY + 1 && _currentIndex > 0)
                 {
+                    _isPdfTransitioning = true;
                     CanvasBitmap? prev = null;
                     int targetPrevIndex = _currentIndex - 1;
                     lock (_preloadedImages) { _preloadedImages.TryGetValue(targetPrevIndex, out prev); }
                     
                     var oldPosNextTop = (canvasSize.Height - scaledSize.Height) / 2 + _pdfPanY;
                     
-                    // Save old bitmap to cache so it can be drawn as adjacent page
                     int oldIndex = _currentIndex;
                     lock (_preloadedImages)
                     {
@@ -1860,60 +1925,56 @@ namespace Uviewer
 
                     _currentIndex = targetPrevIndex;
 
-                    if (prev != null)
+                    if (prev != null && prev.Device != null)
                     {
-                        var pFit = Math.Min(canvasSize.Width / prev.Size.Width, canvasSize.Height / prev.Size.Height);
-                        var pScaledH = prev.Size.Height * pFit * _zoomLevel;
-                        _pdfPanY = (oldPosNextTop - gap - pScaledH) - (canvasSize.Height - pScaledH) / 2;
+                        try {
+                            var pFit = Math.Min(canvasSize.Width / prev.Size.Width, canvasSize.Height / prev.Size.Height);
+                            var pScaledH = prev.Size.Height * pFit * _zoomLevel;
+                            _pdfPanY = (oldPosNextTop - gap - pScaledH) - (canvasSize.Height - pScaledH) / 2;
+                            
+                            _currentBitmap = prev;
+                            var prevEntry = _imageEntries[_currentIndex];
+                            // Do not call ShowImageUI here to avoid flickering
+                            UpdateStatusBar(prevEntry, _currentBitmap);
+                            MainCanvas.Invalidate();
+                            
+                            _preloadCts?.Cancel();
+                            _preloadCts?.Dispose();
+                            _preloadCts = new CancellationTokenSource();
+                            var token = _preloadCts.Token;
+                            _ = Task.Run(() => PreloadPreviousImagesAsync(token));
+                        } catch { 
+                             _isPdfTransitioning = false;
+                             return; 
+                        }
                     }
                     else
                     {
-                        // Start at bottom of previous page
-                        _pdfPanY = -999999;
-                    }
-                    
-                    _isSeamlessScroll = true;
-                    
-                    if (prev != null)
-                    {
-                        _currentBitmap = prev;
-                        var prevEntry = _imageEntries[_currentIndex];
-                        ShowImageUI();
-                        UpdateStatusBar(prevEntry, _currentBitmap);
-                        MainCanvas.Invalidate();
-                        _preloadCts?.Cancel();
-                        _preloadCts?.Dispose();
-                        _preloadCts = new CancellationTokenSource();
-                        _ = Task.Run(() => PreloadNextImagesAsync(_preloadCts.Token));
-                    }
-                    else
-                    {
+                        _isSeamlessScroll = true;
+                        _pdfScrollDirection = -1;
                         await DisplayCurrentImageAsync();
+                        _isSeamlessScroll = false;
                     }
-
-                    _isSeamlessScroll = false;
-                    e.Handled = true;
+                    _isPdfTransitioning = false;
                     return;
                 }
 
-                // Hard clamp at start of document
-                if (_currentIndex == 0 && _pdfPanY > maxPan) _pdfPanY = maxPan;
+                if (_currentIndex == 0 && _pdfPanY > maxPanY) _pdfPanY = maxPanY;
             }
-            else // Scroll down
+            else if (deltaY < 0) // 아래로 스크롤 (다음 페이지로)
             {
-                _pdfPanY -= step;
+                _pdfPanY += deltaY;
 
-                // Transition to Next
-                double maxPan = (scaledSize.Height - canvasSize.Height) / 2;
-                if (_pdfPanY < -maxPan - 100 && _currentIndex < _imageEntries.Count - 1)
+                // 다음 페이지로 전환
+                if (_pdfPanY < -maxPanY - 1 && _currentIndex < _imageEntries.Count - 1)
                 {
+                    _isPdfTransitioning = true;
                     CanvasBitmap? next = null;
                     int targetNextIndex = _currentIndex + 1;
                     lock (_preloadedImages) { _preloadedImages.TryGetValue(targetNextIndex, out next); }
                     
                     var oldPosPrevBottom = (canvasSize.Height - scaledSize.Height) / 2 + _pdfPanY + scaledSize.Height;
                     
-                    // Save old bitmap to cache so it can be drawn as adjacent page
                     int oldIndex = _currentIndex;
                     lock (_preloadedImages)
                     {
@@ -1923,83 +1984,49 @@ namespace Uviewer
 
                     _currentIndex = targetNextIndex;
 
-                    if (next != null)
+                    if (next != null && next.Device != null)
                     {
-                        var nFit = Math.Min(canvasSize.Width / next.Size.Width, canvasSize.Height / next.Size.Height);
-                        var nScaledH = next.Size.Height * nFit * _zoomLevel;
-                        _pdfPanY = (oldPosPrevBottom + gap) - (canvasSize.Height - nScaledH) / 2;
+                        try {
+                            var nFit = Math.Min(canvasSize.Width / next.Size.Width, canvasSize.Height / next.Size.Height);
+                            var nScaledH = next.Size.Height * nFit * _zoomLevel;
+                            _pdfPanY = (oldPosPrevBottom + gap) - (canvasSize.Height - nScaledH) / 2;
+                            
+                            _currentBitmap = next;
+                            var nextEntry = _imageEntries[_currentIndex];
+                            // Do not call ShowImageUI here to avoid flickering
+                            UpdateStatusBar(nextEntry, _currentBitmap);
+                            MainCanvas.Invalidate();
+                            
+                            _preloadCts?.Cancel();
+                            _preloadCts?.Dispose();
+                            _preloadCts = new CancellationTokenSource();
+                            var token = _preloadCts.Token;
+                            _ = Task.Run(() => PreloadNextImagesAsync(token));
+                        } catch {
+                            _isPdfTransitioning = false;
+                            return;
+                        }
                     }
                     else
                     {
-                        // Start at top of next page
-                        _pdfPanY = 999999;
-                    }
-
-                    _isSeamlessScroll = true;
-
-                    if (next != null)
-                    {
-                        _currentBitmap = next;
-                        var nextEntry = _imageEntries[_currentIndex];
-                        ShowImageUI();
-                        UpdateStatusBar(nextEntry, _currentBitmap);
-                        MainCanvas.Invalidate();
-                        _preloadCts?.Cancel();
-                        _preloadCts?.Dispose();
-                        _preloadCts = new CancellationTokenSource();
-                        _ = Task.Run(() => PreloadNextImagesAsync(_preloadCts.Token));
-                    }
-                    else
-                    {
+                        _isSeamlessScroll = true;
+                        _pdfScrollDirection = 1;
                         await DisplayCurrentImageAsync();
+                        _isSeamlessScroll = false;
                     }
-
-                    _isSeamlessScroll = false;
-                    e.Handled = true;
+                    _isPdfTransitioning = false;
                     return;
                 }
 
-                // Hard clamp at end of document
-                if (_currentIndex >= _imageEntries.Count - 1 && _pdfPanY < -maxPan) _pdfPanY = -maxPan;
+                if (_currentIndex >= _imageEntries.Count - 1 && _pdfPanY < -maxPanY) _pdfPanY = -maxPanY;
             }
 
             ApplyZoom();
-            e.Handled = true;
-            return;
-        }
-        else
-        {
-            // Non-zoomed PDF - page by page navigation (no fast-skip)
-            if (wheelDelta < 0 && _currentIndex < _imageEntries.Count - 1)
-            {
-                _pdfScrollDirection = 1;
-                _currentIndex++;
-                await DisplayCurrentImageAsync();
             }
-            else if (wheelDelta > 0 && _currentIndex > 0)
+            finally
             {
-                _pdfScrollDirection = -1;
-                _currentIndex--;
-                await DisplayCurrentImageAsync();
+                _isPdfTransitioning = false;
             }
-            e.Handled = true;
-            return;
-        }
-    }
-
-    // Scroll down = next image, Scroll up = previous image
-    if (wheelDelta < 0)
-            {
-                // Scroll down - next image
-                await NavigateToNextAsync();
-            }
-            else if (wheelDelta > 0)
-            {
-                // Scroll up - previous image
-                await NavigateToPreviousAsync();
-            }
-
-            e.Handled = true;
         }
 
         private async void ImageArea_PointerPressed(object sender, PointerRoutedEventArgs e)
@@ -2039,11 +2066,11 @@ namespace Uviewer
         _preloadCts?.Dispose();
         _preloadCts = null;
 
-        bool isFast = !isManualClick && _currentPdfDocument == null && DetectFastNavigation();
+        bool isFast = !isManualClick && DetectFastNavigation();
 
         if (isFast)
         {
-            if (_isSideBySideMode)
+            if (_isSideBySideMode && _currentPdfDocument == null)
                 _currentIndex = Math.Max(0, _currentIndex - 2);
             else
                 _currentIndex--;
@@ -2052,7 +2079,7 @@ namespace Uviewer
             return;
         }
 
-        if (_isSideBySideMode)
+        if (_isSideBySideMode && _currentPdfDocument == null)
             _currentIndex = Math.Max(0, _currentIndex - 2);
         else
             _currentIndex--;
@@ -2079,11 +2106,11 @@ namespace Uviewer
                 _preloadCts?.Dispose();
                 _preloadCts = null;
 
-                bool isFast = !isManualClick && _currentPdfDocument == null && DetectFastNavigation();
+                bool isFast = !isManualClick && DetectFastNavigation();
 
                 if (isFast)
                 {
-                    if (_isSideBySideMode)
+                    if (_isSideBySideMode && _currentPdfDocument == null)
                         _currentIndex = Math.Min(_imageEntries.Count - 1, _currentIndex + 2);
                     else
                         _currentIndex++;
@@ -2092,7 +2119,7 @@ namespace Uviewer
                     return;
                 }
 
-                if (_isSideBySideMode)
+                if (_isSideBySideMode && _currentPdfDocument == null)
                     _currentIndex = Math.Min(_imageEntries.Count - 1, _currentIndex + 2);
                 else
                     _currentIndex++;
@@ -2213,6 +2240,13 @@ namespace Uviewer
                         SyncExplorerSelection(item);
                         return;
                     }
+                    else if (item.IsPdf)
+                    {
+                        await AddToRecentAsync(true);
+                        await LoadImagesFromPdfAsync(item.FullPath);
+                        SyncExplorerSelection(item);
+                        return;
+                    }
                     else if (item.IsImage || item.IsText || item.IsEpub)
                     {
                         await AddToRecentAsync(true); // Save current before switching
@@ -2278,47 +2312,71 @@ namespace Uviewer
                 (canvasSize.Width - scaledSize.Width) / 2,
                 (canvasSize.Height - scaledSize.Height) / 2);
 
-            if (_currentPdfDocument != null && scaledSize.Height > canvasSize.Height)
+            if (_currentPdfDocument != null)
             {
-                double maxPan = (scaledSize.Height - canvasSize.Height) / 2;
-                // Clamping for PDF pan: allow overscroll but prevent extreme values
-                if (_pdfPanY > maxPan + 350) _pdfPanY = maxPan + 350;
-                if (_pdfPanY < -maxPan - 350) _pdfPanY = -maxPan - 350;
+                // PDF는 항상 연속 스크롤 모드 지원
+                double maxPan = Math.Max(0, (scaledSize.Height - canvasSize.Height) / 2);
+                double clampMargin = canvasSize.Height + 500; // 화면 높이 기반으로 제한 값 확장
+                if (_pdfPanY > maxPan + clampMargin) _pdfPanY = maxPan + clampMargin;
+                if (_pdfPanY < -maxPan - clampMargin) _pdfPanY = -maxPan - clampMargin;
 
 
-                // Drawing current page with pan
+                // PDF Drawing with pan (X, Y)
+                position.X = (canvasSize.Width - scaledSize.Width) / 2 + _pdfPanX;
                 position.Y = (canvasSize.Height - scaledSize.Height) / 2 + _pdfPanY;
                 var destRect = new Windows.Foundation.Rect(position, scaledSize);
-                ds.DrawImage(_currentBitmap, destRect);
+                
+                if (_currentBitmap.Device != null)
+                {
+                    ds.DrawImage(_currentBitmap, destRect);
+                }
 
                 double gap = 20 * _zoomLevel;
 
-                // Draw previous page if gap at top
-                if (position.Y > 0 && _currentIndex > 0)
+                // Draw previous pages (up to 2)
+                double currentY_top = position.Y;
+                for (int i = 1; i <= 2; i++)
                 {
+                    int prevIdx = _currentIndex - i;
+                    if (prevIdx < 0) break;
+                    
                     CanvasBitmap? prev = null;
-                    lock (_preloadedImages) { _preloadedImages.TryGetValue(_currentIndex - 1, out prev); }
-                    if (prev != null)
+                    lock (_preloadedImages) { _preloadedImages.TryGetValue(prevIdx, out prev); }
+                    if (prev != null && prev.Device != null)
                     {
                         var pFit = Math.Min(canvasSize.Width / prev.Size.Width, canvasSize.Height / prev.Size.Height);
                         var pScaledSize = new Windows.Foundation.Size(prev.Size.Width * pFit * _zoomLevel, prev.Size.Height * pFit * _zoomLevel);
-                        var pPos = new Windows.Foundation.Point((canvasSize.Width - pScaledSize.Width) / 2, position.Y - pScaledSize.Height - gap);
+                        var pPos = new Windows.Foundation.Point((canvasSize.Width - pScaledSize.Width) / 2 + _pdfPanX, currentY_top - pScaledSize.Height - gap);
                         ds.DrawImage(prev, new Windows.Foundation.Rect(pPos, pScaledSize));
+                        currentY_top = pPos.Y;
+                        
+                        // Stop if even this page is way above screen
+                        if (currentY_top + pScaledSize.Height < -500) break;
                     }
+                    else break; // Missing preload, can't draw further
                 }
 
-                // Draw next page if gap at bottom
-                if (position.Y + scaledSize.Height < canvasSize.Height && _currentIndex < _imageEntries.Count - 1)
+                // Draw next pages (up to 2)
+                double currentY_bottom = position.Y + scaledSize.Height;
+                for (int i = 1; i <= 2; i++)
                 {
+                    int nextIdx = _currentIndex + i;
+                    if (nextIdx >= _imageEntries.Count) break;
+                    
                     CanvasBitmap? next = null;
-                    lock (_preloadedImages) { _preloadedImages.TryGetValue(_currentIndex + 1, out next); }
-                    if (next != null)
+                    lock (_preloadedImages) { _preloadedImages.TryGetValue(nextIdx, out next); }
+                    if (next != null && next.Device != null)
                     {
                         var nFit = Math.Min(canvasSize.Width / next.Size.Width, canvasSize.Height / next.Size.Height);
                         var nScaledSize = new Windows.Foundation.Size(next.Size.Width * nFit * _zoomLevel, next.Size.Height * nFit * _zoomLevel);
-                        var nPos = new Windows.Foundation.Point((canvasSize.Width - nScaledSize.Width) / 2, position.Y + scaledSize.Height + gap);
+                        var nPos = new Windows.Foundation.Point((canvasSize.Width - nScaledSize.Width) / 2 + _pdfPanX, currentY_bottom + gap);
                         ds.DrawImage(next, new Windows.Foundation.Rect(nPos, nScaledSize));
+                        currentY_bottom = nPos.Y + nScaledSize.Height;
+                        
+                        // Stop if even this page is way below screen
+                        if (nPos.Y > canvasSize.Height + 500) break;
                     }
+                    else break;
                 }
             }
             else
@@ -2708,7 +2766,10 @@ namespace Uviewer
                 {
                     if (_preloadedImages.TryGetValue(key, out var bitmap))
                     {
-                        bitmap?.Dispose();
+                        if (bitmap != _currentBitmap)
+                        {
+                            bitmap?.Dispose();
+                        }
                     }
                     _preloadedImages.Remove(key);
                 }

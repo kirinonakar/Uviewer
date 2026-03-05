@@ -524,6 +524,10 @@ namespace Uviewer
             TextToolbarPanel.Visibility = Visibility.Collapsed;
             SideBySideToolbarPanel.Visibility = (_currentPdfDocument != null) ? Visibility.Collapsed : Visibility.Visible;
             SharpenButton.Visibility = (_currentPdfDocument != null) ? Visibility.Collapsed : Visibility.Visible;
+            
+            // PDF의 경우 핀치 줌과 스와이프 스크롤을 위해 조작 모드 활성화
+            ImageArea.ManipulationMode = (_currentPdfDocument != null) ? Microsoft.UI.Xaml.Input.ManipulationModes.All : Microsoft.UI.Xaml.Input.ManipulationModes.None;
+
             UpdateSideBySideButtonState();
             UpdateNextImageSideButtonState();
         }

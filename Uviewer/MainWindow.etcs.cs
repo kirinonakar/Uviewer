@@ -262,6 +262,10 @@ namespace Uviewer
                         {
                             await LoadEpubFileAsync(file);
                         }
+                        else if (SupportedPdfExtensions.Contains(ext))
+                        {
+                            await LoadImagesFromPdfAsync(file.Path);
+                        }
                         else if (SupportedImageExtensions.Contains(ext) || SupportedTextExtensions.Contains(ext))
                         {
                             await LoadImageFromFileAsync(file);
