@@ -1,7 +1,7 @@
 [Software] Uviewer
-[Overview] A versatile, integrated viewer for Windows designed for digital reading and viewing. It supports images, text, and EPUB documents with a modern, high-performance experience.
+[Overview] A versatile, integrated viewer for Windows designed for digital reading and viewing. It supports images, text, PDF and EPUB documents with a modern, high-performance experience.
 [Key Features]
-- Image Viewing: Support for various formats including direct viewing from archives (ZIP/7z/RAR).
+- Image & PDF Viewing: Support for PDF and various image formats including direct viewing from archives (ZIP/7z/RAR).
 - Text/Novel: Aozora Bunko format (vertical text support), Markdown support, smart encoding detection.
 - EPUB Reader: Chapter tracking, vertical mode support.
 - Remote: WebDAV connectivity.
