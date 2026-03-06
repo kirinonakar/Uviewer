@@ -80,7 +80,8 @@
 | **Ctrl + F** | Global | Toggle Favorites |
 | **Ctrl + S** | Global | Add to Favorites |
 | **G** | Text/EPUB | Go to Line |
-| **+ / -** | Global | Zoom In/Out / Font Size Up/Down |
+| | PDF | Go to Page |
+| **+ / -**  | Global | Zoom In/Out / Font Size Up/Down (-/= also works) |
 | **0** | Image | Reset Zoom to 100% |
 | **S** | Image | Toggle Sharpening |
 | **A** | Text | Toggle Simple text / Advanved rendering (Aozora, Markdown) mode |
