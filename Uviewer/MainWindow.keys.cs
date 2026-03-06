@@ -123,6 +123,14 @@ namespace Uviewer
                     e.Handled = true;
                     break;
 
+                case Windows.System.VirtualKey.G:
+                    if (!_isTextMode && !_isEpubMode && _currentPdfDocument != null)
+                    {
+                        _ = ShowGoToLineDialog();
+                        e.Handled = true;
+                    }
+                    break;
+
                 case Windows.System.VirtualKey.Back:
                     await NavigateToParentFolderAsync();
                     e.Handled = true;

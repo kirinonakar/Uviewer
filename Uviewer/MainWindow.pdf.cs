@@ -69,12 +69,15 @@ namespace Uviewer
                         {
                             ParsePdfBookmarks(bookmarks.GetNodes().ToList(), 1);
                         }
-                        
                         DispatcherQueue.TryEnqueue(() =>
                         {
                             if (PdfTocButton != null)
                             {
                                 PdfTocButton.Visibility = Visibility.Visible;
+                            }
+                            if (PdfGoToPageButton != null)
+                            {
+                                PdfGoToPageButton.Visibility = Visibility.Visible;
                             }
                         });
                     }
@@ -171,6 +174,10 @@ namespace Uviewer
                 if (PdfTocButton != null)
                 {
                     PdfTocButton.Visibility = Visibility.Collapsed;
+                }
+                if (PdfGoToPageButton != null)
+                {
+                    PdfGoToPageButton.Visibility = Visibility.Collapsed;
                 }
             });
 

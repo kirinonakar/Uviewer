@@ -109,6 +109,9 @@
   <data name="GoToPageTooltip" xml:space="preserve">
     <value>行移動 (G)</value>
   </data>
+  <data name="GoToPageTitle" xml:space="preserve">
+    <value>ページ移動</value>
+  </data>
   <data name="TextSizeDownTooltip" xml:space="preserve">
     <value>文字を小さく (-)</value>
   </data>

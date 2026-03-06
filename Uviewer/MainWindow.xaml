@@ -211,6 +211,10 @@
                         <TextBlock Text="1:1" FontSize="12" FontWeight="SemiBold"/>
                     </Button>
 
+                    <Button x:Name="PdfGoToPageButton" Click="GoToPageButton_Click" Visibility="Collapsed" ToolTipService.ToolTip="페이지 이동(G)">
+                        <TextBlock Text="G" FontSize="14" FontWeight="Bold"/>
+                    </Button>
+
                     <Button x:Name="PdfTocButton" Click="PdfTocButton_Click" Visibility="Collapsed" ToolTipService.ToolTip="목차(T)">
                         <FontIcon Glyph="&#xE8FD;" FontSize="14"/>
                         <Button.Flyout>

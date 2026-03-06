@@ -2095,8 +2095,15 @@ namespace Uviewer
         {
              int currentLine = 1;
              int totalLines = 1;
+             string title = Strings.DialogTitle;
              
-             if (_isAozoraMode && _aozoraBlocks.Count > 0)
+             if (_currentPdfDocument != null)
+             {
+                 totalLines = (int)_currentPdfDocument.PageCount;
+                 currentLine = _currentIndex + 1;
+                 title = Strings.GoToPageTitle;
+             }
+             else if (_isAozoraMode && _aozoraBlocks.Count > 0)
              {
                  totalLines = _aozoraTotalLineCount;
                  currentLine = _aozoraBlocks[_currentAozoraStartBlockIndex].SourceLineNumber;
@@ -2120,7 +2127,7 @@ namespace Uviewer
 
              var dialog = new ContentDialog
              {
-                 Title = Strings.DialogTitle,
+                 Title = title,
                  Content = input,
                  PrimaryButtonText = Strings.DialogPrimary,
                  CloseButtonText = Strings.DialogClose,
@@ -2147,6 +2154,17 @@ namespace Uviewer
         {
             if (!int.TryParse(lineText, out int line) || line < 1) return;
             
+            if (_currentPdfDocument != null)
+            {
+                int pageIndex = line - 1;
+                if (pageIndex >= 0 && pageIndex < (int)_currentPdfDocument.PageCount)
+                {
+                    _currentIndex = pageIndex;
+                    _ = DisplayCurrentImageAsync();
+                }
+                return;
+            }
+
              if (_isVerticalMode)
              {
                  _ = PrepareVerticalTextAsync(line);
