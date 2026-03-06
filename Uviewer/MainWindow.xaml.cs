@@ -1842,6 +1842,20 @@ namespace Uviewer
             var properties = e.GetCurrentPoint(ImageArea).Properties;
             var wheelDelta = properties.MouseWheelDelta;
 
+            var ctrl = Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(Windows.System.VirtualKey.Control);
+            if (ctrl.HasFlag(Windows.UI.Core.CoreVirtualKeyStates.Down))
+            {
+                if (_currentPdfDocument != null && _currentBitmap != null)
+                {
+                    double zoomDelta = (wheelDelta / 120.0) * 0.1;
+                    _zoomLevel += zoomDelta;
+                    _zoomLevel = Math.Clamp(_zoomLevel, MinZoom, MaxZoom);
+                    ApplyZoom();
+                    e.Handled = true;
+                    return;
+                }
+            }
+
             if (_currentPdfDocument != null && _currentBitmap != null)
             {
                 // PDF 연속 스크롤 처리

@@ -91,6 +91,7 @@
 ## Mouse & Touch Navigation
 - **Click/Touch Left Side**: Previous Page / Image
 - **Click/Touch Right Side**: Next Page / Image
+- **Pinch Zoom (PDF)**: Support for pinch-to-zoom gestures on touchpads and touchscreens.
 - **Control Direction Match**: When enabled in Side-by-Side mode (←), controls automatically invert to match the visual page progression.
 
 ## 🚀 Installation
