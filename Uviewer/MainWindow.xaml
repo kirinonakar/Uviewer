@@ -192,29 +192,7 @@
 
                 <!-- Image Toolbar -->
                 <StackPanel x:Name="ImageToolbarPanel" Orientation="Horizontal" Spacing="4" Visibility="Visible">
-                    <Button x:Name="ZoomOutButton" Click="ZoomOutButton_Click" ToolTipService.ToolTip="축소(-)">
-                        <FontIcon Glyph="&#xE71F;" FontSize="14"/>
-                    </Button>
-
-                    <TextBlock x:Name="ZoomLevelText" Text="100%" Width="50" TextAlignment="Center" 
-                               VerticalAlignment="Center" FontSize="12"/>
-
-                    <Button x:Name="ZoomInButton" Click="ZoomInButton_Click" ToolTipService.ToolTip="확대(+)">
-                        <FontIcon Glyph="&#xE8A3;" FontSize="14"/>
-                    </Button>
-
-                    <Button x:Name="ZoomFitButton" Click="ZoomFitButton_Click" ToolTipService.ToolTip="맞춤">
-                        <FontIcon Glyph="&#xE9A6;" FontSize="14"/>
-                    </Button>
-
-                    <Button x:Name="ZoomActualButton" Click="ZoomActualButton_Click" ToolTipService.ToolTip="원본 크기">
-                        <TextBlock Text="1:1" FontSize="12" FontWeight="SemiBold"/>
-                    </Button>
-
-                    <Button x:Name="PdfGoToPageButton" Click="GoToPageButton_Click" Visibility="Collapsed" ToolTipService.ToolTip="페이지 이동(G)">
-                        <TextBlock Text="G" FontSize="14" FontWeight="Bold"/>
-                    </Button>
-
+                    <!-- PDF specific buttons moved to front to match text mode -->
                     <Button x:Name="PdfTocButton" Click="PdfTocButton_Click" Visibility="Collapsed" ToolTipService.ToolTip="목차(T)">
                         <FontIcon Glyph="&#xE8FD;" FontSize="14"/>
                         <Button.Flyout>
@@ -237,6 +215,31 @@
                                 </Grid>
                             </Flyout>
                         </Button.Flyout>
+                    </Button>
+
+                    <Button x:Name="PdfGoToPageButton" Click="GoToPageButton_Click" Visibility="Collapsed" ToolTipService.ToolTip="페이지 이동(G)">
+                        <TextBlock Text="G" FontSize="14" FontWeight="Bold"/>
+                    </Button>
+
+                    <AppBarSeparator x:Name="PdfSeparator" Visibility="Collapsed"/>
+
+                    <Button x:Name="ZoomOutButton" Click="ZoomOutButton_Click" ToolTipService.ToolTip="축소(-)">
+                        <FontIcon Glyph="&#xE71F;" FontSize="14"/>
+                    </Button>
+
+                    <TextBlock x:Name="ZoomLevelText" Text="100%" Width="50" TextAlignment="Center" 
+                               VerticalAlignment="Center" FontSize="12"/>
+
+                    <Button x:Name="ZoomInButton" Click="ZoomInButton_Click" ToolTipService.ToolTip="확대(+)">
+                        <FontIcon Glyph="&#xE8A3;" FontSize="14"/>
+                    </Button>
+
+                    <Button x:Name="ZoomFitButton" Click="ZoomFitButton_Click" ToolTipService.ToolTip="맞춤">
+                        <FontIcon Glyph="&#xE9A6;" FontSize="14"/>
+                    </Button>
+
+                    <Button x:Name="ZoomActualButton" Click="ZoomActualButton_Click" ToolTipService.ToolTip="원본 크기">
+                        <TextBlock Text="1:1" FontSize="12" FontWeight="SemiBold"/>
                     </Button>
 
                     <AppBarSeparator/>

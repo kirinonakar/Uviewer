@@ -109,6 +109,9 @@
   <data name="GoToPageTooltip" xml:space="preserve">
     <value>行移動 (G)</value>
   </data>
+  <data name="PdfGoToPageTooltip" xml:space="preserve">
+    <value>ページ移動 (G)</value>
+  </data>
   <data name="GoToPageTitle" xml:space="preserve">
     <value>ページ移動</value>
   </data>

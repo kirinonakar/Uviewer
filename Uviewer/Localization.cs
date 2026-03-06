@@ -37,6 +37,7 @@ namespace Uviewer
         public static string AozoraTooltip => GetString("AozoraTooltip");
         public static string FontTooltip => GetString("FontTooltip");
         public static string GoToPageTooltip => GetString("GoToPageTooltip");
+        public static string PdfGoToPageTooltip => GetString("PdfGoToPageTooltip");
         public static string GoToPageTitle => GetString("GoToPageTitle");
         public static string TextSizeDownTooltip => GetString("TextSizeDownTooltip");
         public static string TextSizeUpTooltip => GetString("TextSizeUpTooltip");

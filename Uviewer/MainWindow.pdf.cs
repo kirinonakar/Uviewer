@@ -79,6 +79,10 @@ namespace Uviewer
                             {
                                 PdfGoToPageButton.Visibility = Visibility.Visible;
                             }
+                            if (PdfSeparator != null)
+                            {
+                                PdfSeparator.Visibility = Visibility.Visible;
+                            }
                         });
                     }
                     catch (Exception tocEx)
@@ -178,6 +182,10 @@ namespace Uviewer
                 if (PdfGoToPageButton != null)
                 {
                     PdfGoToPageButton.Visibility = Visibility.Collapsed;
+                }
+                if (PdfSeparator != null)
+                {
+                    PdfSeparator.Visibility = Visibility.Collapsed;
                 }
             });
 

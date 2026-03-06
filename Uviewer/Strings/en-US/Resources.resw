@@ -109,6 +109,9 @@
   <data name="GoToPageTooltip" xml:space="preserve">
     <value>Go to Line (G)</value>
   </data>
+  <data name="PdfGoToPageTooltip" xml:space="preserve">
+    <value>Go to Page (G)</value>
+  </data>
   <data name="GoToPageTitle" xml:space="preserve">
     <value>Go to Page</value>
   </data>

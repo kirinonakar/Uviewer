@@ -11,6 +11,8 @@ namespace Uviewer
 
         private void RootGrid_PreviewKeyDown(object sender, KeyRoutedEventArgs e)
         {
+            if (_isColorPickerOpen && e.Key == Windows.System.VirtualKey.Escape) return;
+
             // Allow text input controls to function normally (e.g. WebDAV dialog)
             if (e.OriginalSource is TextBox || e.OriginalSource is PasswordBox || e.OriginalSource is NumberBox) return;
             
@@ -147,11 +149,13 @@ namespace Uviewer
                     break;
 
                 case Windows.System.VirtualKey.Add:
+                case (Windows.System.VirtualKey)187: // Main keyboard Plus/Equal
                     ZoomIn();
                     e.Handled = true;
                     break;
 
                 case Windows.System.VirtualKey.Subtract:
+                case (Windows.System.VirtualKey)189: // Main keyboard Minus
                     ZoomOut();
                     e.Handled = true;
                     break;

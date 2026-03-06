@@ -21,7 +21,6 @@ namespace Uviewer
         // Fast navigation detection
         private DateTime _lastNavigationTime = DateTime.MinValue;
         private readonly TimeSpan _fastNavigationThreshold = TimeSpan.FromMilliseconds(40); // 40ms threshold
-        private bool _isFastNavigation = false;
         private CancellationTokenSource? _fastNavigationResetCts;
         private DispatcherQueueTimer? _fastNavOverlayTimer;
         private CancellationTokenSource? _imageLoadingCts;
@@ -42,7 +41,6 @@ namespace Uviewer
 
             if (timeSinceLastNavigation < _fastNavigationThreshold)
             {
-                _isFastNavigation = true;
 
                 // 50ms 동안 추가 입력이 없으면 이미지를 로드하도록 예약
                 _ = Task.Run(async () =>
@@ -61,7 +59,6 @@ namespace Uviewer
                 return true;
             }
 
-            _isFastNavigation = false;
             return false;
         }
 
@@ -103,7 +100,6 @@ namespace Uviewer
                 finally
                 {
                     // 화면 로딩이 완전히 끝난 후 오버레이를 닫고 그리기 허용
-                    _isFastNavigation = false;
                     FastNavOverlay.Visibility = Visibility.Collapsed;
                     MainCanvas?.Invalidate();
                     tcs.TrySetResult();

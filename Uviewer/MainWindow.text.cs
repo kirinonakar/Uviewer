@@ -1497,9 +1497,14 @@ namespace Uviewer
             if (LangJaItem != null) LangJaItem.IsChecked = current == "ja-JP";
         }
 
+        private bool _isColorPickerOpen = false;
+
         private async Task ShowColorPickerDialog()
         {
-            var bgHsl = ToHsl(_customBackgroundColor ?? ((SolidColorBrush)GetThemeBackground()).Color);
+            _isColorPickerOpen = true;
+            try
+            {
+                var bgHsl = ToHsl(_customBackgroundColor ?? ((SolidColorBrush)GetThemeBackground()).Color);
             var fgHsl = ToHsl(_customForegroundColor ?? ((SolidColorBrush)GetThemeForeground()).Color);
 
             var previewBorder = new Border
@@ -1564,6 +1569,15 @@ namespace Uviewer
                 RequestedTheme = RootGrid.ActualTheme
             };
 
+            stackPanel.PreviewKeyDown += (s, e) =>
+            {
+                if (e.Key == Windows.System.VirtualKey.Escape)
+                {
+                    dialog.Hide(); // 강제 닫기
+                    e.Handled = true; // 이벤트 전파 중단
+                }
+            };
+
             if (await dialog.ShowAsync() == ContentDialogResult.Primary)
             {
                 _customBackgroundColor = FromHsl(bgHsl.h, bgHsl.s, bgHsl.l);
@@ -1571,6 +1585,11 @@ namespace Uviewer
                 _themeIndex = 3; // Custom
                 SaveTextSettings();
                 await RefreshTextDisplay();
+            }
+            }
+            finally
+            {
+                _isColorPickerOpen = false;
             }
         }
 

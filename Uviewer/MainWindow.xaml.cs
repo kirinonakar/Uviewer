@@ -606,6 +606,8 @@ namespace Uviewer
             ToolTipService.SetToolTip(WebDavButton, Strings.WebDavTooltip);
             if (AddWebDavButton != null) AddWebDavButton.Content = Strings.AddWebDavServer;
             ToolTipService.SetToolTip(TocButton, Strings.TocTooltip);
+            ToolTipService.SetToolTip(PdfTocButton, Strings.TocTooltip);
+            ToolTipService.SetToolTip(PdfGoToPageButton, Strings.PdfGoToPageTooltip);
             ToolTipService.SetToolTip(SettingsButton, Strings.SettingsTooltip);
             UpdateThemeToggleButtonTooltip();
             ToolTipService.SetToolTip(PrevFileButton, Strings.PrevFileTooltip);
