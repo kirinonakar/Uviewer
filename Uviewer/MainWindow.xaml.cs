@@ -1940,10 +1940,10 @@ namespace Uviewer
                             UpdateStatusBar(prevEntry, _currentBitmap);
                             MainCanvas.Invalidate();
                             
-                            _preloadCts?.Cancel();
-                            _preloadCts?.Dispose();
-                            _preloadCts = new CancellationTokenSource();
-                            var token = _preloadCts.Token;
+                            // ONLY cancel if we are jumping far, for smooth scroll just fire and forget.
+                            // However, we can use the same token so it just adds to queue.
+                            // We do NOT cancel the token here!
+                            var token = _preloadCts?.Token ?? default;
                             _ = Task.Run(() => PreloadPreviousImagesAsync(token));
                         } catch { 
                              _isPdfTransitioning = false;
@@ -1952,10 +1952,29 @@ namespace Uviewer
                     }
                     else
                     {
-                        _isSeamlessScroll = true;
-                        _pdfScrollDirection = -1;
-                        await DisplayCurrentImageAsync();
-                        _isSeamlessScroll = false;
+                        // Page not preloaded yet! Don't do a full DisplayCurrentImageAsync which flickers.
+                        // Wait for it inline.
+                        try
+                        {
+                            prev = await LoadPdfPageBitmapAsync((uint)targetPrevIndex, MainCanvas, default);
+                            if (prev != null)
+                            {
+                                lock (_preloadedImages) { _preloadedImages[targetPrevIndex] = prev; }
+                                
+                                var pFit = Math.Min(canvasSize.Width / prev.Size.Width, canvasSize.Height / prev.Size.Height);
+                                var pScaledH = prev.Size.Height * pFit * _zoomLevel;
+                                _pdfPanY = (oldPosNextTop - gap - pScaledH) - (canvasSize.Height - pScaledH) / 2;
+                                
+                                _currentBitmap = prev;
+                                var prevEntry = _imageEntries[_currentIndex];
+                                UpdateStatusBar(prevEntry, _currentBitmap);
+                                MainCanvas.Invalidate();
+                                
+                                var token = _preloadCts?.Token ?? default;
+                                _ = Task.Run(() => PreloadPreviousImagesAsync(token));
+                            }
+                        }
+                        catch { }
                     }
                     _isPdfTransitioning = false;
                     return;
@@ -1999,10 +2018,8 @@ namespace Uviewer
                             UpdateStatusBar(nextEntry, _currentBitmap);
                             MainCanvas.Invalidate();
                             
-                            _preloadCts?.Cancel();
-                            _preloadCts?.Dispose();
-                            _preloadCts = new CancellationTokenSource();
-                            var token = _preloadCts.Token;
+                            // DO NOT cancel token to avoid stuttering and throwing away in-progress loads
+                            var token = _preloadCts?.Token ?? default;
                             _ = Task.Run(() => PreloadNextImagesAsync(token));
                         } catch {
                             _isPdfTransitioning = false;
@@ -2011,10 +2028,28 @@ namespace Uviewer
                     }
                     else
                     {
-                        _isSeamlessScroll = true;
-                        _pdfScrollDirection = 1;
-                        await DisplayCurrentImageAsync();
-                        _isSeamlessScroll = false;
+                        // Page not preloaded yet! 
+                        try
+                        {
+                            next = await LoadPdfPageBitmapAsync((uint)targetNextIndex, MainCanvas, default);
+                            if (next != null)
+                            {
+                                lock (_preloadedImages) { _preloadedImages[targetNextIndex] = next; }
+                                
+                                var nFit = Math.Min(canvasSize.Width / next.Size.Width, canvasSize.Height / next.Size.Height);
+                                var nScaledH = next.Size.Height * nFit * _zoomLevel;
+                                _pdfPanY = (oldPosPrevBottom + gap) - (canvasSize.Height - nScaledH) / 2;
+                                
+                                _currentBitmap = next;
+                                var nextEntry = _imageEntries[_currentIndex];
+                                UpdateStatusBar(nextEntry, _currentBitmap);
+                                MainCanvas.Invalidate();
+                                
+                                var token = _preloadCts?.Token ?? default;
+                                _ = Task.Run(() => PreloadNextImagesAsync(token));
+                            }
+                        }
+                        catch { }
                     }
                     _isPdfTransitioning = false;
                     return;
@@ -2093,7 +2128,7 @@ namespace Uviewer
         _ = AddToRecentAsync(true);
 
         // Trigger preloading for previous images if navigating backwards
-        if (_currentArchive != null)
+        if (_currentArchive != null || _currentPdfDocument != null)
         {
             _preloadCts = new CancellationTokenSource();
             var token = _preloadCts.Token;
@@ -2132,7 +2167,7 @@ namespace Uviewer
                 await DisplayCurrentImageAsync();
                 _ = AddToRecentAsync(true);
 
-                if (_currentArchive != null)
+                if (_currentArchive != null || _currentPdfDocument != null)
                 {
                     _preloadCts = new CancellationTokenSource();
                     var token = _preloadCts.Token;
@@ -2338,9 +2373,9 @@ namespace Uviewer
 
                 double gap = 20 * _zoomLevel;
 
-                // Draw previous pages (up to 2)
+                // Draw previous pages (up to 5)
                 double currentY_top = position.Y;
-                for (int i = 1; i <= 2; i++)
+                for (int i = 1; i <= 5; i++)
                 {
                     int prevIdx = _currentIndex - i;
                     if (prevIdx < 0) break;
@@ -2361,9 +2396,9 @@ namespace Uviewer
                     else break; // Missing preload, can't draw further
                 }
 
-                // Draw next pages (up to 2)
+                // Draw next pages (up to 5)
                 double currentY_bottom = position.Y + scaledSize.Height;
-                for (int i = 1; i <= 2; i++)
+                for (int i = 1; i <= 5; i++)
                 {
                     int nextIdx = _currentIndex + i;
                     if (nextIdx >= _imageEntries.Count) break;
