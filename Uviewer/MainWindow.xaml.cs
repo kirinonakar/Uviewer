@@ -792,7 +792,7 @@ namespace Uviewer
                 ToolbarGrid.Visibility = Visibility.Collapsed;
                 StatusBarGrid.Visibility = Visibility.Collapsed;
                 SidebarGrid.Visibility = Visibility.Collapsed;
-                if (_isSidebarVisible)
+                if (_isSidebarVisible && (int)SidebarColumn.Width.Value > 200)
                 {
                     _SidebarWidth = (int)SidebarColumn.Width.Value; // Save current width
                 }
