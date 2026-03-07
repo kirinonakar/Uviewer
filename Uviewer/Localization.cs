@@ -119,6 +119,7 @@ namespace Uviewer
         public static string LanguageJapanese => GetString("LanguageJapanese");
         public static string ChangeUiFont => GetString("ChangeUiFont");
         public static string UIFontSelectionTitle => GetString("UIFontSelectionTitle");
+        public static string PinTooltip => GetString("PinTooltip");
 
         public static void Reload()
         {

@@ -368,4 +368,7 @@
   <data name="UIFontSelectionTitle" xml:space="preserve">
     <value>UI Font Selection</value>
   </data>
+  <data name="PinTooltip" xml:space="preserve">
+    <value>Pin/Auto-Hide UI (`)</value>
+  </data>
 </root>

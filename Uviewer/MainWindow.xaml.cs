@@ -633,6 +633,7 @@ namespace Uviewer
             ToolTipService.SetToolTip(PdfTocButton, Strings.TocTooltip);
             ToolTipService.SetToolTip(PdfGoToPageButton, Strings.PdfGoToPageTooltip);
             ToolTipService.SetToolTip(SettingsButton, Strings.SettingsTooltip);
+            ToolTipService.SetToolTip(PinButton, Strings.PinTooltip);
             UpdateThemeToggleButtonTooltip();
             ToolTipService.SetToolTip(PrevFileButton, Strings.PrevFileTooltip);
             ToolTipService.SetToolTip(NextFileButton, Strings.NextFileTooltip);

@@ -368,4 +368,7 @@
   <data name="UIFontSelectionTitle" xml:space="preserve">
     <value>UI 폰트 선택</value>
   </data>
+  <data name="PinTooltip" xml:space="preserve">
+    <value>UI 고정/자동숨김 (`)</value>
+  </data>
 </root>
