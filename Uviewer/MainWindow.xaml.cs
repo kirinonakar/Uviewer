@@ -69,6 +69,7 @@ namespace Uviewer
         private int _pdfScrollDirection = 1; // 1 for next (start top), -1 for prev (start bottom)
         private bool _isSeamlessScroll = false;
         private bool _allowMultipleInstances = true;
+        private bool _isPinned = true; // Pin toggle: true = UI fixed, false = auto-hide
         
         // 컨트롤 반전 로직 수정:
         // - Match Control Direction이 켜져 있고 Next Image가 왼쪽인 경우
@@ -410,6 +411,27 @@ namespace Uviewer
                 UpdateNextImageSideButtonState();
                 UpdateSharpenButtonState();
 
+                // Apply saved sidebar visibility state
+                if (!_isSidebarVisible)
+                {
+                    SidebarGrid.Visibility = Visibility.Collapsed;
+                    if (SplitterGrid != null) SplitterGrid.Visibility = Visibility.Collapsed;
+                    SidebarColumn.Width = new GridLength(0);
+                }
+
+                // Apply saved pin state
+                if (!_isPinned)
+                {
+                    PinButton.IsChecked = false;
+                    PinIcon.Glyph = "\uE77A"; // Unpin icon
+                    AppTitleBar.Visibility = Visibility.Collapsed;
+                    ToolbarGrid.Visibility = Visibility.Collapsed;
+                    StatusBarGrid.Visibility = Visibility.Collapsed;
+                    SidebarGrid.Visibility = Visibility.Collapsed;
+                    if (SplitterGrid != null) SplitterGrid.Visibility = Visibility.Collapsed;
+                    SidebarColumn.Width = new GridLength(0);
+                }
+
                 // Enable keyboard shortcuts on the root content to ensure they catch everything
                 if (this.Content is FrameworkElement fe)
                 {
@@ -537,10 +559,11 @@ namespace Uviewer
             _fullscreenToolbarHideTimer.Tick += (s, e) =>
             {
                 _toolbarHideTimerRunning = false;
-                if (_isFullscreen)
+                if (_isFullscreen || !_isPinned)
                 {
                     AppTitleBar.Visibility = Visibility.Collapsed;
                     ToolbarGrid.Visibility = Visibility.Collapsed;
+                    if (!_isFullscreen) StatusBarGrid.Visibility = Visibility.Collapsed;
                     System.Diagnostics.Debug.WriteLine("✓ Titlebar and Toolbar hidden by timer");
                 }
             };
@@ -551,10 +574,11 @@ namespace Uviewer
             _fullscreenSidebarHideTimer.Tick += (s, e) =>
             {
                 _sidebarHideTimerRunning = false;
-                if (_isFullscreen)
+                if (_isFullscreen || !_isPinned)
                 {
                     SidebarGrid.Visibility = Visibility.Collapsed;
                     SidebarColumn.Width = new GridLength(0);
+                    if (SplitterGrid != null) SplitterGrid.Visibility = Visibility.Collapsed;
                     System.Diagnostics.Debug.WriteLine("✓ Sidebar hidden by timer");
                 }
             };
@@ -728,21 +752,36 @@ namespace Uviewer
             {
                 // Exit fullscreen
                 appWindow.SetPresenter(AppWindowPresenterKind.Default);
-                AppTitleBar.Visibility = Visibility.Visible;
-                ToolbarGrid.Visibility = Visibility.Visible;
-                StatusBarGrid.Visibility = Visibility.Visible;
-                if (_isSidebarVisible)
+                _isFullscreen = false;
+
+                if (_isPinned)
                 {
-                    SidebarGrid.Visibility = Visibility.Visible;
-                    SplitterGrid.Visibility = Visibility.Visible;
-                    SidebarColumn.Width = new GridLength(_SidebarWidth);
+                    // 핀 고정 상태: UI 모두 복원
+                    AppTitleBar.Visibility = Visibility.Visible;
+                    ToolbarGrid.Visibility = Visibility.Visible;
+                    StatusBarGrid.Visibility = Visibility.Visible;
+                    if (_isSidebarVisible)
+                    {
+                        SidebarGrid.Visibility = Visibility.Visible;
+                        SplitterGrid.Visibility = Visibility.Visible;
+                        SidebarColumn.Width = new GridLength(_SidebarWidth);
+                    }
+                    else
+                    {
+                        SplitterGrid.Visibility = Visibility.Collapsed;
+                    }
                 }
                 else
                 {
+                    // 핀 해제 상태: UI 숨긴 채 유지
+                    AppTitleBar.Visibility = Visibility.Collapsed;
+                    ToolbarGrid.Visibility = Visibility.Collapsed;
+                    StatusBarGrid.Visibility = Visibility.Collapsed;
+                    SidebarGrid.Visibility = Visibility.Collapsed;
                     SplitterGrid.Visibility = Visibility.Collapsed;
+                    SidebarColumn.Width = new GridLength(0);
                 }
                 FullscreenIcon.Glyph = "\uE740"; // Fullscreen icon
-                _isFullscreen = false;
             }
             else
             {
@@ -786,7 +825,7 @@ namespace Uviewer
 
         private void RootGrid_PointerMoved(object sender, PointerRoutedEventArgs e)
         {
-            if (!_isFullscreen) return;
+            if (!_isFullscreen && _isPinned) return;
 
             var pt = e.GetCurrentPoint(RootGrid);
             double x = pt.Position.X;
@@ -805,6 +844,7 @@ namespace Uviewer
                 {
                     AppTitleBar.Visibility = Visibility.Visible;
                     ToolbarGrid.Visibility = Visibility.Visible;
+                    if (!_isFullscreen) StatusBarGrid.Visibility = Visibility.Visible;
                     System.Diagnostics.Debug.WriteLine("Titlebar and Toolbar SHOWN (mouse in top zone)");
                 }
                 if (_toolbarHideTimerRunning)
@@ -824,13 +864,13 @@ namespace Uviewer
                 }
             }
 
-            bool inLeftZone = x < FullscreenLeftHoverZone;
+            bool inLeftZone = _isSidebarVisible && x < FullscreenLeftHoverZone;
             if (SidebarGrid.Visibility == Visibility.Visible && x < _SidebarWidth)
             {
                 inLeftZone = true;
             }
 
-            if (inLeftZone)
+            if (_isSidebarVisible && inLeftZone)
             {
                 // Show sidebar and stop hide timer while in hover zone
                 if (SidebarGrid.Visibility != Visibility.Visible)
@@ -865,7 +905,7 @@ namespace Uviewer
 
         private void RootGrid_PointerExited(object sender, PointerRoutedEventArgs e)
         {
-            if (!_isFullscreen) return;
+            if (!_isFullscreen && _isPinned) return;
 
             if (ToolbarGrid.Visibility == Visibility.Visible && !_toolbarHideTimerRunning)
             {
@@ -961,6 +1001,56 @@ namespace Uviewer
             NotificationOverlay.Visibility = Visibility.Visible;
             _notificationTimer?.Stop();
             _notificationTimer?.Start();
+        }
+
+        private void PinButton_Click(object sender, RoutedEventArgs e)
+        {
+            TogglePin();
+        }
+
+        private void TogglePin()
+        {
+            if (_isFullscreen) return; // 전체화면에서는 핀 모드 불필요
+
+            _isPinned = !_isPinned;
+            PinButton.IsChecked = _isPinned;
+            PinIcon.Glyph = _isPinned ? "\uE718" : "\uE77A"; // Pin / Unpin icon
+
+            if (_isPinned)
+            {
+                // 핀 고정: UI 모두 표시
+                _fullscreenToolbarHideTimer?.Stop();
+                _toolbarHideTimerRunning = false;
+                _fullscreenSidebarHideTimer?.Stop();
+                _sidebarHideTimerRunning = false;
+
+                AppTitleBar.Visibility = Visibility.Visible;
+                ToolbarGrid.Visibility = Visibility.Visible;
+                StatusBarGrid.Visibility = Visibility.Visible;
+                if (_isSidebarVisible)
+                {
+                    SidebarGrid.Visibility = Visibility.Visible;
+                    if (SplitterGrid != null) SplitterGrid.Visibility = Visibility.Visible;
+                    SidebarColumn.Width = new GridLength(_SidebarWidth);
+                }
+            }
+            else
+            {
+                // 핀 해제: UI 모두 숨김
+                if (_isSidebarVisible && (int)SidebarColumn.Width.Value > 200)
+                {
+                    _SidebarWidth = (int)SidebarColumn.Width.Value;
+                }
+
+                AppTitleBar.Visibility = Visibility.Collapsed;
+                ToolbarGrid.Visibility = Visibility.Collapsed;
+                StatusBarGrid.Visibility = Visibility.Collapsed;
+                SidebarGrid.Visibility = Visibility.Collapsed;
+                if (SplitterGrid != null) SplitterGrid.Visibility = Visibility.Collapsed;
+                SidebarColumn.Width = new GridLength(0);
+            }
+
+            SaveWindowSettings();
         }
 
         private void GlobalThemeToggleButton_Click(object sender, RoutedEventArgs e)

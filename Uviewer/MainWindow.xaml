@@ -111,6 +111,10 @@
                 <ToggleButton x:Name="GlobalThemeToggleButton" Click="GlobalThemeToggleButton_Click" Background="Transparent" BorderThickness="0" Padding="4" Margin="4,0,0,0">
                     <FontIcon x:Name="ThemeIcon" Glyph="&#xE708;" FontSize="18"/>
                 </ToggleButton>
+                <ToggleButton x:Name="PinButton" Click="PinButton_Click" IsChecked="True" Background="Transparent" BorderThickness="0" Padding="4" Margin="4,0,0,0"
+                              ToolTipService.ToolTip="UI 고정/자동숨김 (`)">
+                    <FontIcon x:Name="PinIcon" Glyph="&#xE718;" FontSize="18"/>
+                </ToggleButton>
             </StackPanel>
 
             <!-- Toolbar -->

@@ -41,6 +41,12 @@
 
 ### 🔧 Settings
 
+#### 📌 Pin / Auto-Hide UI
+- **Pin Toggle**: Pin or unpin the UI (title bar, toolbar, sidebar, status bar) using the pin button or the **`** (backtick) key.
+  - **Pinned** (default): All UI elements are always visible.
+  - **Unpinned**: All UI elements are hidden. Hover over the top edge to reveal the title bar, toolbar and status bar, or hover over the left edge to reveal the sidebar. UI auto-hides after 1 second when the mouse leaves.
+  - Setting persists across sessions.
+
 #### ⚙️ Multiple Instances
 - **Allow Multiple Instances**: When enabled, each file opens in a new window instance. When disabled, files open in the already running instance using inter-process communication (NamedPipe).
   - Default: **Enabled** (`true`)
@@ -75,6 +81,7 @@
 | **Backspace** | Global | Go to Parent Folder |
 | **Esc** | Global | Close Window / Exit Fullscreen |
 | **F11** | Global | Toggle Fullscreen |
+| **`** | Global | Toggle Pin (Auto-Hide UI) |
 | **Ctrl + O** | Global | Open File |
 | **Ctrl + B** | Global | Toggle Sidebar |
 | **Ctrl + F** | Global | Toggle Favorites |

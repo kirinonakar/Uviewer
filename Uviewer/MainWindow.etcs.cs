@@ -357,6 +357,8 @@ namespace Uviewer
                         }
                         
                         if (lines.Length >= 11 && lines[10].Trim() == "0") _allowMultipleInstances = false;
+                        if (lines.Length >= 12 && lines[11].Trim() == "0") _isSidebarVisible = false;
+                        if (lines.Length >= 13 && lines[12].Trim() == "0") _isPinned = false;
 
                         if (MatchControlDirectionMenuItem != null) MatchControlDirectionMenuItem.IsChecked = _matchControlDirection;
                         if (AllowMultipleInstancesMenuItem != null) AllowMultipleInstancesMenuItem.IsChecked = _allowMultipleInstances;
@@ -448,7 +450,9 @@ namespace Uviewer
             _nextImageOnRight ? "1" : "0",
             ((int)_currentTheme).ToString(),
             _matchControlDirection ? "1" : "0",
-            _allowMultipleInstances ? "1" : "0"
+            _allowMultipleInstances ? "1" : "0",
+            _isSidebarVisible ? "1" : "0",
+            _isPinned ? "1" : "0"
                 };
 
                 File.WriteAllLines(_windowSettingsFile, settings);

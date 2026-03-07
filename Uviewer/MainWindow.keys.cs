@@ -169,6 +169,11 @@ namespace Uviewer
                     ZoomActualButton_Click(sender, new RoutedEventArgs());
                     e.Handled = true;
                     break;
+
+                case (Windows.System.VirtualKey)192: // ` (backtick / OEM_3)
+                    TogglePin();
+                    e.Handled = true;
+                    break;
             }
         }
 
