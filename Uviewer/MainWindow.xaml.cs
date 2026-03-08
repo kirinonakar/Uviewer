@@ -251,21 +251,30 @@ namespace Uviewer
         {
             try
             {
-                // Load favorites
-                await LoadFavorites();
-                UpdateFavoritesMenu();
-
-                // Load recent items
-                await LoadRecentItems();
-                UpdateRecentMenu();
-
-                // Handle launch file path if provided
                 if (!string.IsNullOrEmpty(launchFilePath))
                 {
+                    // [Priority] Process launch path first
                     await ProcessLaunchPathAsync(launchFilePath);
+
+                    // Then load other metadata in background
+                    _ = Task.Run(async () =>
+                    {
+                        await LoadFavorites();
+                        await LoadRecentItems();
+                        DispatcherQueue.TryEnqueue(() =>
+                        {
+                            UpdateFavoritesMenu();
+                            UpdateRecentMenu();
+                        });
+                    });
                 }
                 else
                 {
+                    await LoadFavorites();
+                    UpdateFavoritesMenu();
+                    await LoadRecentItems();
+                    UpdateRecentMenu();
+
                     // Load Pictures folder by default if no path provided
                     LoadExplorerFolder(Environment.GetFolderPath(Environment.SpecialFolder.MyPictures));
                 }
@@ -317,12 +326,15 @@ namespace Uviewer
                 launchFilePath = Path.GetFullPath(launchFilePath);
                 if (File.Exists(launchFilePath))
                 {
+                    // Hide empty state immediately
+                    if (EmptyStatePanel != null) EmptyStatePanel.Visibility = Visibility.Collapsed;
+
                     var fileFolder = Path.GetDirectoryName(launchFilePath);
                     if (!string.IsNullOrEmpty(fileFolder) && Directory.Exists(fileFolder))
                     {
-                        LoadExplorerFolder(fileFolder);
-                        
                         var extension = Path.GetExtension(launchFilePath).ToLowerInvariant();
+                        
+                        // [Step 1] Priority Load: Load the file first
                         if (SupportedArchiveExtensions.Contains(extension))
                         {
                             await LoadImagesFromArchiveAsync(launchFilePath);
@@ -339,8 +351,13 @@ namespace Uviewer
                         else
                         {
                             var file = await StorageFile.GetFileFromPathAsync(launchFilePath);
-                            await LoadImageFromFileAsync(file);
+                            await LoadImageFromFileAsync(file, true); // Use fast initial load
                         }
+
+                        // [Step 2] Background: Load explorer folder
+                        _ = Task.Run(() => {
+                            DispatcherQueue.TryEnqueue(() => LoadExplorerFolder(fileFolder));
+                        });
                     }
                 }
                 else if (Directory.Exists(launchFilePath))
@@ -2230,7 +2247,7 @@ namespace Uviewer
             _currentIndex--;
 
         await DisplayCurrentImageAsync();
-        _ = AddToRecentAsync(true);
+        await AddToRecentAsync(true);
 
         // Trigger preloading for previous images if navigating backwards
         if (_currentArchive != null || _currentPdfDocument != null)
@@ -2240,6 +2257,7 @@ namespace Uviewer
             _ = Task.Run(() => PreloadPreviousImagesAsync(token));
         }
     }
+    RootGrid.Focus(FocusState.Programmatic);
 }
 
         private async Task NavigateToNextAsync(bool isManualClick = false)
@@ -2270,7 +2288,7 @@ namespace Uviewer
                     _currentIndex++;
 
                 await DisplayCurrentImageAsync();
-                _ = AddToRecentAsync(true);
+                await AddToRecentAsync(true);
 
                 if (_currentArchive != null || _currentPdfDocument != null)
                 {
@@ -2279,6 +2297,7 @@ namespace Uviewer
                     _ = Task.Run(() => PreloadNextImagesAsync(token));
                 }
             }
+            RootGrid.Focus(FocusState.Programmatic);
         }
 
         private async Task NavigateToFileAsync(bool isNext)
@@ -2324,9 +2343,14 @@ namespace Uviewer
                     return;
 
                 // Ensure file list is loaded and contains the current path
-                if (_fileItems.Count == 0 || !_fileItems.Any(f => f.FullPath.Equals(currentPath, StringComparison.OrdinalIgnoreCase)))
+                // [Optimization] If file is not in list but we have an explorer path, it might be background loading.
+                if (_fileItems.Count <= 1 && !string.IsNullOrEmpty(_currentExplorerPath))
                 {
-                    LoadExplorerFolder(_currentExplorerPath);
+                    // Check if it's the initial fast-load single entry
+                    if (_fileItems.Count == 0 || !_fileItems.Any(f => f.FullPath.Equals(currentPath, StringComparison.OrdinalIgnoreCase)))
+                    {
+                         LoadExplorerFolder(_currentExplorerPath);
+                    }
                 }
             }
 
@@ -2407,6 +2431,7 @@ namespace Uviewer
                     // Continue to next file on error
                 }
             }
+            RootGrid.Focus(FocusState.Programmatic);
         }
 
         private void SyncExplorerSelection(FileItem item)

@@ -185,40 +185,90 @@ namespace Uviewer
             }
         }
 
-        private async Task LoadImageFromFileAsync(StorageFile file)
+        private async Task LoadImageFromFileAsync(StorageFile file, bool isInitial = false)
         {
             CloseCurrentArchive();
             CloseCurrentPdf();
             CloseCurrentEpub();
 
-
-            // Get all images in the same folder
-            var folder = await file.GetParentAsync();
-            if (folder != null)
+            if (isInitial)
             {
-                var files = await folder.GetFilesAsync();
-                _imageEntries = files
-                    .Where(f => SupportedFileExtensions.Contains(Path.GetExtension(f.Name).ToLowerInvariant()))
-                    .OrderBy(f => f.Name, StringComparer.CurrentCulture)
-                    .Select(f => new ImageEntry
-                    {
-                        DisplayName = f.Name,
-                        FilePath = f.Path
-                    })
-                    .ToList();
-
-                _currentIndex = _imageEntries.FindIndex(e => e.FilePath == file.Path);
-            }
-            else
-            {
+                // [Step 1] FAST LOAD: Display only the selected file first
                 _imageEntries = new List<ImageEntry>
                 {
                     new ImageEntry { DisplayName = file.Name, FilePath = file.Path }
                 };
                 _currentIndex = 0;
-            }
+                await DisplayCurrentImageAsync();
 
-            await DisplayCurrentImageAsync();
+                // [Step 2] BACKGROUND: Gather other files in folder
+                _ = Task.Run(async () =>
+                {
+                    try
+                    {
+                        var folder = await file.GetParentAsync();
+                        if (folder == null) return;
+                        
+                        var files = await folder.GetFilesAsync();
+                        var allEntries = files
+                            .Where(f => SupportedFileExtensions.Contains(Path.GetExtension(f.Name).ToLowerInvariant()))
+                            .OrderBy(f => f.Name, StringComparer.CurrentCulture)
+                            .Select(f => new ImageEntry
+                            {
+                                DisplayName = f.Name,
+                                FilePath = f.Path
+                            })
+                            .ToList();
+
+                        DispatcherQueue.TryEnqueue(() =>
+                        {
+                            // Only update if we are still on the first manual load file
+                            if (_imageEntries != null && _imageEntries.Count == 1 && _imageEntries[0].FilePath == file.Path)
+                            {
+                                var oldIndex = _currentIndex;
+                                _imageEntries = allEntries;
+                                _currentIndex = _imageEntries.FindIndex(e => e.FilePath == file.Path);
+                                // Refresh status bar to show correct "1 / N"
+                                if (_currentBitmap != null && _currentIndex >= 0)
+                                {
+                                    UpdateStatusBar(_imageEntries[_currentIndex], _currentBitmap);
+                                }
+                            }
+                        });
+                    }
+                    catch { }
+                });
+            }
+            else
+            {
+                // Normal sequential load
+                var folder = await file.GetParentAsync();
+                if (folder != null)
+                {
+                    var files = await folder.GetFilesAsync();
+                    _imageEntries = files
+                        .Where(f => SupportedFileExtensions.Contains(Path.GetExtension(f.Name).ToLowerInvariant()))
+                        .OrderBy(f => f.Name, StringComparer.CurrentCulture)
+                        .Select(f => new ImageEntry
+                        {
+                            DisplayName = f.Name,
+                            FilePath = f.Path
+                        })
+                        .ToList();
+
+                    _currentIndex = _imageEntries.FindIndex(e => e.FilePath == file.Path);
+                }
+                else
+                {
+                    _imageEntries = new List<ImageEntry>
+                    {
+                        new ImageEntry { DisplayName = file.Name, FilePath = file.Path }
+                    };
+                    _currentIndex = 0;
+                }
+
+                await DisplayCurrentImageAsync();
+            }
         }
 
         private async Task LoadImagesFromFolderAsync(StorageFolder folder)
@@ -396,87 +446,112 @@ namespace Uviewer
             // WebDAV 모드에서 로컬 폴더로 이동 시 모드 해제
             if (_isWebDavMode)
             {
-                // DisconnectWebDav는 private이지만 같은 partial class이므로 호출 가능
                 DisconnectWebDav();
                 _currentWebDavItemPath = null; 
             }
 
-            try
+            _currentExplorerPath = path;
+            CurrentPathText.Text = path;
+
+            // Gather folder contents in background
+            _ = Task.Run(() =>
             {
-                _currentExplorerPath = path;
-                _fileItems.Clear();
-
-                CurrentPathText.Text = path;
-
-                // Add parent directory entry
-                var parentDir = Directory.GetParent(path);
-                if (parentDir != null)
+                try
                 {
-                    _fileItems.Add(new FileItem
+                    var newItems = new List<FileItem>();
+
+                    // Add parent directory entry
+                    var parentDir = Directory.GetParent(path);
+                    if (parentDir != null)
                     {
-                        Name = "..",
-                        FullPath = parentDir.FullName,
-                        IsDirectory = true,
-                        IsParentDirectory = true
+                        newItems.Add(new FileItem
+                        {
+                            Name = "..",
+                            FullPath = parentDir.FullName,
+                            IsDirectory = true,
+                            IsParentDirectory = true
+                        });
+                    }
+
+                    // Add directories (Smart sort)
+                    var directories = Directory.GetDirectories(path)
+                        .OrderBy(d => Path.GetFileName(d), StringComparer.CurrentCulture);
+
+                    foreach (var dir in directories)
+                    {
+                        var name = Path.GetFileName(dir);
+                        if (!name.StartsWith(".")) // Hide hidden folders
+                        {
+                            newItems.Add(new FileItem
+                            {
+                                Name = name,
+                                FullPath = dir,
+                                IsDirectory = true
+                            });
+                        }
+                    }
+
+                    // Add files (images and archives)
+                    var files = Directory.GetFiles(path)
+                        .OrderBy(f => Path.GetFileName(f), StringComparer.CurrentCulture);
+
+                    foreach (var file in files)
+                    {
+                        var ext = Path.GetExtension(file).ToLowerInvariant();
+                        var isImage = SupportedImageExtensions.Contains(ext);
+                        var isArchive = SupportedArchiveExtensions.Contains(ext);
+                        var isText = SupportedTextExtensions.Contains(ext);
+                        var isEpub = SupportedEpubExtensions.Contains(ext);
+                        var isPdf = SupportedPdfExtensions.Contains(ext);
+
+                        if (isImage || isArchive || isText || isEpub || isPdf)
+                        {
+                            newItems.Add(new FileItem
+                            {
+                                Name = Path.GetFileName(file),
+                                FullPath = file,
+                                IsDirectory = false,
+                                IsImage = isImage,
+                                IsArchive = isArchive,
+                                IsText = isText,
+                                IsEpub = isEpub,
+                                IsPdf = isPdf
+                            });
+                        }
+                    }
+
+                    // Finalize on UI thread
+                    DispatcherQueue.TryEnqueue(() =>
+                    {
+                        // Protect against late updates if path changed
+                        if (_currentExplorerPath != path) return;
+
+                        _fileItems.Clear();
+                        foreach (var item in newItems)
+                        {
+                            _fileItems.Add(item);
+                        }
+
+                        // Sync selection if an image is already loaded
+                        if (_currentIndex >= 0 && _imageEntries != null && _currentIndex < _imageEntries.Count)
+                        {
+                            SyncSidebarSelection(_imageEntries[_currentIndex]);
+                        }
+
+                        // Start loading thumbnails
+                        _thumbnailLoadingCts?.Cancel();
+                        _thumbnailLoadingCts = new CancellationTokenSource();
+                        _ = LoadThumbnailsAsync(_thumbnailLoadingCts.Token);
                     });
                 }
-
-                // Add directories
-                var directories = Directory.GetDirectories(path)
-                    .OrderBy(d => Path.GetFileName(d), StringComparer.CurrentCulture);
-
-                foreach (var dir in directories)
+                catch (Exception ex)
                 {
-                    var name = Path.GetFileName(dir);
-                    if (!name.StartsWith(".")) // Hide hidden folders
+                    DispatcherQueue.TryEnqueue(() =>
                     {
-                        _fileItems.Add(new FileItem
-                        {
-                            Name = name,
-                            FullPath = dir,
-                            IsDirectory = true
-                        });
-                    }
+                        CurrentPathText.Text = $"오류: {ex.Message}";
+                    });
                 }
-
-                // Add files (images and archives)
-                var files = Directory.GetFiles(path)
-                    .OrderBy(f => Path.GetFileName(f), StringComparer.CurrentCulture);
-
-                foreach (var file in files)
-                {
-                    var ext = Path.GetExtension(file).ToLowerInvariant();
-                    var isImage = SupportedImageExtensions.Contains(ext);
-                    var isArchive = SupportedArchiveExtensions.Contains(ext);
-                    var isText = SupportedTextExtensions.Contains(ext);
-                    var isEpub = SupportedEpubExtensions.Contains(ext);
-                    var isPdf = SupportedPdfExtensions.Contains(ext);
-
-                    if (isImage || isArchive || isText || isEpub || isPdf)
-                    {
-                        _fileItems.Add(new FileItem
-                        {
-                            Name = Path.GetFileName(file),
-                            FullPath = file,
-                            IsDirectory = false,
-                            IsImage = isImage,
-                            IsArchive = isArchive,
-                            IsText = isText,
-                            IsEpub = isEpub,
-                            IsPdf = isPdf
-                        });
-                    }
-                }
-
-                // Start loading thumbnails
-                _thumbnailLoadingCts?.Cancel();
-                _thumbnailLoadingCts = new CancellationTokenSource();
-                _ = LoadThumbnailsAsync(_thumbnailLoadingCts.Token);
-            }
-            catch (Exception ex)
-            {
-                CurrentPathText.Text = $"오류: {ex.Message}";
-            }
+            });
         }
 
         private async Task LoadThumbnailsAsync(CancellationToken token)
