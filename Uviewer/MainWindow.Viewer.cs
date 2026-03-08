@@ -760,7 +760,11 @@ namespace Uviewer
         {
             EmptyStatePanel.Visibility = Visibility.Collapsed;
 
-            if (_isSideBySideMode && _currentPdfDocument == null)
+            bool shouldShowSideBySide = _isSideBySideMode && 
+                                        _currentPdfDocument == null && 
+                                        _imageEntries.Count > 1;
+
+            if (shouldShowSideBySide)
             {
                 MainCanvas.Visibility = Visibility.Collapsed;
                 SideBySideGrid.Visibility = Visibility.Visible;
