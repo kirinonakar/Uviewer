@@ -21,8 +21,14 @@ namespace Uviewer
 
         private async Task DisplayCurrentImageAsync()
         {
-            if (_currentIndex < 0 || _currentIndex >= _imageEntries.Count)
+            // 방어 코드: 인덱스가 범위를 벗어나면 현재 이미지 목록 기준으로 자동 보정
+            if (_imageEntries == null || _imageEntries.Count == 0)
                 return;
+
+            if (_currentIndex < 0 || _currentIndex >= _imageEntries.Count)
+            {
+                _currentIndex = Math.Clamp(_currentIndex, 0, _imageEntries.Count - 1);
+            }
 
             // 이전 로딩 작업 취소
             _imageLoadingCts?.Cancel();
@@ -46,11 +52,16 @@ namespace Uviewer
             {
                 SwitchToImageMode(); // Ensure Image Mode is active
 
-                if (_isSideBySideMode && _currentPdfDocument == null)
+                // 이미지가 1장뿐일 때는 항상 단일 이미지 모드로 렌더링하여
+                // 2장 보기 모드에서 발생할 수 있는 NRE를 방지
+                bool canSideBySide = _isSideBySideMode &&
+                                     _currentPdfDocument == null &&
+                                     _imageEntries.Count > 1;
+
+                if (canSideBySide)
                 {
                     await DisplaySideBySideImagesAsync(token); // <-- token 전달
                 }
-
                 else
                 {
                     await DisplaySingleImageAsync(token); // <-- token 전달
@@ -380,8 +391,32 @@ namespace Uviewer
                 }
 
                 ShowImageUI();
-                UpdateStatusBar(leftEntry, _leftBitmap!); // Primary is left (currentIndex)
-                SyncSidebarSelection(leftEntry);
+
+                // 상태바/사이드바에서 "현재 페이지"는 항상 _currentIndex 기준으로 표시되도록 수정
+                var primaryEntry = _imageEntries[_currentIndex];
+                CanvasBitmap? primaryBitmap;
+
+                if (actualNextImageOnRight)
+                {
+                    // 현재 페이지가 왼쪽에 있는 경우
+                    primaryBitmap = _leftBitmap ?? _rightBitmap ?? _currentBitmap;
+                }
+                else
+                {
+                    // 현재 페이지가 오른쪽에 있는 경우
+                    primaryBitmap = _rightBitmap ?? _leftBitmap ?? _currentBitmap;
+                }
+
+                if (primaryBitmap != null)
+                {
+                    UpdateStatusBar(primaryEntry, primaryBitmap);
+                }
+                else if (_currentBitmap != null)
+                {
+                    UpdateStatusBar(primaryEntry, _currentBitmap);
+                }
+
+                SyncSidebarSelection(primaryEntry);
 
 
                 // 4. 이제 안전하게 옛날 이미지를 폐기
