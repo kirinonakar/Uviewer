@@ -199,7 +199,7 @@ namespace Uviewer
                 var files = await folder.GetFilesAsync();
                 _imageEntries = files
                     .Where(f => SupportedFileExtensions.Contains(Path.GetExtension(f.Name).ToLowerInvariant()))
-                    .OrderBy(f => f.Name, StringComparer.OrdinalIgnoreCase)
+                    .OrderBy(f => f.Name, StringComparer.CurrentCulture)
                     .Select(f => new ImageEntry
                     {
                         DisplayName = f.Name,
@@ -231,7 +231,7 @@ namespace Uviewer
             var files = await folder.GetFilesAsync();
             _imageEntries = files
                 .Where(f => SupportedFileExtensions.Contains(Path.GetExtension(f.Name).ToLowerInvariant()))
-                .OrderBy(f => f.Name, StringComparer.OrdinalIgnoreCase)
+                .OrderBy(f => f.Name, StringComparer.CurrentCulture)
                 .Select(f => new ImageEntry
                 {
                     DisplayName = f.Name,
@@ -270,7 +270,7 @@ namespace Uviewer
                     _imageEntries = _currentArchive.Entries
                         .Where(e => !e.IsDirectory &&
                             SupportedImageExtensions.Contains(Path.GetExtension(e.Key ?? "").ToLowerInvariant()))
-                        .OrderBy(e => e.Key, StringComparer.OrdinalIgnoreCase)
+                        .OrderBy(e => e.Key, StringComparer.CurrentCulture)
                         .Select(e => new ImageEntry
                         {
                             DisplayName = Path.GetFileName(e.Key ?? "Unknown"),
@@ -423,7 +423,7 @@ namespace Uviewer
 
                 // Add directories
                 var directories = Directory.GetDirectories(path)
-                    .OrderBy(d => Path.GetFileName(d), StringComparer.OrdinalIgnoreCase);
+                    .OrderBy(d => Path.GetFileName(d), StringComparer.CurrentCulture);
 
                 foreach (var dir in directories)
                 {
@@ -441,7 +441,7 @@ namespace Uviewer
 
                 // Add files (images and archives)
                 var files = Directory.GetFiles(path)
-                    .OrderBy(f => Path.GetFileName(f), StringComparer.OrdinalIgnoreCase);
+                    .OrderBy(f => Path.GetFileName(f), StringComparer.CurrentCulture);
 
                 foreach (var file in files)
                 {

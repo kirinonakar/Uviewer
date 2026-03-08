@@ -479,7 +479,7 @@ namespace Uviewer
                     _imageEntries = _currentArchive.Entries
                         .Where(e => !e.IsDirectory &&
                             SupportedImageExtensions.Contains(Path.GetExtension(e.Key ?? "").ToLowerInvariant()))
-                        .OrderBy(e => e.Key, StringComparer.OrdinalIgnoreCase)
+                        .OrderBy(e => e.Key, StringComparer.CurrentCulture)
                         .Select(e => new ImageEntry
                         {
                             DisplayName = Path.GetFileName(e.Key ?? "Unknown"),

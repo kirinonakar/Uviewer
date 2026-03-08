@@ -386,7 +386,7 @@ namespace Uviewer
                 // Sort: directories first, then by name
                 items = items
                     .OrderByDescending(i => i.IsDirectory)
-                    .ThenBy(i => i.Name, StringComparer.OrdinalIgnoreCase)
+                    .ThenBy(i => i.Name, StringComparer.CurrentCulture)
                     .ToList();
             }
             catch (Exception ex)
