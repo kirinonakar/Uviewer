@@ -8,17 +8,16 @@ using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
-using SharpCompress.Archives;
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.ComponentModel;
 using System.IO;
 using System.Linq;
+using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
 using Windows.Storage;
-using System.ComponentModel;
-using System.Runtime.CompilerServices;
 using Visibility = Microsoft.UI.Xaml.Visibility;
 
 namespace Uviewer
@@ -70,7 +69,7 @@ namespace Uviewer
         private bool _isSeamlessScroll = false;
         private bool _allowMultipleInstances = true;
         private bool _isPinned = true; // Pin toggle: true = UI fixed, false = auto-hide
-        
+
         // 컨트롤 반전 로직 수정:
         // - Match Control Direction이 켜져 있고 Next Image가 왼쪽인 경우
         // - 이미지 모드(한장보기/두장보기)와 epub 이미지의 경우 반전 적용
@@ -92,9 +91,9 @@ namespace Uviewer
                     if (_epubChapterHasText.TryGetValue(_currentEpubChapterIndex, out var curHasText) && curHasText) return false;
 
                     // 3. 현재 챕터가 이미지만 있더라도, 전후 챕터가 모두 텍스트인 경우 반전 안 함 (소설 내 삽화 등)
-                    bool prevHasText = _currentEpubChapterIndex > 0 && 
+                    bool prevHasText = _currentEpubChapterIndex > 0 &&
                                       _epubChapterHasText.TryGetValue(_currentEpubChapterIndex - 1, out var pHT) && pHT;
-                    bool nextHasText = _currentEpubChapterIndex < _epubSpine.Count - 1 && 
+                    bool nextHasText = _currentEpubChapterIndex < _epubSpine.Count - 1 &&
                                       _epubChapterHasText.TryGetValue(_currentEpubChapterIndex + 1, out var nHT) && nHT;
 
                     if (prevHasText && nextHasText) return false;
@@ -115,7 +114,7 @@ namespace Uviewer
         {
             ".jpg", ".jpeg", ".png", ".bmp", ".gif", ".webp", ".avif", ".jxl", ".ico", ".tiff", ".tif"
         };
-        
+
         private static readonly string[] SupportedTextExtensions =
         {
             ".txt", ".html", ".htm", ".md", ".xml"
@@ -135,8 +134,8 @@ namespace Uviewer
         {
             ".pdf"
         };
-        
-        private IEnumerable<string> SupportedFileExtensions => 
+
+        private IEnumerable<string> SupportedFileExtensions =>
             SupportedImageExtensions.Concat(SupportedTextExtensions).Concat(SupportedArchiveExtensions).Concat(SupportedEpubExtensions).Concat(SupportedPdfExtensions);
 
         private bool IsTextEntry(ImageEntry entry)
@@ -144,7 +143,7 @@ namespace Uviewer
             string? ext = null;
             if (entry.FilePath != null) ext = Path.GetExtension(entry.FilePath);
             else if (entry.ArchiveEntryKey != null) ext = Path.GetExtension(entry.ArchiveEntryKey);
-            
+
             return !string.IsNullOrEmpty(ext) && SupportedTextExtensions.Contains(ext.ToLowerInvariant());
         }
 
@@ -209,7 +208,7 @@ namespace Uviewer
                                   IsArchive ? "\uE8D4" :
                                   IsEpub ? "\uE82D" : // Book icon
                                   IsPdf ? "\uEA90" : // PDF icon (Pdf icon glyph usually \uEA90 or Document \uE8A5)
-                                  IsImage ? "\uE8B9" : 
+                                  IsImage ? "\uE8B9" :
                                   IsText ? "\uE8C4" : "\uE7C3";
 
             public SolidColorBrush IconColor => IsDirectory || IsParentDirectory ?
@@ -281,9 +280,9 @@ namespace Uviewer
             }
             catch (Exception ex)
             {
-                 System.Diagnostics.Debug.WriteLine($"Initialization Error: {ex}");
-                 if (FileNameText != null) FileNameText.Text = $"Error: {ex.Message}";
-                 MessageBox(IntPtr.Zero, $"Initialization Error:\n{ex.Message}\n{ex.StackTrace}", "Uviewer Init Error", 0x10);
+                System.Diagnostics.Debug.WriteLine($"Initialization Error: {ex}");
+                if (FileNameText != null) FileNameText.Text = $"Error: {ex.Message}";
+                MessageBox(IntPtr.Zero, $"Initialization Error:\n{ex.Message}\n{ex.StackTrace}", "Uviewer Init Error", 0x10);
             }
         }
 
@@ -303,7 +302,7 @@ namespace Uviewer
                         overlapped.Restore();
                     }
                 }
-                
+
                 // Re-activate window
                 this.Activate();
 
@@ -333,7 +332,7 @@ namespace Uviewer
                     if (!string.IsNullOrEmpty(fileFolder) && Directory.Exists(fileFolder))
                     {
                         var extension = Path.GetExtension(launchFilePath).ToLowerInvariant();
-                        
+
                         // [Step 1] Priority Load: Load the file first
                         if (SupportedArchiveExtensions.Contains(extension))
                         {
@@ -345,8 +344,8 @@ namespace Uviewer
                         }
                         else if (SupportedEpubExtensions.Contains(extension))
                         {
-                             var file = await StorageFile.GetFileFromPathAsync(launchFilePath);
-                             await LoadEpubFileAsync(file);
+                            var file = await StorageFile.GetFileFromPathAsync(launchFilePath);
+                            await LoadEpubFileAsync(file);
                         }
                         else
                         {
@@ -355,7 +354,8 @@ namespace Uviewer
                         }
 
                         // [Step 2] Background: Load explorer folder
-                        _ = Task.Run(() => {
+                        _ = Task.Run(() =>
+                        {
                             DispatcherQueue.TryEnqueue(() => LoadExplorerFolder(fileFolder));
                         });
                     }
@@ -380,7 +380,7 @@ namespace Uviewer
             {
                 // Set window title
                 Title = "Uviewer - Image & Text Viewer";
-                
+
                 // Custom Title Bar
                 ExtendsContentIntoTitleBar = true;
                 SetTitleBar(AppTitleBar);
@@ -467,8 +467,8 @@ namespace Uviewer
             {
                 System.Diagnostics.Debug.WriteLine($"Error initializing MainWindow: {ex.Message}");
             }
-            
-             // 화면 UI(RootGrid)가 로드된 후에 초기화 작업을 시작합니다.
+
+            // 화면 UI(RootGrid)가 로드된 후에 초기화 작업을 시작합니다.
             RootGrid.Loaded += async (s, e) =>
             {
                 UpdateTitleBarColors();
@@ -549,7 +549,7 @@ namespace Uviewer
 
                     await SaveRecentItems();
                     await SaveFavorites();
-                    
+
                     // Dispose semaphores
                     _archiveLock.Dispose();
                     _thumbnailSemaphore.Dispose();
@@ -660,19 +660,19 @@ namespace Uviewer
             // Texts
             CurrentPathText.Text = Strings.CurrentPathPlaceholder;
             FileNameText.Text = Strings.FileSelectPlaceholder;
-            
+
             // Empty State
             if (EmptyStatePanel.Children.Count >= 3)
             {
                 if (EmptyStatePanel.Children[1] is TextBlock tb1) tb1.Text = Strings.EmptyStateDrag;
                 if (EmptyStatePanel.Children[2] is TextBlock tb2) tb2.Text = Strings.EmptyStateClick;
-                if (EmptyStatePanel.Children.Count >= 4 && EmptyStatePanel.Children[3] is Button btn) btn.Content = Strings.EmptyStateButton; 
+                if (EmptyStatePanel.Children.Count >= 4 && EmptyStatePanel.Children[3] is Button btn) btn.Content = Strings.EmptyStateButton;
             }
-            
+
             // Overlay Texts
             FastNavText.Text = Strings.FastNavText;
             TextFastNavText.Text = Strings.TextFastNavText;
-            
+
             // Menus
             if (AddToFavoritesButton != null) AddToFavoritesButton.Content = Strings.AddToFavorites;
             if (SidebarAddToFavoritesButton != null) SidebarAddToFavoritesButton.Content = Strings.AddToFavorites;
@@ -702,13 +702,13 @@ namespace Uviewer
             if (LangKoItem != null) LangKoItem.Text = Strings.LanguageKorean;
             if (LangEnItem != null) LangEnItem.Text = Strings.LanguageEnglish;
             if (LangJaItem != null) LangJaItem.Text = Strings.LanguageJapanese;
-            
+
             // Favorites Pivot Headers
             if (FileFavoritesPivotItem != null) FileFavoritesPivotItem.Header = Strings.FavoritesFiles;
             if (FolderFavoritesPivotItem != null) FolderFavoritesPivotItem.Header = Strings.FavoritesFolders;
             if (SidebarFileFavoritesPivotItem != null) SidebarFileFavoritesPivotItem.Header = Strings.FavoritesFiles;
             if (SidebarFolderFavoritesPivotItem != null) SidebarFolderFavoritesPivotItem.Header = Strings.FavoritesFolders;
-            
+
             // Clear and re-populate favorites to refresh tooltips
             UpdateFavoritesMenu();
 
@@ -961,41 +961,41 @@ namespace Uviewer
             _fullscreenSidebarHideTimer?.Start();
             System.Diagnostics.Debug.WriteLine($"▶ Sidebar hide timer STARTED (will hide in {FullscreenHideDelayMs}ms)");
         }
-        
+
         // Unified Touch Handler for Text, Aozora, and Epub modes
         private void HandleSmartTouchNavigation(PointerRoutedEventArgs e, Action prevAction, Action nextAction)
         {
             var pt = e.GetCurrentPoint(RootGrid);
             double x = pt.Position.X;
             double y = pt.Position.Y;
-            
+
             // 1. Edge Detection (Fullscreen only)
             if (_isFullscreen)
             {
                 // Top Edge -> Show Toolbar
-                if (y < FullscreenTopHoverZone) 
+                if (y < FullscreenTopHoverZone)
                 {
-                     if (ToolbarGrid.Visibility != Visibility.Visible)
-                     {
+                    if (ToolbarGrid.Visibility != Visibility.Visible)
+                    {
                         ToolbarGrid.Visibility = Visibility.Visible;
-                     }
-                     StartOrRestartFullscreenToolbarHideTimer();
-                     return; 
+                    }
+                    StartOrRestartFullscreenToolbarHideTimer();
+                    return;
                 }
-                
+
                 // Left Edge -> Show Sidebar
                 if (x < FullscreenLeftHoverZone)
                 {
-                     if (SidebarGrid.Visibility != Visibility.Visible)
-                     {
+                    if (SidebarGrid.Visibility != Visibility.Visible)
+                    {
                         SidebarColumn.Width = new GridLength(_SidebarWidth);
                         SidebarGrid.Visibility = Visibility.Visible;
-                     }
-                     StartOrRestartFullscreenSidebarHideTimer();
-                     return;
+                    }
+                    StartOrRestartFullscreenSidebarHideTimer();
+                    return;
                 }
             }
-            
+
             // 2. Navigation Zones (Screen Half)
             if (x < RootGrid.ActualWidth / 2)
             {
@@ -1086,7 +1086,7 @@ namespace Uviewer
         private void SetTheme(ElementTheme theme)
         {
             _currentTheme = theme;
-            
+
             // Set theme on the root content to ensure all theme resources (including Mica) update
             if (this.Content is FrameworkElement root)
             {
@@ -1106,7 +1106,7 @@ namespace Uviewer
             {
                 ThemeIcon.Glyph = _currentTheme == ElementTheme.Dark ? "\uE706" : "\uE708"; // Sun if dark (to switch to light), Moon if light (to switch to dark)
             }
-            
+
             // Update ToggleButton state
             if (GlobalThemeToggleButton != null)
             {
@@ -1123,14 +1123,14 @@ namespace Uviewer
             if (appWindow != null && AppWindowTitleBar.IsCustomizationSupported())
             {
                 var titleBar = appWindow.TitleBar;
-                
+
                 if (_currentTheme == ElementTheme.Dark)
                 {
                     // Use solid dark color to prevent white flicker during maximize/fullscreen
                     var darkBg = ColorHelper.FromArgb(255, 28, 28, 28);
                     titleBar.BackgroundColor = darkBg;
                     titleBar.InactiveBackgroundColor = darkBg;
-                    
+
                     // When extended, we want transparent buttons to blend with our custom UI.
                     // When NOT extended (e.g. in Fullscreen), we want solid background to match the system title bar.
                     if (ExtendsContentIntoTitleBar)
@@ -1143,7 +1143,7 @@ namespace Uviewer
                         titleBar.ButtonBackgroundColor = darkBg;
                         titleBar.ButtonInactiveBackgroundColor = darkBg;
                     }
-                    
+
                     titleBar.ButtonForegroundColor = Colors.White;
                     titleBar.ButtonHoverForegroundColor = Colors.White;
                     titleBar.ButtonHoverBackgroundColor = ColorHelper.FromArgb(0x33, 0xFF, 0xFF, 0xFF);
@@ -1157,7 +1157,7 @@ namespace Uviewer
                     var lightBg = ColorHelper.FromArgb(255, 243, 243, 243);
                     titleBar.BackgroundColor = lightBg;
                     titleBar.InactiveBackgroundColor = lightBg;
-                    
+
                     if (ExtendsContentIntoTitleBar)
                     {
                         titleBar.ButtonBackgroundColor = Colors.Transparent;
@@ -1168,7 +1168,7 @@ namespace Uviewer
                         titleBar.ButtonBackgroundColor = lightBg;
                         titleBar.ButtonInactiveBackgroundColor = lightBg;
                     }
-                    
+
                     titleBar.ButtonForegroundColor = Colors.Black;
                     titleBar.ButtonHoverForegroundColor = Colors.Black;
                     titleBar.ButtonHoverBackgroundColor = ColorHelper.FromArgb(0x33, 0x00, 0x00, 0x00);
@@ -1187,1078 +1187,49 @@ namespace Uviewer
             }
         }
 
-        #region Image Display
-
-        private async Task DisplayCurrentImageAsync()
-        {
-            if (_currentIndex < 0 || _currentIndex >= _imageEntries.Count)
-                return;
-
-            // 이전 로딩 작업 취소
-            _imageLoadingCts?.Cancel();
-            _imageLoadingCts = new CancellationTokenSource();
-            var token = _imageLoadingCts.Token; // <-- 이 토큰을 전달해야 함
-
-            StopAnimatedWebp();
-
-            var entry = _imageEntries[_currentIndex];
-            if (IsTextEntry(entry))
-            {
-                await LoadTextEntryAsync(entry);
-                await AddToRecentAsync(false);
-            }
-            else if (IsEpubEntry(entry))
-            {
-                await LoadEpubEntryAsync(entry);
-                await AddToRecentAsync(false);
-            }
-            else
-            {
-                SwitchToImageMode(); // Ensure Image Mode is active
-
-                if (_isSideBySideMode && _currentPdfDocument == null)
-                {
-                    await DisplaySideBySideImagesAsync(token); // <-- token 전달
-                }
-
-                else
-                {
-                    await DisplaySingleImageAsync(token); // <-- token 전달
-                }
-
-                await AddToRecentAsync(false);
-            }
-
-            RootGrid.Focus(FocusState.Programmatic);
-        }
-
-        private void SyncSidebarSelection(ImageEntry entry)
-        {
-            try
-            {
-                if (_fileItems == null || _fileItems.Count == 0) return;
-
-                string targetPath = entry.IsArchiveEntry ? (_currentArchivePath ?? "") : (entry.FilePath ?? "");
-                if (string.IsNullOrEmpty(targetPath)) return;
-
-                // Find item in file list
-                var item = _fileItems.FirstOrDefault(f => f.FullPath.Equals(targetPath, StringComparison.OrdinalIgnoreCase));
-                if (item != null)
-                {
-                    if (_isExplorerGrid)
-                    {
-                        if (FileGridView.SelectedItem != item)
-                        {
-                            FileGridView.SelectedItem = item;
-                            FileGridView.ScrollIntoView(item);
-                        }
-                    }
-                    else
-                    {
-                        if (FileListView.SelectedItem != item)
-                        {
-                            FileListView.SelectedItem = item;
-                            FileListView.ScrollIntoView(item);
-                        }
-                    }
-                }
-            }
-            catch { }
-        }
-
-        // 매개변수 추가
-        private async Task DisplaySingleImageAsync(CancellationToken token)
-        {
-            if (_currentIndex < 0 || _currentIndex >= _imageEntries.Count) return;
-
-            var entry = _imageEntries[_currentIndex];
-            StopAnimatedWebp(); // 기존 애니메이션 중단
-
-            try
-            {
-                if (token.IsCancellationRequested) return;
-
-                // 1. 이미지 로드 (캐시 또는 파일에서져옴)
-                var bitmap = await LoadImageBitmapAsync(entry, MainCanvas, token);
-
-                if (token.IsCancellationRequested)
-                {
-                    // 취소 요청이 들어왔다면, 로드된 비트맵이 "캐시된 것"인지 "새로 만든 것"인지 따지지 말고
-                    // 일단 화면에 안 쓸 거니까 정리해야 합니다.
-
-                    // 단, 캐시에 있는 녀석(프리로딩된 것)은 지우면 안 되므로 IsBitmapInCache 체크
-                    if (bitmap != null && !IsBitmapInCache(bitmap))
-                    {
-                        bitmap.Dispose();
-                    }
-                    return;
-                }
-
-                if (bitmap != null)
-                {
-                    // 1. 옛날 이미지를 임시 변수에 담아둠
-                    var oldBitmap = _currentBitmap;
-
-                    // 2. 현재 이미지를 새것으로 '먼저' 교체 (Draw 스레드가 새것을 보게 함)
-                    _currentBitmap = bitmap;
-
-                    // 3. UI 갱신 요청
-                    if (_currentPdfDocument == null)
-                    {
-                        _zoomLevel = 1.0;
-                        _pdfPanX = 0;
-                        _pdfPanY = 0;
-                        FitToWindow();
-                    }
-                    else
-                    {
-                        // PDF: Set initial pan to top or bottom of page depending on direction
-                        if (!_isSeamlessScroll)
-                        {
-                            var canvasSize = MainCanvas.Size;
-                            var imageSize = bitmap.Size;
-                            var fitRatio = Math.Min(canvasSize.Width / imageSize.Width, canvasSize.Height / imageSize.Height);
-                            var scaledH = imageSize.Height * fitRatio * _zoomLevel;
-                            double maxPan = (scaledH > canvasSize.Height) ? (scaledH - canvasSize.Height) / 2 : 0;
-                            _pdfPanY = (_pdfScrollDirection == 1) ? maxPan : -maxPan;
-                            _pdfPanX = 0;
-                            _isPdfTransitioning = false;
-                        }
-                    }
-                    ShowImageUI();
-                    UpdateStatusBar(entry, _currentBitmap);
-                    UpdateSharpenButtonState();
-                    MainCanvas.Invalidate();
-                    
-                    // Sync sidebar selection (using our new safe method)
-                    SyncSidebarSelection(entry);
-
-                    // 4. 이제 안전하게 옛날 이미지를 폐기
-                    // (단, 캐시에 있는 건 지우면 안 됨)
-                    if (oldBitmap != null && !IsBitmapInCache(oldBitmap) && oldBitmap != bitmap)
-                    {
-                        oldBitmap.Dispose();
-                    }
-                }
-                else
-                {
-                    FileNameText.Text = Strings.LoadImageError;
-                    return;
-                }
-
-                // [애니메이션 WebP 처리 부분] 헤더만 읽어서 애니메이션 여부 확인 후 필요시 로드
-                if (IsAnimationSupported(entry))
-                {
-                    // 로딩 표시 추가
-                    FileNameText.Text += Strings.Loading;
-
-                    _ = Task.Run(async () =>
-                    {
-                        try
-                        {
-                            if (token.IsCancellationRequested) return;
-
-                            byte[]? imageBytes = null;
-                            if (entry.IsArchiveEntry && entry.ArchiveEntryKey != null)
-                            {
-                                imageBytes = await LoadBytesFromArchiveEntryAsync(entry.ArchiveEntryKey, token);
-                            }
-                            else if (entry.FilePath != null)
-                            {
-                                imageBytes = await File.ReadAllBytesAsync(entry.FilePath, token);
-                            }
-
-                            if (imageBytes == null || token.IsCancellationRequested) return;
-
-                            // 애니메이션 프레임 초기화 (Win2D GPU 합성 및 바이트 캐싱 방식)
-                            var (framePixels, delaysMs, w, h) = await TryLoadAnimatedImageFramesNativeAsync(imageBytes);
-                            bool success = framePixels != null;
-
-                            if (token.IsCancellationRequested) return;
-
-                            if (success)
-                            {
-                                _animatedWebpFramePixels = framePixels;
-                                _animatedWebpDelaysMs = delaysMs;
-                                _animatedWebpWidth = w;
-                                _animatedWebpHeight = h;
-
-                                DispatcherQueue.TryEnqueue(() =>
-                                {
-                                    if (token.IsCancellationRequested) return;
-                                    
-                                    // 현재 인덱스가 일치하는지 확인 (다른 파일로 넘어갔을 경우 방지)
-                                    bool isStillCurrent = false;
-                                    if (entry.IsArchiveEntry) 
-                                        isStillCurrent = _currentIndex < _imageEntries.Count && _imageEntries[_currentIndex].ArchiveEntryKey == entry.ArchiveEntryKey;
-                                    else
-                                        isStillCurrent = _currentIndex < _imageEntries.Count && _imageEntries[_currentIndex].FilePath == entry.FilePath;
-
-                                    if (isStillCurrent)
-                                    {
-                                        // 로딩 완료 후 상태바 복구
-                                        UpdateStatusBar(entry, _currentBitmap!);
-                                        StartAnimatedWebpTimer();
-                                    }
-                                    else
-                                    {
-                                        // 이미 다른 이미지로 넘어갔다면 리소스 해제
-                                        StopAnimatedWebp();
-                                    }
-                                });
-                            }
-                            else
-                            {
-                                // 애니메이션이 아니거나 로드 실패 시 상태바 복구
-                                DispatcherQueue.TryEnqueue(() =>
-                                {
-                                    if (token.IsCancellationRequested) return;
-                                    UpdateStatusBar(entry, _currentBitmap!);
-                                });
-                            }
-                        }
-                        catch 
-                        {
-                            DispatcherQueue.TryEnqueue(() =>
-                            {
-                                if (token.IsCancellationRequested) return;
-                                UpdateStatusBar(entry, _currentBitmap!);
-                            });
-                        }
-                    }, token);
-                }
-            }
-            catch (OperationCanceledException) { }
-            catch (Exception ex)
-            {
-                if (!token.IsCancellationRequested)
-                    FileNameText.Text = $"이미지 로드 오류: {ex.Message}";
-            }
-        }
-
-        private bool IsBitmapInCache(CanvasBitmap bitmap)
-        {
-            if (bitmap == null) return false;
-            if (bitmap == _currentBitmap) return true;
-            
-            lock (_preloadedImages)
-            {
-                if (_preloadedImages.ContainsValue(bitmap)) return true;
-            }
-            lock (_sharpenedImageCache)
-            {
-                if (_sharpenedImageCache.ContainsValue(bitmap)) return true;
-            }
-            lock (_animatedWebpSharpenedCache)
-            {
-                if (_animatedWebpSharpenedCache.ContainsValue(bitmap)) return true;
-            }
-            return false;
-        }
-
-        private async Task DisplaySideBySideImagesAsync(CancellationToken token)
-        {
-            try
-            {
-                CanvasBitmap? leftBitmap, rightBitmap;
-                ImageEntry leftEntry, rightEntry;
-
-                bool actualNextImageOnRight = _nextImageOnRight;
-                if (_currentPdfDocument != null) actualNextImageOnRight = true;
-
-                if (actualNextImageOnRight)
-                {
-                    // → direction: current image on left, next image on right
-                    leftEntry = _imageEntries[_currentIndex];
-                    leftBitmap = await LoadImageBitmapAsync(leftEntry, LeftCanvas, token);
-
-                    if (token.IsCancellationRequested)
-                    {
-                        if (leftBitmap != null && !IsBitmapInCache(leftBitmap)) leftBitmap.Dispose();
-                        return; // 취소 확인
-                    }
-
-                    if (_currentIndex + 1 < _imageEntries.Count)
-                    {
-                        rightEntry = _imageEntries[_currentIndex + 1];
-                        rightBitmap = await LoadImageBitmapAsync(rightEntry, RightCanvas, token);
-                    }
-                    else
-                    {
-                        rightEntry = leftEntry; // Use same entry if no next image
-                        rightBitmap = null;
-                    }
-                }
-                else
-                {
-                    // ← direction: next image (n+1) on left, current image (n) on right
-                    if (_currentIndex + 1 < _imageEntries.Count)
-                    {
-                        leftEntry = _imageEntries[_currentIndex + 1];
-                        leftBitmap = await LoadImageBitmapAsync(leftEntry, LeftCanvas, token);
-                    }
-                    else
-                    {
-                        leftEntry = _imageEntries[_currentIndex];
-                        leftBitmap = null;
-                    }
-
-                    if (token.IsCancellationRequested)
-                    {
-                        if (leftBitmap != null && !IsBitmapInCache(leftBitmap)) leftBitmap.Dispose();
-                        return; // 취소 확인
-                    }
-
-                    rightEntry = _imageEntries[_currentIndex];
-                    rightBitmap = await LoadImageBitmapAsync(rightEntry, RightCanvas, token);
-                }
-
-                if (token.IsCancellationRequested)
-                {
-                    if (leftBitmap != null && !IsBitmapInCache(leftBitmap)) leftBitmap.Dispose();
-                    if (rightBitmap != null && !IsBitmapInCache(rightBitmap)) rightBitmap.Dispose();
-                    return;
-                }
-
-                // 1. 옛날 이미지를 임시 변수에 담아둠
-                var oldLeft = _leftBitmap;
-                var oldRight = _rightBitmap;
-
-                // 2. 현재 이미지를 새것으로 '먼저' 교체
-                _leftBitmap = leftBitmap;
-                _rightBitmap = rightBitmap;
-                _currentBitmap = rightBitmap ?? leftBitmap; // For zoom calculations
-
-                // 3. UI 갱신 요청
-            if (_currentPdfDocument == null)
-            {
-                _zoomLevel = 1.0;
-                FitToWindow();
-            }
-            else
-            {
-                // PDF: Set initial pan state based on direction
-                if (!_isSeamlessScroll && leftBitmap != null)
-                {
-                    var canvasSize = LeftCanvas.Size;
-                    var imageSize = leftBitmap.Size;
-                    var fitRatio = Math.Min(canvasSize.Width / imageSize.Width, canvasSize.Height / imageSize.Height);
-                    var scaledH = imageSize.Height * fitRatio * _zoomLevel;
-                    double maxPan = (scaledH > canvasSize.Height) ? (scaledH - canvasSize.Height) / 2 : 0;
-                    _pdfPanY = (_pdfScrollDirection == 1) ? maxPan : -maxPan;
-                }
-            }
-
-            ShowImageUI();
-                UpdateStatusBar(leftEntry, _leftBitmap!); // Primary is left (currentIndex)
-                SyncSidebarSelection(leftEntry); 
-
-
-                // 4. 이제 안전하게 옛날 이미지를 폐기
-                if (oldLeft != null && !IsBitmapInCache(oldLeft) && oldLeft != leftBitmap && oldLeft != rightBitmap)
-                {
-                    oldLeft.Dispose();
-                }
-                if (oldRight != null && !IsBitmapInCache(oldRight) && oldRight != leftBitmap && oldRight != rightBitmap)
-                {
-                    oldRight.Dispose();
-                }
-            }
-            catch (Exception ex)
-            {
-                FileNameText.Text = $"이미지 로드 실패: {ex.Message}";
-            }
-        }
-
-        private async Task<CanvasBitmap?> LoadImageBitmapAsync(ImageEntry entry, CanvasControl canvas, CancellationToken token = default)
-        {
-            try
-            {
-                if (token.IsCancellationRequested) return null;
-                // 1. 캐시 확인 (압축 파일 프리로딩 등)
-                if (entry.IsArchiveEntry && _currentArchive != null)
-                {
-                    var entryIndex = _imageEntries.IndexOf(entry);
-                    CanvasBitmap? preloadedBitmap = null;
-
-                    lock (_preloadedImages)
-                    {
-                        if (_preloadedImages.TryGetValue(entryIndex, out var bitmap))
-                        {
-                            preloadedBitmap = bitmap;
-                        }
-                    }
-
-                    if (preloadedBitmap != null)
-                    {
-                        if (_sharpenEnabled)
-                        {
-                            // 샤픈 캐시 확인 및 적용 로직...
-                            lock (_sharpenedImageCache)
-                            {
-                                if (_sharpenedImageCache.TryGetValue(entryIndex, out var sharpenedBitmap))
-                                    return sharpenedBitmap;
-                            }
-                            var sharpened = await ApplySharpenToBitmapAsync(preloadedBitmap, canvas, skipUpscale: false);
-                            if (sharpened != null)
-                            {
-                                CacheSharpenedImage(entryIndex, sharpened);
-                                return sharpened;
-                            }
-                        }
-                        return preloadedBitmap;
-                    }
-                }
-
-                CanvasBitmap? originalBitmap = null;
-
-                // 2. 이미지 소스에 따라 로드
-                if (entry.IsPdfEntry && _currentPdfDocument != null)
-                {
-                    originalBitmap = await LoadPdfPageBitmapAsync(entry.PdfPageIndex, canvas, token);
-                }
-                else if (entry.IsArchiveEntry && _currentArchive != null)
-                {
-                    // [중요] 압축 파일 내 이미지는 WebP 여부 상관없이 여기서 로드 (Win2D LoadAsync 사용)
-                    originalBitmap = await LoadImageFromArchiveEntryAsync(entry.ArchiveEntryKey!, canvas, token);
-                }
-                else if (entry.FilePath != null)
-                {
-                    // 로컬 파일 (애니메이션 WebP가 아닌 경우 여기로 옴)
-                    originalBitmap = await LoadImageFromPathAsync(entry.FilePath, canvas);
-                }
-
-                // 3. 로드 실패 시 null 반환
-                if (originalBitmap == null) return null;
-
-                // 4. 샤픈 효과 적용
-                if (_sharpenEnabled && !entry.IsPdfEntry)
-                {
-                    var entryIndex = _imageEntries.IndexOf(entry);
-                    lock (_sharpenedImageCache)
-                    {
-                        if (_sharpenedImageCache.TryGetValue(entryIndex, out var cached))
-                            return cached;
-                    }
-
-                    var sharpened = await ApplySharpenToBitmapAsync(originalBitmap, canvas, skipUpscale: false);
-                    if (sharpened != null && sharpened != originalBitmap)
-                    {
-                        CacheSharpenedImage(entryIndex, sharpened);
-                        originalBitmap.Dispose(); // Dispose original as we now have sharpened version
-                        return sharpened;
-                    }
-                }
-
-                return originalBitmap;
-            }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"Error loading image bitmap: {ex.Message}");
-                return null;
-            }
-        }
-
-        private void SharpenButton_Click(object sender, RoutedEventArgs e)
-        {
-            _sharpenEnabled = !_sharpenEnabled;
-
-            // [추가] 샤픈 옵션을 바꿀 때 캐시를 초기화하여 충돌 방지
-            lock (_sharpenedImageCache)
-            {
-                foreach (var bmp in _sharpenedImageCache.Values)
-                {
-                    // 현재 화면에 떠있는 이미지가 아닐 때만 Dispose
-                    if (bmp != _currentBitmap && bmp != _leftBitmap && bmp != _rightBitmap)
-                    {
-                        bmp.Dispose();
-                    }
-                }
-                _sharpenedImageCache.Clear();
-            }
-
-            lock (_animatedWebpSharpenedCache)
-            {
-                foreach (var bmp in _animatedWebpSharpenedCache.Values)
-                {
-                    if (bmp != _currentBitmap && bmp != _leftBitmap && bmp != _rightBitmap)
-                    {
-                        bmp.Dispose();
-                    }
-                }
-                _animatedWebpSharpenedCache.Clear();
-            }
-
-            UpdateSharpenButtonState();
-            SaveWindowSettings();
-
-            // 이미지 다시 로드
-            _ = DisplayCurrentImageAsync();
-        }
-
-        private void UpdateSharpenButtonState()
-        {
-            // UI 동기화
-            SharpenButton.IsChecked = _sharpenEnabled;
-
-            // 내부 변수 기준으로 UI 스타일 변경
-            if (_sharpenEnabled)
-            {
-                SharpenIcon.FontWeight = Microsoft.UI.Text.FontWeights.Bold;
-                if (Application.Current.Resources.TryGetValue("AccentFillColorDefaultBrush", out var accent) &&
-                    accent is Microsoft.UI.Xaml.Media.Brush brush)
-                {
-                    SharpenButton.Foreground = brush;
-                }
-            }
-            else
-            {
-                SharpenIcon.FontWeight = Microsoft.UI.Text.FontWeights.Normal;
-                SharpenButton.ClearValue(Control.ForegroundProperty);
-            }
-        }
-
-        private void SideBySideButton_Click(object sender, RoutedEventArgs e)
-        {
-            if (_currentPdfDocument != null) return;
-            _isSideBySideMode = !_isSideBySideMode;
-
-            UpdateSideBySideButtonState();
-            SaveWindowSettings();
-            
-            if (_isVerticalMode)
-            {
-                int currentLine = 1;
-                if (_verticalPageInfos.Count > _currentVerticalPageIndex)
-                    currentLine = _verticalPageInfos[_currentVerticalPageIndex].StartLine;
-                _ = PrepareVerticalTextAsync(currentLine);
-            }
-            else if (_isEpubMode)
-            {
-                SetEpubPageIndex(_currentEpubPageIndex);
-            }
-            else
-            {
-                _ = DisplayCurrentImageAsync();
-            }
-        }
-
-        private void NextImageSideButton_Click(object sender, RoutedEventArgs e)
-        {
-            _nextImageOnRight = !_nextImageOnRight;
-            UpdateNextImageSideButtonState();
-            SaveWindowSettings();
-
-            if (_isVerticalMode)
-            {
-                int currentLine = 1;
-                if (_verticalPageInfos.Count > _currentVerticalPageIndex)
-                    currentLine = _verticalPageInfos[_currentVerticalPageIndex].StartLine;
-                _ = PrepareVerticalTextAsync(currentLine);
-            }
-            else if (_isEpubMode)
-            {
-                SetEpubPageIndex(_currentEpubPageIndex);
-            }
-            else
-            {
-                _ = DisplayCurrentImageAsync();
-            }
-        }
-
-        private void UpdateSideBySideButtonState()
-        {
-            if (_isSideBySideMode)
-            {
-                SideBySideText.Text = "2";
-                if (Application.Current.Resources.TryGetValue("AccentFillColorDefaultBrush", out var accent) && accent is Microsoft.UI.Xaml.Media.Brush brush)
-                    SideBySideButton.Foreground = brush;
-            }
-            else
-            {
-                SideBySideText.Text = "1";
-                SideBySideButton.ClearValue(Button.ForegroundProperty);
-            }
-        }
-
-        private void UpdateNextImageSideButtonState()
-        {
-            if (_nextImageOnRight)
-            {
-                NextImageSideText.Text = "→"; // Right arrow (left to right)
-            }
-            else
-            {
-                NextImageSideText.Text = "←"; // Left arrow (right to left)
-            }
-        }
-
-        private void MatchControlDirectionMenuItem_Click(object sender, RoutedEventArgs e)
-        {
-            _matchControlDirection = MatchControlDirectionMenuItem.IsChecked;
-            SaveWindowSettings();
-        }
-
-        private void AllowMultipleInstancesMenuItem_Click(object sender, RoutedEventArgs e)
-        {
-            _allowMultipleInstances = AllowMultipleInstancesMenuItem.IsChecked;
-            SaveWindowSettings();
-        }
-
-        private async Task<CanvasBitmap?> LoadImageFromPathAsync(string filePath, CanvasControl canvas)
-        {
-            try
-            {
-                var file = await StorageFile.GetFileFromPathAsync(filePath);
-                using var stream = await file.OpenAsync(FileAccessMode.Read);
-                return await CanvasBitmap.LoadAsync(canvas, stream);
-            }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"Error loading image from path: {ex.Message}");
-                return null;
-            }
-        }
-
-        private async Task<CanvasBitmap?> LoadImageFromArchiveEntryAsync(string entryKey, CanvasControl canvas, CancellationToken token)
-        {
-            if (token.IsCancellationRequested) return null;
-
-            using var memoryStream = new MemoryStream();
-
-            // 1. [Lock 구간] 아카이브에서 데이터만 빠르게 메모리로 복사
-            await _archiveLock.WaitAsync(token);
-            try
-            {
-                if (_currentArchive == null) return null;
-                var archiveEntry = _currentArchive.Entries.FirstOrDefault(e => e.Key == entryKey);
-                if (archiveEntry == null) return null;
-
-                using var entryStream = archiveEntry.OpenEntryStream();
-                // [핵심 수정] CopyToAsync에 토큰을 전달하여 스트림 복사 강제 중단
-                await entryStream.CopyToAsync(memoryStream, token);
-            }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"Archive Stream Error: {ex.Message}");
-                return null;
-            }
-            finally
-            {
-                _archiveLock.Release();
-            }
-
-            memoryStream.Position = 0;
-            if (token.IsCancellationRequested) return null;
-
-            // 2. [Lock 해제 후] 디코딩 수행 (여기가 CPU를 많이 쓰므로 락 밖에서 해야 함)
-            try
-            {
-                return await CanvasBitmap.LoadAsync(canvas, memoryStream.AsRandomAccessStream());
-            }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"Win2D Load Error: {ex.Message}");
-                return null;
-            }
-        }
-
-
-        private async Task<byte[]?> LoadBytesFromArchiveEntryAsync(string entryKey, CancellationToken token)
-        {
-            if (token.IsCancellationRequested) return null;
-
-            await _archiveLock.WaitAsync(token);
-            try
-            {
-                if (_currentArchive == null) return null;
-                var archiveEntry = _currentArchive.Entries.FirstOrDefault(e => e.Key == entryKey);
-                if (archiveEntry == null) return null;
-
-                using var entryStream = archiveEntry.OpenEntryStream();
-                using var memoryStream = new MemoryStream();
-                await entryStream.CopyToAsync(memoryStream, token);
-                return memoryStream.ToArray();
-            }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"Archive Byte Load Error: {ex.Message}");
-                return null;
-            }
-            finally
-            {
-                _archiveLock.Release();
-            }
-        }
-
-        private void ShowImageUI()
-        {
-            EmptyStatePanel.Visibility = Visibility.Collapsed;
-
-            if (_isSideBySideMode && _currentPdfDocument == null)
-            {
-                MainCanvas.Visibility = Visibility.Collapsed;
-                SideBySideGrid.Visibility = Visibility.Visible;
-            }
-            else
-            {
-                MainCanvas.Visibility = Visibility.Visible;
-                SideBySideGrid.Visibility = Visibility.Collapsed;
-            }
-        }
-
-        private string GetFormattedDisplayName(string displayName, bool isArchiveEntry)
-        {
-            if (isArchiveEntry && !string.IsNullOrEmpty(_currentArchivePath))
-            {
-                string archiveName = Path.GetFileName(_currentArchivePath);
-                return $"{archiveName} - {displayName}";
-            }
-            return displayName;
-        }
-
-        private void UpdateStatusBar(ImageEntry entry, CanvasBitmap bitmap)
-        {
-            FileNameText.Text = GetFormattedDisplayName(entry.DisplayName, entry.IsArchiveEntry);
-            ImageInfoText.Text = $"{(int)bitmap.Size.Width} × {(int)bitmap.Size.Height}";
-            TextProgressText.Text = ""; // Clear for image mode
-
-            if (_isSideBySideMode && _currentPdfDocument == null)
-            {
-                int displayIndex = (_currentIndex / 2) + 1;
-                int totalPairs = (_imageEntries.Count + 1) / 2;
-                ImageIndexText.Text = $"{displayIndex} / {totalPairs} (B)";
-            }
-            else
-            {
-                ImageIndexText.Text = $"{_currentIndex + 1} / {_imageEntries.Count}";
-            }
-        }
-
-        private void ImageArea_SizeChanged(object sender, SizeChangedEventArgs e)
-        {
-            // Re-apply fit when window is resized
-            if (_currentBitmap != null &&
-                (MainCanvas.Visibility == Visibility.Visible || SideBySideGrid.Visibility == Visibility.Visible))
-            {
-                ApplyZoom();
-            }
-        }
-
-        private async void ImageArea_PointerWheelChanged(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
-        {
-            var properties = e.GetCurrentPoint(ImageArea).Properties;
-            var wheelDelta = properties.MouseWheelDelta;
-
-            var ctrl = Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(Windows.System.VirtualKey.Control);
-            if (ctrl.HasFlag(Windows.UI.Core.CoreVirtualKeyStates.Down))
-            {
-                if (_currentPdfDocument != null && _currentBitmap != null)
-                {
-                    double zoomDelta = (wheelDelta / 120.0) * 0.1;
-                    _zoomLevel += zoomDelta;
-                    _zoomLevel = Math.Clamp(_zoomLevel, MinZoom, MaxZoom);
-                    ApplyZoom();
-                    e.Handled = true;
-                    return;
-                }
-            }
-
-            if (_currentPdfDocument != null && _currentBitmap != null)
-            {
-                // PDF 연속 스크롤 처리
-                double step = 80;
-                double deltaY = (wheelDelta > 0) ? step : -step;
-                await HandlePdfScrollAsync(0, deltaY);
-                e.Handled = true;
-                return;
-            }
-
-            // 일반 이미지 내비게이션
-            if (wheelDelta < 0) await NavigateToNextAsync();
-            else if (wheelDelta > 0) await NavigateToPreviousAsync();
-
-            e.Handled = true;
-        }
-
-        private async void ImageArea_ManipulationDelta(object sender, Microsoft.UI.Xaml.Input.ManipulationDeltaRoutedEventArgs e)
-        {
-            if (_currentPdfDocument == null || _currentBitmap == null) return;
-
-            // 1. 핀치 줌 처리
-            if (e.Delta.Scale != 1.0f)
-            {
-                _zoomLevel *= e.Delta.Scale;
-                _zoomLevel = Math.Clamp(_zoomLevel, MinZoom, MaxZoom);
-            }
-
-            // 2. 드래그/스와이프 스크롤 처리
-            await HandlePdfScrollAsync(e.Delta.Translation.X, e.Delta.Translation.Y);
-
-            e.Handled = true;
-        }
-
-        private void ImageArea_ManipulationCompleted(object sender, Microsoft.UI.Xaml.Input.ManipulationCompletedRoutedEventArgs e)
-        {
-            _isPdfTransitioning = false;
-        }
-
-        private async Task HandlePdfScrollAsync(double deltaX, double deltaY)
-        {
-            if (_currentPdfDocument == null || _currentBitmap == null || _isPdfTransitioning) return;
-
-            try
-            {
-                var canvasSize = MainCanvas.Size;
-                if (canvasSize.Width <= 0 || canvasSize.Height <= 0) return;
-                
-                var imageSize = _currentBitmap.Size;
-                var fitRatio = Math.Min(canvasSize.Width / imageSize.Width, canvasSize.Height / imageSize.Height);
-                var scaledSize = new Windows.Foundation.Size(imageSize.Width * fitRatio * _zoomLevel, imageSize.Height * fitRatio * _zoomLevel);
-
-            // 가로 스크롤/팬 처리
-            _pdfPanX += deltaX;
-            double maxPanX = Math.Max(0, (scaledSize.Width - canvasSize.Width) / 2);
-            if (_pdfPanX > maxPanX) _pdfPanX = maxPanX;
-            if (_pdfPanX < -maxPanX) _pdfPanX = -maxPanX;
-
-            // 세로 스크롤 및 페이지 전환 처리
-            double gap = 20 * _zoomLevel;
-            double maxPanY = Math.Max(0, (scaledSize.Height - canvasSize.Height) / 2);
-
-            if (deltaY > 0) // 위로 스크롤 (이전 페이지로)
-            {
-                _pdfPanY += deltaY;
-                
-                // 이전 페이지로 전환
-                if (_pdfPanY > maxPanY + 1 && _currentIndex > 0)
-                {
-                    _isPdfTransitioning = true;
-                    CanvasBitmap? prev = null;
-                    int targetPrevIndex = _currentIndex - 1;
-                    lock (_preloadedImages) { _preloadedImages.TryGetValue(targetPrevIndex, out prev); }
-                    
-                    var oldPosNextTop = (canvasSize.Height - scaledSize.Height) / 2 + _pdfPanY;
-                    
-                    int oldIndex = _currentIndex;
-                    lock (_preloadedImages)
-                    {
-                        if (!_preloadedImages.ContainsKey(oldIndex))
-                            _preloadedImages[oldIndex] = _currentBitmap;
-                    }
-
-                    _currentIndex = targetPrevIndex;
-
-                    if (prev != null && prev.Device != null)
-                    {
-                        try {
-                            var pFit = Math.Min(canvasSize.Width / prev.Size.Width, canvasSize.Height / prev.Size.Height);
-                            var pScaledH = prev.Size.Height * pFit * _zoomLevel;
-                            _pdfPanY = (oldPosNextTop - gap - pScaledH) - (canvasSize.Height - pScaledH) / 2;
-                            
-                            _currentBitmap = prev;
-                            var prevEntry = _imageEntries[_currentIndex];
-                            // Do not call ShowImageUI here to avoid flickering
-                            UpdateStatusBar(prevEntry, _currentBitmap);
-                            MainCanvas.Invalidate();
-                            
-                            // ONLY cancel if we are jumping far, for smooth scroll just fire and forget.
-                            // However, we can use the same token so it just adds to queue.
-                            // We do NOT cancel the token here!
-                            var token = _preloadCts?.Token ?? default;
-                            _ = Task.Run(() => PreloadPreviousImagesAsync(token));
-                        } catch { 
-                             _isPdfTransitioning = false;
-                             return; 
-                        }
-                    }
-                    else
-                    {
-                        // Page not preloaded yet! Don't do a full DisplayCurrentImageAsync which flickers.
-                        // Wait for it inline.
-                        try
-                        {
-                            prev = await LoadPdfPageBitmapAsync((uint)targetPrevIndex, MainCanvas, default);
-                            if (prev != null)
-                            {
-                                lock (_preloadedImages) { _preloadedImages[targetPrevIndex] = prev; }
-                                
-                                var pFit = Math.Min(canvasSize.Width / prev.Size.Width, canvasSize.Height / prev.Size.Height);
-                                var pScaledH = prev.Size.Height * pFit * _zoomLevel;
-                                _pdfPanY = (oldPosNextTop - gap - pScaledH) - (canvasSize.Height - pScaledH) / 2;
-                                
-                                _currentBitmap = prev;
-                                var prevEntry = _imageEntries[_currentIndex];
-                                UpdateStatusBar(prevEntry, _currentBitmap);
-                                MainCanvas.Invalidate();
-                                
-                                var token = _preloadCts?.Token ?? default;
-                                _ = Task.Run(() => PreloadPreviousImagesAsync(token));
-                            }
-                        }
-                        catch { }
-                    }
-                    _isPdfTransitioning = false;
-                    return;
-                }
-
-                if (_currentIndex == 0 && _pdfPanY > maxPanY) _pdfPanY = maxPanY;
-            }
-            else if (deltaY < 0) // 아래로 스크롤 (다음 페이지로)
-            {
-                _pdfPanY += deltaY;
-
-                // 다음 페이지로 전환
-                if (_pdfPanY < -maxPanY - 1 && _currentIndex < _imageEntries.Count - 1)
-                {
-                    _isPdfTransitioning = true;
-                    CanvasBitmap? next = null;
-                    int targetNextIndex = _currentIndex + 1;
-                    lock (_preloadedImages) { _preloadedImages.TryGetValue(targetNextIndex, out next); }
-                    
-                    var oldPosPrevBottom = (canvasSize.Height - scaledSize.Height) / 2 + _pdfPanY + scaledSize.Height;
-                    
-                    int oldIndex = _currentIndex;
-                    lock (_preloadedImages)
-                    {
-                        if (!_preloadedImages.ContainsKey(oldIndex))
-                            _preloadedImages[oldIndex] = _currentBitmap;
-                    }
-
-                    _currentIndex = targetNextIndex;
-
-                    if (next != null && next.Device != null)
-                    {
-                        try {
-                            var nFit = Math.Min(canvasSize.Width / next.Size.Width, canvasSize.Height / next.Size.Height);
-                            var nScaledH = next.Size.Height * nFit * _zoomLevel;
-                            _pdfPanY = (oldPosPrevBottom + gap) - (canvasSize.Height - nScaledH) / 2;
-                            
-                            _currentBitmap = next;
-                            var nextEntry = _imageEntries[_currentIndex];
-                            // Do not call ShowImageUI here to avoid flickering
-                            UpdateStatusBar(nextEntry, _currentBitmap);
-                            MainCanvas.Invalidate();
-                            
-                            // DO NOT cancel token to avoid stuttering and throwing away in-progress loads
-                            var token = _preloadCts?.Token ?? default;
-                            _ = Task.Run(() => PreloadNextImagesAsync(token));
-                        } catch {
-                            _isPdfTransitioning = false;
-                            return;
-                        }
-                    }
-                    else
-                    {
-                        // Page not preloaded yet! 
-                        try
-                        {
-                            next = await LoadPdfPageBitmapAsync((uint)targetNextIndex, MainCanvas, default);
-                            if (next != null)
-                            {
-                                lock (_preloadedImages) { _preloadedImages[targetNextIndex] = next; }
-                                
-                                var nFit = Math.Min(canvasSize.Width / next.Size.Width, canvasSize.Height / next.Size.Height);
-                                var nScaledH = next.Size.Height * nFit * _zoomLevel;
-                                _pdfPanY = (oldPosPrevBottom + gap) - (canvasSize.Height - nScaledH) / 2;
-                                
-                                _currentBitmap = next;
-                                var nextEntry = _imageEntries[_currentIndex];
-                                UpdateStatusBar(nextEntry, _currentBitmap);
-                                MainCanvas.Invalidate();
-                                
-                                var token = _preloadCts?.Token ?? default;
-                                _ = Task.Run(() => PreloadNextImagesAsync(token));
-                            }
-                        }
-                        catch { }
-                    }
-                    _isPdfTransitioning = false;
-                    return;
-                }
-
-                if (_currentIndex >= _imageEntries.Count - 1 && _pdfPanY < -maxPanY) _pdfPanY = -maxPanY;
-            }
-
-            ApplyZoom();
-            }
-            finally
-            {
-                _isPdfTransitioning = false;
-            }
-        }
-
-        private async void ImageArea_PointerPressed(object sender, PointerRoutedEventArgs e)
-        {
-            if (_imageEntries.Count <= 1)
-                return;
-
-            var pt = e.GetCurrentPoint(ImageArea);
-            if (!pt.Properties.IsLeftButtonPressed)
-                return;
-
-            if (_currentPdfDocument != null && e.Pointer.PointerDeviceType == Microsoft.UI.Input.PointerDeviceType.Touch)
-                return; // Prevent touch click from navigating pages in PDF (interferes with swipe)
-
-            double half = ImageArea.ActualWidth * 0.5;
-    if (pt.Position.X < half)
-    {
-        if (ShouldInvertControls) await NavigateToNextAsync(true);
-        else await NavigateToPreviousAsync(true);
-    }
-    else
-    {
-        if (ShouldInvertControls) await NavigateToPreviousAsync(true);
-        else await NavigateToNextAsync(true);
-    }
-            e.Handled = true;
-            RootGrid.Focus(FocusState.Programmatic);
-        }
-
-        #endregion
 
         #region Navigation
 
         private async Task NavigateToPreviousAsync(bool isManualClick = false)
-{
-    _pdfScrollDirection = -1;
-    if (_currentIndex > 0)
-    {
-        _preloadCts?.Cancel();
-        _preloadCts?.Dispose();
-        _preloadCts = null;
-
-        bool isFast = !isManualClick && DetectFastNavigation();
-
-        if (isFast)
         {
-            if (_isSideBySideMode && _currentPdfDocument == null)
-                _currentIndex = Math.Max(0, _currentIndex - 2);
-            else
-                _currentIndex--;
+            _pdfScrollDirection = -1;
+            if (_currentIndex > 0)
+            {
+                _preloadCts?.Cancel();
+                _preloadCts?.Dispose();
+                _preloadCts = null;
 
-            ShowFilenameOnly();
-            return;
+                bool isFast = !isManualClick && DetectFastNavigation();
+
+                if (isFast)
+                {
+                    if (_isSideBySideMode && _currentPdfDocument == null)
+                        _currentIndex = Math.Max(0, _currentIndex - 2);
+                    else
+                        _currentIndex--;
+
+                    ShowFilenameOnly();
+                    return;
+                }
+
+                if (_isSideBySideMode && _currentPdfDocument == null)
+                    _currentIndex = Math.Max(0, _currentIndex - 2);
+                else
+                    _currentIndex--;
+
+                await DisplayCurrentImageAsync();
+                await AddToRecentAsync(true);
+
+                // Trigger preloading for previous images if navigating backwards
+                if (_currentArchive != null || _currentPdfDocument != null)
+                {
+                    _preloadCts = new CancellationTokenSource();
+                    var token = _preloadCts.Token;
+                    _ = Task.Run(() => PreloadPreviousImagesAsync(token));
+                }
+            }
+            RootGrid.Focus(FocusState.Programmatic);
         }
-
-        if (_isSideBySideMode && _currentPdfDocument == null)
-            _currentIndex = Math.Max(0, _currentIndex - 2);
-        else
-            _currentIndex--;
-
-        await DisplayCurrentImageAsync();
-        await AddToRecentAsync(true);
-
-        // Trigger preloading for previous images if navigating backwards
-        if (_currentArchive != null || _currentPdfDocument != null)
-        {
-            _preloadCts = new CancellationTokenSource();
-            var token = _preloadCts.Token;
-            _ = Task.Run(() => PreloadPreviousImagesAsync(token));
-        }
-    }
-    RootGrid.Focus(FocusState.Programmatic);
-}
 
         private async Task NavigateToNextAsync(bool isManualClick = false)
         {
@@ -2302,7 +1273,7 @@ namespace Uviewer
 
         private async Task NavigateToFileAsync(bool isNext)
         {
-             // Save current position before navigating away
+            // Save current position before navigating away
             await AddToRecentAsync(true);
 
             // Find current file/archive in the list
@@ -2349,7 +1320,7 @@ namespace Uviewer
                     // Check if it's the initial fast-load single entry
                     if (_fileItems.Count == 0 || !_fileItems.Any(f => f.FullPath.Equals(currentPath, StringComparison.OrdinalIgnoreCase)))
                     {
-                         LoadExplorerFolder(_currentExplorerPath);
+                        LoadExplorerFolder(_currentExplorerPath);
                     }
                 }
             }
@@ -2436,16 +1407,16 @@ namespace Uviewer
 
         private void SyncExplorerSelection(FileItem item)
         {
-             if (_isExplorerGrid)
-             {
-                 FileGridView.SelectedItem = item;
-                 FileGridView.ScrollIntoView(item);
-             }
-             else
-             {
-                 FileListView.SelectedItem = item;
-                 FileListView.ScrollIntoView(item);
-             }
+            if (_isExplorerGrid)
+            {
+                FileGridView.SelectedItem = item;
+                FileGridView.ScrollIntoView(item);
+            }
+            else
+            {
+                FileListView.SelectedItem = item;
+                FileListView.ScrollIntoView(item);
+            }
         }
 
         #endregion
@@ -2478,82 +1449,82 @@ namespace Uviewer
                     var scaledSize = new Windows.Foundation.Size(imageSize.Width * fitRatio * _zoomLevel, imageSize.Height * fitRatio * _zoomLevel);
 
                     // Center the image
-            var position = new Windows.Foundation.Point(
-                (canvasSize.Width - scaledSize.Width) / 2,
-                (canvasSize.Height - scaledSize.Height) / 2);
+                    var position = new Windows.Foundation.Point(
+                        (canvasSize.Width - scaledSize.Width) / 2,
+                        (canvasSize.Height - scaledSize.Height) / 2);
 
-            if (_currentPdfDocument != null)
-            {
-                // PDF는 항상 연속 스크롤 모드 지원
-                double maxPan = Math.Max(0, (scaledSize.Height - canvasSize.Height) / 2);
-                double clampMargin = canvasSize.Height + 500; // 화면 높이 기반으로 제한 값 확장
-                if (_pdfPanY > maxPan + clampMargin) _pdfPanY = maxPan + clampMargin;
-                if (_pdfPanY < -maxPan - clampMargin) _pdfPanY = -maxPan - clampMargin;
-
-
-                // PDF Drawing with pan (X, Y)
-                position.X = (canvasSize.Width - scaledSize.Width) / 2 + _pdfPanX;
-                position.Y = (canvasSize.Height - scaledSize.Height) / 2 + _pdfPanY;
-                var destRect = new Windows.Foundation.Rect(position, scaledSize);
-                
-                if (_currentBitmap.Device != null)
-                {
-                    ds.DrawImage(_currentBitmap, destRect);
-                }
-
-                double gap = 20 * _zoomLevel;
-
-                // Draw previous pages (up to 5)
-                double currentY_top = position.Y;
-                for (int i = 1; i <= 5; i++)
-                {
-                    int prevIdx = _currentIndex - i;
-                    if (prevIdx < 0) break;
-                    
-                    CanvasBitmap? prev = null;
-                    lock (_preloadedImages) { _preloadedImages.TryGetValue(prevIdx, out prev); }
-                    if (prev != null && prev.Device != null)
+                    if (_currentPdfDocument != null)
                     {
-                        var pFit = Math.Min(canvasSize.Width / prev.Size.Width, canvasSize.Height / prev.Size.Height);
-                        var pScaledSize = new Windows.Foundation.Size(prev.Size.Width * pFit * _zoomLevel, prev.Size.Height * pFit * _zoomLevel);
-                        var pPos = new Windows.Foundation.Point((canvasSize.Width - pScaledSize.Width) / 2 + _pdfPanX, currentY_top - pScaledSize.Height - gap);
-                        ds.DrawImage(prev, new Windows.Foundation.Rect(pPos, pScaledSize));
-                        currentY_top = pPos.Y;
-                        
-                        // Stop if even this page is way above screen
-                        if (currentY_top + pScaledSize.Height < -500) break;
-                    }
-                    else break; // Missing preload, can't draw further
-                }
+                        // PDF는 항상 연속 스크롤 모드 지원
+                        double maxPan = Math.Max(0, (scaledSize.Height - canvasSize.Height) / 2);
+                        double clampMargin = canvasSize.Height + 500; // 화면 높이 기반으로 제한 값 확장
+                        if (_pdfPanY > maxPan + clampMargin) _pdfPanY = maxPan + clampMargin;
+                        if (_pdfPanY < -maxPan - clampMargin) _pdfPanY = -maxPan - clampMargin;
 
-                // Draw next pages (up to 5)
-                double currentY_bottom = position.Y + scaledSize.Height;
-                for (int i = 1; i <= 5; i++)
-                {
-                    int nextIdx = _currentIndex + i;
-                    if (nextIdx >= _imageEntries.Count) break;
-                    
-                    CanvasBitmap? next = null;
-                    lock (_preloadedImages) { _preloadedImages.TryGetValue(nextIdx, out next); }
-                    if (next != null && next.Device != null)
-                    {
-                        var nFit = Math.Min(canvasSize.Width / next.Size.Width, canvasSize.Height / next.Size.Height);
-                        var nScaledSize = new Windows.Foundation.Size(next.Size.Width * nFit * _zoomLevel, next.Size.Height * nFit * _zoomLevel);
-                        var nPos = new Windows.Foundation.Point((canvasSize.Width - nScaledSize.Width) / 2 + _pdfPanX, currentY_bottom + gap);
-                        ds.DrawImage(next, new Windows.Foundation.Rect(nPos, nScaledSize));
-                        currentY_bottom = nPos.Y + nScaledSize.Height;
-                        
-                        // Stop if even this page is way below screen
-                        if (nPos.Y > canvasSize.Height + 500) break;
+
+                        // PDF Drawing with pan (X, Y)
+                        position.X = (canvasSize.Width - scaledSize.Width) / 2 + _pdfPanX;
+                        position.Y = (canvasSize.Height - scaledSize.Height) / 2 + _pdfPanY;
+                        var destRect = new Windows.Foundation.Rect(position, scaledSize);
+
+                        if (_currentBitmap.Device != null)
+                        {
+                            ds.DrawImage(_currentBitmap, destRect);
+                        }
+
+                        double gap = 20 * _zoomLevel;
+
+                        // Draw previous pages (up to 5)
+                        double currentY_top = position.Y;
+                        for (int i = 1; i <= 5; i++)
+                        {
+                            int prevIdx = _currentIndex - i;
+                            if (prevIdx < 0) break;
+
+                            CanvasBitmap? prev = null;
+                            lock (_preloadedImages) { _preloadedImages.TryGetValue(prevIdx, out prev); }
+                            if (prev != null && prev.Device != null)
+                            {
+                                var pFit = Math.Min(canvasSize.Width / prev.Size.Width, canvasSize.Height / prev.Size.Height);
+                                var pScaledSize = new Windows.Foundation.Size(prev.Size.Width * pFit * _zoomLevel, prev.Size.Height * pFit * _zoomLevel);
+                                var pPos = new Windows.Foundation.Point((canvasSize.Width - pScaledSize.Width) / 2 + _pdfPanX, currentY_top - pScaledSize.Height - gap);
+                                ds.DrawImage(prev, new Windows.Foundation.Rect(pPos, pScaledSize));
+                                currentY_top = pPos.Y;
+
+                                // Stop if even this page is way above screen
+                                if (currentY_top + pScaledSize.Height < -500) break;
+                            }
+                            else break; // Missing preload, can't draw further
+                        }
+
+                        // Draw next pages (up to 5)
+                        double currentY_bottom = position.Y + scaledSize.Height;
+                        for (int i = 1; i <= 5; i++)
+                        {
+                            int nextIdx = _currentIndex + i;
+                            if (nextIdx >= _imageEntries.Count) break;
+
+                            CanvasBitmap? next = null;
+                            lock (_preloadedImages) { _preloadedImages.TryGetValue(nextIdx, out next); }
+                            if (next != null && next.Device != null)
+                            {
+                                var nFit = Math.Min(canvasSize.Width / next.Size.Width, canvasSize.Height / next.Size.Height);
+                                var nScaledSize = new Windows.Foundation.Size(next.Size.Width * nFit * _zoomLevel, next.Size.Height * nFit * _zoomLevel);
+                                var nPos = new Windows.Foundation.Point((canvasSize.Width - nScaledSize.Width) / 2 + _pdfPanX, currentY_bottom + gap);
+                                ds.DrawImage(next, new Windows.Foundation.Rect(nPos, nScaledSize));
+                                currentY_bottom = nPos.Y + nScaledSize.Height;
+
+                                // Stop if even this page is way below screen
+                                if (nPos.Y > canvasSize.Height + 500) break;
+                            }
+                            else break;
+                        }
                     }
-                    else break;
-                }
-            }
-            else
-            {
-                var destRect = new Windows.Foundation.Rect(position, scaledSize);
-                ds.DrawImage(_currentBitmap, destRect);
-            }
+                    else
+                    {
+                        var destRect = new Windows.Foundation.Rect(position, scaledSize);
+                        ds.DrawImage(_currentBitmap, destRect);
+                    }
                 }
                 catch (Exception)
                 {
@@ -2590,43 +1561,43 @@ namespace Uviewer
                         canvasSize.Width - scaledSize.Width,
                         (canvasSize.Height - scaledSize.Height) / 2);
 
-            if (_currentPdfDocument != null && scaledSize.Height > canvasSize.Height)
-            {
-                double maxPan = (scaledSize.Height - canvasSize.Height) / 2;
-                if (_pdfPanY > maxPan + 350) _pdfPanY = maxPan + 350;
-                if (_pdfPanY < -maxPan - 350) _pdfPanY = -maxPan - 350;
-                position.Y = (canvasSize.Height - scaledSize.Height) / 2 + _pdfPanY;
-
-                // Seamless adjacent pages in side-by-side mode (Left Canvas: draw previous if exists)
-                double gap = 20 * _zoomLevel;
-                if (position.Y > 0 && _currentIndex >= 2)
-                {
-                    CanvasBitmap? prevLeft = null;
-                    lock (_preloadedImages) { _preloadedImages.TryGetValue(_currentIndex - 2, out prevLeft); }
-                    if (prevLeft != null)
+                    if (_currentPdfDocument != null && scaledSize.Height > canvasSize.Height)
                     {
-                        var pFit = Math.Min(canvasSize.Width / prevLeft.Size.Width, canvasSize.Height / prevLeft.Size.Height);
-                        var pScaledH = prevLeft.Size.Height * pFit * _zoomLevel;
-                        var pPos = new Windows.Foundation.Point(canvasSize.Width - (prevLeft.Size.Width * pFit * _zoomLevel), position.Y - pScaledH - gap);
-                        ds.DrawImage(prevLeft, new Windows.Foundation.Rect(pPos, new Windows.Foundation.Size(prevLeft.Size.Width * pFit * _zoomLevel, pScaledH)));
-                    }
-                }
-                if (position.Y + scaledSize.Height < canvasSize.Height && _currentIndex + 2 < _imageEntries.Count)
-                {
-                    CanvasBitmap? nextLeft = null;
-                    lock (_preloadedImages) { _preloadedImages.TryGetValue(_currentIndex + 2, out nextLeft); }
-                    if (nextLeft != null)
-                    {
-                        var nFit = Math.Min(canvasSize.Width / nextLeft.Size.Width, canvasSize.Height / nextLeft.Size.Height);
-                        var nScaledH = nextLeft.Size.Height * nFit * _zoomLevel;
-                        var nPos = new Windows.Foundation.Point(canvasSize.Width - (nextLeft.Size.Width * nFit * _zoomLevel), position.Y + scaledSize.Height + gap);
-                        ds.DrawImage(nextLeft, new Windows.Foundation.Rect(nPos, new Windows.Foundation.Size(nextLeft.Size.Width * nFit * _zoomLevel, nScaledH)));
-                    }
-                }
-            }
+                        double maxPan = (scaledSize.Height - canvasSize.Height) / 2;
+                        if (_pdfPanY > maxPan + 350) _pdfPanY = maxPan + 350;
+                        if (_pdfPanY < -maxPan - 350) _pdfPanY = -maxPan - 350;
+                        position.Y = (canvasSize.Height - scaledSize.Height) / 2 + _pdfPanY;
 
-            var destRect = new Windows.Foundation.Rect(position, scaledSize);
-            ds.DrawImage(_leftBitmap, destRect);
+                        // Seamless adjacent pages in side-by-side mode (Left Canvas: draw previous if exists)
+                        double gap = 20 * _zoomLevel;
+                        if (position.Y > 0 && _currentIndex >= 2)
+                        {
+                            CanvasBitmap? prevLeft = null;
+                            lock (_preloadedImages) { _preloadedImages.TryGetValue(_currentIndex - 2, out prevLeft); }
+                            if (prevLeft != null)
+                            {
+                                var pFit = Math.Min(canvasSize.Width / prevLeft.Size.Width, canvasSize.Height / prevLeft.Size.Height);
+                                var pScaledH = prevLeft.Size.Height * pFit * _zoomLevel;
+                                var pPos = new Windows.Foundation.Point(canvasSize.Width - (prevLeft.Size.Width * pFit * _zoomLevel), position.Y - pScaledH - gap);
+                                ds.DrawImage(prevLeft, new Windows.Foundation.Rect(pPos, new Windows.Foundation.Size(prevLeft.Size.Width * pFit * _zoomLevel, pScaledH)));
+                            }
+                        }
+                        if (position.Y + scaledSize.Height < canvasSize.Height && _currentIndex + 2 < _imageEntries.Count)
+                        {
+                            CanvasBitmap? nextLeft = null;
+                            lock (_preloadedImages) { _preloadedImages.TryGetValue(_currentIndex + 2, out nextLeft); }
+                            if (nextLeft != null)
+                            {
+                                var nFit = Math.Min(canvasSize.Width / nextLeft.Size.Width, canvasSize.Height / nextLeft.Size.Height);
+                                var nScaledH = nextLeft.Size.Height * nFit * _zoomLevel;
+                                var nPos = new Windows.Foundation.Point(canvasSize.Width - (nextLeft.Size.Width * nFit * _zoomLevel), position.Y + scaledSize.Height + gap);
+                                ds.DrawImage(nextLeft, new Windows.Foundation.Rect(nPos, new Windows.Foundation.Size(nextLeft.Size.Width * nFit * _zoomLevel, nScaledH)));
+                            }
+                        }
+                    }
+
+                    var destRect = new Windows.Foundation.Rect(position, scaledSize);
+                    ds.DrawImage(_leftBitmap, destRect);
                 }
                 catch (Exception) { }
             }
@@ -2660,45 +1631,45 @@ namespace Uviewer
                         0,
                         (canvasSize.Height - scaledSize.Height) / 2);
 
-            if (_currentPdfDocument != null && scaledSize.Height > canvasSize.Height)
-            {
-                double maxPan = (scaledSize.Height - canvasSize.Height) / 2;
-                if (_pdfPanY > maxPan + 350) _pdfPanY = maxPan + 350;
-                if (_pdfPanY < -maxPan - 350) _pdfPanY = -maxPan - 350;
-                position.Y = (canvasSize.Height - scaledSize.Height) / 2 + _pdfPanY;
-                double gap = 20 * _zoomLevel;
-                int prevRightIndex = _currentIndex - 1;
-
-                if (position.Y > 0 && prevRightIndex >= 0)
-                {
-                     CanvasBitmap? prevRight = null;
-                     lock (_preloadedImages) { _preloadedImages.TryGetValue(prevRightIndex, out prevRight); }
-                     if (prevRight != null)
-                     {
-                         var pFit = Math.Min(canvasSize.Width / prevRight.Size.Width, canvasSize.Height / prevRight.Size.Height);
-                         var pScaledH = prevRight.Size.Height * pFit * _zoomLevel;
-                         var pPos = new Windows.Foundation.Point(0, position.Y - pScaledH - gap);
-                         ds.DrawImage(prevRight, new Windows.Foundation.Rect(pPos, new Windows.Foundation.Size(prevRight.Size.Width * pFit * _zoomLevel, pScaledH)));
-                     }
-                }
-
-                int nextRightIndex = _currentIndex + 3; 
-                if (position.Y + scaledSize.Height < canvasSize.Height && nextRightIndex < _imageEntries.Count)
-                {
-                    CanvasBitmap? nextRight = null;
-                    lock (_preloadedImages) { _preloadedImages.TryGetValue(nextRightIndex, out nextRight); }
-                    if (nextRight != null)
+                    if (_currentPdfDocument != null && scaledSize.Height > canvasSize.Height)
                     {
-                        var nFit = Math.Min(canvasSize.Width / nextRight.Size.Width, canvasSize.Height / nextRight.Size.Height);
-                        var nScaledH = nextRight.Size.Height * nFit * _zoomLevel;
-                        var nPos = new Windows.Foundation.Point(0, position.Y + scaledSize.Height + gap);
-                        ds.DrawImage(nextRight, new Windows.Foundation.Rect(nPos, new Windows.Foundation.Size(nextRight.Size.Width * nFit * _zoomLevel, nScaledH)));
-                    }
-                }
-            }
+                        double maxPan = (scaledSize.Height - canvasSize.Height) / 2;
+                        if (_pdfPanY > maxPan + 350) _pdfPanY = maxPan + 350;
+                        if (_pdfPanY < -maxPan - 350) _pdfPanY = -maxPan - 350;
+                        position.Y = (canvasSize.Height - scaledSize.Height) / 2 + _pdfPanY;
+                        double gap = 20 * _zoomLevel;
+                        int prevRightIndex = _currentIndex - 1;
 
-            var destRect = new Windows.Foundation.Rect(position, scaledSize);
-            ds.DrawImage(_rightBitmap, destRect);
+                        if (position.Y > 0 && prevRightIndex >= 0)
+                        {
+                            CanvasBitmap? prevRight = null;
+                            lock (_preloadedImages) { _preloadedImages.TryGetValue(prevRightIndex, out prevRight); }
+                            if (prevRight != null)
+                            {
+                                var pFit = Math.Min(canvasSize.Width / prevRight.Size.Width, canvasSize.Height / prevRight.Size.Height);
+                                var pScaledH = prevRight.Size.Height * pFit * _zoomLevel;
+                                var pPos = new Windows.Foundation.Point(0, position.Y - pScaledH - gap);
+                                ds.DrawImage(prevRight, new Windows.Foundation.Rect(pPos, new Windows.Foundation.Size(prevRight.Size.Width * pFit * _zoomLevel, pScaledH)));
+                            }
+                        }
+
+                        int nextRightIndex = _currentIndex + 3;
+                        if (position.Y + scaledSize.Height < canvasSize.Height && nextRightIndex < _imageEntries.Count)
+                        {
+                            CanvasBitmap? nextRight = null;
+                            lock (_preloadedImages) { _preloadedImages.TryGetValue(nextRightIndex, out nextRight); }
+                            if (nextRight != null)
+                            {
+                                var nFit = Math.Min(canvasSize.Width / nextRight.Size.Width, canvasSize.Height / nextRight.Size.Height);
+                                var nScaledH = nextRight.Size.Height * nFit * _zoomLevel;
+                                var nPos = new Windows.Foundation.Point(0, position.Y + scaledSize.Height + gap);
+                                ds.DrawImage(nextRight, new Windows.Foundation.Rect(nPos, new Windows.Foundation.Size(nextRight.Size.Width * nFit * _zoomLevel, nScaledH)));
+                            }
+                        }
+                    }
+
+                    var destRect = new Windows.Foundation.Rect(position, scaledSize);
+                    ds.DrawImage(_rightBitmap, destRect);
                 }
                 catch (Exception) { }
             }
@@ -2720,133 +1691,17 @@ namespace Uviewer
 
                 var tasks = new List<Task>();
 
-        for (int i = startIndex; i <= endIndex; i++)
-        {
-            if (token.IsCancellationRequested) break;
-
-            int index = i;
-            if (index == _currentIndex) continue;
-            
-            // 1. 이미 캐시에 있거나, 2. 현재 로딩 중이라면 스킵
-            bool shouldSkip = false;
-            lock (_preloadedImages) { if (_preloadedImages.ContainsKey(index)) shouldSkip = true; }
-            
-            if (!shouldSkip)
-            {
-                lock (_loadingIndices)
-                {
-                    if (_loadingIndices.Contains(index)) shouldSkip = true;
-                    else _loadingIndices.Add(index); // 로딩 시작 표시
-                }
-            }
-
-            if (shouldSkip) continue;
-
-            var entry = _imageEntries[index];
-            tasks.Add(Task.Run(async () =>
-            {
-                try
-                {
-                    if (token.IsCancellationRequested) return;
-
-                    CanvasBitmap? bitmap = null;
-                    bool isPdf = entry.IsPdfEntry && _currentPdfDocument != null;
-                    
-                    if (isPdf)
-                    {
-                        bitmap = await LoadPdfPageBitmapAsync(entry.PdfPageIndex, MainCanvas, token);
-                    }
-
-                    else if (entry.IsArchiveEntry && _currentArchive != null)
-                    {
-                        bitmap = await LoadImageFromArchiveEntryAsync(entry.ArchiveEntryKey!, MainCanvas, token);
-                    }
-                    else if (!entry.IsArchiveEntry && entry.FilePath != null)
-                    {
-                        bitmap = await LoadImageFromPathAsync(entry.FilePath, MainCanvas);
-                    }
-
-                    if (token.IsCancellationRequested)
-                    {
-                        // 만들었는데 취소됐다면 즉시 폐기
-                        bitmap?.Dispose();
-                        return;
-                    }
-
-                    if (bitmap != null)
-                    {
-                        // 2. 샤픈 효과 적용 (PDF 제외)
-                        if (_sharpenEnabled && !entry.IsPdfEntry)
-                        {
-                            var sharpened = await ApplySharpenToBitmapAsync(bitmap, MainCanvas, skipUpscale: false);
-                            if (sharpened != null)
-                            {
-                                bitmap.Dispose(); // 원본은 버리고 샤픈된 것 사용
-                                bitmap = sharpened;
-                            }
-                        }
-
-                        lock (_preloadedImages)
-                        {
-                            // 로딩 끝낸 사이에 이미 누가 넣었는지 더블 체크
-                            if (!_preloadedImages.ContainsKey(index))
-                            {
-                                _preloadedImages[index] = bitmap;
-                            }
-                            else
-                            {
-                                // 늦게 도착한 비트맵은 즉시 폐기
-                                bitmap.Dispose();
-                            }
-                        }
-                    }
-                }
-                catch { }
-                finally
-                {
-                    // 로딩 상태 해제
-                    lock (_loadingIndices) { _loadingIndices.Remove(index); }
-                }
-            }, token));
-        }
-
-        await Task.WhenAll(tasks);
-
-        if (!token.IsCancellationRequested)
-        {
-            // Clean up old preloaded images to save memory
-            CleanupOldPreloadedImages();
-            CleanupOldSharpenedImages();
-        }
-    }
-    catch (Exception ex)
-    {
-        System.Diagnostics.Debug.WriteLine($"Error preloading next images: {ex.Message}");
-    }
-}
-
-        private async Task PreloadPreviousImagesAsync(CancellationToken token)
-        {
-            try
-            {
-                if (_imageEntries.Count == 0) return;
-                if (token.IsCancellationRequested) return;
-
-                var startIndex = _currentPdfDocument != null ? Math.Max(0, _currentIndex - 5) : Math.Max(0, _currentIndex - PreloadCount);
-                var endIndex = _currentPdfDocument != null ? Math.Min(_imageEntries.Count - 1, _currentIndex + 5) : _currentIndex - 1;
-
-                var tasks = new List<Task>();
-
                 for (int i = startIndex; i <= endIndex; i++)
                 {
                     if (token.IsCancellationRequested) break;
 
                     int index = i;
-                    
+                    if (index == _currentIndex) continue;
+
                     // 1. 이미 캐시에 있거나, 2. 현재 로딩 중이라면 스킵
                     bool shouldSkip = false;
                     lock (_preloadedImages) { if (_preloadedImages.ContainsKey(index)) shouldSkip = true; }
-                    
+
                     if (!shouldSkip)
                     {
                         lock (_loadingIndices)
@@ -2867,7 +1722,123 @@ namespace Uviewer
 
                             CanvasBitmap? bitmap = null;
                             bool isPdf = entry.IsPdfEntry && _currentPdfDocument != null;
-                            
+
+                            if (isPdf)
+                            {
+                                bitmap = await LoadPdfPageBitmapAsync(entry.PdfPageIndex, MainCanvas, token);
+                            }
+
+                            else if (entry.IsArchiveEntry && _currentArchive != null)
+                            {
+                                bitmap = await LoadImageFromArchiveEntryAsync(entry.ArchiveEntryKey!, MainCanvas, token);
+                            }
+                            else if (!entry.IsArchiveEntry && entry.FilePath != null)
+                            {
+                                bitmap = await LoadImageFromPathAsync(entry.FilePath, MainCanvas);
+                            }
+
+                            if (token.IsCancellationRequested)
+                            {
+                                // 만들었는데 취소됐다면 즉시 폐기
+                                bitmap?.Dispose();
+                                return;
+                            }
+
+                            if (bitmap != null)
+                            {
+                                // 2. 샤픈 효과 적용 (PDF 제외)
+                                if (_sharpenEnabled && !entry.IsPdfEntry)
+                                {
+                                    var sharpened = await ApplySharpenToBitmapAsync(bitmap, MainCanvas, skipUpscale: false);
+                                    if (sharpened != null)
+                                    {
+                                        bitmap.Dispose(); // 원본은 버리고 샤픈된 것 사용
+                                        bitmap = sharpened;
+                                    }
+                                }
+
+                                lock (_preloadedImages)
+                                {
+                                    // 로딩 끝낸 사이에 이미 누가 넣었는지 더블 체크
+                                    if (!_preloadedImages.ContainsKey(index))
+                                    {
+                                        _preloadedImages[index] = bitmap;
+                                    }
+                                    else
+                                    {
+                                        // 늦게 도착한 비트맵은 즉시 폐기
+                                        bitmap.Dispose();
+                                    }
+                                }
+                            }
+                        }
+                        catch { }
+                        finally
+                        {
+                            // 로딩 상태 해제
+                            lock (_loadingIndices) { _loadingIndices.Remove(index); }
+                        }
+                    }, token));
+                }
+
+                await Task.WhenAll(tasks);
+
+                if (!token.IsCancellationRequested)
+                {
+                    // Clean up old preloaded images to save memory
+                    CleanupOldPreloadedImages();
+                    CleanupOldSharpenedImages();
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error preloading next images: {ex.Message}");
+            }
+        }
+
+        private async Task PreloadPreviousImagesAsync(CancellationToken token)
+        {
+            try
+            {
+                if (_imageEntries.Count == 0) return;
+                if (token.IsCancellationRequested) return;
+
+                var startIndex = _currentPdfDocument != null ? Math.Max(0, _currentIndex - 5) : Math.Max(0, _currentIndex - PreloadCount);
+                var endIndex = _currentPdfDocument != null ? Math.Min(_imageEntries.Count - 1, _currentIndex + 5) : _currentIndex - 1;
+
+                var tasks = new List<Task>();
+
+                for (int i = startIndex; i <= endIndex; i++)
+                {
+                    if (token.IsCancellationRequested) break;
+
+                    int index = i;
+
+                    // 1. 이미 캐시에 있거나, 2. 현재 로딩 중이라면 스킵
+                    bool shouldSkip = false;
+                    lock (_preloadedImages) { if (_preloadedImages.ContainsKey(index)) shouldSkip = true; }
+
+                    if (!shouldSkip)
+                    {
+                        lock (_loadingIndices)
+                        {
+                            if (_loadingIndices.Contains(index)) shouldSkip = true;
+                            else _loadingIndices.Add(index); // 로딩 시작 표시
+                        }
+                    }
+
+                    if (shouldSkip) continue;
+
+                    var entry = _imageEntries[index];
+                    tasks.Add(Task.Run(async () =>
+                    {
+                        try
+                        {
+                            if (token.IsCancellationRequested) return;
+
+                            CanvasBitmap? bitmap = null;
+                            bool isPdf = entry.IsPdfEntry && _currentPdfDocument != null;
+
                             if (isPdf)
                             {
                                 bitmap = await LoadPdfPageBitmapAsync(entry.PdfPageIndex, MainCanvas, token);
