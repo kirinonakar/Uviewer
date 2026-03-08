@@ -250,30 +250,19 @@ namespace Uviewer
         {
             try
             {
+                // Always load metadata first to prevent race conditions and data loss
+                await LoadFavorites();
+                await LoadRecentItems();
+                UpdateFavoritesMenu();
+                UpdateRecentMenu();
+
                 if (!string.IsNullOrEmpty(launchFilePath))
                 {
-                    // [Priority] Process launch path first
+                    // [Priority] Process launch path
                     await ProcessLaunchPathAsync(launchFilePath);
-
-                    // Then load other metadata in background
-                    _ = Task.Run(async () =>
-                    {
-                        await LoadFavorites();
-                        await LoadRecentItems();
-                        DispatcherQueue.TryEnqueue(() =>
-                        {
-                            UpdateFavoritesMenu();
-                            UpdateRecentMenu();
-                        });
-                    });
                 }
                 else
                 {
-                    await LoadFavorites();
-                    UpdateFavoritesMenu();
-                    await LoadRecentItems();
-                    UpdateRecentMenu();
-
                     // Load Pictures folder by default if no path provided
                     LoadExplorerFolder(Environment.GetFolderPath(Environment.SpecialFolder.MyPictures));
                 }
