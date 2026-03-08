@@ -658,8 +658,17 @@ namespace Uviewer
             ToolTipService.SetToolTip(NextPageButton, Strings.NextPageTooltip);
 
             // Texts
-            CurrentPathText.Text = Strings.CurrentPathPlaceholder;
-            FileNameText.Text = Strings.FileSelectPlaceholder;
+            // Only show placeholders when nothing is opened yet.
+            // If a folder/WebDAV path or file is already active, keep the current text.
+            if (string.IsNullOrEmpty(_currentExplorerPath) && string.IsNullOrEmpty(_currentWebDavPath))
+            {
+                CurrentPathText.Text = Strings.CurrentPathPlaceholder;
+            }
+
+            if ((_imageEntries == null || _imageEntries.Count == 0) || _currentIndex < 0)
+            {
+                FileNameText.Text = Strings.FileSelectPlaceholder;
+            }
 
             // Empty State
             if (EmptyStatePanel.Children.Count >= 3)
