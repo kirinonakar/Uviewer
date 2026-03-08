@@ -191,6 +191,29 @@ namespace Uviewer
             CloseCurrentPdf();
             CloseCurrentEpub();
 
+            // Cancel any ongoing preloading and clear cache
+            _preloadCts?.Cancel();
+            _preloadCts?.Dispose();
+            _preloadCts = null;
+            
+            lock (_preloadedImages)
+            {
+                foreach (var bitmap in _preloadedImages.Values)
+                {
+                    bitmap?.Dispose();
+                }
+                _preloadedImages.Clear();
+            }
+
+            lock (_sharpenedImageCache)
+            {
+                foreach (var bitmap in _sharpenedImageCache.Values)
+                {
+                    bitmap?.Dispose();
+                }
+                _sharpenedImageCache.Clear();
+            }
+
             if (isInitial)
             {
                 // [Step 1] FAST LOAD: Display only the selected file first
@@ -277,6 +300,28 @@ namespace Uviewer
             CloseCurrentPdf();
             CloseCurrentEpub();
 
+            // Cancel any ongoing preloading and clear cache
+            _preloadCts?.Cancel();
+            _preloadCts?.Dispose();
+            _preloadCts = null;
+            
+            lock (_preloadedImages)
+            {
+                foreach (var bitmap in _preloadedImages.Values)
+                {
+                    bitmap?.Dispose();
+                }
+                _preloadedImages.Clear();
+            }
+
+            lock (_sharpenedImageCache)
+            {
+                foreach (var bitmap in _sharpenedImageCache.Values)
+                {
+                    bitmap?.Dispose();
+                }
+                _sharpenedImageCache.Clear();
+            }
 
             var files = await folder.GetFilesAsync();
             _imageEntries = files
