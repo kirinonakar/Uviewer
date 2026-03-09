@@ -354,8 +354,9 @@ namespace Uviewer
                     var isArchive = SupportedArchiveExtensions.Contains(ext);
                     var isText = SupportedTextExtensions.Contains(ext);
                     var isEpub = SupportedEpubExtensions.Contains(ext);
+                    var isPdf = SupportedPdfExtensions.Contains(ext);
 
-                    if (item.IsDirectory || isImage || isArchive || isText || isEpub)
+                    if (item.IsDirectory || isImage || isArchive || isText || isEpub || isPdf)
                     {
                         _fileItems.Add(new FileItem
                         {
@@ -366,6 +367,7 @@ namespace Uviewer
                             IsArchive = isArchive,
                             IsText = isText,
                             IsEpub = isEpub,
+                            IsPdf = isPdf,
                             IsWebDav = true,
                             WebDavPath = item.FullPath
                         });
@@ -396,7 +398,7 @@ namespace Uviewer
             {
                 await OpenWebDavArchiveAsync(item);
             }
-            else if (item.IsImage || item.IsText || item.IsEpub)
+            else if (item.IsImage || item.IsText || item.IsEpub || item.IsPdf)
             {
                 await OpenWebDavFileAsync(item);
             }
@@ -408,6 +410,11 @@ namespace Uviewer
         private async Task OpenWebDavFileAsync(FileItem item)
         {
             if (string.IsNullOrEmpty(item.WebDavPath)) return;
+
+            // Close other formats first
+            CloseCurrentPdf();
+            CloseCurrentEpub();
+            SwitchToImageMode();
 
             _currentWebDavItemPath = item.WebDavPath;
             FileNameText.Text = $"다운로드 중: {item.Name}...";
@@ -430,6 +437,10 @@ namespace Uviewer
                 {
                     await LoadImagesFromArchiveAsync(tempPath);
                 }
+                else if (SupportedPdfExtensions.Contains(ext))
+                {
+                    await LoadImagesFromPdfAsync(tempPath);
+                }
                 else
                 {
                     var file = await StorageFile.GetFileFromPathAsync(tempPath);
@@ -450,6 +461,11 @@ namespace Uviewer
         private async Task OpenWebDavArchiveAsync(FileItem item)
         {
             if (string.IsNullOrEmpty(item.WebDavPath)) return;
+
+            // Close other formats first
+            CloseCurrentPdf();
+            CloseCurrentEpub();
+            SwitchToImageMode();
 
             _currentWebDavItemPath = item.WebDavPath;
             FileNameText.Text = $"스트리밍 다운로드 중: {item.Name}...";
