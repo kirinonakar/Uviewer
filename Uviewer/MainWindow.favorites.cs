@@ -230,16 +230,23 @@ namespace Uviewer
 
             string vMark = favorite.IsVertical ? "[V] " : "";
             string posString = "";
-            if (favorite.Path.EndsWith(".epub", StringComparison.OrdinalIgnoreCase))
+
+            bool isImageFile = favorite.Type == "File" && !string.IsNullOrEmpty(favorite.Path) && 
+                               SupportedImageExtensions.Contains(Path.GetExtension(favorite.Path).ToLowerInvariant());
+
+            if (!isImageFile)
             {
-                posString = $" (Ch.{favorite.ChapterIndex + 1} P.{favorite.SavedPage + 1} L.{favorite.SavedLine})";
+                if (favorite.Path.EndsWith(".epub", StringComparison.OrdinalIgnoreCase))
+                {
+                    posString = $" (Ch.{favorite.ChapterIndex + 1} P.{favorite.SavedPage + 1} L.{favorite.SavedLine})";
+                }
+                else if (favorite.Type == "File")
+                {
+                    posString = $" (Line {favorite.SavedLine})";
+                }
+                else if (favorite.SavedPage > 0 || favorite.ChapterIndex > 0) 
+                    posString = $" ({(favorite.ChapterIndex > 0 ? $"Ch.{favorite.ChapterIndex + 1} " : "")}Line {favorite.SavedPage + 1})";
             }
-            else if (favorite.Type == "File")
-            {
-                posString = $" (Line {favorite.SavedLine})";
-            }
-            else if (favorite.SavedPage > 0 || favorite.ChapterIndex > 0) 
-                posString = $" ({(favorite.ChapterIndex > 0 ? $"Ch.{favorite.ChapterIndex + 1} " : "")}Line {favorite.SavedPage + 1})";
 
             // Create vertical container for text content + progress bar
             var contentPanel = new StackPanel 
@@ -289,8 +296,8 @@ namespace Uviewer
             nameRow.Children.Add(nameTextBlock);
             contentPanel.Children.Add(nameRow);
 
-            // Add progress bar for non-folder items
-            if (favorite.Type != "Folder")
+            // Add progress bar for non-folder items (excluding single image files)
+            if (favorite.Type != "Folder" && !isImageFile)
             {
                 var progressRow = new Grid { Margin = new Thickness(0, 3, 0, 0) };
                 progressRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
@@ -362,7 +369,7 @@ namespace Uviewer
             {
                 tooltipText = $"[{favorite.WebDavServerName}] {tooltipText}";
             }
-            if (favorite.Type != "Folder")
+            if (favorite.Type != "Folder" && !isImageFile)
                 tooltipText += $"\n{Strings.ProgressLabel}: {favorite.Progress:F1}%";
             ToolTipService.SetToolTip(contentPanel, tooltipText);
 
@@ -1092,16 +1099,23 @@ namespace Uviewer
 
                 string vMark = recent.IsVertical ? "[V] " : "";
                 string posString = "";
-                if (recent.Path.EndsWith(".epub", StringComparison.OrdinalIgnoreCase))
+
+                bool isImageFile = recent.Type == "File" && !string.IsNullOrEmpty(recent.Path) && 
+                                   SupportedImageExtensions.Contains(Path.GetExtension(recent.Path).ToLowerInvariant());
+
+                if (!isImageFile)
                 {
-                    posString = $" (Ch.{recent.ChapterIndex + 1} P.{recent.SavedPage + 1} L.{recent.SavedLine})";
+                    if (recent.Path.EndsWith(".epub", StringComparison.OrdinalIgnoreCase))
+                    {
+                        posString = $" (Ch.{recent.ChapterIndex + 1} P.{recent.SavedPage + 1} L.{recent.SavedLine})";
+                    }
+                    else if (recent.Type == "File")
+                    {
+                        posString = $" (Line {recent.SavedLine})";
+                    }
+                    else if (recent.SavedPage > 0 || recent.ChapterIndex > 0) 
+                        posString = $" ({(recent.ChapterIndex > 0 ? $"Ch.{recent.ChapterIndex + 1} " : "")}Line {recent.SavedPage + 1})";
                 }
-                else if (recent.Type == "File")
-                {
-                    posString = $" (Line {recent.SavedLine})";
-                }
-                else if (recent.SavedPage > 0 || recent.ChapterIndex > 0) 
-                    posString = $" ({(recent.ChapterIndex > 0 ? $"Ch.{recent.ChapterIndex + 1} " : "")}Line {recent.SavedPage + 1})";
                 
                 // Create vertical container for name + progress bar
                 var contentPanel = new StackPanel
@@ -1129,8 +1143,8 @@ namespace Uviewer
                 }
                 contentPanel.Children.Add(nameTextBlock);
 
-                // Add progress bar for non-folder items
-                if (recent.Type != "Folder")
+                // Add progress bar for non-folder items (excluding single image files)
+                if (recent.Type != "Folder" && !isImageFile)
                 {
                     var progressRow = new Grid { Margin = new Thickness(0, 3, 0, 0) };
                     progressRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
@@ -1198,8 +1212,8 @@ namespace Uviewer
                 }
                 
                 string tooltipText = recent.Path + (string.IsNullOrEmpty(posString) ? "" : $"\n{posString.Trim(' ', '(', ')')}");
-                if (recent.Type != "Folder")
-                    tooltipText += $"\n진행: {recent.Progress:F1}%";
+                if (recent.Type != "Folder" && !isImageFile)
+                    tooltipText += $"\n{Strings.ProgressLabel}: {recent.Progress:F1}%";
                 ToolTipService.SetToolTip(contentPanel, tooltipText);
 
                 // Create a transparent button overlay for clicking
