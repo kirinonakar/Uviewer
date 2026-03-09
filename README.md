@@ -74,7 +74,7 @@
 | | Text | Previous / Next Page |
 | **↑ / ↓** | Global | Previous / Next File |
 | **Home / End** | Image / Archive | First / Last Image |
-| | Text | First / Last Page |
+| | Text / PDF | First / Last Page |
 | | EPUB | Previous / Next Chapter |
 | **Space** | Image | Toggle 2-Page View (Side-by-Side) |
 | **V** | Text / EPUB | Toggle Vertical Mode (Tategaki) |
