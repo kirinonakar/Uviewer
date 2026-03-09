@@ -561,8 +561,8 @@ namespace Uviewer
                     {
                         wasPinned = existing.IsPinned;
 
-                        // [핵심 로직] 핀으로 고정된 항목은 '수동 저장(버튼 클릭 등)'이 아닐 경우 위치 업데이트를 무시합니다.
-                        if (wasPinned && !isManualSave)
+                        // [핵심 로직] '수동 저장(버튼 클릭 등)'이 아닐 경우 위치 업데이트를 무시합니다.
+                        if (!isManualSave)
                         {
                             System.Diagnostics.Debug.WriteLine($"Pinned favorite skipped during auto-save: {existing.Name}");
                             return; 

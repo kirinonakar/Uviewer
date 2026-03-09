@@ -633,7 +633,7 @@ namespace Uviewer
 
             if (ImageInfoText != null)
             {
-                ImageInfoText.Text = $"Line {currentLine} / {totalLines}";
+                ImageInfoText.Text = Strings.LineInfo(currentLine, totalLines);
             }
 
             if (TextProgressText != null)

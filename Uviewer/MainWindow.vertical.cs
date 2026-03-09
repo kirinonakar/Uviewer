@@ -754,7 +754,7 @@ namespace Uviewer
             
             if (_isEpubMode)
             {
-                ImageInfoText.Text = $"Line {currentLine} / {totalLines}";
+                ImageInfoText.Text = Strings.LineInfo(currentLine, totalLines);
 
                 // Calculate global progress for EPUB
                 double totalProgress = 0;

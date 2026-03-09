@@ -1456,6 +1456,16 @@ namespace Uviewer
                 // Refresh UI
                 ApplyLocalization();
                 UpdateLanguageMenuCheckmark();
+
+                // Refresh status bar immediately
+                if (_isTextMode || _isEpubMode || _isAozoraMode || _isVerticalMode)
+                {
+                    UpdateTextStatusBar();
+                }
+                else if (_imageEntries != null && _currentIndex >= 0 && _currentIndex < _imageEntries.Count && _currentBitmap != null)
+                {
+                    UpdateStatusBar(_imageEntries[_currentIndex], _currentBitmap);
+                }
             }
         }
 
@@ -2356,6 +2366,7 @@ namespace Uviewer
             if (!_isTextMode && !_isEpubMode) return;
             if (_isVerticalMode) { UpdateVerticalStatusBar(); return; }
             if (_isAozoraMode) { UpdateAozoraStatusBar(); return; }
+            if (_isEpubMode) { UpdateEpubStatus(); return; }
 
              if (fileName != null) FileNameText.Text = GetFormattedDisplayName(fileName, _currentTextArchiveEntryKey != null);
              
@@ -2370,7 +2381,7 @@ namespace Uviewer
                  double progress = (TextScrollViewer.ExtentHeight > 0) ? (TextScrollViewer.VerticalOffset + TextScrollViewer.ViewportHeight) * 100.0 / TextScrollViewer.ExtentHeight : 0;
                  if (progress > 100) progress = 100;
 
-                 ImageInfoText.Text = $"Line {currentLine} / {total}";
+                 ImageInfoText.Text = Strings.LineInfo(currentLine, total);
                  TextProgressText.Text = $"{progress:F1}%";
 
                  // Update Page Info if calculated

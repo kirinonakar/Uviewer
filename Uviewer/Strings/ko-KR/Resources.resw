@@ -101,7 +101,7 @@
     <value>다음 이미지/페이지</value>
   </data>
   <data name="AozoraTooltip" xml:space="preserve">
-    <value>아오조라문고/md(A)</value>
+    <value>Aozora/md(A)</value>
   </data>
   <data name="FontTooltip" xml:space="preserve">
     <value>폰트 변경(F)</value>
