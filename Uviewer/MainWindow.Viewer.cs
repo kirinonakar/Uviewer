@@ -780,9 +780,32 @@ namespace Uviewer
         {
             if (isArchiveEntry && !string.IsNullOrEmpty(_currentArchivePath))
             {
-                string archiveName = Path.GetFileName(_currentArchivePath);
+                string archivePath = _currentArchivePath;
+                if (archivePath.StartsWith("WebDAV:"))
+                {
+                    archivePath = archivePath.Substring("WebDAV:".Length);
+                }
+                string archiveName = Path.GetFileName(archivePath);
                 return $"{archiveName} - {displayName}";
             }
+
+            if (_isWebDavMode && !string.IsNullOrEmpty(_currentWebDavItemPath))
+            {
+                string realName = Path.GetFileName(_currentWebDavItemPath);
+                
+                if (!string.IsNullOrEmpty(displayName))
+                {
+                    // If displayName contains " - ", preserve the suffix (e.g., PDF pages)
+                    int dashIndex = displayName.IndexOf(" - ");
+                    if (dashIndex > 0)
+                    {
+                        return realName + displayName.Substring(dashIndex);
+                    }
+                    
+                    return realName;
+                }
+            }
+
             return displayName;
         }
 

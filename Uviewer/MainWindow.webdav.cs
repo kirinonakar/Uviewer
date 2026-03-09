@@ -241,7 +241,7 @@ namespace Uviewer
             if (sender is Button btn && btn.Tag is string serverName)
             {
                 WebDavFlyout.Hide();
-                await ConnectToWebDavServerAsync(serverName);
+                await ConnectToWebDavServerAsync(serverName, true);
             }
         }
 
@@ -265,7 +265,7 @@ namespace Uviewer
         /// <summary>
         /// WebDAV 서버 접속 및 루트 폴더 로드
         /// </summary>
-        private async Task ConnectToWebDavServerAsync(string serverName)
+        private async Task ConnectToWebDavServerAsync(string serverName, bool loadRoot = true)
         {
             var serverInfo = _webDavService.LoadServer(serverName);
             if (serverInfo == null)
@@ -293,7 +293,10 @@ namespace Uviewer
                 _currentWebDavPath = "/";
 
                 ShowNotification($"'{serverName}' 연결됨");
-                await LoadWebDavFolderAsync("/");
+                if (loadRoot)
+                {
+                    await LoadWebDavFolderAsync("/");
+                }
             }
             catch (OperationCanceledException) { }
             catch (Exception ex)
@@ -414,6 +417,7 @@ namespace Uviewer
             // Close other formats first
             CloseCurrentPdf();
             CloseCurrentEpub();
+            CloseCurrentArchive();
             SwitchToImageMode();
 
             _currentWebDavItemPath = item.WebDavPath;
@@ -431,7 +435,7 @@ namespace Uviewer
                     return;
                 }
 
-                var ext = Path.GetExtension(item.Name).ToLowerInvariant();
+                var ext = Path.GetExtension(item.WebDavPath ?? item.Name).ToLowerInvariant();
 
                 if (SupportedArchiveExtensions.Contains(ext))
                 {

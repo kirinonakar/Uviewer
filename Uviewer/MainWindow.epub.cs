@@ -372,7 +372,7 @@ namespace Uviewer
                  // 4. Load TOC (Background)
                  _ = ParseEpubTocAsync();
 
-                 FileNameText.Text = file.Name;
+                 FileNameText.Text = GetFormattedDisplayName(file.Name, false);
                  SyncSidebarSelection(new ImageEntry { FilePath = file.Path, DisplayName = file.Name });
              }
              catch (Exception ex)

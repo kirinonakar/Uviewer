@@ -448,7 +448,7 @@ namespace Uviewer
                             }
 
                             fileStream.Position = 0;
-                            System.Diagnostics.Debug.WriteLine($"WebDAV: Large file ({totalRead + bytesRead} bytes) streamed to temp file.");
+                            System.Diagnostics.Debug.WriteLine($"WebDAV: Large file ({totalRead} bytes) streamed to temp file.");
                             return fileStream;
                         }
 
@@ -456,15 +456,21 @@ namespace Uviewer
                     }
 
                     memoryStream.Position = 0;
+                    System.Diagnostics.Debug.WriteLine($"WebDAV: File ({totalRead} bytes) downloaded to memory.");
                     return memoryStream;
                 }
 
-                System.Diagnostics.Debug.WriteLine($"WebDAV download error: {response.StatusCode}");
+                System.Diagnostics.Debug.WriteLine($"WebDAV download error: {response.StatusCode} for {remotePath}");
                 return null;
+            }
+            catch (OperationCanceledException)
+            {
+                System.Diagnostics.Debug.WriteLine("WebDAV download canceled.");
+                throw;
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"WebDAV download error: {ex.Message}");
+                System.Diagnostics.Debug.WriteLine($"WebDAV download exception: {ex.Message} source: {ex.StackTrace}");
                 return null;
             }
         }
@@ -490,22 +496,33 @@ namespace Uviewer
                     return null;
                 }
 
-                var fileName = Path.GetFileName(remotePath.TrimEnd('/'));
-                var tempDir = Path.Combine(Path.GetTempPath(), "Uviewer_WebDav");
-                Directory.CreateDirectory(tempDir);
-                var tempPath = Path.Combine(tempDir, fileName);
-
-                using var fileStream = File.Create(tempPath);
-                await response.Stream.CopyToAsync(fileStream, token);
-
-                return tempPath;
-            }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"WebDAV temp download error: {ex.Message}");
-                return null;
-            }
-        }
+                 var fileName = Path.GetFileName(remotePath.TrimEnd('/'));
+                 var tempDir = Path.Combine(Path.GetTempPath(), "Uviewer_WebDav");
+                 Directory.CreateDirectory(tempDir);
+                 
+                 // Use GUID to avoid file locking collisions
+                 var uniqueFileName = $"{Guid.NewGuid():N}_{fileName}";
+                 var tempPath = Path.Combine(tempDir, uniqueFileName);
+ 
+                 using (var fileStream = File.Create(tempPath))
+                 {
+                     await response.Stream.CopyToAsync(fileStream, token);
+                 }
+ 
+                 System.Diagnostics.Debug.WriteLine($"WebDAV: File downloaded to unique temp path: {tempPath}");
+                 return tempPath;
+             }
+             catch (OperationCanceledException)
+             {
+                 System.Diagnostics.Debug.WriteLine("WebDAV temp download canceled.");
+                 throw;
+             }
+             catch (Exception ex)
+             {
+                 System.Diagnostics.Debug.WriteLine($"WebDAV temp download exception: {ex.Message}");
+                 return null;
+             }
+         }
 
         #endregion
 

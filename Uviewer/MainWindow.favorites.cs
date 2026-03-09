@@ -57,6 +57,8 @@ namespace Uviewer
             public int SavedPage { get; set; } = 0;
             public int ChapterIndex { get; set; } = 0;
             public int SavedLine { get; set; } = 1;
+            public bool IsWebDav { get; set; } = false;
+            public string? WebDavServerName { get; set; }
             public bool IsVertical { get; set; } = false;
             public double Progress { get; set; } = 0; // 0-100 reading progress
         }
@@ -536,16 +538,33 @@ namespace Uviewer
                     {
                         if (path.StartsWith("WebDAV:"))
                             path = path.Substring(7);
+                        
+                        // Use original filename for WebDAV archive
+                        if (!string.IsNullOrEmpty(_currentWebDavItemPath))
+                        {
+                            string origArchiveName = Path.GetFileName(_currentWebDavItemPath);
+                            if (_currentIndex >= 0 && _currentIndex < _imageEntries.Count)
+                            {
+                                name = $"{origArchiveName} - {_imageEntries[_currentIndex].DisplayName}";
+                            }
+                        }
                     }
                     else if (type == "File")
                     {
                         if (!string.IsNullOrEmpty(_currentWebDavItemPath))
+                        {
                             path = _currentWebDavItemPath;
+                            name = Path.GetFileName(_currentWebDavItemPath);
+                        }
                     }
                     else if (type == "Folder")
                     {
                         if (!string.IsNullOrEmpty(_currentWebDavPath))
+                        {
                             path = _currentWebDavPath;
+                            name = Path.GetFileName(path.TrimEnd('/'));
+                            if (string.IsNullOrEmpty(name)) name = _webDavService.CurrentServer.ServerName;
+                        }
                     }
                 }
 
@@ -1121,6 +1140,21 @@ namespace Uviewer
                     Margin = new Thickness(12, 4, 8, 4)
                 };
 
+                // Create horizontal row for icon + name
+                var nameRow = new StackPanel { Orientation = Orientation.Horizontal };
+
+                if (recent.IsWebDav)
+                {
+                    var webIcon = new FontIcon
+                    {
+                        Glyph = "\uE774", // Globe icon
+                        FontSize = 12,
+                        Margin = new Thickness(0, 1, 6, 0),
+                        Foreground = new SolidColorBrush(Microsoft.UI.Colors.CornflowerBlue)
+                    };
+                    nameRow.Children.Add(webIcon);
+                }
+
                 // Create TextBlock for the recent item name with left alignment and tooltip
                 var nameTextBlock = new TextBlock
                 {
@@ -1129,7 +1163,7 @@ namespace Uviewer
                     HorizontalAlignment = HorizontalAlignment.Left,
                     TextTrimming = TextTrimming.CharacterEllipsis,
                     TextWrapping = TextWrapping.NoWrap,
-                    MaxWidth = 340,
+                    MaxWidth = recent.IsWebDav ? 310 : 340,
                     FontSize = 13
                 };
                 if (!string.IsNullOrEmpty(_uiFontFamily) && _uiFontFamily != "Unknown")
@@ -1137,7 +1171,8 @@ namespace Uviewer
                     try { nameTextBlock.FontFamily = new FontFamily(_uiFontFamily); }
                     catch { }
                 }
-                contentPanel.Children.Add(nameTextBlock);
+                nameRow.Children.Add(nameTextBlock);
+                contentPanel.Children.Add(nameRow);
 
                 // Add progress bar for non-folder items (excluding single image files)
                 if (recent.Type != "Folder" && !isImageFile)
@@ -1208,6 +1243,10 @@ namespace Uviewer
                 }
                 
                 string tooltipText = recent.Path + (string.IsNullOrEmpty(posString) ? "" : $"\n{posString.Trim(' ', '(', ')')}");
+                if (recent.IsWebDav && !string.IsNullOrEmpty(recent.WebDavServerName))
+                {
+                    tooltipText = $"[{recent.WebDavServerName}] {tooltipText}";
+                }
                 if (recent.Type != "Folder" && !isImageFile)
                     tooltipText += $"\n{Strings.ProgressLabel}: {recent.Progress:F1}%";
                 ToolTipService.SetToolTip(contentPanel, tooltipText);
@@ -1327,6 +1366,47 @@ namespace Uviewer
 
                 if (string.IsNullOrEmpty(path)) return;
 
+                string? webDavServerName = null;
+                bool isWebDav = false;
+
+                if (_isWebDavMode && _webDavService.CurrentServer != null)
+                {
+                    isWebDav = true;
+                    webDavServerName = _webDavService.CurrentServer.ServerName;
+
+                    if (type == "Archive")
+                    {
+                        if (path.StartsWith("WebDAV:"))
+                            path = path.Substring(7);
+
+                        if (!string.IsNullOrEmpty(_currentWebDavItemPath))
+                        {
+                            string origArchiveName = Path.GetFileName(_currentWebDavItemPath);
+                            if (_currentIndex >= 0 && _currentIndex < _imageEntries.Count)
+                            {
+                                name = $"{origArchiveName} - {_imageEntries[_currentIndex].DisplayName}";
+                            }
+                        }
+                    }
+                    else if (type == "File")
+                    {
+                        if (!string.IsNullOrEmpty(_currentWebDavItemPath))
+                        {
+                            path = _currentWebDavItemPath;
+                            name = Path.GetFileName(_currentWebDavItemPath);
+                        }
+                    }
+                    else if (type == "Folder")
+                    {
+                        if (!string.IsNullOrEmpty(_currentWebDavPath))
+                        {
+                            path = _currentWebDavPath;
+                            name = Path.GetFileName(path.TrimEnd('/'));
+                            if (string.IsNullOrEmpty(name)) name = _webDavService.CurrentServer.ServerName;
+                        }
+                    }
+                }
+
                 // 2. 기존 기록이 있는지 확인
                 RecentItem? existing = _recentItems.FirstOrDefault(r =>
                     r.Path.Equals(path, StringComparison.OrdinalIgnoreCase) &&
@@ -1430,6 +1510,8 @@ namespace Uviewer
                     SavedPage = targetPage,
                     ChapterIndex = targetChapter,
                     SavedLine = targetLine,
+                    IsWebDav = isWebDav,
+                    WebDavServerName = webDavServerName,
                     IsVertical = _isVerticalMode,
                     Progress = saveCurrentPosition ? GetCurrentProgress() : (existing?.Progress ?? 0)
                 };
@@ -1476,9 +1558,10 @@ namespace Uviewer
             int targetLine = recent.SavedLine;
             string targetType = recent.Type;
             string targetPath = recent.Path;
-            int targetChapter = recent.ChapterIndex;
             int targetPage = recent.SavedPage;
             string? targetArchiveKey = recent.ArchiveEntryKey;
+            string targetName = recent.Name;
+            int targetChapter = recent.ChapterIndex;
 
             try
             {
@@ -1488,6 +1571,93 @@ namespace Uviewer
 
                 // 3. [잠금] 이제부터 파일 로드가 완료될 때까지 자동 저장 기능을 차단
                 _isNavigatingRecent = true;
+
+                if (recent.IsWebDav && !string.IsNullOrEmpty(recent.WebDavServerName))
+                {
+                    try
+                    {
+                        if (!_isWebDavMode || _webDavService.CurrentServer?.ServerName != recent.WebDavServerName)
+                        {
+                            await ConnectToWebDavServerAsync(recent.WebDavServerName, false);
+                            if (!_isWebDavMode) return;
+                        }
+
+                        var fileItem = new FileItem
+                        {
+                            Name = targetName,
+                            WebDavPath = targetPath,
+                            IsWebDav = true,
+                            IsDirectory = targetType == "Folder",
+                            IsArchive = targetType == "Archive",
+                        };
+                        string ext = Path.GetExtension(targetPath).ToLowerInvariant();
+                        fileItem.IsImage = SupportedImageExtensions.Contains(ext);
+                        fileItem.IsText = SupportedTextExtensions.Contains(ext);
+                        fileItem.IsEpub = SupportedEpubExtensions.Contains(ext);
+                        fileItem.IsPdf = SupportedPdfExtensions.Contains(ext);
+
+                        if (targetType != "Folder")
+                        {
+                            var parentPath = Path.GetDirectoryName(targetPath)?.Replace("\\", "/");
+                            if (!string.IsNullOrEmpty(parentPath))
+                            {
+                                if (!parentPath.StartsWith("/")) parentPath = "/" + parentPath;
+                                // WebDAV는 폴더 구분자가 /로 끝나야 함 (서비스에서 처리하지만 여기서도 보정)
+                                if (!parentPath.EndsWith("/")) parentPath += "/";
+                                await LoadWebDavFolderAsync(parentPath);
+                            }
+                            else await LoadWebDavFolderAsync("/");
+                        }
+
+                        if (targetType == "Folder")
+                        {
+                            await LoadWebDavFolderAsync(targetPath);
+                        }
+                        else if (targetType == "Archive")
+                        {
+                            await OpenWebDavArchiveAsync(fileItem);
+                            if (!string.IsNullOrEmpty(targetArchiveKey))
+                            {
+                                var entryIndex = _imageEntries.FindIndex(e => e.ArchiveEntryKey == targetArchiveKey);
+                                if (entryIndex >= 0)
+                                {
+                                    _currentIndex = entryIndex;
+                                    await DisplayCurrentImageAsync();
+                                    if (targetOffset.HasValue && TextScrollViewer != null)
+                                    {
+                                        await Task.Delay(100);
+                                        TextScrollViewer.ChangeView(null, targetOffset.Value, null);
+                                        UpdateTextStatusBar();
+                                    }
+                                }
+                            }
+                        }
+                        else
+                        {
+                            if (fileItem.IsEpub)
+                            {
+                                PendingEpubChapterIndex = targetChapter;
+                                PendingEpubPageIndex = targetPage;
+                            }
+                            else if (fileItem.IsText)
+                            {
+                                _aozoraPendingTargetLine = targetLine > 1 ? targetLine : (targetPage > 0 ? -targetPage : 1);
+                            }
+                            else if (fileItem.IsPdf)
+                            {
+                                _pendingPdfPageIndex = targetPage;
+                            }
+                            await OpenWebDavFileAsync(fileItem);
+                        }
+                        return;
+                    }
+                    catch (Exception ex)
+                    {
+                        System.Diagnostics.Debug.WriteLine($"Error opening WebDAV recent: {ex.Message}");
+                        ShowNotification($"WebDAV 최근 항목 열기 실패: {ex.Message}");
+                        return;
+                    }
+                }
 
                 switch (targetType)
                 {
