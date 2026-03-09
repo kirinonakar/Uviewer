@@ -39,6 +39,7 @@ namespace Uviewer
 
         // Fullscreen
         private bool _isFullscreen = false;
+        private bool _wasMaximizedBeforeFullscreen = false;
         private bool _isSidebarVisible = true;
         private const double FullscreenTopHoverZone = 80;
         private const double FullscreenLeftHoverZone = 60;
@@ -402,14 +403,17 @@ namespace Uviewer
                 bool hasLoadedSettings = LoadWindowSettings(appWindow2);
                 if (!hasLoadedSettings)
                 {
-                    // 설정 파일이 없으면 기본 사이즈 적용 및 변수 초기화
+                    // 설정 파일이 없으면 기본 사이즈 적용 및 중앙 정렬
+                    var primaryArea = Microsoft.UI.Windowing.DisplayArea.Primary;
                     var defaultSize = new Windows.Graphics.SizeInt32(1200, 800);
                     appWindow2.Resize(defaultSize);
+                    
+                    var centerX = (primaryArea.WorkArea.Width - defaultSize.Width) / 2;
+                    var centerY = (primaryArea.WorkArea.Height - defaultSize.Height) / 2;
+                    appWindow2.Move(new Windows.Graphics.PointInt32(centerX, centerY));
 
                     // 현재 위치와 크기를 초기값으로 저장
-                    _lastNonMaximizedRect = new Windows.Graphics.RectInt32(
-                        appWindow2.Position.X, appWindow2.Position.Y,
-                        defaultSize.Width, defaultSize.Height);
+                    _lastNonMaximizedRect = new Windows.Graphics.RectInt32(centerX, centerY, defaultSize.Width, defaultSize.Height);
                 }
 
                 // Initialize button states
@@ -721,21 +725,30 @@ namespace Uviewer
 
                 if (sender.Presenter is OverlappedPresenter overlapped)
                 {
-                    // [수정] Restored 상태여야 함은 물론, 
-                    // 시스템이 최대화를 위해 창을 옮기는 특이 좌표를 무시해야 합니다.
+                    // [수정] Restored 상태여야 함은 물론, 시스템 좌표(-8, -8 등)가 튀는 것을 방지
                     if (overlapped.State == OverlappedPresenterState.Restored)
                     {
-                        // 보통 일반적인 창은 화면 구석에 딱 붙여도 -8(베젤 두께) 이하로 내려가지 않습니다.
-                        // 최대화 시 발생하는 시스템 좌표(예: -8, -8)와 겹치지 않게 가드라인을 칩니다.
                         var pos = sender.Position;
                         var size = sender.Size;
 
-                        // 너무 비정상적인 위치나 크기는 저장하지 않도록 제한
-                        if (size.Width > 0 && size.Height > 0)
+                        // 비정상적인 크기나 위치는 무시 (최소 크기 가드)
+                        if (size.Width >= 100 && size.Height >= 100)
                         {
-                            // [핵심] 현재 위치/크기를 바로 저장하지 않고 
-                            // 실제 "사용자가 마우스로 조절 중인" 상태인지 체크하는 효과
-                            _lastNonMaximizedRect = new Windows.Graphics.RectInt32(pos.X, pos.Y, size.Width, size.Height);
+                            // 최대화 시 발생하는 시스템 좌표(-8, -8)가 Restored 상태로 보고되는 경우가 있으므로 
+                            // 해당 좌표가 실제 화면 영역 내에 유효하게 걸쳐있는지 최종 확인
+                            var currentRect = new Windows.Graphics.RectInt32(pos.X, pos.Y, size.Width, size.Height);
+                            var area = Microsoft.UI.Windowing.DisplayArea.GetFromRect(currentRect, Microsoft.UI.Windowing.DisplayAreaFallback.None);
+                            
+                            if (area != null)
+                            {
+                                // [수정] 현재 모니터의 WorkArea보다 살짝이라도 벗어나는(음수 좌표 등) 경우는 
+                                // 시스템이 최대화/전환을 위해 일시적으로 설정한 좌표일 확률이 높으므로 저장하지 않습니다.
+                                if (pos.X >= area.WorkArea.X && pos.Y >= area.WorkArea.Y &&
+                                    size.Width <= area.WorkArea.Width && size.Height <= area.WorkArea.Height)
+                                {
+                                    _lastNonMaximizedRect = currentRect;
+                                }
+                            }
                         }
                     }
                 }
@@ -802,6 +815,10 @@ namespace Uviewer
             else
             {
                 // Enter fullscreen
+                if (appWindow.Presenter is OverlappedPresenter overlapped)
+                {
+                    _wasMaximizedBeforeFullscreen = overlapped.State == OverlappedPresenterState.Maximized;
+                }
                 appWindow.SetPresenter(AppWindowPresenterKind.FullScreen);
                 AppTitleBar.Visibility = Visibility.Collapsed;
                 ToolbarGrid.Visibility = Visibility.Collapsed;

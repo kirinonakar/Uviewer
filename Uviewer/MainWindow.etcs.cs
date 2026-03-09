@@ -300,16 +300,12 @@ namespace Uviewer
         {
             try
             {
-                // 1. 현재 모니터의 해상도 정보 먼저 가져오기 (기본값 계산용)
-                var displayArea = Microsoft.UI.Windowing.DisplayArea.GetFromWindowId(appWindow.Id, Microsoft.UI.Windowing.DisplayAreaFallback.Primary);
-                int screenWidth = displayArea.WorkArea.Width;
-                int screenHeight = displayArea.WorkArea.Height;
-
-                // 모니터 해상도의 70% 크기 계산
-                int defaultWidth = (int)(screenWidth * 0.7);
-                int defaultHeight = (int)(screenHeight * 0.7);
-                int defaultX = (screenWidth - defaultWidth) / 2;
-                int defaultY = (screenHeight - defaultHeight) / 2;
+                // 1. 기본 해상도 정보 (파일이 없거나 오류 시 사용할 기본값)
+                var primaryArea = Microsoft.UI.Windowing.DisplayArea.Primary;
+                int defaultWidth = (int)(primaryArea.WorkArea.Width * 0.7);
+                int defaultHeight = (int)(primaryArea.WorkArea.Height * 0.7);
+                int defaultX = (primaryArea.WorkArea.Width - defaultWidth) / 2;
+                int defaultY = (primaryArea.WorkArea.Height - defaultHeight) / 2;
 
                 if (File.Exists(_windowSettingsFile))
                 {
@@ -320,23 +316,32 @@ namespace Uviewer
                         int.TryParse(lines[2], out int width) &&
                         int.TryParse(lines[3], out int height))
                     {
-                        // 2. [검사] 저장된 크기가 해상도의 90%를 초과하는지 확인
-                        if (width > screenWidth * 0.9 || height > screenHeight * 0.9)
+                        // 2. [수정] 현재 모니터가 아닌, 저장된 좌표가 속한 모니터를 찾아야 함
+                        var savedRect = new Windows.Graphics.RectInt32(x, y, width, height);
+                        var targetArea = Microsoft.UI.Windowing.DisplayArea.GetFromRect(savedRect, Microsoft.UI.Windowing.DisplayAreaFallback.Nearest);
+                        
+                        int screenWidth = targetArea.WorkArea.Width;
+                        int screenHeight = targetArea.WorkArea.Height;
+
+                        // 3. [검사] 저장된 크기가 해당 모니터 해상도를 완전히 벗어나는지 확인 (여기서는 100%로 완화)
+                        if (width > screenWidth || height > screenHeight)
                         {
-                            System.Diagnostics.Debug.WriteLine("Window size too large. Resetting to 70% of screen.");
-                            width = defaultWidth;
-                            height = defaultHeight;
-                            x = defaultX;
-                            y = defaultY;
-                        }
-                        else
-                        {
-                            // 최소 크기 제한만 적용
-                            width = Math.Max(400, width);
-                            height = Math.Max(300, height);
+                            System.Diagnostics.Debug.WriteLine("Window size larger than screen. Capping to screen size.");
+                            width = Math.Min(width, screenWidth);
+                            height = Math.Min(height, screenHeight);
                         }
 
-                        // 3. 설정 적용
+                        // 좌표가 화면 밖으로 완전히 나갔는지 확인하여 조정
+                        if (x + width < targetArea.WorkArea.X || x > targetArea.WorkArea.X + screenWidth)
+                            x = targetArea.WorkArea.X + (screenWidth - width) / 2;
+                        if (y + height < targetArea.WorkArea.Y || y > targetArea.WorkArea.Y + screenHeight)
+                            y = targetArea.WorkArea.Y + (screenHeight - height) / 2;
+
+                        // 최소 크기 제한
+                        width = Math.Max(400, width);
+                        height = Math.Max(300, height);
+
+                        // 4. 설정 적용
                         _lastNonMaximizedRect = new Windows.Graphics.RectInt32(x, y, width, height);
                         appWindow.MoveAndResize(_lastNonMaximizedRect);
 
@@ -426,7 +431,12 @@ namespace Uviewer
                 bool isMaximized = false;
 
                 // 1. 현재 최대화 상태인지 확인
-                if (!_isFullscreen && appWindow.Presenter is OverlappedPresenter overlapped)
+                if (_isFullscreen)
+                {
+                    // 전체화면 중 종료 시, 전체화면 진입 전의 최대화 여부를 따름
+                    isMaximized = _wasMaximizedBeforeFullscreen;
+                }
+                else if (appWindow.Presenter is OverlappedPresenter overlapped)
                 {
                     isMaximized = overlapped.State == OverlappedPresenterState.Maximized;
                 }
