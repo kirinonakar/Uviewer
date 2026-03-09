@@ -138,14 +138,22 @@ namespace Uviewer
                 // Remove oldest entries if cache is full
                 if (_sharpenedImageCache.Count >= MaxSharpenedCacheSize)
                 {
-                    var keysToRemove = _sharpenedImageCache.Keys.Take(_sharpenedImageCache.Count - MaxSharpenedCacheSize + 1).ToList();
+                    // Remove items furthest from current index that are not currently displayed
+                    var keysToRemove = _sharpenedImageCache.Keys
+                        .OrderByDescending(k => Math.Abs(k - _currentIndex))
+                        .Take(_sharpenedImageCache.Count - MaxSharpenedCacheSize + 1)
+                        .ToList();
+
                     foreach (var key in keysToRemove)
                     {
                         if (_sharpenedImageCache.TryGetValue(key, out var bitmap))
                         {
-                            bitmap?.Dispose();
+                            if (!IsBitmapInCache(bitmap))
+                            {
+                                bitmap?.Dispose();
+                                _sharpenedImageCache.Remove(key);
+                            }
                         }
-                        _sharpenedImageCache.Remove(key);
                     }
                 }
 

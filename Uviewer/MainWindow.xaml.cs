@@ -1928,7 +1928,7 @@ namespace Uviewer
                 {
                     if (_preloadedImages.TryGetValue(key, out var bitmap))
                     {
-                        if (bitmap != _currentBitmap)
+                        if (!IsBitmapInCache(bitmap))
                         {
                             bitmap?.Dispose();
                         }
@@ -1951,7 +1951,10 @@ namespace Uviewer
                 {
                     if (_sharpenedImageCache.TryGetValue(key, out var bitmap))
                     {
-                        bitmap?.Dispose();
+                        if (!IsBitmapInCache(bitmap))
+                        {
+                            bitmap?.Dispose();
+                        }
                     }
                     _sharpenedImageCache.Remove(key);
                 }

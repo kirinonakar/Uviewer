@@ -280,7 +280,7 @@ namespace Uviewer
         private bool IsBitmapInCache(CanvasBitmap bitmap)
         {
             if (bitmap == null) return false;
-            if (bitmap == _currentBitmap) return true;
+            if (bitmap == _currentBitmap || bitmap == _leftBitmap || bitmap == _rightBitmap) return true;
 
             lock (_preloadedImages)
             {
