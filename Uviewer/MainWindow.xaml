@@ -113,7 +113,11 @@
                 </ToggleButton>
                 <ToggleButton x:Name="PinButton" Click="PinButton_Click" IsChecked="True" Background="Transparent" BorderThickness="0" Padding="4" Margin="4,0,0,0"
                               ToolTipService.ToolTip="UI 고정/자동숨김 (`)">
-                    <FontIcon x:Name="PinIcon" Glyph="&#xE718;" FontSize="18"/>
+                    <FontIcon x:Name="PinIcon" Glyph="&#xE890;" FontSize="18"/>
+                </ToggleButton>
+                <ToggleButton x:Name="AlwaysOnTopButton" Click="AlwaysOnTopButton_Click" Background="Transparent" BorderThickness="0" Padding="4" Margin="4,0,0,0"
+                              ToolTipService.ToolTip="항상 위 (T)">
+                    <FontIcon x:Name="AlwaysOnTopIcon" Glyph="&#xE718;" FontSize="18"/>
                 </ToggleButton>
             </StackPanel>
 

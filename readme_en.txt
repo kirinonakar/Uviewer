@@ -14,6 +14,6 @@
 [Installation]
 1. Download the distribution ZIP file.
 2. Unzip it to any folder.
-3. Run `Uviewer-v1.1.8-x64.exe`.
+3. Run `Uviewer-vx.x.x-x64.exe`.
 [Uninstallation]
 - Please uninstall from "Settings > Apps > Installed apps" (or "Add or remove programs" in Control Panel).

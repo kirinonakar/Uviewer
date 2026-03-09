@@ -371,4 +371,7 @@
   <data name="PinTooltip" xml:space="preserve">
     <value>UI 고정/자동숨김 (`)</value>
   </data>
+  <data name="AlwaysOnTopTooltip" xml:space="preserve">
+    <value>항상 위 (T)</value>
+  </data>
 </root>

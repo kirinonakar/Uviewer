@@ -82,6 +82,7 @@
 | **Esc** | Global | Close Window / Exit Fullscreen |
 | **F11** | Global | Toggle Fullscreen |
 | **`** | Global | Toggle Pin (Auto-Hide UI) |
+| **T** | Global | Toggle Always on Top |
 | **Ctrl + O** | Global | Open File |
 | **Ctrl + B** | Global | Toggle Sidebar |
 | **Ctrl + F** | Global | Toggle Favorites |

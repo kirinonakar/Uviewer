@@ -70,6 +70,7 @@ namespace Uviewer
         private bool _isSeamlessScroll = false;
         private bool _allowMultipleInstances = true;
         private bool _isPinned = true; // Pin toggle: true = UI fixed, false = auto-hide
+        private bool _isAlwaysOnTop = false;
 
         // 컨트롤 반전 로직 수정:
         // - Match Control Direction이 켜져 있고 Next Image가 왼쪽인 경우
@@ -646,6 +647,7 @@ namespace Uviewer
             ToolTipService.SetToolTip(PdfGoToPageButton, Strings.PdfGoToPageTooltip);
             ToolTipService.SetToolTip(SettingsButton, Strings.SettingsTooltip);
             ToolTipService.SetToolTip(PinButton, Strings.PinTooltip);
+            ToolTipService.SetToolTip(AlwaysOnTopButton, Strings.AlwaysOnTopTooltip);
             UpdateThemeToggleButtonTooltip();
             ToolTipService.SetToolTip(PrevFileButton, Strings.PrevFileTooltip);
             ToolTipService.SetToolTip(NextFileButton, Strings.NextFileTooltip);
@@ -784,6 +786,12 @@ namespace Uviewer
                 // Exit fullscreen
                 appWindow.SetPresenter(AppWindowPresenterKind.Default);
                 _isFullscreen = false;
+
+                // Restore Always on Top state
+                if (appWindow.Presenter is OverlappedPresenter op)
+                {
+                    op.IsAlwaysOnTop = _isAlwaysOnTop;
+                }
 
                 if (_isPinned)
                 {
@@ -1049,7 +1057,7 @@ namespace Uviewer
 
             _isPinned = !_isPinned;
             PinButton.IsChecked = _isPinned;
-            PinIcon.Glyph = _isPinned ? "\uE718" : "\uE77A"; // Pin / Unpin icon
+            PinIcon.Glyph = _isPinned ? "\uE890" : "\uE890"; // Eye / EyeOff icon
 
             if (_isPinned)
             {
@@ -1085,6 +1093,24 @@ namespace Uviewer
                 SidebarColumn.Width = new GridLength(0);
             }
 
+            SaveWindowSettings();
+        }
+
+        private void AlwaysOnTopButton_Click(object sender, RoutedEventArgs e)
+        {
+            ToggleAlwaysOnTop();
+        }
+
+        private void ToggleAlwaysOnTop()
+        {
+            _isAlwaysOnTop = !_isAlwaysOnTop;
+            if (AlwaysOnTopButton != null) AlwaysOnTopButton.IsChecked = _isAlwaysOnTop;
+
+            var appWindow = this.AppWindow;
+            if (appWindow != null && appWindow.Presenter is OverlappedPresenter overlapped)
+            {
+                overlapped.IsAlwaysOnTop = _isAlwaysOnTop;
+            }
             SaveWindowSettings();
         }
 

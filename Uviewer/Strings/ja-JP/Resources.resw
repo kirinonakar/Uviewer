@@ -371,4 +371,7 @@
   <data name="PinTooltip" xml:space="preserve">
     <value>UI固定/自動非表示 (`)</value>
   </data>
+  <data name="AlwaysOnTopTooltip" xml:space="preserve">
+    <value>常に最前面に表示 (T)</value>
+  </data>
 </root>
