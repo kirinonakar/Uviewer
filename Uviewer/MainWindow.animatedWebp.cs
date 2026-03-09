@@ -59,7 +59,7 @@ namespace Uviewer
 
                 if (shouldUpscale)
                 {
-                    // --- 저해상도: 노이즈 억제 + 1.5배 업스케일 ---
+                    // --- 저해상도: 노이즈 억제 + 2배 업스케일 ---
                     var deNoiseEffect = new GaussianBlurEffect
                     {
                         Source = originalBitmap,
@@ -67,8 +67,8 @@ namespace Uviewer
                         Optimization = EffectOptimization.Balanced
                     };
 
-                    finalWidth *= 1.5f;
-                    finalHeight *= 1.5f;
+                    finalWidth *= 2f;
+                    finalHeight *= 2f;
                     var upscaledSize = new Windows.Foundation.Size(finalWidth, finalHeight);
 
                     var upscaledTarget = new CanvasRenderTarget(canvas, upscaledSize);
