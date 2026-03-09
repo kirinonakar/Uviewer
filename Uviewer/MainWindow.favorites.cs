@@ -453,7 +453,8 @@ namespace Uviewer
             return itemGrid;
         }
 
-        private async Task AddToFavoritesAsync()
+        // [수정] 수동 저장 여부를 구분하기 위해 isManualSave 파라미터 추가 (기본값 true)
+        private async Task AddToFavoritesAsync(bool isManualSave = true)
         {
             try
             {
@@ -479,7 +480,6 @@ namespace Uviewer
 
                 if (_isTextMode && !string.IsNullOrEmpty(_currentTextFilePath))
                 {
-                    // Text File mode
                     name = Path.GetFileName(_currentTextFilePath);
                     path = _currentTextFilePath;
                     type = "File";
@@ -487,7 +487,6 @@ namespace Uviewer
                 }
                 else if (_isEpubMode && !string.IsNullOrEmpty(_currentEpubFilePath))
                 {
-                    // Epub Mode
                     name = Path.GetFileName(_currentEpubFilePath);
                     path = _currentEpubFilePath;
                     type = "File";
@@ -495,7 +494,6 @@ namespace Uviewer
                 }
                 else if (_currentArchive != null && !string.IsNullOrEmpty(_currentArchivePath))
                 {
-                    // Archive mode - add current image position
                     if (_currentIndex >= 0 && _currentIndex < _imageEntries.Count)
                     {
                         var currentEntry = _imageEntries[_currentIndex];
@@ -503,15 +501,11 @@ namespace Uviewer
                         path = _currentArchivePath;
                         type = "Archive";
                         archiveEntryKey = currentEntry.ArchiveEntryKey;
-
-                        // Also add the archive folder as a separate bookmark
                         CheckAndAddFolderToFavorites(Path.GetDirectoryName(_currentArchivePath));
                     }
                 }
                 else if (_currentIndex >= 0 && _currentIndex < _imageEntries.Count)
                 {
-                    // File mode - add current file (Prioritize File over Folder)
-                    // Note: This often covers Image files in the list
                     var currentEntry = _imageEntries[_currentIndex];
                     if (!string.IsNullOrEmpty(currentEntry.FilePath))
                     {
@@ -523,7 +517,6 @@ namespace Uviewer
                 }
                 else if (!string.IsNullOrEmpty(_currentExplorerPath))
                 {
-                    // Folder mode - add current folder (Only if no file is open)
                     name = Path.GetFileName(_currentExplorerPath);
                     if (string.IsNullOrEmpty(name))
                         name = _currentExplorerPath;
@@ -531,7 +524,6 @@ namespace Uviewer
                     type = "Folder";
                 }
 
-                // [추가] WebDAV 모드인 경우 경로 및 속성 재설정
                 string? webDavServerName = null;
                 bool isWebDav = false;
 
@@ -542,36 +534,40 @@ namespace Uviewer
                     
                     if (type == "Archive")
                     {
-                        // Archive 모드에서는 _currentArchivePath가 "WebDAV:/path" 형식이므로 접두어 제거
                         if (path.StartsWith("WebDAV:"))
                             path = path.Substring(7);
                     }
                     else if (type == "File")
                     {
-                        // File 모드(이미지/텍스트/epub)에서는 로컬 임시 경로 대신 WebDAV 경로 사용
                         if (!string.IsNullOrEmpty(_currentWebDavItemPath))
                             path = _currentWebDavItemPath;
                     }
                     else if (type == "Folder")
                     {
-                        // Folder 모드에서는 현재 WebDAV 폴더 경로 사용
                         if (!string.IsNullOrEmpty(_currentWebDavPath))
                             path = _currentWebDavPath;
                     }
-
-                    // WebDAV의 경우 부모 폴더 자동 추가는 로직이 복잡하므로 일단 생략하거나 추후 구현
                 }
 
                 System.Diagnostics.Debug.WriteLine($"Final values - Name: '{name}', Path: '{path}', Type: '{type}'");
 
                 if (!string.IsNullOrEmpty(name) && !string.IsNullOrEmpty(path))
                 {
-                    // Check if already exists - for archives, now also check only path to replace existing entry
                     FavoriteItem? existing = _favorites.FirstOrDefault(f => f.Path == path && f.Type == type);
-
+                    
+                    bool wasPinned = false; // [추가] 기존 핀 상태를 기억하기 위한 변수
 
                     if (existing != null)
                     {
+                        wasPinned = existing.IsPinned;
+
+                        // [핵심 로직] 핀으로 고정된 항목은 '수동 저장(버튼 클릭 등)'이 아닐 경우 위치 업데이트를 무시합니다.
+                        if (wasPinned && !isManualSave)
+                        {
+                            System.Diagnostics.Debug.WriteLine($"Pinned favorite skipped during auto-save: {existing.Name}");
+                            return; 
+                        }
+
                         System.Diagnostics.Debug.WriteLine($"Favorite already exists: {existing.Name}. Updating position.");
                         _favorites.Remove(existing);
                     }
@@ -584,7 +580,7 @@ namespace Uviewer
                         if (_isVerticalMode && _verticalPageInfos.Count > 0 && _currentVerticalPageIndex >= 0 && _currentVerticalPageIndex < _verticalPageInfos.Count)
                         {
                             savedLine = _verticalPageInfos[_currentVerticalPageIndex].StartLine;
-                            savedPage = 0; // Use line for restoration in vertical mode
+                            savedPage = 0; 
                         }
                         else if (EpubSelectedItem is Grid g && g.Tag is EpubPageInfoTag tag)
                         {
@@ -611,7 +607,6 @@ namespace Uviewer
                         savedPage = _currentIndex;
                     }
 
-                    // Calculate progress using already-computed position values
                     double calcProgress = 0;
                     int chapterIndex = _isEpubMode ? CurrentEpubChapterIndex : 0;
                     if (_isEpubMode && _epubSpine.Count > 0)
@@ -649,7 +644,8 @@ namespace Uviewer
                         IsWebDav = isWebDav,
                         WebDavServerName = webDavServerName,
                         IsVertical = _isVerticalMode,
-                        Progress = Math.Max(calcProgress, 0)
+                        Progress = Math.Max(calcProgress, 0),
+                        IsPinned = wasPinned // [추가] 덮어쓰기 전의 핀 고정 상태를 그대로 인계합니다.
                     };
 
                     _favorites.Add(favorite);
