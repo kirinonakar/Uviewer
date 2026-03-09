@@ -20,6 +20,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Runtime.InteropServices;
 using System.Diagnostics.CodeAnalysis;
+using Microsoft.Windows.AppLifecycle;
 
 // To learn more about WinUI, the WinUI project structure,
 // and more about our project templates, see: http://aka.ms/winui-project-info.
@@ -223,6 +224,7 @@ namespace Uviewer
             if (_isComActivation) return;
             try
             {
+                RegisterFileAssociations();
                 _window = new MainWindow(LaunchFilePath);
                 _window.Activate();
             }
@@ -230,6 +232,24 @@ namespace Uviewer
             {
                 System.Diagnostics.Debug.WriteLine($"Error launching window: {ex.Message}\n{ex.StackTrace}");
                 MessageBox(IntPtr.Zero, $"Critical Error Launching App:\n{ex.Message}\n\n{ex.StackTrace}", "Uviewer Startup Error", 0x10);
+            }
+        }
+
+        private void RegisterFileAssociations()
+        {
+            try
+            {
+                string[] extensions = { 
+                    ".jpg", ".jpeg", ".png", ".bmp", ".gif", ".webp", ".avif", ".jxl", ".ico", ".tiff", ".tif", 
+                    ".txt", ".html", ".htm", ".md", ".xml", 
+                    ".zip", ".rar", ".7z", ".tar", ".gz", ".cbz", ".cbr", 
+                    ".epub", ".pdf" 
+                };
+                ActivationRegistrationManager.RegisterForFileTypeActivation(extensions, null, "Uviewer File", null, "");
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error registering file associations: {ex.Message}");
             }
         }
     }
