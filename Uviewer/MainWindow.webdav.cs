@@ -325,7 +325,10 @@ namespace Uviewer
 
                 CurrentPathText.Text = $"WebDAV: {_webDavService.CurrentServer.ServerName}{remotePath}";
 
+                ClearImageResources();
                 _fileItems.Clear();
+                _imageEntries.Clear();
+                _currentIndex = -1;
 
                 // 상위 폴더 항목
                 if (remotePath != "/")
@@ -421,6 +424,7 @@ namespace Uviewer
             SwitchToImageMode();
 
             _currentWebDavItemPath = item.WebDavPath;
+            ClearImageResources();
             FileNameText.Text = $"다운로드 중: {item.Name}...";
 
             _webDavCts?.Cancel();
@@ -445,10 +449,36 @@ namespace Uviewer
                 {
                     await LoadImagesFromPdfAsync(tempPath);
                 }
-                else
+                else if (SupportedEpubExtensions.Contains(ext))
                 {
                     var file = await StorageFile.GetFileFromPathAsync(tempPath);
-                    await LoadImageFromFileAsync(file);
+                    await LoadEpubFileAsync(file);
+                }
+                else
+                {
+                    // Image or Text file - support sequential navigation
+                    var viewableItems = _fileItems.Where(f => (f.IsImage || f.IsText) && !f.IsDirectory).ToList();
+                    _imageEntries = viewableItems.Select(f => new ImageEntry 
+                    { 
+                        DisplayName = f.Name, 
+                        WebDavPath = f.WebDavPath 
+                    }).ToList();
+                    
+                    _currentIndex = _imageEntries.FindIndex(e => e.WebDavPath == item.WebDavPath);
+                    
+                    if (_currentIndex >= 0)
+                    {
+                        _imageEntries[_currentIndex].FilePath = tempPath;
+                    }
+
+                    await DisplayCurrentImageAsync();
+                    
+                    // Trigger preloading for WebDAV
+                    _preloadCts?.Cancel();
+                    _preloadCts?.Dispose();
+                    _preloadCts = new CancellationTokenSource();
+                    var token = _preloadCts.Token;
+                    _ = Task.Run(() => PreloadNextImagesAsync(token));
                 }
             }
             catch (OperationCanceledException) { }
@@ -472,6 +502,7 @@ namespace Uviewer
             SwitchToImageMode();
 
             _currentWebDavItemPath = item.WebDavPath;
+            ClearImageResources();
             FileNameText.Text = $"스트리밍 다운로드 중: {item.Name}...";
 
             _webDavCts?.Cancel();

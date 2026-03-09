@@ -771,6 +771,15 @@ namespace Uviewer
         {
             if (string.IsNullOrEmpty(path)) return false;
 
+            // WebDAV 모드인 경우 원격 경로 비교 추가
+            if (_isWebDavMode && _currentIndex >= 0 && _imageEntries != null && _currentIndex < _imageEntries.Count)
+            {
+                var entry = _imageEntries[_currentIndex];
+                if (entry.IsWebDavEntry && entry.WebDavPath == path) return true;
+                if (entry.IsArchiveEntry && _currentArchivePath != null && 
+                    (_currentArchivePath == path || _currentArchivePath == $"WebDAV:{path}")) return true;
+            }
+
             if (_isEpubMode && !string.IsNullOrEmpty(_currentEpubFilePath))
             {
                 return _currentEpubFilePath.Equals(path, StringComparison.OrdinalIgnoreCase);

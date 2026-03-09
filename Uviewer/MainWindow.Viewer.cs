@@ -79,11 +79,24 @@ namespace Uviewer
             {
                 if (_fileItems == null || _fileItems.Count == 0) return;
 
-                string targetPath = entry.IsArchiveEntry ? (_currentArchivePath ?? "") : (entry.FilePath ?? "");
-                if (string.IsNullOrEmpty(targetPath)) return;
+                FileItem? item = null;
 
-                // Find item in file list
-                var item = _fileItems.FirstOrDefault(f => f.FullPath.Equals(targetPath, StringComparison.OrdinalIgnoreCase));
+                if (_isWebDavMode && entry.IsWebDavEntry && !entry.IsArchiveEntry)
+                {
+                    // Match by WebDAV remote path for files in a folder
+                    item = _fileItems.FirstOrDefault(f => f.IsWebDav && f.WebDavPath == entry.WebDavPath);
+                }
+                else
+                {
+                    string targetPath = entry.IsArchiveEntry ? (_currentArchivePath ?? "") : (entry.FilePath ?? "");
+                    if (string.IsNullOrEmpty(targetPath)) return;
+
+                    // Match by local full path or check if it's a WebDAV archive (WebDAV: prefix)
+                    item = _fileItems.FirstOrDefault(f => 
+                        f.FullPath.Equals(targetPath, StringComparison.OrdinalIgnoreCase) ||
+                        (f.IsWebDav && targetPath.Equals($"WebDAV:{f.WebDavPath}", StringComparison.OrdinalIgnoreCase)));
+                }
+
                 if (item != null)
                 {
                     if (_isExplorerGrid)
@@ -491,6 +504,23 @@ namespace Uviewer
                 {
                     // 로컬 파일 (애니메이션 WebP가 아닌 경우 여기로 옴)
                     originalBitmap = await LoadImageFromPathAsync(entry.FilePath, canvas);
+                }
+                else if (entry.IsWebDavEntry && _isWebDavMode)
+                {
+                    // WebDAV file not yet downloaded
+                    try
+                    {
+                        var tempPath = await _webDavService.DownloadToTempFileAsync(entry.WebDavPath!, token);
+                        if (!string.IsNullOrEmpty(tempPath))
+                        {
+                            entry.FilePath = tempPath;
+                            originalBitmap = await LoadImageFromPathAsync(tempPath, canvas);
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        System.Diagnostics.Debug.WriteLine($"Error downloading WebDAV image for display: {ex.Message}");
+                    }
                 }
 
                 // 3. 로드 실패 시 null 반환
@@ -1111,6 +1141,42 @@ namespace Uviewer
             }
             e.Handled = true;
             RootGrid.Focus(FocusState.Programmatic);
+        }
+
+        private void ClearImageResources()
+        {
+            _imageLoadingCts?.Cancel();
+            _preloadCts?.Cancel();
+
+            lock (_preloadedImages)
+            {
+                foreach (var bmp in _preloadedImages.Values) bmp?.Dispose();
+                _preloadedImages.Clear();
+            }
+            lock (_sharpenedImageCache)
+            {
+                foreach (var bmp in _sharpenedImageCache.Values) bmp?.Dispose();
+                _sharpenedImageCache.Clear();
+            }
+            lock (_animatedWebpSharpenedCache)
+            {
+                foreach (var bmp in _animatedWebpSharpenedCache.Values) bmp?.Dispose();
+                _animatedWebpSharpenedCache.Clear();
+            }
+
+            _currentBitmap = null;
+            _leftBitmap = null;
+            _rightBitmap = null;
+
+            StopAnimatedWebp();
+
+            if (MainCanvas != null) MainCanvas.Invalidate();
+            if (LeftCanvas != null) LeftCanvas.Invalidate();
+            if (RightCanvas != null) RightCanvas.Invalidate();
+
+            if (FileNameText != null) FileNameText.Text = "";
+            if (ImageInfoText != null) ImageInfoText.Text = "";
+            if (ImageIndexText != null) ImageIndexText.Text = "";
         }
 
         #endregion

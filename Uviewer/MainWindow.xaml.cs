@@ -237,6 +237,8 @@ namespace Uviewer
             public bool IsArchiveEntry => ArchiveEntryKey != null;
             public bool IsPdfEntry { get; set; } = false;
             public uint PdfPageIndex { get; set; } = 0;
+            public string? WebDavPath { get; set; }
+            public bool IsWebDavEntry => WebDavPath != null;
         }
 
 
@@ -1751,6 +1753,19 @@ namespace Uviewer
                             {
                                 bitmap = await LoadImageFromPathAsync(entry.FilePath, MainCanvas);
                             }
+                            else if (entry.IsWebDavEntry && _isWebDavMode && !token.IsCancellationRequested)
+                            {
+                                try
+                                {
+                                    var tempPath = await _webDavService.DownloadToTempFileAsync(entry.WebDavPath!, token);
+                                    if (!string.IsNullOrEmpty(tempPath) && !token.IsCancellationRequested)
+                                    {
+                                        entry.FilePath = tempPath;
+                                        bitmap = await LoadImageFromPathAsync(tempPath, MainCanvas);
+                                    }
+                                }
+                                catch { }
+                            }
 
                             if (token.IsCancellationRequested)
                             {
@@ -1865,6 +1880,19 @@ namespace Uviewer
                             else if (!entry.IsArchiveEntry && entry.FilePath != null)
                             {
                                 bitmap = await LoadImageFromPathAsync(entry.FilePath, MainCanvas);
+                            }
+                            else if (entry.IsWebDavEntry && _isWebDavMode && !token.IsCancellationRequested)
+                            {
+                                try
+                                {
+                                    var tempPath = await _webDavService.DownloadToTempFileAsync(entry.WebDavPath!, token);
+                                    if (!string.IsNullOrEmpty(tempPath) && !token.IsCancellationRequested)
+                                    {
+                                        entry.FilePath = tempPath;
+                                        bitmap = await LoadImageFromPathAsync(tempPath, MainCanvas);
+                                    }
+                                }
+                                catch { }
                             }
 
                             if (token.IsCancellationRequested)
