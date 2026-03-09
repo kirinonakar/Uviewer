@@ -18,7 +18,6 @@ namespace Uviewer
     public sealed partial class MainWindow
     {
         private Windows.Data.Pdf.PdfDocument? _currentPdfDocument;
-        private UglyToad.PdfPig.PdfDocument? _pdfPigDocument; // For parsing TOC
         private List<TocItem> _pdfToc = new();
         private string? _currentPdfPath;
         private readonly SemaphoreSlim _pdfLock = new(1, 1);
@@ -60,35 +59,40 @@ namespace Uviewer
                     }
                     _imageEntries = newEntries;
 
-                    // Load TOC with PdfPig
-                    try
+                    // Load TOC with PdfPig in background
+                    _ = Task.Run(() =>
                     {
-                        _pdfToc.Clear();
-                        _pdfPigDocument = UglyToad.PdfPig.PdfDocument.Open(pdfPath);
-                        if (_pdfPigDocument.TryGetBookmarks(out var bookmarks))
+                        try
                         {
-                            ParsePdfBookmarks(bookmarks.GetNodes().ToList(), 1);
+                            var tempToc = new List<TocItem>();
+                            using var pdfPigDocument = UglyToad.PdfPig.PdfDocument.Open(pdfPath);
+                            if (pdfPigDocument.TryGetBookmarks(out var bookmarks))
+                            {
+                                ParsePdfBookmarks(bookmarks.GetNodes().ToList(), 1, tempToc);
+                            }
+                            
+                            DispatcherQueue.TryEnqueue(() =>
+                            {
+                                _pdfToc = tempToc;
+                                if (PdfTocButton != null)
+                                {
+                                    PdfTocButton.Visibility = Visibility.Visible;
+                                }
+                                if (PdfGoToPageButton != null)
+                                {
+                                    PdfGoToPageButton.Visibility = Visibility.Visible;
+                                }
+                                if (PdfSeparator != null)
+                                {
+                                    PdfSeparator.Visibility = Visibility.Visible;
+                                }
+                            });
                         }
-                        DispatcherQueue.TryEnqueue(() =>
+                        catch (Exception tocEx)
                         {
-                            if (PdfTocButton != null)
-                            {
-                                PdfTocButton.Visibility = Visibility.Visible;
-                            }
-                            if (PdfGoToPageButton != null)
-                            {
-                                PdfGoToPageButton.Visibility = Visibility.Visible;
-                            }
-                            if (PdfSeparator != null)
-                            {
-                                PdfSeparator.Visibility = Visibility.Visible;
-                            }
-                        });
-                    }
-                    catch (Exception tocEx)
-                    {
-                        System.Diagnostics.Debug.WriteLine($"Error reading PDF TOC: {tocEx.Message}");
-                    }
+                            System.Diagnostics.Debug.WriteLine($"Error reading PDF TOC: {tocEx.Message}");
+                        }
+                    });
                 }
                 finally
                 {
@@ -132,7 +136,7 @@ namespace Uviewer
 
         private void CloseCurrentPdf()
         {
-            if (_currentPdfDocument == null && _pdfPigDocument == null) return;
+            if (_currentPdfDocument == null) return;
 
             if (_pdfLock.Wait(TimeSpan.FromSeconds(5)))
             {
@@ -161,12 +165,6 @@ namespace Uviewer
             if (_currentPdfDocument != null)
             {
                 _currentPdfDocument = null;
-            }
-
-            if (_pdfPigDocument != null)
-            {
-                _pdfPigDocument.Dispose();
-                _pdfPigDocument = null;
             }
 
             _currentPdfPath = null;
@@ -229,11 +227,31 @@ namespace Uviewer
                 
                 using var stream = new Windows.Storage.Streams.InMemoryRandomAccessStream();
                 
-                // Render with preferred options (e.g., higher DPI if needed, but default is fine for display)
+                // Calculate scale based on canvas size, but avoid too low or too high resolution
+                double scale = 1.0;
+                double canvasWidth = 0;
+
+                if (DispatcherQueue.HasThreadAccess)
+                {
+                    canvasWidth = canvas.ActualWidth;
+                }
+                else
+                {
+                    canvasWidth = _lastCanvasWidth;
+                }
+
+                if (canvasWidth > 0 && pdfPage.Size.Width > 0)
+                {
+                    scale = canvasWidth / pdfPage.Size.Width;
+                }
+                
+                // Buffer for sharpness, but capped to 2.0x to save memory
+                scale = Math.Max(1.0, Math.Min(scale * 1.5, 2.0));
+
                 var options = new PdfPageRenderOptions
                 {
-                    DestinationWidth = (uint)pdfPage.Size.Width * 2, // 2x scale for better quality on zoom
-                    DestinationHeight = (uint)pdfPage.Size.Height * 2
+                    DestinationWidth = (uint)(pdfPage.Size.Width * scale),
+                    DestinationHeight = (uint)(pdfPage.Size.Height * scale)
                 };
                 
                 await pdfPage.RenderToStreamAsync(stream, options);
@@ -251,7 +269,7 @@ namespace Uviewer
             }
         }
 
-        private void ParsePdfBookmarks(IReadOnlyList<BookmarkNode> nodes, int level)
+        private void ParsePdfBookmarks(IReadOnlyList<BookmarkNode> nodes, int level, List<TocItem> targetList)
         {
             foreach (var node in nodes)
             {
@@ -263,7 +281,7 @@ namespace Uviewer
                     pageIndex = docNode.PageNumber - 1;
                 }
 
-                _pdfToc.Add(new TocItem 
+                targetList.Add(new TocItem 
                 { 
                     HeadingText = node.Title, 
                     HeadingLevel = level, 
@@ -273,7 +291,7 @@ namespace Uviewer
 
                 if (node.Children != null && node.Children.Count > 0)
                 {
-                    ParsePdfBookmarks(node.Children, level + 1);
+                    ParsePdfBookmarks(node.Children, level + 1, targetList);
                 }
             }
         }

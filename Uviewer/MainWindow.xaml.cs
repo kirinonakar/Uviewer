@@ -65,6 +65,7 @@ namespace Uviewer
         private int _pendingPdfPageIndex = -1;
         private double _pdfPanY = 0;
         private double _pdfPanX = 0;
+        private double _lastCanvasWidth = 0;
         private bool _isPdfTransitioning = false;
         private int _pdfScrollDirection = 1; // 1 for next (start top), -1 for prev (start bottom)
         private bool _isSeamlessScroll = false;

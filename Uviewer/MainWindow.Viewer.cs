@@ -859,6 +859,8 @@ namespace Uviewer
 
         private void ImageArea_SizeChanged(object sender, SizeChangedEventArgs e)
         {
+            _lastCanvasWidth = e.NewSize.Width;
+
             // Re-apply fit when window is resized
             if (_currentBitmap != null &&
                 (MainCanvas.Visibility == Visibility.Visible || SideBySideGrid.Visibility == Visibility.Visible))
