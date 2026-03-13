@@ -402,7 +402,16 @@ namespace Uviewer
             }
             else if (item.IsArchive)
             {
-                await OpenWebDavArchiveAsync(item);
+                var ext = Path.GetExtension(item.WebDavPath ?? item.Name).ToLowerInvariant();
+                // 7z 파일은 스트리밍 대신 임시 파일로 다운로드하여 로컬처럼 백그라운드 압축 해제 사용 (성능 및 호환성)
+                if (ext == ".7z")
+                {
+                    await OpenWebDavFileAsync(item);
+                }
+                else
+                {
+                    await OpenWebDavArchiveAsync(item);
+                }
             }
             else if (item.IsImage || item.IsText || item.IsEpub || item.IsPdf)
             {

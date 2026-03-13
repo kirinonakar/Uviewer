@@ -454,6 +454,20 @@ namespace Uviewer
             {
                 _currentArchive.Dispose();
                 _currentArchive = null;
+
+                // WebDAV에서 다운로드한 임시 아카이브 파일인 경우 삭제
+                if (_currentArchivePath != null && _currentArchivePath.Contains(Path.Combine("Uviewer", "WebDav")))
+                {
+                    try
+                    {
+                        if (File.Exists(_currentArchivePath))
+                        {
+                            File.Delete(_currentArchivePath);
+                        }
+                    }
+                    catch { }
+                }
+
                 _currentArchivePath = null;
             }
 
