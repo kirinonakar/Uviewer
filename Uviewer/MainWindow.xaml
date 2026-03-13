@@ -620,14 +620,12 @@
                                          Grid.Column="0"
                                          IsTabStop="False"
                                          Draw="LeftCanvas_Draw"
-                                         PointerPressed="ImageArea_PointerPressed"
                                          CreateResources="LeftCanvas_CreateResources"/>
 
                     <canvas:CanvasControl x:Name="RightCanvas" 
                                          Grid.Column="1"
                                          IsTabStop="False"
                                          Draw="RightCanvas_Draw"
-                                         PointerPressed="ImageArea_PointerPressed"
                                          CreateResources="RightCanvas_CreateResources"/>
                 </Grid>
             </Grid>
