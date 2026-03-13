@@ -383,6 +383,15 @@ namespace Uviewer
                     _currentIndex = 0;
 
                     await DisplayCurrentImageAsync();
+ 
+                    // 7z 파일인 경우 백그라운드 압축 해제 시작
+                    string extension = Path.GetExtension(archivePath).ToLowerInvariant();
+                    if (extension == ".7z")
+                    {
+                        _7zExtractCts = new CancellationTokenSource();
+                        var extractToken = _7zExtractCts.Token;
+                        _ = Start7zBackgroundExtractionAsync(archivePath, extractToken);
+                    }
 
                     // Start preloading images after displaying the first one
                     _preloadCts?.Cancel();
@@ -478,6 +487,145 @@ namespace Uviewer
             _fastNavigationResetCts?.Cancel();
             _fastNavigationResetCts?.Dispose();
             _fastNavigationResetCts = null;
+
+            Cleanup7zTempData();
+        }
+
+        private async Task Start7zBackgroundExtractionAsync(string archivePath, CancellationToken token)
+        {
+            try
+            {
+                // 이전 데이터 정리 및 새 템프 폴더 생성
+                string baseTemp = Path.Combine(Path.GetTempPath(), "Uviewer");
+                _current7zTempFolder = Path.Combine(baseTemp, "7z_" + Guid.NewGuid().ToString("N"));
+                Directory.CreateDirectory(_current7zTempFolder);
+
+                var total = _imageEntries.Count;
+                var extracted = new bool[total];
+                var lockObj = new object();
+
+                // [멀티스레드 압축 해제]
+                // 7z의 경우 SharpCompress의 IArchive 인스턴스가 스레드 세이프하지 않을 수 있으므로
+                // 스레드별로 별도의 아카이브 인스턴스를 열어 성능을 극대화합니다.
+                int threadCount = Math.Min(Environment.ProcessorCount, 4); // 최대 4개 스레드 사용
+                var tasks = new List<Task>();
+
+                for (int t = 0; t < threadCount; t++)
+                {
+                    tasks.Add(Task.Run(async () =>
+                    {
+                        try
+                        {
+                            using var archive = ArchiveFactory.Open(archivePath);
+                            var entries = archive.Entries
+                                .Where(e => !e.IsDirectory && SupportedImageExtensions.Contains(Path.GetExtension(e.Key ?? "").ToLowerInvariant()))
+                                .ToList();
+                            var entryMap = entries.ToDictionary(e => e.Key!, e => e);
+
+                            while (!token.IsCancellationRequested)
+                            {
+                                int targetIndex = -1;
+                                lock (lockObj)
+                                {
+                                    int current = _currentIndex;
+                                    int bestDist = int.MaxValue;
+                                    for (int i = 0; i < total; i++)
+                                    {
+                                        if (extracted[i]) continue;
+                                        int dist = Math.Abs(i - current);
+                                        if (dist < bestDist)
+                                        {
+                                            bestDist = dist;
+                                            targetIndex = i;
+                                        }
+                                    }
+
+                                    if (targetIndex != -1) extracted[targetIndex] = true;
+                                }
+
+                                if (targetIndex == -1) break;
+
+                                var imageEntry = _imageEntries[targetIndex];
+                                if (entryMap.TryGetValue(imageEntry.ArchiveEntryKey!, out var archiveEntry))
+                                {
+                                    try
+                                    {
+                                        // 현재 점프 토큰과 메인 토큰을 결합
+                                        using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(token, _7zJumpCts.Token);
+                                        var linkedToken = linkedCts.Token;
+
+                                        string ext = Path.GetExtension(imageEntry.ArchiveEntryKey ?? "") ?? "";
+                                        string outputPath = Path.Combine(_current7zTempFolder!, Guid.NewGuid().ToString("N") + ext);
+                                        
+                                        using (var fs = new FileStream(outputPath, FileMode.Create, FileAccess.Write, FileShare.Read))
+                                        using (var entryStream = archiveEntry.OpenEntryStream())
+                                        {
+                                            await entryStream.CopyToAsync(fs, linkedToken);
+                                        }
+                                        imageEntry.FilePath = outputPath;
+                                    }
+                                    catch (OperationCanceledException)
+                                    {
+                                        // 점프로 인한 취소인 경우 해당 인덱스를 다시 미추출 상태로 돌려 다음 체크 때 새 currentIndex 기준으로 다시 시도하게 함
+                                        lock (lockObj)
+                                        {
+                                            extracted[targetIndex] = false;
+                                        }
+                                    }
+                                    catch { }
+                                }
+                            }
+                        }
+                        catch { }
+                    }, token));
+                }
+
+                await Task.WhenAll(tasks);
+            }
+            catch { }
+        }
+
+        private void Cleanup7zTempData()
+        {
+            try
+            {
+                _7zExtractCts?.Cancel();
+                _7zExtractCts?.Dispose();
+                _7zExtractCts = null;
+
+                if (_current7zTempFolder != null && Directory.Exists(_current7zTempFolder))
+                {
+                    // 아카이브 이미지가 사용 중일 수 있으므로 약간의 지연 후 삭제 시도
+                    string folderToDelete = _current7zTempFolder;
+                    _current7zTempFolder = null;
+                    
+                    _ = Task.Run(async () =>
+                    {
+                        await Task.Delay(1000);
+                        for (int i = 0; i < 3; i++) // 3번 재시도
+                        {
+                            try
+                            {
+                                if (Directory.Exists(folderToDelete))
+                                    Directory.Delete(folderToDelete, true);
+
+                                // 부모 폴더(Uviewer)가 비어있으면 삭제 시도
+                                var baseTemp = Path.Combine(Path.GetTempPath(), "Uviewer");
+                                if (Directory.Exists(baseTemp) && !Directory.EnumerateFileSystemEntries(baseTemp).Any())
+                                {
+                                    Directory.Delete(baseTemp);
+                                }
+                                break;
+                            }
+                            catch
+                            {
+                                await Task.Delay(2000);
+                            }
+                        }
+                    });
+                }
+            }
+            catch { }
         }
 
         #endregion

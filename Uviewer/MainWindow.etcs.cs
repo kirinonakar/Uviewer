@@ -94,6 +94,7 @@ namespace Uviewer
                 {
                     if (_currentIndex >= 0 && _currentIndex < _imageEntries.Count)
                     {
+                        Signal7zJump(); // Fast Navigation 종료 시 해당 위치로 추출 순위 재조정
                         await DisplayCurrentImageAsync();
                     }
                 }
@@ -113,6 +114,7 @@ namespace Uviewer
             if (_currentIndex < 0 || _currentIndex >= _imageEntries.Count)
                 return;
 
+            Signal7zJump(); // 빠른 탐색 중에도 추출 위치를 계속 업데이트
             ShowFastNavigationOverlay();
 
             var currentEntry = _imageEntries[_currentIndex];

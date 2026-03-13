@@ -430,7 +430,7 @@ namespace Uviewer
                         if (totalRead > MemoryStreamThreshold)
                         {
                             // 임계값 초과 → 임시 파일로 전환
-                            var tempDir = Path.Combine(Path.GetTempPath(), "Uviewer_WebDav");
+                            var tempDir = Path.Combine(Path.GetTempPath(), "Uviewer", "WebDav");
                             Directory.CreateDirectory(tempDir);
                             var tempPath = Path.Combine(tempDir, $"stream_{Guid.NewGuid():N}{Path.GetExtension(remotePath)}");
 
@@ -497,7 +497,7 @@ namespace Uviewer
                 }
 
                  var fileName = Path.GetFileName(remotePath.TrimEnd('/'));
-                 var tempDir = Path.Combine(Path.GetTempPath(), "Uviewer_WebDav");
+                 var tempDir = Path.Combine(Path.GetTempPath(), "Uviewer", "WebDav");
                  Directory.CreateDirectory(tempDir);
                  
                  // Use GUID to avoid file locking collisions
@@ -539,17 +539,20 @@ namespace Uviewer
         {
             try
             {
-                var tempDir = Path.Combine(Path.GetTempPath(), "Uviewer_WebDav");
+                var tempDir = Path.Combine(Path.GetTempPath(), "Uviewer", "WebDav");
                 if (Directory.Exists(tempDir))
                 {
                     Directory.Delete(tempDir, recursive: true);
-                    System.Diagnostics.Debug.WriteLine("WebDAV temp folder cleaned up.");
+                }
+
+                // 부모 폴더(Uviewer)가 비어있으면 삭제 시도
+                var baseTemp = Path.Combine(Path.GetTempPath(), "Uviewer");
+                if (Directory.Exists(baseTemp) && !Directory.EnumerateFileSystemEntries(baseTemp).Any())
+                {
+                    Directory.Delete(baseTemp);
                 }
             }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"Error cleaning WebDAV temp: {ex.Message}");
-            }
+            catch { }
         }
     }
 

@@ -113,6 +113,25 @@ namespace Uviewer
         private readonly SemaphoreSlim _thumbnailSemaphore = new(4); // Limit concurrent thumbnail loads (archives)
         private CancellationTokenSource? _preloadCts;
 
+        // 7z background extraction
+        private string? _current7zTempFolder;
+        private CancellationTokenSource? _7zExtractCts;
+        private CancellationTokenSource _7zJumpCts = new();
+        private int _lastIndexFor7zJump = -1;
+
+        private void Signal7zJump()
+        {
+            try
+            {
+                _lastIndexFor7zJump = _currentIndex;
+                var old = _7zJumpCts;
+                _7zJumpCts = new CancellationTokenSource();
+                old.Cancel();
+                old.Dispose();
+            }
+            catch { }
+        }
+
         private static readonly string[] SupportedImageExtensions =
         {
             ".jpg", ".jpeg", ".png", ".bmp", ".gif", ".webp", ".avif", ".jxl", ".ico", ".tiff", ".tif"
@@ -512,6 +531,8 @@ namespace Uviewer
                         }
                         catch { }
                     }
+                    Cleanup7zTempData();
+                    WebDavService.CleanupTempFiles();
 
                     // Clean up cached bitmaps
                     _currentBitmap?.Dispose();
@@ -1771,14 +1792,13 @@ namespace Uviewer
                             {
                                 bitmap = await LoadPdfPageBitmapAsync(entry.PdfPageIndex, MainCanvas, token);
                             }
-
+                            else if (entry.FilePath != null)
+                            {
+                                bitmap = await LoadImageFromPathAsync(entry.FilePath, MainCanvas);
+                            }
                             else if (entry.IsArchiveEntry && _currentArchive != null)
                             {
                                 bitmap = await LoadImageFromArchiveEntryAsync(entry.ArchiveEntryKey!, MainCanvas, token);
-                            }
-                            else if (!entry.IsArchiveEntry && entry.FilePath != null)
-                            {
-                                bitmap = await LoadImageFromPathAsync(entry.FilePath, MainCanvas);
                             }
                             else if (entry.IsWebDavEntry && _isWebDavMode && !token.IsCancellationRequested)
                             {
@@ -1900,13 +1920,13 @@ namespace Uviewer
                             {
                                 bitmap = await LoadPdfPageBitmapAsync(entry.PdfPageIndex, MainCanvas, token);
                             }
+                            else if (entry.FilePath != null)
+                            {
+                                bitmap = await LoadImageFromPathAsync(entry.FilePath, MainCanvas);
+                            }
                             else if (entry.IsArchiveEntry && _currentArchive != null)
                             {
                                 bitmap = await LoadImageFromArchiveEntryAsync(entry.ArchiveEntryKey!, MainCanvas, token);
-                            }
-                            else if (!entry.IsArchiveEntry && entry.FilePath != null)
-                            {
-                                bitmap = await LoadImageFromPathAsync(entry.FilePath, MainCanvas);
                             }
                             else if (entry.IsWebDavEntry && _isWebDavMode && !token.IsCancellationRequested)
                             {

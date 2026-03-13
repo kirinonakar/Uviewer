@@ -35,6 +35,20 @@ namespace Uviewer
             _imageLoadingCts = new CancellationTokenSource();
             var token = _imageLoadingCts.Token; // <-- 이 토큰을 전달해야 함
 
+            // 아카이브 탐색 시 백그라운드 추출 위치 재조정 신호 전송 (큰 폭의 이동 시에만)
+            if (_currentArchive != null && Path.GetExtension(_currentArchivePath ?? "").ToLowerInvariant() == ".7z")
+            {
+                if (Math.Abs(_currentIndex - _lastIndexFor7zJump) > 2)
+                {
+                    Signal7zJump();
+                    _lastIndexFor7zJump = _currentIndex;
+                }
+            }
+            else
+            {
+                _lastIndexFor7zJump = _currentIndex;
+            }
+
             StopAnimatedWebp();
 
             var entry = _imageEntries[_currentIndex];
@@ -495,15 +509,15 @@ namespace Uviewer
                 {
                     originalBitmap = await LoadPdfPageBitmapAsync(entry.PdfPageIndex, canvas, token);
                 }
-                else if (entry.IsArchiveEntry && _currentArchive != null)
-                {
-                    // [중요] 압축 파일 내 이미지는 WebP 여부 상관없이 여기서 로드 (Win2D LoadAsync 사용)
-                    originalBitmap = await LoadImageFromArchiveEntryAsync(entry.ArchiveEntryKey!, canvas, token);
-                }
                 else if (entry.FilePath != null)
                 {
                     // 로컬 파일 (애니메이션 WebP가 아닌 경우 여기로 옴)
                     originalBitmap = await LoadImageFromPathAsync(entry.FilePath, canvas);
+                }
+                else if (entry.IsArchiveEntry && _currentArchive != null)
+                {
+                    // [중요] 압축 파일 내 이미지는 WebP 여부 상관없이 여기서 로드 (Win2D LoadAsync 사용)
+                    originalBitmap = await LoadImageFromArchiveEntryAsync(entry.ArchiveEntryKey!, canvas, token);
                 }
                 else if (entry.IsWebDavEntry && _isWebDavMode)
                 {
