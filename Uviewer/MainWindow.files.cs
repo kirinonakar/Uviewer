@@ -548,14 +548,14 @@ namespace Uviewer
                                 var imageEntry = _imageEntries[targetIndex];
                                 if (entryMap.TryGetValue(imageEntry.ArchiveEntryKey!, out var archiveEntry))
                                 {
+                                    string? outputPath = null;
                                     try
                                     {
-                                        // 현재 점프 토큰과 메인 토큰을 결합
                                         using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(token, _7zJumpCts.Token);
                                         var linkedToken = linkedCts.Token;
 
                                         string ext = Path.GetExtension(imageEntry.ArchiveEntryKey ?? "") ?? "";
-                                        string outputPath = Path.Combine(_current7zTempFolder!, Guid.NewGuid().ToString("N") + ext);
+                                        outputPath = Path.Combine(_current7zTempFolder!, Guid.NewGuid().ToString("N") + ext);
                                         
                                         using (var fs = new FileStream(outputPath, FileMode.Create, FileAccess.Write, FileShare.Read))
                                         using (var entryStream = archiveEntry.OpenEntryStream())
@@ -566,13 +566,24 @@ namespace Uviewer
                                     }
                                     catch (OperationCanceledException)
                                     {
-                                        // 점프로 인한 취소인 경우 해당 인덱스를 다시 미추출 상태로 돌려 다음 체크 때 새 currentIndex 기준으로 다시 시도하게 함
+                                        // 취소된 경우 생성 중이던 불완전한 파일 삭제
+                                        if (outputPath != null && File.Exists(outputPath))
+                                        {
+                                            try { File.Delete(outputPath); } catch { }
+                                        }
+
                                         lock (lockObj)
                                         {
                                             extracted[targetIndex] = false;
                                         }
                                     }
-                                    catch { }
+                                    catch 
+                                    {
+                                        if (outputPath != null && File.Exists(outputPath))
+                                        {
+                                            try { File.Delete(outputPath); } catch { }
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -585,7 +596,7 @@ namespace Uviewer
             catch { }
         }
 
-        private void Cleanup7zTempData()
+        private void Cleanup7zTempData(bool immediate = false)
         {
             try
             {
@@ -593,36 +604,83 @@ namespace Uviewer
                 _7zExtractCts?.Dispose();
                 _7zExtractCts = null;
 
-                if (_current7zTempFolder != null && Directory.Exists(_current7zTempFolder))
+                if (_current7zTempFolder != null)
                 {
-                    // 아카이브 이미지가 사용 중일 수 있으므로 약간의 지연 후 삭제 시도
                     string folderToDelete = _current7zTempFolder;
-                    _current7zTempFolder = null;
-                    
-                    _ = Task.Run(async () =>
+                    if (Directory.Exists(folderToDelete))
                     {
-                        await Task.Delay(1000);
-                        for (int i = 0; i < 3; i++) // 3번 재시도
+                        if (immediate)
                         {
-                            try
-                            {
-                                if (Directory.Exists(folderToDelete))
-                                    Directory.Delete(folderToDelete, true);
-
-                                // 부모 폴더(Uviewer)가 비어있으면 삭제 시도
-                                var baseTemp = Path.Combine(Path.GetTempPath(), "Uviewer");
-                                if (Directory.Exists(baseTemp) && !Directory.EnumerateFileSystemEntries(baseTemp).Any())
-                                {
-                                    Directory.Delete(baseTemp);
-                                }
-                                break;
-                            }
-                            catch
-                            {
-                                await Task.Delay(2000);
-                            }
+                            TryDeleteDirectoryRecursive(folderToDelete);
                         }
-                    });
+                        else
+                        {
+                            _current7zTempFolder = null;
+                            _ = Task.Run(async () =>
+                            {
+                                await Task.Delay(1000);
+                                for (int i = 0; i < 3; i++)
+                                {
+                                    try
+                                    {
+                                        if (Directory.Exists(folderToDelete))
+                                            Directory.Delete(folderToDelete, true);
+                                        break;
+                                    }
+                                    catch { await Task.Delay(2000); }
+                                }
+                                CleanupUviewerTempRoot();
+                            });
+                        }
+                    }
+                }
+                
+                if (immediate) CleanupUviewerTempRoot();
+            }
+            catch { }
+        }
+
+        private void CleanupUviewerTempRoot()
+        {
+            try
+            {
+                var baseTemp = Path.Combine(Path.GetTempPath(), "Uviewer");
+                if (Directory.Exists(baseTemp) && !Directory.EnumerateFileSystemEntries(baseTemp).Any())
+                {
+                    Directory.Delete(baseTemp);
+                }
+            }
+            catch { }
+        }
+
+        private void TryDeleteDirectoryRecursive(string path)
+        {
+            try
+            {
+                if (!Directory.Exists(path)) return;
+
+                // 먼저 내부 파일들을 개별적으로 삭제 시도 (잠긴 파일 확인용 및 부하 분산)
+                try
+                {
+                    foreach (var file in Directory.EnumerateFiles(path, "*", SearchOption.AllDirectories))
+                    {
+                        try { File.Delete(file); } catch { }
+                    }
+                }
+                catch { }
+
+                for (int i = 0; i < 5; i++)
+                {
+                    try
+                    {
+                        if (Directory.Exists(path))
+                            Directory.Delete(path, true);
+                        return;
+                    }
+                    catch
+                    {
+                        if (i < 4) Thread.Sleep(100);
+                    }
                 }
             }
             catch { }

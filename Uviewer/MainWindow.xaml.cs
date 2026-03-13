@@ -531,9 +531,6 @@ namespace Uviewer
                         }
                         catch { }
                     }
-                    Cleanup7zTempData();
-                    WebDavService.CleanupTempFiles();
-
                     // Clean up cached bitmaps
                     _currentBitmap?.Dispose();
                     _currentBitmap = null;
@@ -544,21 +541,28 @@ namespace Uviewer
 
                     lock (_preloadedImages)
                     {
-                        foreach (var img in _preloadedImages.Values)
-                        {
-                            img?.Dispose();
-                        }
+                        foreach (var img in _preloadedImages.Values) img?.Dispose();
                         _preloadedImages.Clear();
                     }
 
                     lock (_sharpenedImageCache)
                     {
-                        foreach (var img in _sharpenedImageCache.Values)
-                        {
-                            img?.Dispose();
-                        }
+                        foreach (var img in _sharpenedImageCache.Values) img?.Dispose();
                         _sharpenedImageCache.Clear();
                     }
+
+                    // 이미지 엔트리의 파일 경로 참조 해제
+                    if (_imageEntries != null)
+                    {
+                        foreach (var entry in _imageEntries) entry.FilePath = null;
+                    }
+
+                    // Native 리소스와 파일 핸들을 즉시 해제하기 위해 GC 강제 실행
+                    GC.Collect();
+                    GC.WaitForPendingFinalizers();
+
+                    Cleanup7zTempData(immediate: true);
+                    WebDavService.CleanupTempFiles();
 
                     // Save settings
                     SaveWindowSettings();
