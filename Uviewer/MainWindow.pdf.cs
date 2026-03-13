@@ -21,6 +21,7 @@ namespace Uviewer
         private List<TocItem> _pdfToc = new();
         private string? _currentPdfPath;
         private readonly SemaphoreSlim _pdfLock = new(1, 1);
+        private readonly SemaphoreSlim _pdfRenderSemaphore = new(1); // Limit concurrent rendering to avoid UI freeze
 
         private async Task LoadImagesFromPdfAsync(string pdfPath)
         {
@@ -214,6 +215,10 @@ namespace Uviewer
             _fastNavigationResetCts?.Cancel();
             _fastNavigationResetCts?.Dispose();
             _fastNavigationResetCts = null;
+
+            _currentBitmap = null;
+            _leftBitmap = null;
+            _rightBitmap = null;
         }
 
         private async Task<CanvasBitmap?> LoadPdfPageBitmapAsync(uint pageIndex, CanvasControl canvas, CancellationToken token = default)
@@ -254,7 +259,16 @@ namespace Uviewer
                     DestinationHeight = (uint)(pdfPage.Size.Height * scale)
                 };
                 
-                await pdfPage.RenderToStreamAsync(stream, options);
+                // Use semaphore to limit concurrent rendering tasks
+                await _pdfRenderSemaphore.WaitAsync(token);
+                try
+                {
+                    await pdfPage.RenderToStreamAsync(stream, options);
+                }
+                finally
+                {
+                    _pdfRenderSemaphore.Release();
+                }
                 
                 if (token.IsCancellationRequested) return null;
 

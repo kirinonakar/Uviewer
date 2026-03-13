@@ -488,6 +488,10 @@ namespace Uviewer
             _fastNavigationResetCts?.Dispose();
             _fastNavigationResetCts = null;
 
+            _currentBitmap = null;
+            _leftBitmap = null;
+            _rightBitmap = null;
+
             Cleanup7zTempData();
         }
 
@@ -651,6 +655,50 @@ namespace Uviewer
                 }
             }
             catch { }
+        }
+
+        private void CleanupZeroByteTempFiles()
+        {
+            _ = Task.Run(() =>
+            {
+                try
+                {
+                    string baseTemp = Path.Combine(Path.GetTempPath(), "Uviewer");
+                    if (Directory.Exists(baseTemp))
+                    {
+                        // 0바이트 파일 삭제
+                        var files = Directory.GetFiles(baseTemp, "*", SearchOption.AllDirectories);
+                        foreach (var file in files)
+                        {
+                            try
+                            {
+                                var fi = new FileInfo(file);
+                                if (fi.Length == 0)
+                                {
+                                    fi.Delete();
+                                }
+                            }
+                            catch { }
+                        }
+
+                        // 빈 하위 폴더 삭제 (하위부터 상위로)
+                        var dirs = Directory.GetDirectories(baseTemp, "*", SearchOption.AllDirectories)
+                                            .OrderByDescending(d => d.Length);
+                        foreach (var dir in dirs)
+                        {
+                            try
+                            {
+                                if (!Directory.EnumerateFileSystemEntries(dir).Any())
+                                {
+                                    Directory.Delete(dir);
+                                }
+                            }
+                            catch { }
+                        }
+                    }
+                }
+                catch { }
+            });
         }
 
         private void TryDeleteDirectoryRecursive(string path)

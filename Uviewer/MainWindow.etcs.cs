@@ -163,7 +163,7 @@ namespace Uviewer
 
         private void ZoomActualButton_Click(object sender, RoutedEventArgs e)
         {
-            if (_currentBitmap != null)
+            if (_currentBitmap != null && _currentBitmap.Device != null)
             {
                 // Calculate what zoom level would give us 1:1
                 var containerWidth = ImageArea.ActualWidth;
@@ -208,7 +208,7 @@ namespace Uviewer
 
         private void ApplyZoom()
         {
-            if (_currentBitmap == null || ImageArea.ActualWidth <= 0 || ImageArea.ActualHeight <= 0)
+            if (_currentBitmap == null || _currentBitmap.Device == null || ImageArea.ActualWidth <= 0 || ImageArea.ActualHeight <= 0)
                 return;
 
             var containerWidth = ImageArea.ActualWidth;

@@ -856,7 +856,10 @@ namespace Uviewer
         private void UpdateStatusBar(ImageEntry entry, CanvasBitmap bitmap)
         {
             FileNameText.Text = GetFormattedDisplayName(entry.DisplayName, entry.IsArchiveEntry);
-            ImageInfoText.Text = $"{(int)bitmap.Size.Width} × {(int)bitmap.Size.Height}";
+            if (bitmap != null && bitmap.Device != null)
+                ImageInfoText.Text = $"{(int)bitmap.Size.Width} × {(int)bitmap.Size.Height}";
+            else
+                ImageInfoText.Text = "";
             TextProgressText.Text = ""; // Clear for image mode
 
             if (_isSideBySideMode && _currentPdfDocument == null)
@@ -943,14 +946,15 @@ namespace Uviewer
 
         private async Task HandlePdfScrollAsync(double deltaX, double deltaY)
         {
-            if (_currentPdfDocument == null || _currentBitmap == null || _isPdfTransitioning) return;
+            var bitmap = _currentBitmap;
+            if (_currentPdfDocument == null || bitmap == null || bitmap.Device == null || _isPdfTransitioning) return;
 
             try
             {
                 var canvasSize = MainCanvas.Size;
                 if (canvasSize.Width <= 0 || canvasSize.Height <= 0) return;
 
-                var imageSize = _currentBitmap.Size;
+                var imageSize = bitmap.Size;
                 var fitRatio = Math.Min(canvasSize.Width / imageSize.Width, canvasSize.Height / imageSize.Height);
                 var scaledSize = new Windows.Foundation.Size(imageSize.Width * fitRatio * _zoomLevel, imageSize.Height * fitRatio * _zoomLevel);
 
@@ -982,7 +986,7 @@ namespace Uviewer
                         lock (_preloadedImages)
                         {
                             if (!_preloadedImages.ContainsKey(oldIndex))
-                                _preloadedImages[oldIndex] = _currentBitmap;
+                                _preloadedImages[oldIndex] = bitmap;
                         }
 
                         _currentIndex = targetPrevIndex;
@@ -1004,8 +1008,9 @@ namespace Uviewer
                                 // ONLY cancel if we are jumping far, for smooth scroll just fire and forget.
                                 // However, we can use the same token so it just adds to queue.
                                 // We do NOT cancel the token here!
-                                var token = _preloadCts?.Token ?? default;
+                                var token = _imageLoadingCts?.Token ?? default;
                                 _ = Task.Run(() => PreloadPreviousImagesAsync(token));
+                                CleanupOldPreloadedImages();
                             }
                             catch
                             {
@@ -1019,7 +1024,8 @@ namespace Uviewer
                             // Wait for it inline.
                             try
                             {
-                                prev = await LoadPdfPageBitmapAsync((uint)targetPrevIndex, MainCanvas, default);
+                                var token = _imageLoadingCts?.Token ?? default;
+                                prev = await LoadPdfPageBitmapAsync((uint)targetPrevIndex, MainCanvas, token);
                                 if (prev != null)
                                 {
                                     lock (_preloadedImages) { _preloadedImages[targetPrevIndex] = prev; }
@@ -1033,8 +1039,8 @@ namespace Uviewer
                                     UpdateStatusBar(prevEntry, _currentBitmap);
                                     MainCanvas.Invalidate();
 
-                                    var token = _preloadCts?.Token ?? default;
                                     _ = Task.Run(() => PreloadPreviousImagesAsync(token));
+                                    CleanupOldPreloadedImages();
                                 }
                             }
                             catch { }
@@ -1063,7 +1069,7 @@ namespace Uviewer
                         lock (_preloadedImages)
                         {
                             if (!_preloadedImages.ContainsKey(oldIndex))
-                                _preloadedImages[oldIndex] = _currentBitmap;
+                                _preloadedImages[oldIndex] = bitmap;
                         }
 
                         _currentIndex = targetNextIndex;
@@ -1083,8 +1089,9 @@ namespace Uviewer
                                 MainCanvas.Invalidate();
 
                                 // DO NOT cancel token to avoid stuttering and throwing away in-progress loads
-                                var token = _preloadCts?.Token ?? default;
+                                var token = _imageLoadingCts?.Token ?? default;
                                 _ = Task.Run(() => PreloadNextImagesAsync(token));
+                                CleanupOldPreloadedImages();
                             }
                             catch
                             {
@@ -1097,7 +1104,8 @@ namespace Uviewer
                             // Page not preloaded yet! 
                             try
                             {
-                                next = await LoadPdfPageBitmapAsync((uint)targetNextIndex, MainCanvas, default);
+                                var token = _imageLoadingCts?.Token ?? default;
+                                next = await LoadPdfPageBitmapAsync((uint)targetNextIndex, MainCanvas, token);
                                 if (next != null)
                                 {
                                     lock (_preloadedImages) { _preloadedImages[targetNextIndex] = next; }
@@ -1111,8 +1119,8 @@ namespace Uviewer
                                     UpdateStatusBar(nextEntry, _currentBitmap);
                                     MainCanvas.Invalidate();
 
-                                    var token = _preloadCts?.Token ?? default;
                                     _ = Task.Run(() => PreloadNextImagesAsync(token));
+                                    CleanupOldPreloadedImages();
                                 }
                             }
                             catch { }

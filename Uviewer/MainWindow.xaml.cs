@@ -280,6 +280,9 @@ namespace Uviewer
                 UpdateFavoritesMenu();
                 UpdateRecentMenu();
 
+                // Clean up any stale/incomplete temp files at startup
+                CleanupZeroByteTempFiles();
+
                 if (!string.IsNullOrEmpty(launchFilePath))
                 {
                     // [Priority] Process launch path
@@ -1998,7 +2001,7 @@ namespace Uviewer
             lock (_preloadedImages)
             {
                 // Keep only images within a reasonable range of current index
-                var keepRange = _currentPdfDocument != null ? 6 : PreloadCount * 2;
+                var keepRange = _currentPdfDocument != null ? 8 : PreloadCount * 2;
                 var keysToRemove = _preloadedImages.Keys
                     .Where(index => Math.Abs(index - _currentIndex) > keepRange)
                     .ToList();
@@ -2007,7 +2010,8 @@ namespace Uviewer
                 {
                     if (_preloadedImages.TryGetValue(key, out var bitmap))
                     {
-                        if (!IsBitmapInCache(bitmap))
+                        // Don't dispose if it's currently being displayed
+                        if (bitmap != _currentBitmap && bitmap != _leftBitmap && bitmap != _rightBitmap)
                         {
                             bitmap?.Dispose();
                         }
@@ -2030,7 +2034,7 @@ namespace Uviewer
                 {
                     if (_sharpenedImageCache.TryGetValue(key, out var bitmap))
                     {
-                        if (!IsBitmapInCache(bitmap))
+                        if (bitmap != _currentBitmap && bitmap != _leftBitmap && bitmap != _rightBitmap)
                         {
                             bitmap?.Dispose();
                         }
