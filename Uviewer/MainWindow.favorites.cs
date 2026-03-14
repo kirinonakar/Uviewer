@@ -517,13 +517,23 @@ namespace Uviewer
                         CheckAndAddFolderToFavorites(Path.GetDirectoryName(path));
                     }
                 }
-                else if (!string.IsNullOrEmpty(_currentExplorerPath))
+                else if (!string.IsNullOrEmpty(_currentExplorerPath) || (_isWebDavMode && !string.IsNullOrEmpty(_currentWebDavPath)))
                 {
-                    name = Path.GetFileName(_currentExplorerPath);
-                    if (string.IsNullOrEmpty(name))
-                        name = _currentExplorerPath;
-                    path = _currentExplorerPath;
-                    type = "Folder";
+                    if (!string.IsNullOrEmpty(_currentExplorerPath))
+                    {
+                        name = Path.GetFileName(_currentExplorerPath);
+                        if (string.IsNullOrEmpty(name))
+                            name = _currentExplorerPath;
+                        path = _currentExplorerPath;
+                        type = "Folder";
+                    }
+                    else
+                    {
+                        // WebDAV Folder - will be refined in the WebDAV block below
+                        type = "Folder";
+                        path = _currentWebDavPath!;
+                        name = Path.GetFileName(path.TrimEnd('/')) ?? "";
+                    }
                 }
 
                 string? webDavServerName = null;
@@ -548,6 +558,7 @@ namespace Uviewer
                                 name = $"{origArchiveName} - {_imageEntries[_currentIndex].DisplayName}";
                             }
                         }
+                        CheckAndAddFolderToFavorites(_currentWebDavPath);
                     }
                     else if (type == "File")
                     {
@@ -556,6 +567,7 @@ namespace Uviewer
                             path = _currentWebDavItemPath;
                             name = Path.GetFileName(_currentWebDavItemPath);
                         }
+                        CheckAndAddFolderToFavorites(_currentWebDavPath);
                     }
                     else if (type == "Folder")
                     {
@@ -923,21 +935,35 @@ namespace Uviewer
 
         private void CheckAndAddFolderToFavorites(string? folderPath)
         {
-            if (_isWebDavMode) return; // WebDAV 모드에서는 로컬 폴더 자동 추가 방지
-            if (string.IsNullOrEmpty(folderPath) || !Directory.Exists(folderPath)) return;
+            if (string.IsNullOrEmpty(folderPath)) return;
 
-            var folderName = Path.GetFileName(folderPath);
-            if (string.IsNullOrEmpty(folderName)) folderName = folderPath;
+            string folderName = "";
+            bool isWebDav = _isWebDavMode;
+            string? webDavServerName = _webDavService.CurrentServer?.ServerName;
+
+            if (isWebDav)
+            {
+                folderName = Path.GetFileName(folderPath.TrimEnd('/'));
+                if (string.IsNullOrEmpty(folderName)) folderName = webDavServerName ?? "WebDAV";
+            }
+            else
+            {
+                if (!Directory.Exists(folderPath)) return;
+                folderName = Path.GetFileName(folderPath);
+                if (string.IsNullOrEmpty(folderName)) folderName = folderPath;
+            }
 
             // Check if folder bookmark already exists
-            var existingFolder = _favorites.FirstOrDefault(f => f.Path == folderPath && f.Type == "Folder");
+            var existingFolder = _favorites.FirstOrDefault(f => f.Path == folderPath && f.Type == "Folder" && f.IsWebDav == isWebDav && f.WebDavServerName == webDavServerName);
             if (existingFolder == null)
             {
                 var folderFavorite = new FavoriteItem
                 {
                     Name = folderName,
                     Path = folderPath,
-                    Type = "Folder"
+                    Type = "Folder",
+                    IsWebDav = isWebDav,
+                    WebDavServerName = webDavServerName
                 };
                 _favorites.Add(folderFavorite);
             }

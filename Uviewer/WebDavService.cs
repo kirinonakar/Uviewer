@@ -500,16 +500,30 @@ namespace Uviewer
                  var tempDir = Path.Combine(Path.GetTempPath(), "Uviewer", "WebDav");
                  Directory.CreateDirectory(tempDir);
                  
-                 // Use GUID to avoid file locking collisions
-                 var uniqueFileName = $"{Guid.NewGuid():N}_{fileName}";
-                 var tempPath = Path.Combine(tempDir, uniqueFileName);
+                 // Use stable hash based on URL to allow caching during session
+                 var urlKey = $"{_currentServer!.BaseUrl}{remotePath}";
+                 var hashBytes = SHA256.HashData(Encoding.UTF8.GetBytes(urlKey));
+                 var stableHash = BitConverter.ToString(hashBytes).Replace("-", "").Substring(0, 12).ToLowerInvariant();
+                 var stableFileName = $"{stableHash}_{fileName}";
+                 var tempPath = Path.Combine(tempDir, stableFileName);
+ 
+                 if (File.Exists(tempPath))
+                 {
+                     // Check if file is not empty (simple check for failed previous downloads)
+                     var info = new FileInfo(tempPath);
+                     if (info.Length > 0)
+                     {
+                         System.Diagnostics.Debug.WriteLine($"WebDAV: Using cached file: {tempPath}");
+                         return tempPath;
+                     }
+                 }
  
                  using (var fileStream = File.Create(tempPath))
                  {
                      await response.Stream.CopyToAsync(fileStream, token);
                  }
  
-                 System.Diagnostics.Debug.WriteLine($"WebDAV: File downloaded to unique temp path: {tempPath}");
+                 System.Diagnostics.Debug.WriteLine($"WebDAV: File downloaded to temp path: {tempPath}");
                  return tempPath;
              }
              catch (OperationCanceledException)
