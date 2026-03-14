@@ -35,7 +35,7 @@
 
 ### 📂 File Management
 - **Integrated Explorer**: Sidebar with Folder/Thumbnail views for easy navigation.
-- **Archive Support**: Read images directly from compressed archives (`.zip`, `.rar`, `.7z`, etc.) using **SharpCompress**.
+- **Archive Support**: Read images directly from compressed archives (`.zip`, `.rar`, `.7z`, etc.) using **SharpCompress** and **SevenZipExtractor**.
 - **Organization**: "Favorites" and "Recent Files" management.
 - **WebDAV Support**: Read images directly from WebDAV (HTTPS) servers.
 
@@ -134,10 +134,14 @@ dotnet build Uviewer.sln -c Release
 - **Win2D**: Hardware-accelerated 2D graphics for images.
 - **Windows.Data.Pdf**: Integrated OS-level PDF rendering.
 - **PdfPig**: Used for parsing PDF tables of contents.
-- **SharpCompress**: Archive extraction.
+- **SharpCompress**: Archive extraction for ZIP, RAR, etc.
+- **SevenZipExtractor**: High-performance extraction for `.7z` archives using native **7z.dll** (located in the `Libs` directory).
 
 ## 📝 License
 This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
+
+### Third-Party Licenses
+- **7-Zip (7z.dll)**: Licensed under the **GNU LGPL**. For more information, please visit [www.7-zip.org](https://www.7-zip.org).
 
 ## 👤 Author
 **kirinonakar** - [kirinonakar](https://github.com/kirinonakar)
