@@ -189,12 +189,17 @@ namespace Uviewer
 
         private async Task LoadImageFromFileAsync(StorageFile file, bool isInitial = false)
         {
+            // 이전 작업 즉시 중단
+            _7zExtractCts?.Cancel();
+            _imageLoadingCts?.Cancel();
+            _thumbnailLoadingCts?.Cancel();
+            _preloadCts?.Cancel();
+
             CloseCurrentArchive();
             await CloseCurrentPdfAsync();
             CloseCurrentEpub();
 
             // Cancel any ongoing preloading and clear cache
-            _preloadCts?.Cancel();
             _preloadCts?.Dispose();
             _preloadCts = null;
             
@@ -298,12 +303,17 @@ namespace Uviewer
 
         private async Task LoadImagesFromFolderAsync(StorageFolder folder)
         {
+            // 이전 작업 즉시 중단
+            _7zExtractCts?.Cancel();
+            _imageLoadingCts?.Cancel();
+            _thumbnailLoadingCts?.Cancel();
+            _preloadCts?.Cancel();
+
             CloseCurrentArchive();
             await CloseCurrentPdfAsync();
             CloseCurrentEpub();
 
             // Cancel any ongoing preloading and clear cache
-            _preloadCts?.Cancel();
             _preloadCts?.Dispose();
             _preloadCts = null;
             
@@ -349,6 +359,12 @@ namespace Uviewer
 
         private async Task LoadImagesFromArchiveAsync(string archivePath)
         {
+            // 이전 작업 즉시 중단
+            _7zExtractCts?.Cancel();
+            _preloadCts?.Cancel();
+            _imageLoadingCts?.Cancel();
+            _thumbnailLoadingCts?.Cancel();
+
             // Close other formats first
             await CloseCurrentPdfAsync();
             CloseCurrentEpub();
@@ -439,10 +455,16 @@ namespace Uviewer
 
         private void CloseCurrentArchive()
         {
-            if (_currentArchive == null) return;
+            // [Fix] _currentArchive와 _current7zArchive 둘 다 체크
+            if (_currentArchive == null && _current7zArchive == null) return;
+
+            // [Immediate Stop] 락을 기다리기 전에 추출 작업 즉시 취소
+            _7zExtractCts?.Cancel();
+            _preloadCts?.Cancel();
+            _thumbnailLoadingCts?.Cancel();
 
             // 외부에서 호출될 때 Lock 대기 (타임아웃 설정으로 데드락 방지)
-            if (_archiveLock.Wait(TimeSpan.FromSeconds(5)))
+            if (_archiveLock.Wait(TimeSpan.FromSeconds(2)))
             {
                 try
                 {
@@ -457,25 +479,32 @@ namespace Uviewer
             {
                 // 타임아웃 발생 시 강제로 정리
                 System.Diagnostics.Debug.WriteLine("Archive lock timeout - forcing cleanup");
+                
+                // 백그라운드 작업 다시 한 번 취소 확인
+                _7zExtractCts?.Cancel();
+
                 if (_currentArchive != null)
                 {
-                    try
-                    {
-                        _currentArchive.Dispose();
-                    }
-                    catch { }
+                    try { _currentArchive.Dispose(); } catch { }
                     _currentArchive = null;
                 }
                 if (_current7zArchive != null)
                 {
-                    try
-                    {
-                        _current7zArchive.Dispose();
-                    }
-                    catch { }
+                    try { _current7zArchive.Dispose(); } catch { }
                     _current7zArchive = null;
                 }
                 _currentArchivePath = null;
+
+                // 타임아웃 시에도 임시 데이터 정리 및 상태 초기화 강제 실행
+                Cleanup7zTempData(immediate: true);
+                
+                DispatcherQueue.TryEnqueue(() =>
+                {
+                    Title = "Uviewer - Image & Text Viewer";
+                    _currentBitmap = null;
+                    _leftBitmap = null;
+                    _rightBitmap = null;
+                });
             }
         }
 
@@ -561,7 +590,7 @@ namespace Uviewer
                 var lockObj = new object();
 
                 // [멀티스레드 압축 해제]
-                int threadCount = Math.Min(Environment.ProcessorCount, 8); // 최대 8개 스레드 사용
+                int threadCount = Math.Min(Environment.ProcessorCount, 6); // 최대 6개 스레드 사용
                 var tasks = new List<Task>();
 
                 for (int t = 0; t < threadCount; t++)

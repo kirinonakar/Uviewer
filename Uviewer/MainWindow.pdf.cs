@@ -32,8 +32,8 @@ namespace Uviewer
             SwitchToImageMode(); // Force UI to image mode immediately
 
             // Close other formats first - outside the lock to avoid double-locking/deadlocks
-            if (_currentArchive != null) CloseCurrentArchive();
-            if (_currentEpubFilePath != null) CloseCurrentEpub();
+            CloseCurrentArchive();
+            CloseCurrentEpub();
 
             try
             {
