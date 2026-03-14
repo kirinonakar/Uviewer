@@ -188,7 +188,7 @@ namespace Uviewer
         private async Task LoadImageFromFileAsync(StorageFile file, bool isInitial = false)
         {
             CloseCurrentArchive();
-            CloseCurrentPdf();
+            await CloseCurrentPdfAsync();
             CloseCurrentEpub();
 
             // Cancel any ongoing preloading and clear cache
@@ -200,7 +200,7 @@ namespace Uviewer
             {
                 foreach (var bitmap in _preloadedImages.Values)
                 {
-                    bitmap?.Dispose();
+                    SafeDisposeBitmap(bitmap);
                 }
                 _preloadedImages.Clear();
             }
@@ -209,7 +209,7 @@ namespace Uviewer
             {
                 foreach (var bitmap in _sharpenedImageCache.Values)
                 {
-                    bitmap?.Dispose();
+                    SafeDisposeBitmap(bitmap);
                 }
                 _sharpenedImageCache.Clear();
             }
@@ -297,7 +297,7 @@ namespace Uviewer
         private async Task LoadImagesFromFolderAsync(StorageFolder folder)
         {
             CloseCurrentArchive();
-            CloseCurrentPdf();
+            await CloseCurrentPdfAsync();
             CloseCurrentEpub();
 
             // Cancel any ongoing preloading and clear cache
@@ -309,7 +309,7 @@ namespace Uviewer
             {
                 foreach (var bitmap in _preloadedImages.Values)
                 {
-                    bitmap?.Dispose();
+                    SafeDisposeBitmap(bitmap);
                 }
                 _preloadedImages.Clear();
             }
@@ -318,7 +318,7 @@ namespace Uviewer
             {
                 foreach (var bitmap in _sharpenedImageCache.Values)
                 {
-                    bitmap?.Dispose();
+                    SafeDisposeBitmap(bitmap);
                 }
                 _sharpenedImageCache.Clear();
             }
@@ -348,7 +348,7 @@ namespace Uviewer
         private async Task LoadImagesFromArchiveAsync(string archivePath)
         {
             // Close other formats first
-            CloseCurrentPdf();
+            await CloseCurrentPdfAsync();
             CloseCurrentEpub();
 
             try
@@ -482,7 +482,7 @@ namespace Uviewer
             {
                 foreach (var bitmap in _preloadedImages.Values)
                 {
-                    bitmap?.Dispose();
+                    SafeDisposeBitmap(bitmap);
                 }
                 _preloadedImages.Clear();
             }
@@ -492,7 +492,7 @@ namespace Uviewer
             {
                 foreach (var bitmap in _sharpenedImageCache.Values)
                 {
-                    bitmap?.Dispose();
+                    SafeDisposeBitmap(bitmap);
                 }
                 _sharpenedImageCache.Clear();
             }

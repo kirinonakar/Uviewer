@@ -119,7 +119,7 @@ namespace Uviewer
                 // 6. 메모리 해제
                 if (shouldUpscale)
                 {
-                    processedSource.Dispose();
+                    SafeDisposeBitmap(processedSource);
                 }
 
                 return finalTarget;
@@ -150,7 +150,7 @@ namespace Uviewer
                         {
                             if (!IsBitmapInCache(bitmap))
                             {
-                                bitmap?.Dispose();
+                                SafeDisposeBitmap(bitmap);
                                 _sharpenedImageCache.Remove(key);
                             }
                         }
@@ -200,7 +200,7 @@ namespace Uviewer
                 {
                     if (bmp != _currentBitmap && bmp != _leftBitmap && bmp != _rightBitmap)
                     {
-                        bmp.Dispose();
+                        SafeDisposeBitmap(bmp);
                     }
                 }
                 _animatedWebpSharpenedCache.Clear();
@@ -278,7 +278,7 @@ namespace Uviewer
 
                         if (_animatedWebpFramePixels == null || MainCanvas.Device == null)
                         {
-                            newBitmap?.Dispose();
+                            SafeDisposeBitmap(newBitmap);
                             return;
                         }
 
@@ -314,7 +314,7 @@ namespace Uviewer
                     }
                     if (!isInAnimationCache)
                     {
-                        oldBitmap.Dispose();
+                        SafeDisposeBitmap(oldBitmap);
                     }
                 }
 

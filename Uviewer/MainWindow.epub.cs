@@ -312,7 +312,7 @@ namespace Uviewer
 
              // Close other formats first
              CloseCurrentArchive();
-             CloseCurrentPdf();
+             await CloseCurrentPdfAsync();
 
              _currentEpubFilePath = file.Path;
              

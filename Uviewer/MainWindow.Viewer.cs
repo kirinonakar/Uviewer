@@ -157,7 +157,7 @@ namespace Uviewer
                     // 단, 캐시에 있는 녀석(프리로딩된 것)은 지우면 안 되므로 IsBitmapInCache 체크
                     if (bitmap != null && !IsBitmapInCache(bitmap))
                     {
-                        bitmap.Dispose();
+                        SafeDisposeBitmap(bitmap); // 일반 Dispose() 대신 사용
                     }
                     return;
                 }
@@ -205,7 +205,7 @@ namespace Uviewer
                     // (단, 캐시에 있는 건 지우면 안 됨)
                     if (oldBitmap != null && !IsBitmapInCache(oldBitmap) && oldBitmap != bitmap)
                     {
-                        oldBitmap.Dispose();
+                        SafeDisposeBitmap(oldBitmap); // 일반 Dispose() 대신 사용
                     }
                 }
                 else
@@ -383,8 +383,8 @@ namespace Uviewer
 
                 if (token.IsCancellationRequested)
                 {
-                    if (leftBitmap != null && !IsBitmapInCache(leftBitmap)) leftBitmap.Dispose();
-                    if (rightBitmap != null && !IsBitmapInCache(rightBitmap)) rightBitmap.Dispose();
+                    if (leftBitmap != null && !IsBitmapInCache(leftBitmap)) SafeDisposeBitmap(leftBitmap);
+                    if (rightBitmap != null && !IsBitmapInCache(rightBitmap)) SafeDisposeBitmap(rightBitmap);
                     return;
                 }
 
@@ -449,11 +449,11 @@ namespace Uviewer
                 // 4. 이제 안전하게 옛날 이미지를 폐기
                 if (oldLeft != null && !IsBitmapInCache(oldLeft) && oldLeft != leftBitmap && oldLeft != rightBitmap)
                 {
-                    oldLeft.Dispose();
+                    SafeDisposeBitmap(oldLeft);
                 }
                 if (oldRight != null && !IsBitmapInCache(oldRight) && oldRight != leftBitmap && oldRight != rightBitmap)
                 {
-                    oldRight.Dispose();
+                    SafeDisposeBitmap(oldRight);
                 }
             }
             catch (Exception ex)
@@ -968,68 +968,33 @@ namespace Uviewer
                 double gap = 20 * _zoomLevel;
                 double maxPanY = Math.Max(0, (scaledSize.Height - canvasSize.Height) / 2);
 
-                if (deltaY > 0) // 위로 스크롤 (이전 페이지로)
-                {
-                    _pdfPanY += deltaY;
-
-                    // 이전 페이지로 전환
-                    if (_pdfPanY > maxPanY + 1 && _currentIndex > 0)
+                    if (deltaY > 0) // 위로 스크롤 (이전 페이지로)
                     {
-                        _isPdfTransitioning = true;
-                        CanvasBitmap? prev = null;
-                        int targetPrevIndex = _currentIndex - 1;
-                        lock (_preloadedImages) { _preloadedImages.TryGetValue(targetPrevIndex, out prev); }
+                        _pdfPanY += deltaY;
 
-                        var oldPosNextTop = (canvasSize.Height - scaledSize.Height) / 2 + _pdfPanY;
-
-                        int oldIndex = _currentIndex;
-                        lock (_preloadedImages)
+                        // 이전 페이지로 전환
+                        if (_pdfPanY > maxPanY + 1 && _currentIndex > 0)
                         {
-                            if (!_preloadedImages.ContainsKey(oldIndex))
-                                _preloadedImages[oldIndex] = bitmap;
-                        }
+                            _isPdfTransitioning = true;
+                            CanvasBitmap? prev = null;
+                            int targetPrevIndex = _currentIndex - 1;
+                            lock (_preloadedImages) { _preloadedImages.TryGetValue(targetPrevIndex, out prev); }
 
-                        _currentIndex = targetPrevIndex;
+                            var oldPosNextTop = (canvasSize.Height - scaledSize.Height) / 2 + _pdfPanY;
 
-                        if (prev != null && prev.Device != null)
-                        {
-                            try
+                            int oldIndex = _currentIndex;
+                            lock (_preloadedImages)
                             {
-                                var pFit = Math.Min(canvasSize.Width / prev.Size.Width, canvasSize.Height / prev.Size.Height);
-                                var pScaledH = prev.Size.Height * pFit * _zoomLevel;
-                                _pdfPanY = (oldPosNextTop - gap - pScaledH) - (canvasSize.Height - pScaledH) / 2;
-
-                                _currentBitmap = prev;
-                                var prevEntry = _imageEntries[_currentIndex];
-                                // Do not call ShowImageUI here to avoid flickering
-                                UpdateStatusBar(prevEntry, _currentBitmap);
-                                MainCanvas.Invalidate();
-
-                                // ONLY cancel if we are jumping far, for smooth scroll just fire and forget.
-                                // However, we can use the same token so it just adds to queue.
-                                // We do NOT cancel the token here!
-                                var token = _imageLoadingCts?.Token ?? default;
-                                _ = Task.Run(() => PreloadPreviousImagesAsync(token));
-                                CleanupOldPreloadedImages();
+                                if (!_preloadedImages.ContainsKey(oldIndex))
+                                    _preloadedImages[oldIndex] = bitmap;
                             }
-                            catch
+
+                            _currentIndex = targetPrevIndex;
+
+                            if (prev != null && prev.Device != null)
                             {
-                                _isPdfTransitioning = false;
-                                return;
-                            }
-                        }
-                        else
-                        {
-                            // Page not preloaded yet! Don't do a full DisplayCurrentImageAsync which flickers.
-                            // Wait for it inline.
-                            try
-                            {
-                                var token = _imageLoadingCts?.Token ?? default;
-                                prev = await LoadPdfPageBitmapAsync((uint)targetPrevIndex, MainCanvas, token);
-                                if (prev != null)
+                                try
                                 {
-                                    lock (_preloadedImages) { _preloadedImages[targetPrevIndex] = prev; }
-
                                     var pFit = Math.Min(canvasSize.Width / prev.Size.Width, canvasSize.Height / prev.Size.Height);
                                     var pScaledH = prev.Size.Height * pFit * _zoomLevel;
                                     _pdfPanY = (oldPosNextTop - gap - pScaledH) - (canvasSize.Height - pScaledH) / 2;
@@ -1039,77 +1004,80 @@ namespace Uviewer
                                     UpdateStatusBar(prevEntry, _currentBitmap);
                                     MainCanvas.Invalidate();
 
-                                    _ = Task.Run(() => PreloadPreviousImagesAsync(token));
+                                    // 빠른 스크롤 시 불필요한 누적을 막기 위해 프리로드 토큰을 리셋
+                                    _preloadCts?.Cancel();
+                                    _preloadCts?.Dispose();
+                                    _preloadCts = new CancellationTokenSource();
+                                    
+                                    _ = Task.Run(() => PreloadPreviousImagesAsync(_preloadCts.Token));
                                     CleanupOldPreloadedImages();
                                 }
-                            }
-                            catch { }
-                        }
-                        _isPdfTransitioning = false;
-                        return;
-                    }
-
-                    if (_currentIndex == 0 && _pdfPanY > maxPanY) _pdfPanY = maxPanY;
-                }
-                else if (deltaY < 0) // 아래로 스크롤 (다음 페이지로)
-                {
-                    _pdfPanY += deltaY;
-
-                    // 다음 페이지로 전환
-                    if (_pdfPanY < -maxPanY - 1 && _currentIndex < _imageEntries.Count - 1)
-                    {
-                        _isPdfTransitioning = true;
-                        CanvasBitmap? next = null;
-                        int targetNextIndex = _currentIndex + 1;
-                        lock (_preloadedImages) { _preloadedImages.TryGetValue(targetNextIndex, out next); }
-
-                        var oldPosPrevBottom = (canvasSize.Height - scaledSize.Height) / 2 + _pdfPanY + scaledSize.Height;
-
-                        int oldIndex = _currentIndex;
-                        lock (_preloadedImages)
-                        {
-                            if (!_preloadedImages.ContainsKey(oldIndex))
-                                _preloadedImages[oldIndex] = bitmap;
-                        }
-
-                        _currentIndex = targetNextIndex;
-
-                        if (next != null && next.Device != null)
-                        {
-                            try
-                            {
-                                var nFit = Math.Min(canvasSize.Width / next.Size.Width, canvasSize.Height / next.Size.Height);
-                                var nScaledH = next.Size.Height * nFit * _zoomLevel;
-                                _pdfPanY = (oldPosPrevBottom + gap) - (canvasSize.Height - nScaledH) / 2;
-
-                                _currentBitmap = next;
-                                var nextEntry = _imageEntries[_currentIndex];
-                                // Do not call ShowImageUI here to avoid flickering
-                                UpdateStatusBar(nextEntry, _currentBitmap);
-                                MainCanvas.Invalidate();
-
-                                // DO NOT cancel token to avoid stuttering and throwing away in-progress loads
-                                var token = _imageLoadingCts?.Token ?? default;
-                                _ = Task.Run(() => PreloadNextImagesAsync(token));
-                                CleanupOldPreloadedImages();
-                            }
-                            catch
-                            {
-                                _isPdfTransitioning = false;
-                                return;
-                            }
-                        }
-                        else
-                        {
-                            // Page not preloaded yet! 
-                            try
-                            {
-                                var token = _imageLoadingCts?.Token ?? default;
-                                next = await LoadPdfPageBitmapAsync((uint)targetNextIndex, MainCanvas, token);
-                                if (next != null)
+                                catch
                                 {
-                                    lock (_preloadedImages) { _preloadedImages[targetNextIndex] = next; }
+                                    _isPdfTransitioning = false;
+                                    return;
+                                }
+                            }
+                            else
+                            {
+                                try
+                                {
+                                    var token = _imageLoadingCts?.Token ?? default;
+                                    prev = await LoadPdfPageBitmapAsync((uint)targetPrevIndex, MainCanvas, token);
+                                    if (prev != null)
+                                    {
+                                        lock (_preloadedImages) { _preloadedImages[targetPrevIndex] = prev; }
 
+                                        var pFit = Math.Min(canvasSize.Width / prev.Size.Width, canvasSize.Height / prev.Size.Height);
+                                        var pScaledH = prev.Size.Height * pFit * _zoomLevel;
+                                        _pdfPanY = (oldPosNextTop - gap - pScaledH) - (canvasSize.Height - pScaledH) / 2;
+
+                                        _currentBitmap = prev;
+                                        var prevEntry = _imageEntries[_currentIndex];
+                                        UpdateStatusBar(prevEntry, _currentBitmap);
+                                        MainCanvas.Invalidate();
+
+                                        _preloadCts?.Cancel();
+                                        _preloadCts = new CancellationTokenSource();
+                                        _ = Task.Run(() => PreloadPreviousImagesAsync(_preloadCts.Token));
+                                        CleanupOldPreloadedImages();
+                                    }
+                                }
+                                catch { }
+                            }
+                            _isPdfTransitioning = false;
+                            return;
+                        }
+
+                        if (_currentIndex == 0 && _pdfPanY > maxPanY) _pdfPanY = maxPanY;
+                    }
+                    else if (deltaY < 0) // 아래로 스크롤 (다음 페이지로)
+                    {
+                        _pdfPanY += deltaY;
+
+                        // 다음 페이지로 전환
+                        if (_pdfPanY < -maxPanY - 1 && _currentIndex < _imageEntries.Count - 1)
+                        {
+                            _isPdfTransitioning = true;
+                            CanvasBitmap? next = null;
+                            int targetNextIndex = _currentIndex + 1;
+                            lock (_preloadedImages) { _preloadedImages.TryGetValue(targetNextIndex, out next); }
+
+                            var oldPosPrevBottom = (canvasSize.Height - scaledSize.Height) / 2 + _pdfPanY + scaledSize.Height;
+
+                            int oldIndex = _currentIndex;
+                            lock (_preloadedImages)
+                            {
+                                if (!_preloadedImages.ContainsKey(oldIndex))
+                                    _preloadedImages[oldIndex] = bitmap;
+                            }
+
+                            _currentIndex = targetNextIndex;
+
+                            if (next != null && next.Device != null)
+                            {
+                                try
+                                {
                                     var nFit = Math.Min(canvasSize.Width / next.Size.Width, canvasSize.Height / next.Size.Height);
                                     var nScaledH = next.Size.Height * nFit * _zoomLevel;
                                     _pdfPanY = (oldPosPrevBottom + gap) - (canvasSize.Height - nScaledH) / 2;
@@ -1119,18 +1087,52 @@ namespace Uviewer
                                     UpdateStatusBar(nextEntry, _currentBitmap);
                                     MainCanvas.Invalidate();
 
-                                    _ = Task.Run(() => PreloadNextImagesAsync(token));
+                                    _preloadCts?.Cancel();
+                                    _preloadCts?.Dispose();
+                                    _preloadCts = new CancellationTokenSource();
+                                    
+                                    _ = Task.Run(() => PreloadNextImagesAsync(_preloadCts.Token));
                                     CleanupOldPreloadedImages();
                                 }
+                                catch
+                                {
+                                    _isPdfTransitioning = false;
+                                    return;
+                                }
                             }
-                            catch { }
-                        }
-                        _isPdfTransitioning = false;
-                        return;
-                    }
+                            else
+                            {
+                                try
+                                {
+                                    var token = _imageLoadingCts?.Token ?? default;
+                                    next = await LoadPdfPageBitmapAsync((uint)targetNextIndex, MainCanvas, token);
+                                    if (next != null)
+                                    {
+                                        lock (_preloadedImages) { _preloadedImages[targetNextIndex] = next; }
 
-                    if (_currentIndex >= _imageEntries.Count - 1 && _pdfPanY < -maxPanY) _pdfPanY = -maxPanY;
-                }
+                                        var nFit = Math.Min(canvasSize.Width / next.Size.Width, canvasSize.Height / next.Size.Height);
+                                        var nScaledH = next.Size.Height * nFit * _zoomLevel;
+                                        _pdfPanY = (oldPosPrevBottom + gap) - (canvasSize.Height - nScaledH) / 2;
+
+                                        _currentBitmap = next;
+                                        var nextEntry = _imageEntries[_currentIndex];
+                                        UpdateStatusBar(nextEntry, _currentBitmap);
+                                        MainCanvas.Invalidate();
+
+                                        _preloadCts?.Cancel();
+                                        _preloadCts = new CancellationTokenSource();
+                                        _ = Task.Run(() => PreloadNextImagesAsync(_preloadCts.Token));
+                                        CleanupOldPreloadedImages();
+                                    }
+                                }
+                                catch { }
+                            }
+                            _isPdfTransitioning = false;
+                            return;
+                        }
+
+                        if (_currentIndex >= _imageEntries.Count - 1 && _pdfPanY < -maxPanY) _pdfPanY = -maxPanY;
+                    }
 
                 ApplyZoom();
             }
@@ -1174,17 +1176,17 @@ namespace Uviewer
 
             lock (_preloadedImages)
             {
-                foreach (var bmp in _preloadedImages.Values) bmp?.Dispose();
+                foreach (var bmp in _preloadedImages.Values) SafeDisposeBitmap(bmp);
                 _preloadedImages.Clear();
             }
             lock (_sharpenedImageCache)
             {
-                foreach (var bmp in _sharpenedImageCache.Values) bmp?.Dispose();
+                foreach (var bmp in _sharpenedImageCache.Values) SafeDisposeBitmap(bmp);
                 _sharpenedImageCache.Clear();
             }
             lock (_animatedWebpSharpenedCache)
             {
-                foreach (var bmp in _animatedWebpSharpenedCache.Values) bmp?.Dispose();
+                foreach (var bmp in _animatedWebpSharpenedCache.Values) SafeDisposeBitmap(bmp);
                 _animatedWebpSharpenedCache.Clear();
             }
 

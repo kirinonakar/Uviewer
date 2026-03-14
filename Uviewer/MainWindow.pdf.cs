@@ -135,70 +135,45 @@ namespace Uviewer
             }
         }
 
-        private void CloseCurrentPdf()
+        private async Task CloseCurrentPdfAsync() // 동기 메서드 대신 비동기로 변경하여 UI 프리징 방지
         {
             if (_currentPdfDocument == null) return;
 
-            if (_pdfLock.Wait(TimeSpan.FromSeconds(5)))
+            // UI 스레드를 막지 않고 비동기로 락 획득 대기
+            bool lockAcquired = await _pdfLock.WaitAsync(TimeSpan.FromSeconds(2));
+            try
             {
-                try
-                {
-                    CloseCurrentPdfInternal();
-                }
-                finally
-                {
-                    _pdfLock.Release();
-                }
+                CloseCurrentPdfInternal();
             }
-            else
+            finally
             {
-                System.Diagnostics.Debug.WriteLine("PDF lock timeout - forcing cleanup");
-                if (_currentPdfDocument != null)
-                {
-                    _currentPdfDocument = null;
-                    _currentPdfPath = null;
-                }
+                if (lockAcquired) _pdfLock.Release();
             }
         }
 
         private void CloseCurrentPdfInternal()
         {
-            if (_currentPdfDocument != null)
-            {
-                _currentPdfDocument = null;
-            }
-
+            // PDF Document 참조 해제
+            var oldDoc = _currentPdfDocument;
+            _currentPdfDocument = null;
             _currentPdfPath = null;
             _pdfToc.Clear();
 
             // UI 스레드에서 버튼 가리기
             DispatcherQueue.TryEnqueue(() =>
             {
-                if (PdfTocButton != null)
-                {
-                    PdfTocButton.Visibility = Visibility.Collapsed;
-                }
-                if (PdfGoToPageButton != null)
-                {
-                    PdfGoToPageButton.Visibility = Visibility.Collapsed;
-                }
-                if (PdfSeparator != null)
-                {
-                    PdfSeparator.Visibility = Visibility.Collapsed;
-                }
-            });
-
-            // Title updating handles securely inside CloseCurrentArchiveInternal already, so here we might just duplicate or skip if handled generally.
-            DispatcherQueue.TryEnqueue(() =>
-            {
+                if (PdfTocButton != null) PdfTocButton.Visibility = Visibility.Collapsed;
+                if (PdfGoToPageButton != null) PdfGoToPageButton.Visibility = Visibility.Collapsed;
+                if (PdfSeparator != null) PdfSeparator.Visibility = Visibility.Collapsed;
                 Title = "Uviewer - Image & Text Viewer";
             });
 
+            // 딕셔너리 안전한 초기화 (크래시 방지)
             lock (_preloadedImages)
             {
                 foreach (var bitmap in _preloadedImages.Values)
                 {
-                    bitmap?.Dispose();
+                    SafeDisposeBitmap(bitmap);
                 }
                 _preloadedImages.Clear();
             }
@@ -207,7 +182,7 @@ namespace Uviewer
             {
                 foreach (var bitmap in _sharpenedImageCache.Values)
                 {
-                    bitmap?.Dispose();
+                    SafeDisposeBitmap(bitmap);
                 }
                 _sharpenedImageCache.Clear();
             }
@@ -223,34 +198,26 @@ namespace Uviewer
 
         private async Task<CanvasBitmap?> LoadPdfPageBitmapAsync(uint pageIndex, CanvasControl canvas, CancellationToken token = default)
         {
-            if (_currentPdfDocument == null || pageIndex >= _currentPdfDocument.PageCount) return null;
+            // 로컬 변수에 캡처하여 도중 _currentPdfDocument가 null이 되어도 크래시 방지
+            var pdfDoc = _currentPdfDocument;
+            if (pdfDoc == null || pageIndex >= pdfDoc.PageCount) return null;
 
             try
             {
-                // PDF pages can be large, get it with default options or specify size.
-                using var pdfPage = _currentPdfDocument.GetPage(pageIndex);
-                
+                // 취소 요청이 들어왔다면 세마포어 대기 전에 빠른 반환
+                if (token.IsCancellationRequested) return null;
+
+                using var pdfPage = pdfDoc.GetPage(pageIndex);
                 using var stream = new Windows.Storage.Streams.InMemoryRandomAccessStream();
                 
-                // Calculate scale based on canvas size, but avoid too low or too high resolution
                 double scale = 1.0;
-                double canvasWidth = 0;
-
-                if (DispatcherQueue.HasThreadAccess)
-                {
-                    canvasWidth = canvas.ActualWidth;
-                }
-                else
-                {
-                    canvasWidth = _lastCanvasWidth;
-                }
+                double canvasWidth = DispatcherQueue.HasThreadAccess ? canvas.ActualWidth : _lastCanvasWidth;
 
                 if (canvasWidth > 0 && pdfPage.Size.Width > 0)
                 {
                     scale = canvasWidth / pdfPage.Size.Width;
                 }
                 
-                // Buffer for sharpness, but capped to 2.0x to save memory
                 scale = Math.Max(1.0, Math.Min(scale * 1.5, 2.0));
 
                 var options = new PdfPageRenderOptions
@@ -259,11 +226,14 @@ namespace Uviewer
                     DestinationHeight = (uint)(pdfPage.Size.Height * scale)
                 };
                 
-                // Use semaphore to limit concurrent rendering tasks
+                // 세마포어 대기 중 취소될 수 있으므로 token 전달
                 await _pdfRenderSemaphore.WaitAsync(token);
                 try
                 {
-                    await pdfPage.RenderToStreamAsync(stream, options);
+                    if (token.IsCancellationRequested) return null;
+
+                    // 핵심 수정: AsTask(token)을 사용하여 네이티브 렌더링 중에도 취소 신호에 반응하도록 함
+                    await pdfPage.RenderToStreamAsync(stream, options).AsTask(token);
                 }
                 finally
                 {
@@ -273,8 +243,15 @@ namespace Uviewer
                 if (token.IsCancellationRequested) return null;
 
                 stream.Seek(0);
-                var bitmap = await CanvasBitmap.LoadAsync(canvas, stream);
+                
+                // 스레드 민첩성을 위해 CanvasDevice 직접 가져오기 (Background Thread Crash 방지)
+                var device = canvas.Device ?? Microsoft.Graphics.Canvas.CanvasDevice.GetSharedDevice();
+                var bitmap = await CanvasBitmap.LoadAsync(device, stream);
                 return bitmap;
+            }
+            catch (OperationCanceledException)
+            {
+                return null; // 정상적인 취소
             }
             catch (Exception ex)
             {

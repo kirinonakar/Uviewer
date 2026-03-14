@@ -427,7 +427,7 @@ namespace Uviewer
             if (string.IsNullOrEmpty(item.WebDavPath)) return;
 
             // Close other formats first
-            CloseCurrentPdf();
+            await CloseCurrentPdfAsync();
             CloseCurrentEpub();
             CloseCurrentArchive();
             SwitchToImageMode();
@@ -506,7 +506,7 @@ namespace Uviewer
             if (string.IsNullOrEmpty(item.WebDavPath)) return;
 
             // Close other formats first
-            CloseCurrentPdf();
+            await CloseCurrentPdfAsync();
             CloseCurrentEpub();
             SwitchToImageMode();
 

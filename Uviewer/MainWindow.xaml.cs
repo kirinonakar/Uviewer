@@ -534,23 +534,19 @@ namespace Uviewer
                         }
                         catch { }
                     }
-                    // Clean up cached bitmaps
-                    _currentBitmap?.Dispose();
                     _currentBitmap = null;
-                    _leftBitmap?.Dispose();
                     _leftBitmap = null;
-                    _rightBitmap?.Dispose();
                     _rightBitmap = null;
 
                     lock (_preloadedImages)
                     {
-                        foreach (var img in _preloadedImages.Values) img?.Dispose();
+                        foreach (var img in _preloadedImages.Values) SafeDisposeBitmap(img);
                         _preloadedImages.Clear();
                     }
 
                     lock (_sharpenedImageCache)
                     {
-                        foreach (var img in _sharpenedImageCache.Values) img?.Dispose();
+                        foreach (var img in _sharpenedImageCache.Values) SafeDisposeBitmap(img);
                         _sharpenedImageCache.Clear();
                     }
 
@@ -1824,7 +1820,7 @@ namespace Uviewer
                             if (token.IsCancellationRequested)
                             {
                                 // 만들었는데 취소됐다면 즉시 폐기
-                                bitmap?.Dispose();
+                                SafeDisposeBitmap(bitmap);
                                 return;
                             }
 
@@ -1836,7 +1832,7 @@ namespace Uviewer
                                     var sharpened = await ApplySharpenToBitmapAsync(bitmap, MainCanvas, skipUpscale: false);
                                     if (sharpened != null)
                                     {
-                                        bitmap.Dispose(); // 원본은 버리고 샤픈된 것 사용
+                                    SafeDisposeBitmap(bitmap); // 원본은 버리고 샤픈된 것 사용
                                         bitmap = sharpened;
                                     }
                                 }
@@ -1851,7 +1847,7 @@ namespace Uviewer
                                     else
                                     {
                                         // 늦게 도착한 비트맵은 즉시 폐기
-                                        bitmap.Dispose();
+                                        SafeDisposeBitmap(bitmap);
                                     }
                                 }
                             }
@@ -1952,7 +1948,7 @@ namespace Uviewer
                             if (token.IsCancellationRequested)
                             {
                                 // 만들었는데 취소됐다면 즉시 폐기
-                                bitmap?.Dispose();
+                                SafeDisposeBitmap(bitmap);
                                 return;
                             }
 
@@ -1967,7 +1963,7 @@ namespace Uviewer
                                     else
                                     {
                                         // 늦게 도착한 것은 즉시 폐기
-                                        bitmap.Dispose();
+                                        SafeDisposeBitmap(bitmap);
                                     }
                                 }
                             }
@@ -2013,7 +2009,7 @@ namespace Uviewer
                         // Don't dispose if it's currently being displayed
                         if (bitmap != _currentBitmap && bitmap != _leftBitmap && bitmap != _rightBitmap)
                         {
-                            bitmap?.Dispose();
+                            SafeDisposeBitmap(bitmap);
                         }
                     }
                     _preloadedImages.Remove(key);
@@ -2036,12 +2032,33 @@ namespace Uviewer
                     {
                         if (bitmap != _currentBitmap && bitmap != _leftBitmap && bitmap != _rightBitmap)
                         {
-                            bitmap?.Dispose();
+                            SafeDisposeBitmap(bitmap);
                         }
                     }
                     _sharpenedImageCache.Remove(key);
                 }
             }
+        }
+
+        private void SafeDisposeBitmap(CanvasBitmap? bitmap)
+        {
+            if (bitmap == null) return;
+
+            // 현재 화면에 렌더링 중일 수 있으므로 UI 스레드에서 안전하게 해제
+            DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, () =>
+            {
+                try
+                {
+                    if (bitmap.Device != null) // 이미 Dispose 되지 않은 경우만
+                    {
+                        bitmap.Dispose();
+                    }
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"Bitmap Dispose Error: {ex.Message}");
+                }
+            });
         }
 
         #endregion
