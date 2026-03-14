@@ -552,9 +552,16 @@ namespace Uviewer
 
                 // 부모 폴더(Uviewer)가 비어있으면 삭제 시도
                 var baseTemp = Path.Combine(Path.GetTempPath(), "Uviewer");
-                if (Directory.Exists(baseTemp) && !Directory.EnumerateFileSystemEntries(baseTemp).Any())
+                if (Directory.Exists(baseTemp))
                 {
-                    try { Directory.Delete(baseTemp); } catch { }
+                    try
+                    {
+                        if (!Directory.EnumerateFileSystemEntries(baseTemp).Any())
+                        {
+                            Directory.Delete(baseTemp);
+                        }
+                    }
+                    catch { }
                 }
             }
             catch { }

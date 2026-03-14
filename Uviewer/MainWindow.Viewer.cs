@@ -4,6 +4,7 @@ using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
+using SevenZipExtractor;
 using System;
 using System.IO;
 using System.Linq;
@@ -36,7 +37,7 @@ namespace Uviewer
             var token = _imageLoadingCts.Token; // <-- 이 토큰을 전달해야 함
 
             // 아카이브 탐색 시 백그라운드 추출 위치 재조정 신호 전송 (큰 폭의 이동 시에만)
-            if (_currentArchive != null && Path.GetExtension(_currentArchivePath ?? "").ToLowerInvariant() == ".7z")
+            if (_current7zArchive != null)
             {
                 if (Math.Abs(_currentIndex - _lastIndexFor7zJump) > 2)
                 {
@@ -514,7 +515,7 @@ namespace Uviewer
                     // 로컬 파일 (애니메이션 WebP가 아닌 경우 여기로 옴)
                     originalBitmap = await LoadImageFromPathAsync(entry.FilePath, canvas);
                 }
-                else if (entry.IsArchiveEntry && _currentArchive != null)
+                else if (entry.IsArchiveEntry && (_currentArchive != null || _current7zArchive != null))
                 {
                     // [중요] 압축 파일 내 이미지는 WebP 여부 상관없이 여기서 로드 (Win2D LoadAsync 사용)
                     originalBitmap = await LoadImageFromArchiveEntryAsync(entry.ArchiveEntryKey!, canvas, token);
@@ -739,13 +740,25 @@ namespace Uviewer
             await _archiveLock.WaitAsync(token);
             try
             {
-                if (_currentArchive == null) return null;
-                var archiveEntry = _currentArchive.Entries.FirstOrDefault(e => e.Key == entryKey);
-                if (archiveEntry == null) return null;
+                if (_currentArchive != null)
+                {
+                    var archiveEntry = _currentArchive.Entries.FirstOrDefault(e => e.Key == entryKey);
+                    if (archiveEntry == null) return null;
 
-                using var entryStream = archiveEntry.OpenEntryStream();
-                // [핵심 수정] CopyToAsync에 토큰을 전달하여 스트림 복사 강제 중단
-                await entryStream.CopyToAsync(memoryStream, token);
+                    using var entryStream = archiveEntry.OpenEntryStream();
+                    await entryStream.CopyToAsync(memoryStream, token);
+                }
+                else if (_current7zArchive != null)
+                {
+                    var archiveEntry = _current7zArchive.Entries.FirstOrDefault(e => e.FileName == entryKey);
+                    if (archiveEntry == null) return null;
+
+                    archiveEntry.Extract(memoryStream);
+                }
+                else
+                {
+                    return null;
+                }
             }
             catch (Exception ex)
             {
@@ -780,14 +793,26 @@ namespace Uviewer
             await _archiveLock.WaitAsync(token);
             try
             {
-                if (_currentArchive == null) return null;
-                var archiveEntry = _currentArchive.Entries.FirstOrDefault(e => e.Key == entryKey);
-                if (archiveEntry == null) return null;
+                if (_currentArchive != null)
+                {
+                    var archiveEntry = _currentArchive.Entries.FirstOrDefault(e => e.Key == entryKey);
+                    if (archiveEntry == null) return null;
 
-                using var entryStream = archiveEntry.OpenEntryStream();
-                using var memoryStream = new MemoryStream();
-                await entryStream.CopyToAsync(memoryStream, token);
-                return memoryStream.ToArray();
+                    using var entryStream = archiveEntry.OpenEntryStream();
+                    using var memoryStream = new MemoryStream();
+                    await entryStream.CopyToAsync(memoryStream, token);
+                    return memoryStream.ToArray();
+                }
+                else if (_current7zArchive != null)
+                {
+                    var archiveEntry = _current7zArchive.Entries.FirstOrDefault(e => e.FileName == entryKey);
+                    if (archiveEntry == null) return null;
+
+                    using var memoryStream = new MemoryStream();
+                    archiveEntry.Extract(memoryStream);
+                    return memoryStream.ToArray();
+                }
+                return null;
             }
             catch (Exception ex)
             {

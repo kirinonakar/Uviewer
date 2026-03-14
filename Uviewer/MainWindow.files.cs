@@ -3,6 +3,7 @@ using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
 using SharpCompress.Archives;
+using SevenZipExtractor;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -20,6 +21,7 @@ namespace Uviewer
     {
         // Current archive (if viewing from archive)
         private IArchive? _currentArchive;
+        private SevenZipExtractor.ArchiveFile? _current7zArchive;
         private string? _currentArchivePath;
         // 아카이브 동시 접근 방지를 위한 Semaphore 추가
         private readonly SemaphoreSlim _archiveLock = new(1, 1);
@@ -360,18 +362,39 @@ namespace Uviewer
                     CloseCurrentArchiveInternal(); // Lock이 걸린 상태에서 내부 메서드 호출
 
                     _currentArchivePath = archivePath;
-                    _currentArchive = ArchiveFactory.Open(archivePath);
+                    string extension = Path.GetExtension(archivePath).ToLowerInvariant();
 
-                    _imageEntries = _currentArchive.Entries
-                        .Where(e => !e.IsDirectory &&
-                            SupportedImageExtensions.Contains(Path.GetExtension(e.Key ?? "").ToLowerInvariant()))
-                        .OrderBy(e => e.Key, StringComparer.CurrentCulture)
-                        .Select(e => new ImageEntry
-                        {
-                            DisplayName = Path.GetFileName(e.Key ?? "Unknown"),
-                            ArchiveEntryKey = e.Key
-                        })
-                        .ToList();
+                    if (extension == ".7z")
+                    {
+                        string libraryPath = Path.Combine(AppContext.BaseDirectory, "Libs", "7z.dll");
+                        _current7zArchive = new SevenZipExtractor.ArchiveFile(archivePath, libraryPath);
+
+                        _imageEntries = _current7zArchive.Entries
+                            .Where(e => !e.IsFolder &&
+                                SupportedImageExtensions.Contains(Path.GetExtension(e.FileName ?? "").ToLowerInvariant()))
+                            .OrderBy(e => e.FileName, StringComparer.CurrentCulture)
+                            .Select(e => new ImageEntry
+                            {
+                                DisplayName = Path.GetFileName(e.FileName ?? "Unknown"),
+                                ArchiveEntryKey = e.FileName
+                            })
+                            .ToList();
+                    }
+                    else
+                    {
+                        _currentArchive = ArchiveFactory.Open(archivePath);
+
+                        _imageEntries = _currentArchive.Entries
+                            .Where(e => !e.IsDirectory &&
+                                SupportedImageExtensions.Contains(Path.GetExtension(e.Key ?? "").ToLowerInvariant()))
+                            .OrderBy(e => e.Key, StringComparer.CurrentCulture)
+                            .Select(e => new ImageEntry
+                            {
+                                DisplayName = Path.GetFileName(e.Key ?? "Unknown"),
+                                ArchiveEntryKey = e.Key
+                            })
+                            .ToList();
+                    }
                 }
                 finally
                 {
@@ -442,8 +465,17 @@ namespace Uviewer
                     }
                     catch { }
                     _currentArchive = null;
-                    _currentArchivePath = null;
                 }
+                if (_current7zArchive != null)
+                {
+                    try
+                    {
+                        _current7zArchive.Dispose();
+                    }
+                    catch { }
+                    _current7zArchive = null;
+                }
+                _currentArchivePath = null;
             }
         }
 
@@ -454,22 +486,28 @@ namespace Uviewer
             {
                 _currentArchive.Dispose();
                 _currentArchive = null;
-
-                // WebDAV에서 다운로드한 임시 아카이브 파일인 경우 삭제
-                if (_currentArchivePath != null && _currentArchivePath.Contains(Path.Combine("Uviewer", "WebDav")))
-                {
-                    try
-                    {
-                        if (File.Exists(_currentArchivePath))
-                        {
-                            File.Delete(_currentArchivePath);
-                        }
-                    }
-                    catch { }
-                }
-
-                _currentArchivePath = null;
             }
+
+            if (_current7zArchive != null)
+            {
+                _current7zArchive.Dispose();
+                _current7zArchive = null;
+            }
+
+            // WebDAV에서 다운로드한 임시 아카이브 파일인 경우 삭제
+            if (_currentArchivePath != null && _currentArchivePath.Contains(Path.Combine("Uviewer", "WebDav")))
+            {
+                try
+                {
+                    if (File.Exists(_currentArchivePath))
+                    {
+                        File.Delete(_currentArchivePath);
+                    }
+                }
+                catch { }
+            }
+
+            _currentArchivePath = null;
 
             // 메인 UI 스레드에서 타이틀 변경 (안전하게 처리)
             DispatcherQueue.TryEnqueue(() =>
@@ -523,9 +561,7 @@ namespace Uviewer
                 var lockObj = new object();
 
                 // [멀티스레드 압축 해제]
-                // 7z의 경우 SharpCompress의 IArchive 인스턴스가 스레드 세이프하지 않을 수 있으므로
-                // 스레드별로 별도의 아카이브 인스턴스를 열어 성능을 극대화합니다.
-                int threadCount = Math.Min(Environment.ProcessorCount, 4); // 최대 4개 스레드 사용
+                int threadCount = Math.Min(Environment.ProcessorCount, 8); // 최대 8개 스레드 사용
                 var tasks = new List<Task>();
 
                 for (int t = 0; t < threadCount; t++)
@@ -534,11 +570,12 @@ namespace Uviewer
                     {
                         try
                         {
-                            using var archive = ArchiveFactory.Open(archivePath);
+                            string libraryPath = Path.Combine(AppContext.BaseDirectory, "Libs", "7z.dll");
+                            using var archive = new SevenZipExtractor.ArchiveFile(archivePath, libraryPath);
                             var entries = archive.Entries
-                                .Where(e => !e.IsDirectory && SupportedImageExtensions.Contains(Path.GetExtension(e.Key ?? "").ToLowerInvariant()))
+                                .Where(e => !e.IsFolder && SupportedImageExtensions.Contains(Path.GetExtension(e.FileName ?? "").ToLowerInvariant()))
                                 .ToList();
-                            var entryMap = entries.ToDictionary(e => e.Key!, e => e);
+                            var entryMap = entries.ToDictionary(e => e.FileName!, e => e);
 
                             while (!token.IsCancellationRequested)
                             {
@@ -575,11 +612,7 @@ namespace Uviewer
                                         string ext = Path.GetExtension(imageEntry.ArchiveEntryKey ?? "") ?? "";
                                         outputPath = Path.Combine(_current7zTempFolder!, Guid.NewGuid().ToString("N") + ext);
                                         
-                                        using (var fs = new FileStream(outputPath, FileMode.Create, FileAccess.Write, FileShare.Read))
-                                        using (var entryStream = archiveEntry.OpenEntryStream())
-                                        {
-                                            await entryStream.CopyToAsync(fs, linkedToken);
-                                        }
+                                        archiveEntry.Extract(outputPath);
                                         imageEntry.FilePath = outputPath;
                                     }
                                     catch (OperationCanceledException)
@@ -653,19 +686,26 @@ namespace Uviewer
                     }
                 }
                 
-                if (immediate) CleanupUviewerTempRoot();
+                if (immediate) CleanupUviewerTempRoot(force: true);
             }
             catch { }
         }
 
-        private void CleanupUviewerTempRoot()
+        private void CleanupUviewerTempRoot(bool force = false)
         {
             try
             {
                 var baseTemp = Path.Combine(Path.GetTempPath(), "Uviewer");
-                if (Directory.Exists(baseTemp) && !Directory.EnumerateFileSystemEntries(baseTemp).Any())
+                if (Directory.Exists(baseTemp))
                 {
-                    Directory.Delete(baseTemp);
+                    if (force)
+                    {
+                        TryDeleteDirectoryRecursive(baseTemp);
+                    }
+                    else if (!Directory.EnumerateFileSystemEntries(baseTemp).Any())
+                    {
+                        Directory.Delete(baseTemp);
+                    }
                 }
             }
             catch { }
@@ -893,44 +933,86 @@ namespace Uviewer
                     {
                         if (item.IsArchive)
                         {
-                            using var archive = ArchiveFactory.Open(item.FullPath);
-                            var entry = archive.Entries
-                                .Where(e => !e.IsDirectory &&
-                                       SupportedImageExtensions.Contains(Path.GetExtension(e.Key)?.ToLowerInvariant() ?? ""))
-                                .OrderBy(e => e.Key)
-                                .FirstOrDefault();
-
-                            if (entry != null)
+                            string archiveExt = Path.GetExtension(item.FullPath).ToLowerInvariant();
+                            if (archiveExt == ".7z")
                             {
-                                using var entryStream = entry.OpenEntryStream();
-                                var memStream = new MemoryStream(); // using 없음 (UI로 넘겨야 하므로)
-                                await entryStream.CopyToAsync(memStream, ct);
-                                memStream.Position = 0;
+                                string libraryPath = Path.Combine(AppContext.BaseDirectory, "Libs", "7z.dll");
+                                using var archive = new SevenZipExtractor.ArchiveFile(item.FullPath, libraryPath);
+                                var entry = archive.Entries
+                                    .Where(e => !e.IsFolder &&
+                                           SupportedImageExtensions.Contains(Path.GetExtension(e.FileName)?.ToLowerInvariant() ?? ""))
+                                    .OrderBy(e => e.FileName)
+                                    .FirstOrDefault();
 
-                                // [핵심 변경 3] Low 우선순위 사용 & SetSourceAsync 사용
-                                DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, async () =>
+                                if (entry != null)
                                 {
-                                    if (ct.IsCancellationRequested) 
-                                    {
-                                        memStream.Dispose();
-                                        return;
-                                    }
+                                    var memStream = new MemoryStream();
+                                    entry.Extract(memStream);
+                                    memStream.Position = 0;
 
-                                    try 
+                                    DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, async () =>
                                     {
-                                        var bitmap = new BitmapImage();
-                                        bitmap.DecodePixelWidth = 200;
-                                        
-                                        // [가장 중요한 수정] SetSource(동기) -> SetSourceAsync(비동기)
-                                        // UI 스레드가 디코딩을 기다리지 않고 즉시 반환되게 하여 멈춤 현상 해결
-                                        await bitmap.SetSourceAsync(memStream.AsRandomAccessStream());
-                                        item.Thumbnail = bitmap;
-                                    }
-                                    catch 
-                                    { 
-                                        memStream.Dispose();
-                                    }
-                                });
+                                        if (ct.IsCancellationRequested) 
+                                        {
+                                            memStream.Dispose();
+                                            return;
+                                        }
+
+                                        try 
+                                        {
+                                            var bitmap = new BitmapImage();
+                                            bitmap.DecodePixelWidth = 200;
+                                            await bitmap.SetSourceAsync(memStream.AsRandomAccessStream());
+                                            item.Thumbnail = bitmap;
+                                        }
+                                        catch 
+                                        { 
+                                            memStream.Dispose();
+                                        }
+                                    });
+                                }
+                            }
+                            else
+                            {
+                                using var archive = ArchiveFactory.Open(item.FullPath);
+                                var entry = archive.Entries
+                                    .Where(e => !e.IsDirectory &&
+                                           SupportedImageExtensions.Contains(Path.GetExtension(e.Key)?.ToLowerInvariant() ?? ""))
+                                    .OrderBy(e => e.Key)
+                                    .FirstOrDefault();
+
+                                if (entry != null)
+                                {
+                                    using var entryStream = entry.OpenEntryStream();
+                                    var memStream = new MemoryStream(); // using 없음 (UI로 넘겨야 하므로)
+                                    await entryStream.CopyToAsync(memStream, ct);
+                                    memStream.Position = 0;
+
+                                    // [핵심 변경 3] Low 우선순위 사용 & SetSourceAsync 사용
+                                    DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, async () =>
+                                    {
+                                        if (ct.IsCancellationRequested) 
+                                        {
+                                            memStream.Dispose();
+                                            return;
+                                        }
+
+                                        try 
+                                        {
+                                            var bitmap = new BitmapImage();
+                                            bitmap.DecodePixelWidth = 200;
+                                            
+                                            // [가장 중요한 수정] SetSource(동기) -> SetSourceAsync(비동기)
+                                            // UI 스레드가 디코딩을 기다리지 않고 즉시 반환되게 하여 멈춤 현상 해결
+                                            await bitmap.SetSourceAsync(memStream.AsRandomAccessStream());
+                                            item.Thumbnail = bitmap;
+                                        }
+                                        catch 
+                                        { 
+                                            memStream.Dispose();
+                                        }
+                                    });
+                                }
                             }
                         }
                         else if (item.IsImage)

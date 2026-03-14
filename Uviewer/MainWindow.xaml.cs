@@ -527,12 +527,11 @@ namespace Uviewer
                     // Clean up archive resources
                     if (_currentArchive != null)
                     {
-                        try
-                        {
-                            _currentArchive.Dispose();
-                            _currentArchive = null;
-                        }
-                        catch { }
+                        try { _currentArchive.Dispose(); _currentArchive = null; } catch { }
+                    }
+                    if (_current7zArchive != null)
+                    {
+                        try { _current7zArchive.Dispose(); _current7zArchive = null; } catch { }
                     }
                     _currentBitmap = null;
                     _leftBitmap = null;
@@ -1799,7 +1798,7 @@ namespace Uviewer
                             {
                                 bitmap = await LoadImageFromPathAsync(entry.FilePath, MainCanvas);
                             }
-                            else if (entry.IsArchiveEntry && _currentArchive != null)
+                            else if (entry.IsArchiveEntry && (_currentArchive != null || _current7zArchive != null))
                             {
                                 bitmap = await LoadImageFromArchiveEntryAsync(entry.ArchiveEntryKey!, MainCanvas, token);
                             }
@@ -1927,7 +1926,7 @@ namespace Uviewer
                             {
                                 bitmap = await LoadImageFromPathAsync(entry.FilePath, MainCanvas);
                             }
-                            else if (entry.IsArchiveEntry && _currentArchive != null)
+                            else if (entry.IsArchiveEntry && (_currentArchive != null || _current7zArchive != null))
                             {
                                 bitmap = await LoadImageFromArchiveEntryAsync(entry.ArchiveEntryKey!, MainCanvas, token);
                             }
