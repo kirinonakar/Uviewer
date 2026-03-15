@@ -506,7 +506,8 @@ namespace Uviewer
                         CheckAndAddFolderToFavorites(Path.GetDirectoryName(_currentArchivePath));
                     }
                 }
-                else if (_currentIndex >= 0 && _currentIndex < _imageEntries.Count)
+                else if (_currentIndex >= 0 && _currentIndex < _imageEntries.Count && 
+                         (EmptyStatePanel == null || EmptyStatePanel.Visibility == Visibility.Collapsed))
                 {
                     var currentEntry = _imageEntries[_currentIndex];
                     if (!string.IsNullOrEmpty(currentEntry.FilePath))
