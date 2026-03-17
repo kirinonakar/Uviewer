@@ -1499,11 +1499,7 @@ namespace Uviewer
                             else
                             {
                                 targetOffset = currentOffset;
-                                double lineH = _textFontSize * 1.8; 
-                                if (lineH > 0)
-                                {
-                                    targetLine = (int)(currentOffset / lineH) + 1;
-                                }
+                                targetLine = GetTopVisibleLineIndex();
                                 
                                 // 아오조라 모드 보정
                                 if (_isAozoraMode && _aozoraBlocks.Count > 0 && _currentAozoraStartBlockIndex >= 0)
@@ -1772,21 +1768,22 @@ namespace Uviewer
                         break;
                 }
 
-                // 4. [복원] 일반 텍스트 파일 위치 강제 복원 (오염되지 않은 캡처값 사용)
+                // 4. [복원] 일반 텍스트 파일 위치 복원은 이제 LoadTextLinesProgressivelyAsync 내의 ScrollToLine에서 처리함
+                // (이전 방식인 pixel offset 복원은 폰트 크기 변경 등에 취약하여 제거)
+                /*
                 if (targetType == "File")
                 {
                     if (!targetPath.EndsWith(".epub", StringComparison.OrdinalIgnoreCase) && !_isAozoraMode)
                     {
                         if (targetOffset.HasValue && TextScrollViewer != null)
                         {
-                            // UI 레이아웃 안정화를 위해 약간 대기 후 스크롤
                             await Task.Delay(200);
                             TextScrollViewer.ChangeView(null, targetOffset.Value, null);
                             UpdateTextStatusBar();
-                            System.Diagnostics.Debug.WriteLine($"Restored position to: {targetOffset.Value}");
                         }
                     }
                 }
+                */
             }
             catch (Exception ex)
             {

@@ -247,10 +247,15 @@ namespace Uviewer
                 targetLine = _aozoraPendingTargetLine;
                 _aozoraPendingTargetLine = 1; // Reset
             }
+            else if (_isAozoraMode)
+            {
+                // Fallback to automatic restoration from recent items only for Aozora mode
+                // For plain text, we now default to start of file per user request.
+                targetLine = GetSavedStartLine(name, uniquePath);
+            }
             else
             {
-                // Fallback to automatic restoration from recent items
-                targetLine = GetSavedStartLine(name, uniquePath);
+                targetLine = 1; // Default to start for plain text
             }
 
             // Ensure visibility is mutually exclusive
@@ -300,14 +305,12 @@ namespace Uviewer
                 // Update Text Status
                 UpdateTextStatusBar(name, _textTotalLineCountInSource, 1);
                 
-                if (targetLine > 1)
+                // Position is now handled inside LoadTextLinesProgressivelyAsync 
+                // to avoid double-scrolling Jitter.
+                // ScrollToLine(targetLine) moved there.
+                if (targetLine <= 1 && _isAozoraMode)
                 {
-                    await Task.Delay(50);
-                    ScrollToLine(targetLine);
-                    UpdateTextStatusBar();
-                }
-                else 
-                {
+                    // Only auto-restore for Aozora mode if not explicitly set to 1
                     _ = RestoreTextPositionAsync(name);
                 }
             }
@@ -1091,7 +1094,12 @@ namespace Uviewer
                 {
                     TextItemsRepeater.ItemsSource = null;
                     TextItemsRepeater.ItemsSource = _textLines;
-                    if (targetLine > 1) ScrollToLine(targetLine);
+                    if (targetLine > 1) 
+                    {
+                        // Wait for first layout pass
+                        await Task.Delay(50);
+                        ScrollToLine(targetLine);
+                    }
                 }
                 if (TextArea != null) TextArea.Background = GetThemeBackground();
                 
@@ -1142,7 +1150,11 @@ namespace Uviewer
                 {
                     TextItemsRepeater.ItemsSource = null;
                     TextItemsRepeater.ItemsSource = _textLines;
-                    if (targetLine > 1) ScrollToLine(targetLine);
+                    if (targetLine > 1) 
+                    {
+                        await Task.Yield();
+                        ScrollToLine(targetLine);
+                    }
                 }
                 if (TextArea != null) TextArea.Background = GetThemeBackground();
             }
@@ -2566,6 +2578,9 @@ namespace Uviewer
 
             try
             {
+                // ScrollViewer의 Content 시작 지점(Padding.Top)을 기준으로 계산
+                double viewportTop = TextScrollViewer.Padding.Top;
+                
                 // Use VisualTreeHelper to check realized children
                 int childCount = VisualTreeHelper.GetChildrenCount(TextItemsRepeater);
                 if (childCount == 0) return 1;
@@ -2584,17 +2599,18 @@ namespace Uviewer
                     double top = point.Y;
                     double bottom = top + ((FrameworkElement)child).ActualHeight;
                     
-                    // If the item covers the top edge (Top <= 0 and Bottom > 0) - this is THE reading line
-                    if (top <= 0 && bottom > 0)
+                    // 해당 라인이 뷰포트의 상단 경계(Padding 포함)를 걸치고 있는지 확인
+                    if (top <= viewportTop && bottom > viewportTop)
                     {
                         int idx = TextItemsRepeater.GetElementIndex(child);
                         if (idx >= 0) return idx + 1;
                     }
                     
-                    // Otherwise, find the one closest to 0
-                    if (Math.Abs(top) < minDist)
+                    // 정확히 걸치는 것을 못 찾을 경우 보정 지점에 가장 가까운 것을 찾음
+                    double dist = Math.Abs(top - viewportTop);
+                    if (dist < minDist)
                     {
-                        minDist = Math.Abs(top);
+                        minDist = dist;
                         closest = child;
                     }
                 }
@@ -2615,24 +2631,48 @@ namespace Uviewer
              return 1;
         }
 
-        private void ScrollToLine(int line)
+        private async void ScrollToLine(int line)
         {
-            if (TextItemsRepeater == null) return;
+            if (TextItemsRepeater == null || TextScrollViewer == null) return;
             if (line < 1) line = 1;
             int index = line - 1;
-             if (_textLines == null) return;
+            if (_textLines == null || _textLines.Count == 0) return;
             if (index >= _textLines.Count) index = _textLines.Count - 1;
             if (index < 0) return;
             
+            double lineH = _textFontSize * 1.8;
+            double targetOffset = index * lineH;
+            
+            // 1. 대용량 파일에서 Extent가 아직 부족할 수 있으므로 강제 확장 유도
+            if (targetOffset > TextScrollViewer.ScrollableHeight)
+            {
+                // 최대한 아래로 붙여서 ItemsRepeater가 뒤쪽을 그리게 함
+                TextScrollViewer.ChangeView(null, TextScrollViewer.ScrollableHeight, null, true);
+                await Task.Delay(30); 
+            }
+
+            // 2. 목표 위치로 즉시 이동
+            TextScrollViewer.ChangeView(null, Math.Min(targetOffset, TextScrollViewer.ScrollableHeight), null, true);
+            
+            // 3. 정밀 위치 보정 (요소 생성 후 BringIntoView)
             try
             {
                 var element = TextItemsRepeater.GetOrCreateElement(index);
                 if (element != null)
                 {
-                    element.StartBringIntoView(new BringIntoViewOptions { VerticalAlignmentRatio = 0 });
+                    element.StartBringIntoView(new BringIntoViewOptions { 
+                        VerticalAlignmentRatio = 0, 
+                        AnimationDesired = false 
+                    });
                 }
             }
-            catch { }
+            catch 
+            {
+                // Fallback
+                TextScrollViewer.ChangeView(null, targetOffset, null, true);
+            }
+            
+            UpdateTextStatusBar();
         }
     }
 }

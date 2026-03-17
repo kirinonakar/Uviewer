@@ -24,8 +24,7 @@
         <Grid.Resources>
             <DataTemplate x:Key="TextItemTemplate">
                 <TextBlock TextWrapping="Wrap" HorizontalAlignment="Left" />
-            </DataTemplate>
-            <DataTemplate x:Key="AozoraItemTemplate">
+            </DataTemplate>            <DataTemplate x:Key="AozoraItemTemplate">
                 <RichTextBlock IsTextSelectionEnabled="False" TextWrapping="Wrap" HorizontalAlignment="Left" Margin="0,0,0,10" />
             </DataTemplate>
         </Grid.Resources>
@@ -636,6 +635,7 @@
                   PointerPressed="TextArea_PointerPressed" PointerWheelChanged="TextArea_PointerWheelChanged"
                   SizeChanged="TextArea_SizeChanged">
                  <ScrollViewer x:Name="TextScrollViewer" 
+                               Padding="20,10,20,10"
                                HorizontalScrollBarVisibility="Disabled"
                                VerticalScrollBarVisibility="Hidden"
                                SizeChanged="TextScrollViewer_SizeChanged"
