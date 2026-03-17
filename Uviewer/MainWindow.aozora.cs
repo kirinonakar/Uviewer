@@ -1656,7 +1656,7 @@ namespace Uviewer
 
         private InlineUIContainer? CreateImageInline(string relativePath, double maxHeight = 0, double targetWidth = -1)
         {
-            if (string.IsNullOrEmpty(_currentTextFilePath) && (_currentArchive == null || string.IsNullOrEmpty(_currentTextArchiveEntryKey))) return null;
+            if (string.IsNullOrEmpty(_currentTextFilePath) && (_currentArchive == null && _current7zArchive == null || string.IsNullOrEmpty(_currentTextArchiveEntryKey))) return null;
             
             relativePath = relativePath.Trim().TrimStart('/', '\\');
 
@@ -1778,7 +1778,7 @@ namespace Uviewer
                 }
                 catch { }
             }
-            else if (_currentArchive != null && !string.IsNullOrEmpty(_currentTextArchiveEntryKey))
+            else if ((_currentArchive != null || _current7zArchive != null) && !string.IsNullOrEmpty(_currentTextArchiveEntryKey))
             {
                 // Synchronously check if entry exists to avoid empty placeholder
                 // This prevents blank pages when an image tag refers to a missing file
@@ -1794,9 +1794,19 @@ namespace Uviewer
                 targetKey = targetKey.Replace("/./", "/");
 
                 // Manual search to match the logic inside the task
-                var exists = _currentArchive.Entries.Any(e => e.Key != null && 
+                bool exists = false;
+                if (_currentArchive != null)
+                {
+                    exists = _currentArchive.Entries.Any(e => e.Key != null && 
                              (e.Key.Replace('\\', '/') == targetKey || 
                               string.Equals(e.Key.Replace('\\', '/'), targetKey, StringComparison.OrdinalIgnoreCase)));
+                }
+                else if (_current7zArchive != null)
+                {
+                    exists = _current7zArchive.Entries.Any(e => e.FileName != null && 
+                             (e.FileName.Replace('\\', '/') == targetKey || 
+                              string.Equals(e.FileName.Replace('\\', '/'), targetKey, StringComparison.OrdinalIgnoreCase)));
+                }
 
                 if (!exists) return null;
 
@@ -1809,6 +1819,8 @@ namespace Uviewer
                         byte[]? bytes = null;
                         try
                         {
+                        if (_currentArchive != null)
+                        {
                             // Re-normalization inside task to be safe and consistent
                             var entry = _currentArchive.Entries.FirstOrDefault(e => e.Key != null && e.Key.Replace('\\', '/') == targetKey) 
                                      ?? _currentArchive.Entries.FirstOrDefault(e => e.Key != null && string.Equals(e.Key.Replace('\\', '/'), targetKey, StringComparison.OrdinalIgnoreCase));
@@ -1820,6 +1832,19 @@ namespace Uviewer
                                 es.CopyTo(ms);
                                 bytes = ms.ToArray();
                             }
+                        }
+                        else if (_current7zArchive != null)
+                        {
+                            var entry = _current7zArchive.Entries.FirstOrDefault(e => e.FileName != null && e.FileName.Replace('\\', '/') == targetKey) 
+                                     ?? _current7zArchive.Entries.FirstOrDefault(e => e.FileName != null && string.Equals(e.FileName.Replace('\\', '/'), targetKey, StringComparison.OrdinalIgnoreCase));
+                            
+                            if (entry != null)
+                            {
+                                using var ms = new System.IO.MemoryStream();
+                                entry.Extract(ms);
+                                bytes = ms.ToArray();
+                            }
+                        }
                         }
                         finally { _archiveLock.Release(); }
 

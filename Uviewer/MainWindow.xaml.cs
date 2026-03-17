@@ -1349,7 +1349,7 @@ namespace Uviewer
             {
                 currentPath = _currentWebDavItemPath;
             }
-            else if (_currentArchive != null && !string.IsNullOrEmpty(_currentArchivePath))
+            else if ((_currentArchive != null || _current7zArchive != null) && !string.IsNullOrEmpty(_currentArchivePath))
             {
                 currentPath = _currentArchivePath;
             }

@@ -1034,7 +1034,7 @@ namespace Uviewer
                     string fullPath = System.IO.Path.Combine(System.IO.Path.GetDirectoryName(_currentTextFilePath)!, relativePath);
                     return System.IO.File.Exists(fullPath);
                 }
-                else if (_currentArchive != null && !string.IsNullOrEmpty(_currentTextArchiveEntryKey))
+                else if ((_currentArchive != null || _current7zArchive != null) && !string.IsNullOrEmpty(_currentTextArchiveEntryKey))
                 {
                     // Archive
                     string normKey = _currentTextArchiveEntryKey.Replace('\\', '/');
@@ -1046,9 +1046,18 @@ namespace Uviewer
                     string targetKey = string.IsNullOrEmpty(baseDir) ? subPath : (baseDir.TrimEnd('/') + "/" + subPath);
                     targetKey = targetKey.Replace("/./", "/");
 
-                    return _currentArchive.Entries.Any(e => e.Key != null && 
-                           (e.Key.Replace('\\', '/') == targetKey || 
-                            string.Equals(e.Key.Replace('\\', '/'), targetKey, StringComparison.OrdinalIgnoreCase)));
+                    if (_currentArchive != null)
+                    {
+                        return _currentArchive.Entries.Any(e => e.Key != null && 
+                               (e.Key.Replace('\\', '/') == targetKey || 
+                                string.Equals(e.Key.Replace('\\', '/'), targetKey, StringComparison.OrdinalIgnoreCase)));
+                    }
+                    else if (_current7zArchive != null)
+                    {
+                        return _current7zArchive.Entries.Any(e => e.FileName != null && 
+                               (e.FileName.Replace('\\', '/') == targetKey || 
+                                string.Equals(e.FileName.Replace('\\', '/'), targetKey, StringComparison.OrdinalIgnoreCase)));
+                    }
                 }
             }
             catch { }
@@ -1089,7 +1098,7 @@ namespace Uviewer
                         bytes = await System.IO.File.ReadAllBytesAsync(fullPath);
                     }
                 }
-                else if (_currentArchive != null && !string.IsNullOrEmpty(_currentTextArchiveEntryKey))
+                else if ((_currentArchive != null || _current7zArchive != null) && !string.IsNullOrEmpty(_currentTextArchiveEntryKey))
                 {
                     // Archive
                     string normKey = _currentTextArchiveEntryKey.Replace('\\', '/');
@@ -1104,15 +1113,30 @@ namespace Uviewer
                     await _archiveLock.WaitAsync();
                     try
                     {
-                        var entry = _currentArchive.Entries.FirstOrDefault(e => e.Key != null && e.Key.Replace('\\', '/') == targetKey) 
-                                 ?? _currentArchive.Entries.FirstOrDefault(e => e.Key != null && string.Equals(e.Key.Replace('\\', '/'), targetKey, StringComparison.OrdinalIgnoreCase));
-                        
-                        if (entry != null)
+                        if (_currentArchive != null)
                         {
-                            using var ms = new System.IO.MemoryStream();
-                            using var es = entry.OpenEntryStream();
-                            es.CopyTo(ms);
-                            bytes = ms.ToArray();
+                            var entry = _currentArchive.Entries.FirstOrDefault(e => e.Key != null && e.Key.Replace('\\', '/') == targetKey) 
+                                     ?? _currentArchive.Entries.FirstOrDefault(e => e.Key != null && string.Equals(e.Key.Replace('\\', '/'), targetKey, StringComparison.OrdinalIgnoreCase));
+                            
+                            if (entry != null)
+                            {
+                                using var ms = new System.IO.MemoryStream();
+                                using var es = entry.OpenEntryStream();
+                                es.CopyTo(ms);
+                                bytes = ms.ToArray();
+                            }
+                        }
+                        else if (_current7zArchive != null)
+                        {
+                            var entry = _current7zArchive.Entries.FirstOrDefault(e => e.FileName != null && e.FileName.Replace('\\', '/') == targetKey) 
+                                     ?? _current7zArchive.Entries.FirstOrDefault(e => e.FileName != null && string.Equals(e.FileName.Replace('\\', '/'), targetKey, StringComparison.OrdinalIgnoreCase));
+                            
+                            if (entry != null)
+                            {
+                                using var ms = new System.IO.MemoryStream();
+                                entry.Extract(ms);
+                                bytes = ms.ToArray();
+                            }
                         }
                     }
                     finally { _archiveLock.Release(); }

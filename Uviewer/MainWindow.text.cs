@@ -102,7 +102,7 @@ namespace Uviewer
                     }
                     catch { }
                 }
-                else if (_currentTextArchiveEntryKey != null && _currentArchive != null)
+                else if (_currentTextArchiveEntryKey != null && (_currentArchive != null || _current7zArchive != null))
                 {
                     try
                     {
@@ -201,16 +201,30 @@ namespace Uviewer
                 await _archiveLock.WaitAsync(token);
                 try
                 {
-                    if (_currentArchive != null && entry.ArchiveEntryKey != null)
+                    if (entry.ArchiveEntryKey != null)
                     {
-                        var archEntry = _currentArchive.Entries.FirstOrDefault(e => e.Key == entry.ArchiveEntryKey);
-                        if (archEntry != null)
+                        if (_currentArchive != null)
                         {
-                            using var ms = new System.IO.MemoryStream();
-                            using var entryStream = archEntry.OpenEntryStream();
-                            entryStream.CopyTo(ms);
-                            var bytes = ms.ToArray();
-                            content = GetTextEncoding(bytes).GetString(bytes);
+                            var archEntry = _currentArchive.Entries.FirstOrDefault(e => e.Key == entry.ArchiveEntryKey);
+                            if (archEntry != null)
+                            {
+                                using var ms = new System.IO.MemoryStream();
+                                using var entryStream = archEntry.OpenEntryStream();
+                                entryStream.CopyTo(ms);
+                                var bytes = ms.ToArray();
+                                content = GetTextEncoding(bytes).GetString(bytes);
+                            }
+                        }
+                        else if (_current7zArchive != null)
+                        {
+                            var archEntry = _current7zArchive.Entries.FirstOrDefault(e => e.FileName == entry.ArchiveEntryKey);
+                            if (archEntry != null)
+                            {
+                                using var ms = new System.IO.MemoryStream();
+                                archEntry.Extract(ms);
+                                var bytes = ms.ToArray();
+                                content = GetTextEncoding(bytes).GetString(bytes);
+                            }
                         }
                     }
                 }

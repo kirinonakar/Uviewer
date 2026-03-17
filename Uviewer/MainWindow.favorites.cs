@@ -494,7 +494,7 @@ namespace Uviewer
                     type = "File";
                     CheckAndAddFolderToFavorites(Path.GetDirectoryName(path));
                 }
-                else if (_currentArchive != null && !string.IsNullOrEmpty(_currentArchivePath))
+                else if ((_currentArchive != null || _current7zArchive != null) && !string.IsNullOrEmpty(_currentArchivePath))
                 {
                     if (_currentIndex >= 0 && _currentIndex < _imageEntries.Count)
                     {
@@ -654,7 +654,7 @@ namespace Uviewer
                         if (totalLines > 0)
                             calcProgress = Math.Min((double)savedLine / totalLines * 100.0, 100);
                     }
-                    else if (_currentArchive != null && _imageEntries.Count > 0)
+                    else if ((_currentArchive != null || _current7zArchive != null) && _imageEntries.Count > 0)
                     {
                         calcProgress = Math.Min((double)(_currentIndex + 1) / _imageEntries.Count * 100.0, 100);
                     }
@@ -1008,7 +1008,7 @@ namespace Uviewer
                         return Math.Min(Math.Max(progress, 0), 100);
                     }
                 }
-                else if (_currentArchive != null && _imageEntries.Count > 0)
+                else if ((_currentArchive != null || _current7zArchive != null) && _imageEntries.Count > 0)
                 {
                     double progress = (double)(_currentIndex + 1) / _imageEntries.Count * 100.0;
                     return Math.Min(Math.Max(progress, 0), 100);
@@ -1364,7 +1364,7 @@ namespace Uviewer
                     path = _currentEpubFilePath;
                     type = "File";
                 }
-                else if (_currentArchive != null && !string.IsNullOrEmpty(_currentArchivePath))
+                else if ((_currentArchive != null || _current7zArchive != null) && !string.IsNullOrEmpty(_currentArchivePath))
                 {
                     path = _currentArchivePath;
                     type = "Archive";
