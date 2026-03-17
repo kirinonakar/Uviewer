@@ -37,9 +37,11 @@ namespace Uviewer
 
         private async void ToggleVerticalMode()
         {
+            if (TextFastNavOverlay != null) TextFastNavOverlay.Visibility = Visibility.Visible;
+            await Task.Delay(10); 
+
             if (_isVerticalMode)
             {
-                // Attach vertical key handler
                 if (!_verticalKeyAttached && RootGrid != null)
                 {
                     RootGrid.PreviewKeyDown += RootGrid_Vertical_PreviewKeyDown;
@@ -65,12 +67,9 @@ namespace Uviewer
                         {
                             if (g.Tag is EpubPageInfoTag tag)
                             {
-                                // [Fix] Visual Line -> Source Line Mapping (Ratio-based)
                                 if (tag.TotalLinesInChapter > 0 && _aozoraBlocks.Count > 0)
                                 {
-                                    // Get max source line number
                                     int maxSourceLine = _aozoraBlocks[_aozoraBlocks.Count - 1].SourceLineNumber;
-                                    // Calculate simple ratio
                                     double ratio = (double)tag.StartLine / tag.TotalLinesInChapter;
                                     if (ratio > 1.0) ratio = 1.0;
                                     
@@ -84,7 +83,6 @@ namespace Uviewer
                             }
                             else if (g.Tag is EpubImageTag imgTag)
                             {
-                                // Find the block with this image source
                                 if (_aozoraBlocks != null)
                                 {
                                     var targetBlock = _aozoraBlocks.FirstOrDefault(b => 
@@ -157,13 +155,12 @@ namespace Uviewer
         {
             if (string.IsNullOrEmpty(_currentTextContent) && !_isEpubMode) return;
 
-            // 로딩 상태 표시 (Status Bar)
+            // 로딩 상태 즉시 표시 (UI 멈춤 방지)
             ImageInfoText.Text = Strings.Paginating;
+            if (TextFastNavOverlay != null) TextFastNavOverlay.Visibility = Visibility.Visible;
 
             _verticalPaginationCts?.Cancel();
             _verticalPaginationCts = new System.Threading.CancellationTokenSource();
-            
-            // 링크된 토큰 생성 (외부 토큰이나 내부 토큰 중 하나라도 취소되면 중단)
             using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(externalToken, _verticalPaginationCts.Token);
             var token = linkedCts.Token;
 
@@ -172,11 +169,7 @@ namespace Uviewer
             _currentVerticalPageIndex = 0;
             _verticalImageCache.Clear();
 
-            float marginTop = 40;
-            float marginBottom = 40;
-            float marginRight = 40;
-            float marginLeft = 40; 
-
+            float marginTop = 40, marginBottom = 40, marginRight = 40, marginLeft = 40;
             float availableHeight = (float)(VerticalTextCanvas?.ActualHeight ?? 800);
             if (availableHeight < 100) availableHeight = (float)RootGrid.ActualHeight - 200;
             if (availableHeight < 100) availableHeight = 800;
@@ -187,105 +180,102 @@ namespace Uviewer
             if (availableWidth < 100) availableWidth = 1000;
             availableWidth -= (marginRight + marginLeft);
 
+            // [핵심] UI 스레드에서 Device를 미리 꺼내 백그라운드로 안전하게 전달
+            var canvasDevice = VerticalTextCanvas?.Device;
+
             try
             {
-                // Ensure blocks are available (Always use Aozora parsing for Vertical mode)
-                if (_aozoraBlocks == null || _aozoraBlocks.Count == 0)
+                // UI 멈춤 방지를 위해 모든 계산을 백그라운드로 이동
+                await Task.Run(async () =>
                 {
-                    // Case for Plain Text Mode or First Time Vertical Mode with Aozora File
-                    _aozoraBlocks = await Task.Run(() => ParseAozoraContent(_currentTextContent), token);
-                    _textTotalLineCountInSource = _currentTextContent.Split('\n').Length;
-                }
-
-                // 2. Immediate Pagination (up to target or reasonable limit)
-                int limit = Math.Min(_aozoraBlocks.Count, 1000); 
-                // Search for target line block index
-                int targetBlockIdx = 0;
-                for (int n = 0; n < _aozoraBlocks.Count; n++)
-                {
-                    if (_aozoraBlocks[n].SourceLineNumber >= targetLine)
+                    if (_aozoraBlocks == null || _aozoraBlocks.Count == 0)
                     {
-                        // Exact match found
-                        if (_aozoraBlocks[n].SourceLineNumber == targetLine)
-                        {
-                            targetBlockIdx = n;
-                        }
-                        else
-                        {
-                            // Target line is before this block, so it must be roughly corresponding to the previous block (or gap)
-                            targetBlockIdx = n > 0 ? n - 1 : 0;
-                        }
-                        break;
+                        _aozoraBlocks = ParseAozoraContent(_currentTextContent);
+                        DispatcherQueue.TryEnqueue(() => { _textTotalLineCountInSource = _currentTextContent.Split('\n').Length; });
                     }
-                    // If we haven't found a match yet (SourceLineNumber < targetLine), keep going.
-                    // If loop finishes, we'll use the last index (n).
-                    targetBlockIdx = n;
-                }
-                if (targetBlockIdx > limit) limit = Math.Min(_aozoraBlocks.Count, targetBlockIdx + 500);
 
-                int i = 0;
-                bool foundTargetPage = false;
-
-                // Initial sync chunk
-                while (i < limit)
-                {
-                    if (token.IsCancellationRequested) return;
-                    var pageBlocks = PaginateAozoraPage(ref i, _aozoraBlocks, availableWidth, availableHeight);
-                    if (pageBlocks.Count > 0)
+                    int limit = Math.Min(_aozoraBlocks.Count, 1000); 
+                    int targetBlockIdx = 0;
+                    for (int n = 0; n < _aozoraBlocks.Count; n++)
                     {
-                        var info = new VerticalPageInfo { Blocks = pageBlocks, StartLine = pageBlocks[0].SourceLineNumber };
-                        _verticalPageInfos.Add(info);
+                        if (_aozoraBlocks[n].SourceLineNumber >= targetLine)
+                        {
+                            targetBlockIdx = _aozoraBlocks[n].SourceLineNumber == targetLine ? n : (n > 0 ? n - 1 : 0);
+                            break;
+                        }
+                        targetBlockIdx = n;
+                    }
+                    if (targetBlockIdx > limit) limit = Math.Min(_aozoraBlocks.Count, targetBlockIdx + 500);
+
+                    int i = 0;
+                    bool foundTargetPage = false;
+                    var initialPages = new List<VerticalPageInfo>();
+
+                    // 초기 로드 분량 백그라운드 계산
+                    while (i < limit)
+                    {
+                        if (token.IsCancellationRequested) return;
                         
-                        if (!foundTargetPage && (info.StartLine >= targetLine || i > targetBlockIdx))
+                        // canvasDevice 인자 추가 전달
+                        var pageBlocks = PaginateAozoraPage(ref i, _aozoraBlocks, availableWidth, availableHeight, canvasDevice);
+                        if (pageBlocks.Count > 0)
                         {
-                            int idx = _verticalPageInfos.Count - 1;
-                            if (idx > 0 && info.StartLine > targetLine) idx--;
-                            _currentVerticalPageIndex = idx;
-                            foundTargetPage = true;
-                            _pendingVerticalScrollLine = null;
-                        }
-                    }
-                    if (i >= limit) break;
-                }
-
-                // Initial Render
-                VerticalTextCanvas?.Invalidate();
-                UpdateTextStatusBar();
-
-                // 3. Background Pagination for the rest
-                if (i < _aozoraBlocks.Count)
-                {
-                    _ = Task.Run(async () => 
-                    {
-                        try
-                        {
-                            int bgIdx = i;
-                            while (bgIdx < _aozoraBlocks.Count)
+                            var info = new VerticalPageInfo { Blocks = pageBlocks, StartLine = pageBlocks[0].SourceLineNumber };
+                            initialPages.Add(info);
+                            
+                            if (!foundTargetPage && (info.StartLine >= targetLine || i > targetBlockIdx))
                             {
-                                if (token.IsCancellationRequested) return;
-
-                                var batch = new List<VerticalPageInfo>();
-                                for (int b = 0; b < 20 && bgIdx < _aozoraBlocks.Count; b++)
-                                {
-                                    var pBlocks = PaginateAozoraPage(ref bgIdx, _aozoraBlocks, availableWidth, availableHeight);
-                                    if (pBlocks.Count > 0) batch.Add(new VerticalPageInfo { Blocks = pBlocks, StartLine = pBlocks[0].SourceLineNumber });
-                                }
-
-                                if (batch.Count > 0)
-                                {
-                                    this.DispatcherQueue.TryEnqueue(() => 
-                                    {
-                                        if (token.IsCancellationRequested) return;
-                                        _verticalPageInfos.AddRange(batch);
-                                        UpdateTextStatusBar();
-                                    });
-                                }
-                                await Task.Delay(1, token);
+                                int idx = initialPages.Count - 1;
+                                if (idx > 0 && info.StartLine > targetLine) idx--;
+                                
+                                int capturedIndex = idx;
+                                DispatcherQueue.TryEnqueue(() => {
+                                    _currentVerticalPageIndex = capturedIndex;
+                                    _pendingVerticalScrollLine = null;
+                                });
+                                foundTargetPage = true;
                             }
                         }
-                        catch { }
-                    }, token);
-                }
+                    }
+
+                    // 초기 연산 완료 후 UI에 한 번에 그리기 지시
+                    DispatcherQueue.TryEnqueue(() => 
+                    {
+                        if (token.IsCancellationRequested) return;
+                        _verticalPageInfos.AddRange(initialPages);
+                        VerticalTextCanvas?.Invalidate();
+                        UpdateTextStatusBar();
+                        if (TextFastNavOverlay != null) TextFastNavOverlay.Visibility = Visibility.Collapsed;
+                    });
+
+                    // 3. 나머지 백그라운드 페이지네이션
+                    if (i < _aozoraBlocks.Count)
+                    {
+                        int bgIdx = i;
+                        while (bgIdx < _aozoraBlocks.Count)
+                        {
+                            if (token.IsCancellationRequested) return;
+
+                            var batch = new List<VerticalPageInfo>();
+                            for (int b = 0; b < 20 && bgIdx < _aozoraBlocks.Count; b++)
+                            {
+                                var pBlocks = PaginateAozoraPage(ref bgIdx, _aozoraBlocks, availableWidth, availableHeight, canvasDevice);
+                                if (pBlocks.Count > 0) batch.Add(new VerticalPageInfo { Blocks = pBlocks, StartLine = pBlocks[0].SourceLineNumber });
+                            }
+
+                            if (batch.Count > 0)
+                            {
+                                DispatcherQueue.TryEnqueue(() => 
+                                {
+                                    if (token.IsCancellationRequested) return;
+                                    _verticalPageInfos.AddRange(batch);
+                                    UpdateTextStatusBar();
+                                });
+                            }
+                            await Task.Delay(5, token); // Yielding (CPU 독점 방지)
+                        }
+                    }
+                }, token);
             }
             catch (OperationCanceledException) { return; }
             catch (Exception ex)
@@ -294,11 +284,13 @@ namespace Uviewer
             }
         }
 
-        private List<AozoraBindingModel> PaginateAozoraPage(ref int index, List<AozoraBindingModel> blocks, float availableWidth, float availableHeight)
+        private List<AozoraBindingModel> PaginateAozoraPage(ref int index, List<AozoraBindingModel> blocks, float availableWidth, float availableHeight, Microsoft.Graphics.Canvas.CanvasDevice device)
         {
             var pageBlocks = new List<AozoraBindingModel>();
             float usedWidth = 0;
-            var device = VerticalTextCanvas?.Device;
+
+            AozoraBindingModel currentMergedBlock = null;
+            float currentMergedBlockWidth = 0;
 
             while (index < blocks.Count)
             {
@@ -317,8 +309,8 @@ namespace Uviewer
                     
                     pageBlocks.Add(block);
                     index++;
+                    currentMergedBlock = null;
 
-                    // EPUB에서 SideBySide 모드인 경우 이미지를 가로로 한 장 더 배치 (Space 키 토글 지원)
                     if (_isEpubMode && _isSideBySideMode)
                     {
                         while (index < blocks.Count)
@@ -331,45 +323,71 @@ namespace Uviewer
                                 {
                                     pageBlocks.Add(nextBlock);
                                     index++;
-                                    break; // Max 2 images reached
+                                    break; 
                                 }
                             }
-
-                            // Skip whitespace blocks between images
                             bool isWhitespace = nextBlock.Inlines.All(inline => 
-                                (inline is string s && string.IsNullOrWhiteSpace(s)) || 
-                                (inline is AozoraLineBreak));
+                                (inline is string s && string.IsNullOrWhiteSpace(s)) || (inline is AozoraLineBreak));
                             
-                            if (isWhitespace)
-                            {
-                                index++;
-                                continue;
-                            }
-                            break; // Text block found, stop grouping
+                            if (isWhitespace) { index++; continue; }
+                            break; 
                         }
                     }
                     break;
                 }
 
-                float fontSize = (float)(_textFontSize * block.FontSizeScale);
-                
-                // [핵심 수정] Pixel-accurate measurement using CanvasTextLayout
-                float blockTotalWidth = MeasureVerticalBlockWidth(device, block, availableHeight, fontSize);
+                // 1. 이어지는 문장 합치기 시도
+                if (block.IsParagraphContinuation && currentMergedBlock != null && !block.IsTable && block.HeadingLevel == 0)
+                {
+                    var tempMerged = CloneBlockProperties(currentMergedBlock, true);
+                    tempMerged.Inlines.AddRange(block.Inlines); // 기존 문단에 텍스트 이어붙이기
 
-                // 공간 체크 (안전 여백 Safety Buffer 적용)
-                // HitTest 정밀 계산을 위해 여백을 최소화 (5px)
-                float safetyBuffer = 5.0f;
+                    float fontSize = (float)(_textFontSize * tempMerged.FontSizeScale);
+                    float newWidth = MeasureVerticalBlockWidth(device, tempMerged, availableHeight, fontSize);
+                    float widthDiff = newWidth - currentMergedBlockWidth;
+                    float safetyBuffer = 5.0f;
 
-                if (pageBlocks.Count > 0 && usedWidth + blockTotalWidth > (availableWidth - safetyBuffer))
+                    // 합친 넓이가 페이지를 초과하면 이번 문장은 병합 취소하고 다음 페이지로 이월
+                    if (usedWidth + widthDiff > (availableWidth - safetyBuffer) && pageBlocks.Count > 0)
+                    {
+                        break; 
+                    }
+
+                    // 병합 성공: 현재 페이지 마지막 블록을 교체
+                    pageBlocks[pageBlocks.Count - 1] = tempMerged;
+                    currentMergedBlock = tempMerged;
+                    usedWidth += widthDiff;
+                    currentMergedBlockWidth = newWidth;
+                    index++;
+                    continue;
+                }
+
+                // 2. 새 문단 또는 일반 블록
+                float fontSizeBase = (float)(_textFontSize * block.FontSizeScale);
+                float blockWidth = MeasureVerticalBlockWidth(device, block, availableHeight, fontSizeBase);
+                float safetyBuf = 5.0f;
+
+                if (pageBlocks.Count > 0 && usedWidth + blockWidth > (availableWidth - safetyBuf))
                 {
                     break; 
                 }
 
-                pageBlocks.Add(block);
-                usedWidth += blockTotalWidth;
-                index++;
+                var blockCopy = CloneBlockProperties(block, true);
+                pageBlocks.Add(blockCopy);
+                usedWidth += blockWidth;
 
-                if (usedWidth >= (availableWidth - safetyBuffer)) break;
+                if (!block.IsTable && !block.IsPageBreak && block.HeadingLevel == 0)
+                {
+                    currentMergedBlock = blockCopy;
+                    currentMergedBlockWidth = blockWidth;
+                }
+                else
+                {
+                    currentMergedBlock = null;
+                }
+
+                index++;
+                if (usedWidth >= (availableWidth - safetyBuf)) break;
             }
             return pageBlocks;
         }

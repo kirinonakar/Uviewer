@@ -668,6 +668,8 @@ namespace Uviewer
 
             // Trigger background page calculation
             StartPageCalculationAsync();
+
+            if (TextFastNavOverlay != null) TextFastNavOverlay.Visibility = Visibility.Collapsed;
         }
 
         /// <summary>

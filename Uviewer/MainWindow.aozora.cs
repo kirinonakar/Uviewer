@@ -57,6 +57,7 @@ namespace Uviewer
             public bool IsBold { get; set; } = false;
             public double BlockIndent { get; set; } = 0;
             public bool IsBlankLine { get; set; } = false;
+            public bool IsParagraphContinuation { get; set; } = false; 
         }
 
         public class AozoraBold { public string Text { get; set; } = ""; }
@@ -127,6 +128,8 @@ namespace Uviewer
 
         private async void ToggleAozoraMode()
         {
+            if (TextFastNavOverlay != null) TextFastNavOverlay.Visibility = Visibility.Visible;
+            await Task.Delay(10); 
             // 1. 모드 전환 전, 현재 보고 있는 줄 번호를 캡처합니다.
             int currentLine = 1;
             
@@ -286,12 +289,13 @@ namespace Uviewer
 
                 var sw = System.Diagnostics.Stopwatch.StartNew();
 
+                AozoraBindingModel currentMergedBlock = null;
+                double currentMergedBlockHeight = 0;
+
                 for (int i = 0; i < _aozoraBlocks.Count; i++)
                 {
                     if (token.IsCancellationRequested) return;
-
                     blockToPageMap[i] = pageCount;
-
                     var block = _aozoraBlocks[i];
                     
                     if (block.HasImage || block.IsPageBreak)
@@ -302,42 +306,69 @@ namespace Uviewer
                             currentPageHeight = 0;
                             blockToPageMap[i] = pageCount;
                         }
-
-                        // Image/PageBreak block takes its own page
                         pageCount++;
                         currentPageHeight = 0;
+                        currentMergedBlock = null;
                         continue;
                     }
 
-                    // Measure Block
-                    dummyRTB.Blocks.Clear();
-                    var p = CreateParagraphFromBlock(block, availableHeight);
-                    dummyRTB.Blocks.Add(p);
-                    
-                    dummyRTB.Measure(new Windows.Foundation.Size((float)maxWidth, double.PositiveInfinity));
-                    double blockHeight = dummyRTB.DesiredSize.Height;
-                    
-                    if (currentPageHeight + blockHeight > availableHeight)
+                    if (block.IsParagraphContinuation && currentMergedBlock != null)
                     {
-                        // New Page
-                        if (currentPageHeight > 0) // If not empty page already
+                        currentMergedBlock.Inlines.AddRange(block.Inlines);
+                        
+                        dummyRTB.Blocks.Clear();
+                        dummyRTB.Blocks.Add(CreateParagraphFromBlock(currentMergedBlock, availableHeight));
+                        dummyRTB.Measure(new Windows.Foundation.Size((float)maxWidth, double.PositiveInfinity));
+                        
+                        double newHeight = dummyRTB.DesiredSize.Height;
+                        double heightDiff = newHeight - currentMergedBlockHeight;
+
+                        if (currentPageHeight + heightDiff > availableHeight)
                         {
                             pageCount++;
                             currentPageHeight = 0;
-                            blockToPageMap[i] = pageCount; // This block starts new page
+                            
+                            // 초과한 문장은 새 페이지의 시작 문단이 됨
+                            currentMergedBlock = CloneBlockProperties(block, true);
+                            dummyRTB.Blocks.Clear();
+                            dummyRTB.Blocks.Add(CreateParagraphFromBlock(currentMergedBlock, availableHeight));
+                            dummyRTB.Measure(new Windows.Foundation.Size((float)maxWidth, double.PositiveInfinity));
+                            
+                            currentMergedBlockHeight = dummyRTB.DesiredSize.Height;
+                            currentPageHeight = currentMergedBlockHeight;
+                            blockToPageMap[i] = pageCount;
                         }
+                        else
+                        {
+                            currentPageHeight += heightDiff;
+                            currentMergedBlockHeight = newHeight;
+                        }
+                        continue;
+                    }
+
+                    currentMergedBlock = CloneBlockProperties(block, true);
+                    dummyRTB.Blocks.Clear();
+                    dummyRTB.Blocks.Add(CreateParagraphFromBlock(block, availableHeight));
+                    dummyRTB.Measure(new Windows.Foundation.Size((float)maxWidth, double.PositiveInfinity));
+                    double blockHeight = dummyRTB.DesiredSize.Height;
+                    
+                    if (currentPageHeight + blockHeight > availableHeight && currentPageHeight > 0)
+                    {
+                        pageCount++;
+                        currentPageHeight = 0;
+                        blockToPageMap[i] = pageCount;
                     }
                     
                     currentPageHeight += blockHeight;
+                    currentMergedBlockHeight = blockHeight;
                     
-                    // Very large single block handling?
                     if (currentPageHeight > availableHeight)
                     {
                          currentPageHeight = 0; 
                          pageCount++;
                     }
 
-                    if (sw.ElapsedMilliseconds > 15)
+                    if (sw.ElapsedMilliseconds > 3) 
                     {
                         await Task.Delay(1, token);
                         sw.Restart();
@@ -666,45 +697,58 @@ namespace Uviewer
 
             double currentHeight = 0;
             int endIdx = startIdx;
+            Paragraph currentParagraph = null;
 
-            // 임시 측정을 위한 RichTextBlock 설정 (기존 UI 객체 활용)
-            // WinUI에서는 LayoutCycle을 유발할 수 있으므로, 이미 시각적 트리에 있는 AozoraPageContent를 
-            // 직접 채워가며 Measure하는 것이 가장 정확합니다.
-            
             for (int i = startIdx; i < _aozoraBlocks.Count; i++)
             {
                 var block = _aozoraBlocks[i];
+
+                // 1. 이어지는 문장인 경우 현재 문단에 합치기 시도
+                if (block.IsParagraphContinuation && currentParagraph != null && !block.HasImage && !block.IsTable && block.HeadingLevel == 0)
+                {
+                    var pTemp = CreateParagraphFromBlock(block, availableHeight, innerWidth);
+                    var inlinesToMove = pTemp.Inlines.ToList();
+                    pTemp.Inlines.Clear();
+                    
+                    foreach (var inline in inlinesToMove) currentParagraph.Inlines.Add(inline);
+                    
+                    AozoraPageContent.Measure(new Windows.Foundation.Size(AozoraPageContent.MaxWidth, double.PositiveInfinity));
+                    double newHeight = AozoraPageContent.DesiredSize.Height;
+                    
+                    // 합쳤는데 페이지를 초과하면 원상복구하고 다음 페이지로 넘김
+                    if (newHeight > availableHeight)
+                    {
+                        foreach (var inline in inlinesToMove) currentParagraph.Inlines.Remove(inline);
+                        break;
+                    }
+                    
+                    currentHeight = newHeight;
+                    endIdx = i;
+                    continue; // 덧붙이기 성공했으므로 다음 블록으로
+                }
+
+                // 2. 새 문단이거나 분리가 안 되는 블록 처리
                 var p = CreateParagraphFromBlock(block, availableHeight, innerWidth);
 
-                // If the block is empty (e.g., missing image), skip it entirely
                 if (p.Inlines.Count == 0)
                 {
                     endIdx = i;
                     continue;
                 }
                 
-                // If this block has an image or is a page break, it should be isolated on its own page
                 if (block.HasImage || block.IsPageBreak)
                 {
-                    if (AozoraPageContent.Blocks.Count > 0)
-                    {
-                        // Finish current page before image or page break
-                        break;
-                    }
+                    if (AozoraPageContent.Blocks.Count > 0) break;
                     else
                     {
-                        // First block is image or page break
                         if (block.HasImage)
                         {
                             p.TextAlignment = TextAlignment.Center;
-                            
-                            // [Fix] Ensure container allows full width for the image
                             if (AozoraPageContainer != null) AozoraPageContainer.Padding = new Thickness(0);
                             AozoraPageContent.MaxWidth = innerWidth;
                             AozoraPageContent.Padding = new Thickness(0);
                             AozoraPageContent.VerticalAlignment = VerticalAlignment.Center;
                         }
-
                         AozoraPageContent.Blocks.Add(p);
                         endIdx = i;
                         break;
@@ -712,26 +756,25 @@ namespace Uviewer
                 }
 
                 AozoraPageContent.Blocks.Add(p);
-                
-                // Measure the container to see current total height
                 AozoraPageContent.Measure(new Windows.Foundation.Size(AozoraPageContent.MaxWidth, double.PositiveInfinity));
-                double newHeight = AozoraPageContent.DesiredSize.Height;
+                double measuredHeight = AozoraPageContent.DesiredSize.Height;
                 
-                if (AozoraPageContent.Blocks.Count > 1 && newHeight > availableHeight)
+                if (AozoraPageContent.Blocks.Count > 1 && measuredHeight > availableHeight)
                 {
-                    // Too high, remove last and stop
                     AozoraPageContent.Blocks.Remove(p);
                     break;
                 }
                 
-                currentHeight = newHeight;
+                currentHeight = measuredHeight;
                 endIdx = i;
+
+                // 다음 블록이 덧붙일 수 있도록 기준 문단 캐싱
+                if (!block.HasImage && !block.IsTable && !block.IsPageBreak && block.HeadingLevel == 0)
+                    currentParagraph = p;
+                else
+                    currentParagraph = null;
                 
-                // Very long single blocks are allowed (they will be scrollable)
-                if (currentHeight > availableHeight && AozoraPageContent.Blocks.Count == 1)
-                {
-                    break;
-                }
+                if (currentHeight > availableHeight && AozoraPageContent.Blocks.Count == 1) break;
             }
             
             _currentAozoraEndBlockIndex = endIdx;
@@ -1245,7 +1288,119 @@ namespace Uviewer
                 blocks.Add(model);
             }
 
-            return blocks;
+            // ===== [추가된 부분] 문단이 긴 경우 문장 단위로 블록 분리 =====
+            var splitBlocks = new List<AozoraBindingModel>();
+            foreach (var block in blocks)
+            {
+                splitBlocks.AddRange(SplitBlockBySentences(block));
+            }
+
+            return splitBlocks;
+        }
+
+        private List<AozoraBindingModel> SplitBlockBySentences(AozoraBindingModel originalBlock)
+        {
+            if (originalBlock.HeadingLevel > 0 || originalBlock.HasImage || originalBlock.IsTable || originalBlock.IsPageBreak || originalBlock.IsBlankLine)
+            {
+                return new List<AozoraBindingModel> { originalBlock };
+            }
+
+            char[] terminators = { '。', '！', '？', '.', '!', '?' };
+            char[] quotes = { '」', '』', '"', '\'', '”', '’', '〉', '》', '】', '］', ')' };
+
+            var result = new List<AozoraBindingModel>();
+            var currentBlock = CloneBlockProperties(originalBlock);
+            bool isFirst = true;
+
+            for (int i = 0; i < originalBlock.Inlines.Count; i++)
+            {
+                var inline = originalBlock.Inlines[i];
+
+                if (inline is string text)
+                {
+                    int start = 0;
+                    for (int j = 0; j < text.Length; j++)
+                    {
+                        char c = text[j];
+                        if (Array.IndexOf(terminators, c) >= 0)
+                        {
+                            if (c == '.' && j > 0 && j < text.Length - 1 && char.IsDigit(text[j - 1]) && char.IsDigit(text[j + 1])) continue;
+                            if (j < text.Length - 1 && Array.IndexOf(terminators, text[j + 1]) >= 0) continue;
+
+                            int splitPos = j + 1;
+                            while (splitPos < text.Length && Array.IndexOf(quotes, text[splitPos]) >= 0) splitPos++;
+
+                            bool isLastInText = (splitPos == text.Length);
+                            bool isLastInline = (i == originalBlock.Inlines.Count - 1);
+
+                            if (isLastInText && isLastInline) continue;
+
+                            string part = text.Substring(start, splitPos - start);
+                            if (currentBlock.Inlines.Count == 0) part = part.TrimStart();
+                            if (!string.IsNullOrEmpty(part)) currentBlock.Inlines.Add(part);
+
+                            if (currentBlock.Inlines.Count > 0)
+                            {
+                                if (!isFirst) currentBlock.IsParagraphContinuation = true;
+                                result.Add(currentBlock);
+                                isFirst = false;
+                            }
+
+                            currentBlock = CloneBlockProperties(originalBlock);
+                            currentBlock.BlockIndent = 0; 
+                            currentBlock.Margin = new Thickness(0);
+
+                            start = splitPos;
+                            j = splitPos - 1;
+                        }
+                    }
+
+                    if (start < text.Length)
+                    {
+                        string left = text.Substring(start);
+                        if (currentBlock.Inlines.Count == 0) left = left.TrimStart();
+                        if (!string.IsNullOrEmpty(left)) currentBlock.Inlines.Add(left);
+                    }
+                }
+                else
+                {
+                    currentBlock.Inlines.Add(inline);
+                }
+            }
+
+            if (currentBlock.Inlines.Count > 0)
+            {
+                if (!isFirst) currentBlock.IsParagraphContinuation = true;
+                result.Add(currentBlock);
+            }
+
+            return result;
+        }
+
+        private AozoraBindingModel CloneBlockProperties(AozoraBindingModel source, bool copyInlines = false)
+        {
+            var clone = new AozoraBindingModel
+            {
+                FontSizeScale = source.FontSizeScale,
+                Alignment = source.Alignment,
+                Margin = source.Margin,
+                Padding = source.Padding,
+                BorderColor = source.BorderColor,
+                BorderThickness = source.BorderThickness,
+                BackgroundColor = source.BackgroundColor,
+                FontFamily = source.FontFamily,
+                SourceLineNumber = source.SourceLineNumber,
+                IsBold = source.IsBold,
+                BlockIndent = source.BlockIndent,
+                HeadingLevel = source.HeadingLevel,
+                HeadingText = source.HeadingText,
+                IsTable = source.IsTable,
+                IsBlankLine = source.IsBlankLine,
+                IsPageBreak = source.IsPageBreak,
+                IsParagraphContinuation = source.IsParagraphContinuation
+            };
+            if (copyInlines) clone.Inlines = new List<object>(source.Inlines);
+            return clone;
         }
 
         private List<AozoraBindingModel> ParseMarkdownContent(string text)
