@@ -1,4 +1,3 @@
-using System.IO;
 using Microsoft.Graphics.Canvas.Text;
 using Microsoft.UI;
 using Microsoft.UI.Text;
@@ -15,8 +14,8 @@ using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using Windows.Foundation;
-using Windows.UI;
 using Windows.Storage;
+using Windows.UI;
 
 namespace Uviewer
 {
@@ -39,8 +38,8 @@ namespace Uviewer
 #pragma warning restore CS0414
         private CancellationTokenSource? _globalTextCts;
 
-        
-        
+
+
         // SupportedTextExtensions is defined in MainWindow.xaml.cs
 
         public class TextLine
@@ -50,7 +49,7 @@ namespace Uviewer
             public string FontFamily { get; set; } = "Yu Gothic Medium";
             public Brush? Foreground { get; set; }
             public double MaxWidth { get; set; }
-            
+
             // New styling properties for Aozora
             public TextAlignment TextAlignment { get; set; } = TextAlignment.Left;
             public Thickness Margin { get; set; } = new Thickness(0);
@@ -120,7 +119,7 @@ namespace Uviewer
             try
             {
                 System.Text.Encoding.RegisterProvider(System.Text.CodePagesEncodingProvider.Instance);
-                
+
                 if (!_textInputInitialized)
                 {
                     RootGrid.PreviewKeyDown += RootGrid_Text_PreviewKeyDown;
@@ -145,7 +144,7 @@ namespace Uviewer
         {
             // Save position of current file before switching
             await AddToRecentAsync(true);
-            
+
             InitializeText();
             _currentTextFilePath = file.Path;
             _currentTextArchiveEntryKey = null; // Clear archive context when loading local file
@@ -161,7 +160,7 @@ namespace Uviewer
                 if (token.IsCancellationRequested) return;
 
                 await DisplayLoadedText(content, file.Name, file.Path, token);
-                
+
                 if (token.IsCancellationRequested) return;
                 SyncSidebarSelection(new ImageEntry { FilePath = file.Path, DisplayName = file.Name });
             }
@@ -173,59 +172,59 @@ namespace Uviewer
 
         private async Task LoadTextEntryAsync(ImageEntry entry)
         {
-             if (entry.IsArchiveEntry)
-             {
-                 await LoadTextFromArchiveEntryAsync(entry);
-             }
-             else if (entry.FilePath != null)
-             {
-                 var file = await StorageFile.GetFileFromPathAsync(entry.FilePath);
-                 await LoadTextFileAsync(file);
-             }
+            if (entry.IsArchiveEntry)
+            {
+                await LoadTextFromArchiveEntryAsync(entry);
+            }
+            else if (entry.FilePath != null)
+            {
+                var file = await StorageFile.GetFileFromPathAsync(entry.FilePath);
+                await LoadTextFileAsync(file);
+            }
         }
 
         private async Task LoadTextFromArchiveEntryAsync(ImageEntry entry)
         {
-             InitializeText();
-             _currentTextFilePath = null; // Clear to prevent state leakage from previous file
-             _currentTextArchiveEntryKey = entry.ArchiveEntryKey; // Store entry key for relative path resolution
-             // No reset here, DisplayLoadedText will handle it
-             
-             try
-             {
-                 CancelAndResetGlobalTextCts();
-                 var token = _globalTextCts!.Token;
+            InitializeText();
+            _currentTextFilePath = null; // Clear to prevent state leakage from previous file
+            _currentTextArchiveEntryKey = entry.ArchiveEntryKey; // Store entry key for relative path resolution
+                                                                 // No reset here, DisplayLoadedText will handle it
 
-                 SwitchToTextMode();
-                 string content = "";
-                 await _archiveLock.WaitAsync(token);
-                 try
-                 {
-                      if (_currentArchive != null && entry.ArchiveEntryKey != null)
-                      {
-                          var archEntry = _currentArchive.Entries.FirstOrDefault(e => e.Key == entry.ArchiveEntryKey);
-                          if (archEntry != null)
-                          {
-                               using var ms = new System.IO.MemoryStream();
-                               using var entryStream = archEntry.OpenEntryStream();
-                               entryStream.CopyTo(ms);
-                               var bytes = ms.ToArray();
-                               content = GetTextEncoding(bytes).GetString(bytes);
-                          }
-                      }
-                 }
-                 finally { _archiveLock.Release(); }
-                 
-                 if (token.IsCancellationRequested) return;
-                 await DisplayLoadedText(content, entry.DisplayName, null, token);
-                 
-                 if (token.IsCancellationRequested) return;
-                 SyncSidebarSelection(entry);
-             }
-             catch (Exception ex) 
-             {
-                 FileNameText.Text = $"아카이브 텍스트 로드 실패: {ex.Message}";
-             }
+            try
+            {
+                CancelAndResetGlobalTextCts();
+                var token = _globalTextCts!.Token;
+
+                SwitchToTextMode();
+                string content = "";
+                await _archiveLock.WaitAsync(token);
+                try
+                {
+                    if (_currentArchive != null && entry.ArchiveEntryKey != null)
+                    {
+                        var archEntry = _currentArchive.Entries.FirstOrDefault(e => e.Key == entry.ArchiveEntryKey);
+                        if (archEntry != null)
+                        {
+                            using var ms = new System.IO.MemoryStream();
+                            using var entryStream = archEntry.OpenEntryStream();
+                            entryStream.CopyTo(ms);
+                            var bytes = ms.ToArray();
+                            content = GetTextEncoding(bytes).GetString(bytes);
+                        }
+                    }
+                }
+                finally { _archiveLock.Release(); }
+
+                if (token.IsCancellationRequested) return;
+                await DisplayLoadedText(content, entry.DisplayName, null, token);
+
+                if (token.IsCancellationRequested) return;
+                SyncSidebarSelection(entry);
+            }
+            catch (Exception ex)
+            {
+                FileNameText.Text = $"아카이브 텍스트 로드 실패: {ex.Message}";
+            }
         }
 
         private async Task DisplayLoadedText(string content, string name, string? uniquePath = null, CancellationToken token = default)
@@ -239,7 +238,7 @@ namespace Uviewer
                 content = ParseHtml(content);
                 _currentTextContent = content;
             }
-            
+
             // Unified Target Line Logic
             int targetLine = 1;
             if (_aozoraPendingTargetLine != 1)
@@ -269,7 +268,7 @@ namespace Uviewer
                 await PrepareVerticalTextAsync(targetLine, token);
                 if (token.IsCancellationRequested) return;
                 if (VerticalTextCanvas != null) VerticalTextCanvas.Visibility = Visibility.Visible;
-                
+
                 FileNameText.Text = GetFormattedDisplayName(name, _currentTextArchiveEntryKey != null);
                 UpdateTextStatusBar();
                 return;
@@ -281,7 +280,7 @@ namespace Uviewer
                 await PrepareAozoraDisplayAsync(content, targetLine, token);
                 if (token.IsCancellationRequested) return;
                 if (AozoraPageContainer != null) AozoraPageContainer.Visibility = Visibility.Visible;
-                
+
                 FileNameText.Text = GetFormattedDisplayName(name, _currentTextArchiveEntryKey != null);
             }
             else
@@ -289,22 +288,22 @@ namespace Uviewer
                 // Ensure default template
                 if (TextItemsRepeater != null && RootGrid.Resources.TryGetValue("TextItemTemplate", out var template))
                 {
-                     TextItemsRepeater.ItemTemplate = (DataTemplate)template;
+                    TextItemsRepeater.ItemTemplate = (DataTemplate)template;
                 }
-                
+
                 // Progressive loading for large files
                 await LoadTextLinesProgressivelyAsync(content, targetLine, token);
                 if (TextScrollViewer != null) TextScrollViewer.Visibility = Visibility.Visible;
 
                 // Reset to top immediately if not restoring position
-                if (targetLine <= 1 && TextScrollViewer != null) 
+                if (targetLine <= 1 && TextScrollViewer != null)
                 {
                     TextScrollViewer.ChangeView(null, 0, null, true);
                 }
-                
+
                 // Update Text Status
                 UpdateTextStatusBar(name, _textTotalLineCountInSource, 1);
-                
+
                 // Position is now handled inside LoadTextLinesProgressivelyAsync 
                 // to avoid double-scrolling Jitter.
                 // ScrollToLine(targetLine) moved there.
@@ -322,11 +321,11 @@ namespace Uviewer
             {
                 // Identify target solely by path if available, else by name AND ensure no path collision
                 // Use Case-Insensitive comparison for Windows paths
-                
+
                 var recent = _recentItems.OrderByDescending(r => r.AccessedAt)
-                                         .FirstOrDefault(r => (path != null && string.Equals(r.Path, path, StringComparison.OrdinalIgnoreCase)) || 
+                                         .FirstOrDefault(r => (path != null && string.Equals(r.Path, path, StringComparison.OrdinalIgnoreCase)) ||
                                                               (path == null && string.Equals(r.Name, name, StringComparison.OrdinalIgnoreCase)));
-                
+
                 if (recent != null)
                 {
                     if (recent.SavedLine > 1) return recent.SavedLine;
@@ -335,7 +334,7 @@ namespace Uviewer
                 }
 
                 // If not in recent, check favorites
-                var favorite = _favorites.FirstOrDefault(f => (path != null && string.Equals(f.Path, path, StringComparison.OrdinalIgnoreCase)) || 
+                var favorite = _favorites.FirstOrDefault(f => (path != null && string.Equals(f.Path, path, StringComparison.OrdinalIgnoreCase)) ||
                                                               (path == null && string.Equals(f.Name, name, StringComparison.OrdinalIgnoreCase)));
                 if (favorite != null)
                 {
@@ -356,7 +355,7 @@ namespace Uviewer
             {
                 // Wait for layout update for normal mode
                 await Task.Delay(100);
-                
+
                 if (TextScrollViewer != null)
                 {
                     var recent = _recentItems.OrderByDescending(r => r.AccessedAt).FirstOrDefault(r => r.Name == name);
@@ -391,12 +390,12 @@ namespace Uviewer
             ImageArea.Visibility = Visibility.Collapsed;
             TextArea.Visibility = Visibility.Visible;
             EpubArea.Visibility = Visibility.Collapsed; // Ensure Epub area is hidden
-            
+
             // Toggle Toolbars
             ImageToolbarPanel.Visibility = Visibility.Collapsed;
             TextToolbarPanel.Visibility = Visibility.Visible;
             SideBySideToolbarPanel.Visibility = Visibility.Collapsed;
-            
+
             // Load Settings (Must happen before visibility check)
             LoadTextSettings();
 
@@ -418,7 +417,7 @@ namespace Uviewer
                 TextScrollViewer.Visibility = Visibility.Visible;
                 AozoraPageContainer.Visibility = Visibility.Collapsed;
             }
-            
+
             // Update Title
             Title = "Uviewer - Image & Text Viewer";
         }
@@ -432,7 +431,7 @@ namespace Uviewer
                 {
                     var json = System.IO.File.ReadAllText(settingsFile);
                     var settings = System.Text.Json.JsonSerializer.Deserialize(json, typeof(TextSettings), TextSettingsContext.Default) as TextSettings;
-                    
+
                     if (settings != null)
                     {
                         _textFontSize = settings.FontSize;
@@ -442,23 +441,27 @@ namespace Uviewer
                         if (settings.CustomBackgroundColor != null) _customBackgroundColor = ParseHexColor(settings.CustomBackgroundColor);
                         if (settings.CustomForegroundColor != null) _customForegroundColor = ParseHexColor(settings.CustomForegroundColor);
                         if (VerticalToggleButton != null) VerticalToggleButton.IsChecked = _isVerticalMode;
-                        
+
                         if (!string.IsNullOrEmpty(settings.UIFontFamily))
                         {
                             _uiFontFamily = settings.UIFontFamily;
                             this.DispatcherQueue.TryEnqueue(() => SetUiFont(_uiFontFamily));
                         }
 
-                        try {
+                        try
+                        {
                             _languageSetting = settings.Language ?? "Auto";
                             ApplyLanguage(_languageSetting);
-                            this.DispatcherQueue.TryEnqueue(async () => {
+                            this.DispatcherQueue.TryEnqueue(async () =>
+                            {
                                 await Task.Delay(100);
                                 Strings.Reload();
                                 ApplyLocalization();
                                 UpdateLanguageMenuCheckmark();
                             });
-                        } catch (Exception ex) {
+                        }
+                        catch (Exception ex)
+                        {
                             System.Diagnostics.Debug.WriteLine($"Language load error: {ex.Message}");
                         }
                     }
@@ -468,20 +471,20 @@ namespace Uviewer
             {
                 System.Diagnostics.Debug.WriteLine($"Error loading text settings: {ex.Message}");
             }
-            
+
             LoadAozoraSettings(); // Load Aozora settings
 
             // Validate
             if (_textFontSize < 8) _textFontSize = 8;
             if (_textFontSize > 72) _textFontSize = 72;
-            
+
             // Update UI Labels
             if (TextSizeLevelText != null)
             {
                 TextSizeLevelText.Text = _textFontSize.ToString();
             }
         }
-        
+
         private void SaveTextSettings()
         {
             try
@@ -497,14 +500,14 @@ namespace Uviewer
                     Language = _languageSetting,
                     UIFontFamily = _uiFontFamily
                 };
-                
+
                 var settingsFile = GetTextSettingsFilePath();
                 var settingsDir = System.IO.Path.GetDirectoryName(settingsFile);
                 if (settingsDir != null && !System.IO.Directory.Exists(settingsDir))
                 {
                     System.IO.Directory.CreateDirectory(settingsDir);
                 }
-                
+
                 var json = System.Text.Json.JsonSerializer.Serialize(settings, typeof(TextSettings), TextSettingsContext.Default);
                 System.IO.File.WriteAllText(settingsFile, json);
             }
@@ -513,7 +516,7 @@ namespace Uviewer
                 System.Diagnostics.Debug.WriteLine($"Error saving text settings: {ex.Message}");
             }
         }
-        
+
         private void SwitchToImageMode()
         {
             _isTextMode = false;
@@ -522,548 +525,17 @@ namespace Uviewer
             TextArea.Visibility = Visibility.Collapsed;
             EpubArea.Visibility = Visibility.Collapsed;
             VerticalTextCanvas.Visibility = Visibility.Collapsed;
-            
+
             ImageToolbarPanel.Visibility = Visibility.Visible;
             TextToolbarPanel.Visibility = Visibility.Collapsed;
             SideBySideToolbarPanel.Visibility = (_currentPdfDocument != null) ? Visibility.Collapsed : Visibility.Visible;
             SharpenButton.Visibility = (_currentPdfDocument != null) ? Visibility.Collapsed : Visibility.Visible;
-            
+
             // PDF의 경우 핀치 줌과 스와이프 스크롤을 위해 조작 모드 활성화
             ImageArea.ManipulationMode = (_currentPdfDocument != null) ? Microsoft.UI.Xaml.Input.ManipulationModes.All : Microsoft.UI.Xaml.Input.ManipulationModes.None;
 
             UpdateSideBySideButtonState();
             UpdateNextImageSideButtonState();
-        }
-
-        private async Task<string> ReadTextFileWithEncodingAsync(StorageFile file)
-        {
-            // Read as buffer
-            var buffer = await FileIO.ReadBufferAsync(file);
-            using var dataReader = Windows.Storage.Streams.DataReader.FromBuffer(buffer);
-            byte[] bytes = new byte[buffer.Length];
-            dataReader.ReadBytes(bytes);
-
-            // Detect Encoding
-            Encoding encoding = GetTextEncoding(bytes);
-            return encoding.GetString(bytes);
-        }
-
-        private Encoding DetectEncoding(byte[] bytes)
-        {
-            // Simple logic: Check for BOM, then UTF8 validation, then fallback to SJIS/EUC-KR
-            if (bytes.Length >= 3 && bytes[0] == 0xEF && bytes[1] == 0xBB && bytes[2] == 0xBF) return Encoding.UTF8;
-            if (bytes.Length >= 2 && bytes[0] == 0xFF && bytes[1] == 0xFE) return Encoding.Unicode;
-            if (bytes.Length >= 2 && bytes[0] == 0xFE && bytes[1] == 0xFF) return Encoding.BigEndianUnicode;
-
-            // Is valid UTF8?
-            if (IsValidUtf8(bytes)) return Encoding.UTF8;
-
-            // 0. HTML Meta Charset Check (Strongest for HTML)
-            var htmlCharset = DetectHtmlCharset(bytes);
-            if (htmlCharset != null) return htmlCharset;
-
-            // 1. Heuristic Scoring Comparison
-            // Compare scores for EUC-KR, SJIS, and Johab.
-            // Johab needs to be in the competition because it overlaps with both (CP949 Ext & SJIS).
-            int eucKrScore = GetEucKrScore(bytes);
-            int sjisScore = GetSjisScore(bytes);
-            int johabScore = GetJohabScore(bytes);
-            
-            // Winner takes all
-            if (sjisScore > eucKrScore && sjisScore > johabScore && sjisScore > 0) return Encoding.GetEncoding(932);
-            if (eucKrScore > sjisScore && eucKrScore > johabScore && eucKrScore > 0) return Encoding.GetEncoding(949);
-            if (johabScore > sjisScore && johabScore > eucKrScore && johabScore > 0) return Encoding.GetEncoding(1361);
-            
-            // Default preference if scores match
-            // Johab is rarest, so lowest priority in tie-break
-            if (eucKrScore > 0 && eucKrScore >= sjisScore) return Encoding.GetEncoding(949);
-            if (sjisScore > 0) return Encoding.GetEncoding(932);
-            if (johabScore > 0) return Encoding.GetEncoding(1361);
-
-            // 5. Try Johab (Korean Combination, CP1361) - heuristic fallback
-            // (Redundant with scoring, but serves as final check)
-            if (ContainsJohabPattern(bytes)) return Encoding.GetEncoding(1361);
-
-            // 5. Default Fallbacks
-            try { return Encoding.GetEncoding(51949); } catch { }
-            try { return Encoding.GetEncoding(932); } catch { }
-
-            return Encoding.Default;
-        }
-
-        private int GetSjisScore(byte[] bytes)
-        {
-            // Calculate a score for likelihood of SJIS.
-            // +2 for Kana (strong signal)
-            // +1 for Kanji
-            
-            int score = 0;
-            int i = 0;
-            int len = bytes.Length;
-            
-            while (i < len)
-            {
-                byte b = bytes[i];
-                
-                // ASCII - skip
-                if (b < 0x80)
-                {
-                    i++;
-                    continue;
-                }
-                
-                // Half-width Katakana (0xA1-0xDF)
-                // This overlaps with EUC-KR first byte.
-                // But if followed by ASCII, it's a strong SJIS signal.
-                if (b >= 0xA1 && b <= 0xDF)
-                {
-                     if (i + 1 < len && bytes[i + 1] < 0x80) score += 1;
-                     i++;
-                     continue;
-                }
-                
-                // Need 2 bytes
-                if (i + 1 >= len) break;
-                
-                byte b2 = bytes[i + 1];
-                
-                // SJIS First Byte: 0x81-0x9F, 0xE0-0xFC
-                // Includes Level 1 Kanji (0x81-0x9F) and Level 2 (0xE0-0xFC)
-                if ((b >= 0x81 && b <= 0x9F) || (b >= 0xE0 && b <= 0xFC))
-                {
-                    // Valid SJIS second byte: 0x40-0x7E or 0x80-0xFC
-                    bool validSecond = (b2 >= 0x40 && b2 <= 0x7E) || (b2 >= 0x80 && b2 <= 0xFC);
-                    if (validSecond)
-                    {
-                        // 0x82, 0x83 are Hiragana and Katakana - VERY strong signal for Japanese
-                        if (b == 0x82 || b == 0x83) score += 5;
-                        else score += 1;
-                        
-                        i += 2;
-                        continue;
-                    }
-                }
-                
-                i++;
-            }
-            
-            return score;
-        }
-
-        private int GetEucKrScore(byte[] bytes)
-        {
-            // Calculate a score for likelihood of EUC-KR.
-            // +2 for Standard Hangul (0xB0-0xC8) - strong signal
-            // +1 for Symbols or CP949 Extended
-            
-            int score = 0;
-            int i = 0;
-            int len = bytes.Length;
-            
-            while (i < len)
-            {
-                byte b1 = bytes[i];
-                
-                // ASCII - skip
-                if (b1 < 0x80)
-                {
-                    i++;
-                    continue;
-                }
-                
-                // Need 2 bytes
-                if (i + 1 >= len) break;
-                
-                byte b2 = bytes[i + 1];
-                
-                // Standard EUC-KR Hangul: 0xB0-0xC8 first, 0xA1-0xFE second
-                // This is the strongest signal for Korean text.
-                if (b1 >= 0xB0 && b1 <= 0xC8 && b2 >= 0xA1 && b2 <= 0xFE)
-                {
-                    score += 2;
-                    i += 2;
-                    continue;
-                }
-                
-                // NOTE: We specifically DO NOT count CP949 Extended Range (0x81-0xA0) here.
-                // NOTE: We ALSO removed 0xA1-0xAF (Symbols) because it overlaps with SJIS Half-width Katakana.
-                // This makes EUC-KR detection purely based on Standard Hangul (0xB0+), which is safest.
-                
-                // NOTE: We specifically DO NOT count CP949 Extended Range (0x81-0xA0) here.
-                // Reason: This range completely overlaps with SJIS (Lev 1 Kanji & Kana) and Johab.
-                
-                i++;
-            }
-            
-            return score;
-        }
-
-        private int GetJohabScore(byte[] bytes)
-        {
-            // Calculate a score for likelihood of Johab.
-            // +5 for Johab-ONLY second bytes (smoking gun)
-            // +1 for valid Johab sequences
-            
-            int score = 0;
-            int i = 0;
-            int len = bytes.Length;
-            
-            while (i < len)
-            {
-                byte b = bytes[i];
-                
-                // ASCII - skip
-                if (b < 0x80)
-                {
-                    i++;
-                    continue;
-                }
-                
-                // Need 2 bytes
-                if (i + 1 >= len) break;
-                
-                byte b2 = bytes[i + 1];
-                
-                // Johab First Byte: 0x84-0xD3
-                if (b >= 0x84 && b <= 0xD3)
-                {
-                    // Check for Johab-ONLY second byte ranges: 0x5B-0x60, 0x7B-0x7E
-                    // These are NOT used in CP949 or standard SJIS
-                    if ((b2 >= 0x5B && b2 <= 0x60) || (b2 >= 0x7B && b2 <= 0x7E))
-                    {
-                        score += 3; // Reduced from 5 to avoid false positives with SJIS Kanji
-                        i += 2;
-                        continue;
-                    }
-                    
-                    // Normal Johab second byte: 0x41-0x7E or 0x81-0xFE
-                    if ((b2 >= 0x41 && b2 <= 0x7E) || (b2 >= 0x81 && b2 <= 0xFE))
-                    {
-                        score += 1;
-                        i += 2;
-                        continue;
-                    }
-                }
-                
-                i++;
-            }
-            return score;
-        }
-
-        private bool ContainsJohabPattern(byte[] bytes)
-        {
-            // Check for Korean Johab (조합형) encoding patterns.
-            // 
-            // IMPORTANT: CP949 (Korean Windows codepage) also uses first bytes 0x81-0xA0
-            // for extended Hangul characters! This overlaps with Johab.
-            // 
-            // Johab (CP1361):
-            // - First byte: 0x84-0xD3
-            // - Second byte: 0x41-0x7E, 0x81-0xFE
-            // 
-            // CP949 extended characters:
-            // - First byte: 0x81-0xA0  
-            // - Second byte: 0x41-0x5A (A-Z), 0x61-0x7A (a-z), 0x81-0xFE
-            // 
-            // KEY DIFFERENCE: Johab uses 0x5B-0x60 and 0x7B-0x7E as second bytes,
-            // but CP949 does NOT use these ranges.
-            // 
-            // Strategy: Only detect Johab if we find second bytes in 0x5B-0x60 or 0x7B-0x7E
-            // (ranges used by Johab but not by CP949)
-            
-            int johabOnlyPairCount = 0;
-            int i = 0;
-            int len = bytes.Length;
-            
-            while (i < len)
-            {
-                byte b = bytes[i];
-                
-                // ASCII byte - just skip and continue
-                if (b < 0x80)
-                {
-                    i++;
-                    continue;
-                }
-                
-                // Need at least 2 bytes for multibyte character
-                if (i + 1 >= len) break;
-                
-                byte b2 = bytes[i + 1];
-                
-                // Check for Johab-ONLY patterns:
-                // First byte 0x84-0xD3, second byte in ranges CP949 doesn't use
-                if (b >= 0x84 && b <= 0xD3)
-                {
-                    // Johab-only second byte ranges: 0x5B-0x60, 0x7B-0x7E
-                    // These are NOT used by CP949 extended characters
-                    bool johabOnlySecond = (b2 >= 0x5B && b2 <= 0x60) || (b2 >= 0x7B && b2 <= 0x7E);
-                    if (johabOnlySecond)
-                    {
-                        johabOnlyPairCount++;
-                        i += 2;
-                        
-                        // If we found enough Johab-only pairs, it's definitely Johab
-                        if (johabOnlyPairCount >= 2) return true;
-                        continue;
-                    }
-                }
-                
-                // For any high byte, skip as 2-byte sequence to maintain alignment
-                if (b >= 0x81)
-                {
-                    if ((b2 >= 0x41 && b2 <= 0x7E) || (b2 >= 0x81 && b2 <= 0xFE))
-                    {
-                        i += 2;
-                        continue;
-                    }
-                }
-                
-                // Unknown byte pattern, advance by 1
-                i++;
-            }
-            
-            return false;
-        }
-
-        private bool IsStrictJohab(byte[] bytes)
-        {
-            // Detect Johab encoding by looking for Johab-specific first byte patterns.
-            // 
-            // KEY INSIGHT: The ONLY reliable way to distinguish Johab from EUC-KR/CP949 is:
-            // - Johab uses first bytes 0x84-0xA0 (EUC-KR uses 0xA1+)
-            // 
-            // We DON'T count second byte patterns because they can cause false positives
-            // due to byte alignment issues.
-            
-            int i = 0;
-            int len = bytes.Length;
-            int johabFirstByteCount = 0;  // Count of first bytes in 0x84-0xA0 range
-            int totalMultibyte = 0;
-            
-            while (i < len)
-            {
-                byte b = bytes[i];
-                
-                // ASCII - skip
-                if (b < 0x80)
-                {
-                    i++;
-                    continue;
-                }
-                
-                // Single byte in 0x80-0x83 range - skip
-                if (b >= 0x80 && b <= 0x83)
-                {
-                    i++;
-                    continue;
-                }
-                
-                // Need 2 bytes for multibyte
-                if (i + 1 >= len)
-                {
-                    i++;
-                    continue;
-                }
-                
-                byte b2 = bytes[i + 1];
-                totalMultibyte++;
-                
-                // First byte 0x84-0xA0: Johab-only range (EUC-KR doesn't use this for first byte)
-                if (b >= 0x84 && b <= 0xA0)
-                {
-                    // Valid Johab second byte: 0x41-0x7E or 0x81-0xFE
-                    if ((b2 >= 0x41 && b2 <= 0x7E) || (b2 >= 0x81 && b2 <= 0xFE))
-                    {
-                        johabFirstByteCount++;
-                        i += 2;
-                        continue;
-                    }
-                    // Invalid second byte - skip as single
-                    i++;
-                    continue;
-                }
-                
-                // First byte 0xA1-0xFE: Could be EUC-KR or Johab - skip as 2-byte
-                if (b >= 0xA1 && b <= 0xFE)
-                {
-                    if ((b2 >= 0x41 && b2 <= 0xFE) && b2 != 0x7F)
-                    {
-                        i += 2;
-                        continue;
-                    }
-                    i++;
-                    continue;
-                }
-                
-                // Other bytes - skip
-                i++;
-            }
-            
-            // VERY STRICT criteria: Only detect as Johab if we have MANY Johab-only first bytes
-            // This is extremely conservative to avoid false positives with EUC-KR/CP949 files
-            // Since IsStrictEucKr runs before this, we only get here if EUC-KR validation failed
-            // Require at least 50 Johab-specific first bytes, or 15% of total multibyte chars
-            if (johabFirstByteCount >= 50)
-                return true;
-            if (totalMultibyte >= 100 && johabFirstByteCount >= (totalMultibyte * 15 / 100)) // At least 15%
-                return true;
-                
-            return false;
-        }
-
-        private Encoding? DetectHtmlCharset(byte[] bytes)
-        {
-            try
-            {
-                // Read head of file (first 2KB) as ASCII string to find meta tags
-                int len = Math.Min(bytes.Length, 2048);
-                string head = Encoding.ASCII.GetString(bytes, 0, len);
-                
-                // Regex for <meta charset="...">
-                var match = Regex.Match(head, @"<meta\s+charset=[""']?([a-zA-Z0-9-_]+)[""']?", RegexOptions.IgnoreCase);
-                if (match.Success)
-                {
-                    string charset = match.Groups[1].Value;
-                    return GetEncodingFromCharset(charset);
-                }
-
-                // Regex for <meta http-equiv="Content-Type" content="...; charset=...">
-                match = Regex.Match(head, @"charset\s*=\s*([a-zA-Z0-9-_]+)", RegexOptions.IgnoreCase);
-                if (match.Success)
-                {
-                    string charset = match.Groups[1].Value;
-                     return GetEncodingFromCharset(charset);
-                }
-            }
-            catch { }
-            return null;
-        }
-
-        private Encoding? GetEncodingFromCharset(string charset)
-        {
-            try
-            {
-                if (string.Equals(charset, "shift_jis", StringComparison.OrdinalIgnoreCase) ||
-                    string.Equals(charset, "sjis", StringComparison.OrdinalIgnoreCase) ||
-                    string.Equals(charset, "x-sjis", StringComparison.OrdinalIgnoreCase))
-                    return Encoding.GetEncoding(932);
-                
-                if (string.Equals(charset, "euc-kr", StringComparison.OrdinalIgnoreCase) ||
-                    string.Equals(charset, "ks_c_5601-1987", StringComparison.OrdinalIgnoreCase))
-                    return Encoding.GetEncoding(51949);
-                
-                return Encoding.GetEncoding(charset);
-            }
-            catch { return null; }
-        }
-
-        private bool IsStrictEucKr(byte[] bytes)
-        {
-            int i = 0;
-            int len = bytes.Length;
-            while (i < len)
-            {
-                byte b = bytes[i];
-                if (b < 0x80)
-                {
-                    // ASCII
-                    i++;
-                }
-                else
-                {
-                    // EUC-KR 2-byte char: 1st [0xA1-0xFE], 2nd [0xA1-0xFE]
-                    // (Actually standard usually starts around 0xB0 for Hangul, but spec allows A1+)
-                    if (i + 1 >= len) return false; // Incomplete
-                    byte b2 = bytes[i + 1];
-                    if (b >= 0xA1 && b <= 0xFE && b2 >= 0xA1 && b2 <= 0xFE)
-                    {
-                        i += 2;
-                    }
-                    else
-                    {
-                        return false; // Invalid EUC-KR sequence
-                    }
-                }
-            }
-            return true;
-        }
-
-        private bool IsStrictSjis(byte[] bytes)
-        {
-            int i = 0;
-            int len = bytes.Length;
-            while (i < len)
-            {
-                byte b = bytes[i];
-                if (b < 0x80)
-                {
-                    // ASCII
-                    i++;
-                }
-                else if (b >= 0xA1 && b <= 0xDF)
-                {
-                    // Half-width Katakana
-                    i++;
-                }
-                else
-                {
-                     // SJIS 2-byte: 1st [0x81-0x9F, 0xE0-0xFC]
-                     if ((b >= 0x81 && b <= 0x9F) || (b >= 0xE0 && b <= 0xFC))
-                     {
-                         if (i + 1 >= len) return false;
-                         byte b2 = bytes[i + 1];
-                         // 2nd [0x40-0x7E, 0x80-0xFC]
-                         if ((b2 >= 0x40 && b2 <= 0x7E) || (b2 >= 0x80 && b2 <= 0xFC))
-                         {
-                             i += 2;
-                         }
-                         else
-                         {
-                             return false;
-                         }
-                     }
-                     else
-                     {
-                         return false;
-                     }
-                }
-            }
-            return true;
-        }
-
-        private bool IsValidUtf8(byte[] bytes)
-        {
-            try
-            {
-               // Using a strict decoder to check for invalid sequences
-               var decoder = Encoding.UTF8.GetDecoder();
-               decoder.Fallback = new DecoderExceptionFallback();
-               char[] chars = new char[decoder.GetCharCount(bytes, 0, bytes.Length)];
-               decoder.GetChars(bytes, 0, bytes.Length, chars, 0);
-               return true;
-            }
-            catch
-            {
-                return false;
-            }
-        }
-
-        private string ParseHtml(string html)
-        {
-            // Very basic stripper
-            // 1. Remove script/style
-            string noScript = Regex.Replace(html, @"<script[^>]*>[\s\S]*?</script>", "", RegexOptions.IgnoreCase);
-            string noStyle = Regex.Replace(noScript, @"<style[^>]*>[\s\S]*?</style>", "", RegexOptions.IgnoreCase);
-            
-            // 2. Strip tags
-            string textOnly = Regex.Replace(noStyle, @"<[^>]+>", "\n"); // Replace tags with newlines
-            
-            // 3. Decode HTML entities
-            textOnly = System.Net.WebUtility.HtmlDecode(textOnly);
-            
-            // 4. Remove excessive newlines
-            return Regex.Replace(textOnly, @"\n\s+\n", "\n\n");
         }
 
         /// <summary>
@@ -1074,27 +546,27 @@ namespace Uviewer
             var lines = content.Replace("\r\n", "\n").Replace("\r", "\n").Split('\n');
             _textTotalLineCountInSource = lines.Length;
             _isTextLinesFullyLoaded = false;
-            
+
             // Cache common values to avoid repeated calls
             var brush = GetThemeForeground();
             var maxW = GetUrlMaxWidth();
-            
+
             int initialLimit = 2000;
             // Ensure we load enough to reach target line
             if (targetLine > initialLimit - 500) initialLimit = targetLine + 500;
-            
+
             if (lines.Length > initialLimit)
             {
                 // 1. Parse initial chunk in background thread
                 var initialLines = lines.Take(initialLimit).ToArray();
                 _textLines = await Task.Run(() => ParseTextLinesChunk(initialLines, brush, maxW), token);
-                
+
                 // 2. Update UI with initial chunk
                 if (TextItemsRepeater != null)
                 {
                     TextItemsRepeater.ItemsSource = null;
                     TextItemsRepeater.ItemsSource = _textLines;
-                    if (targetLine > 1) 
+                    if (targetLine > 1)
                     {
                         // Wait for first layout pass
                         await Task.Delay(50);
@@ -1102,7 +574,7 @@ namespace Uviewer
                     }
                 }
                 if (TextArea != null) TextArea.Background = GetThemeBackground();
-                
+
                 // 3. Load rest in background
                 _ = Task.Run(() =>
                 {
@@ -1111,16 +583,16 @@ namespace Uviewer
                         if (token.IsCancellationRequested) return;
                         var restLines = lines.Skip(initialLimit).ToArray();
                         var restTextLines = ParseTextLinesChunk(restLines, brush, maxW);
-                        
+
                         if (token.IsCancellationRequested) return;
                         this.DispatcherQueue.TryEnqueue(() =>
                         {
                             if (token.IsCancellationRequested) return;
                             if (_isAozoraMode) return; // Mode switched, abort
-                            
+
                             _textLines.AddRange(restTextLines);
                             _isTextLinesFullyLoaded = true;
-                            
+
                             // Refresh ItemsSource to show all lines
                             if (TextItemsRepeater != null)
                             {
@@ -1129,7 +601,7 @@ namespace Uviewer
                                 TextItemsRepeater.ItemsSource = null;
                                 TextItemsRepeater.ItemsSource = currentSource;
                             }
-                            
+
                             // Recalculate pages
                             StartPageCalculationAsync();
                         });
@@ -1145,12 +617,12 @@ namespace Uviewer
                 // Small file - load all at once in background
                 _textLines = await Task.Run(() => ParseTextLinesChunk(lines, brush, maxW), token);
                 _isTextLinesFullyLoaded = true;
-                
+
                 if (TextItemsRepeater != null)
                 {
                     TextItemsRepeater.ItemsSource = null;
                     TextItemsRepeater.ItemsSource = _textLines;
-                    if (targetLine > 1) 
+                    if (targetLine > 1)
                     {
                         await Task.Yield();
                         ScrollToLine(targetLine);
@@ -1158,18 +630,18 @@ namespace Uviewer
                 }
                 if (TextArea != null) TextArea.Background = GetThemeBackground();
             }
-            
+
             // Trigger background page calculation
             StartPageCalculationAsync();
         }
-        
+
         /// <summary>
         /// Parse a chunk of lines into TextLine objects (runs on background thread)
         /// </summary>
         private List<TextLine> ParseTextLinesChunk(string[] lines, Brush brush, double maxW)
         {
             var result = new List<TextLine>(lines.Length);
-            
+
             foreach (var line in lines)
             {
                 var textLine = new TextLine
@@ -1185,19 +657,19 @@ namespace Uviewer
             }
             return result;
         }
-        
+
         private List<TextLine> SplitTextToLines(string content)
         {
             var lines = content.Replace("\r\n", "\n").Replace("\r", "\n").Split('\n');
             var result = new List<TextLine>();
-            
+
             foreach (var line in lines)
             {
                 result.Add(CreateTextLine(line)); // We bind logic late or created here
             }
             return result;
         }
-        
+
         private TextLine CreateTextLine(string content)
         {
             var line = new TextLine
@@ -1208,13 +680,13 @@ namespace Uviewer
                 Foreground = GetThemeForeground(),
                 MaxWidth = GetUrlMaxWidth()
             };
-            
+
             // Parse Aozora tags
             ApplyAozoraStyling(line);
-            
+
             return line;
         }
-        
+
         private void ApplyAozoraStyling(TextLine line)
         {
             // Simple Parsing for Aozora Bunko Tags
@@ -1225,9 +697,9 @@ namespace Uviewer
             // ［＃ここから２字下げ］ -> Indent
             // ［＃ここから罫囲み］ -> Border
             // ［＃ここから２段階小さな文字］ -> Small font
-            
+
             string content = line.Content;
-            
+
             if (content.Contains("［＃大見出し］"))
             {
                 line.FontSize = _textFontSize * 1.5;
@@ -1247,7 +719,7 @@ namespace Uviewer
             {
                 // Right align with padding? Or just Right align for now.
                 // Aozora 'Ji from' usually implies vertical text, but in horizontal it's often right alignment.
-                line.TextAlignment = TextAlignment.Right; 
+                line.TextAlignment = TextAlignment.Right;
                 line.Margin = new Thickness(0, 0, 60, 0); // Approx 3 chars
                 content = content.Replace("［＃地から３字上げ］", "");
             }
@@ -1263,7 +735,7 @@ namespace Uviewer
                 line.Padding = new Thickness(10);
                 content = content.Replace("［＃ここから罫囲み］", "");
             }
-             if (content.Contains("［＃ここから２段階小さな文字］"))
+            if (content.Contains("［＃ここから２段階小さな文字］"))
             {
                 line.FontSize = Math.Max(8, _textFontSize * 0.7);
                 content = content.Replace("［＃ここから２段階小さな文字］", "");
@@ -1271,7 +743,7 @@ namespace Uviewer
 
             // Cleanup common tags
             content = Regex.Replace(content, @"［＃[^］]+］", ""); // Remove other tags
-            
+
             line.Content = content;
         }
 
@@ -1280,7 +752,7 @@ namespace Uviewer
             // "Text width max 42 chars"
             // With Consolas/Monospace it is easy. With variable width, 42 * FontSize is approximation (em).
             // Actually, for Japanese 'em' is full width.
-            return 42 * _textFontSize; 
+            return 42 * _textFontSize;
         }
 
         private Brush GetThemeForeground()
@@ -1289,13 +761,13 @@ namespace Uviewer
             if (_themeIndex == 3 && _customForegroundColor.HasValue) return new SolidColorBrush(_customForegroundColor.Value);
             return new SolidColorBrush(Colors.Black);
         }
-        
+
         private Brush GetThemeBackground()
         {
-             if (_themeIndex == 0) return new SolidColorBrush(Colors.White);
-             if (_themeIndex == 1) return new SolidColorBrush(Microsoft.UI.ColorHelper.FromArgb(255, 255, 249, 235)); // Beige
-             if (_themeIndex == 3 && _customBackgroundColor.HasValue) return new SolidColorBrush(_customBackgroundColor.Value);
-             return new SolidColorBrush(Microsoft.UI.ColorHelper.FromArgb(255, 30, 30, 30)); // Dark
+            if (_themeIndex == 0) return new SolidColorBrush(Colors.White);
+            if (_themeIndex == 1) return new SolidColorBrush(Microsoft.UI.ColorHelper.FromArgb(255, 255, 249, 235)); // Beige
+            if (_themeIndex == 3 && _customBackgroundColor.HasValue) return new SolidColorBrush(_customBackgroundColor.Value);
+            return new SolidColorBrush(Microsoft.UI.ColorHelper.FromArgb(255, 30, 30, 30)); // Dark
         }
 
         private Color ParseHexColor(string hex)
@@ -1332,7 +804,7 @@ namespace Uviewer
                 {
                     currentLine = tag.StartLine;
                 }
-                
+
                 UpdateEpubVisuals();
                 ClearEpubCache();
                 _ = LoadEpubChapterAsync(_currentEpubChapterIndex, targetLine: currentLine);
@@ -1354,14 +826,14 @@ namespace Uviewer
                 {
                     currentLine = _aozoraBlocks[_currentAozoraStartBlockIndex].SourceLineNumber;
                 }
-                
+
                 // Re-calculate pages with new font size/settings
                 await PrepareAozoraDisplayAsync(_currentTextContent, currentLine, _globalTextCts?.Token ?? default);
-                
+
                 // Content is already rendered progressively by PrepareAozoraDisplayAsync
                 if (TextArea != null)
                     TextArea.Background = GetThemeBackground();
-                      
+
                 return;
             }
 
@@ -1371,14 +843,14 @@ namespace Uviewer
             {
                 scrollRatio = TextScrollViewer.VerticalOffset / TextScrollViewer.ScrollableHeight;
             }
-            
+
             // Apply current settings to all lines - process in background for large files
             var brush = GetThemeForeground();
             var bg = GetThemeBackground();
             var maxW = GetUrlMaxWidth();
             var fontSize = _textFontSize;
             var fontFamily = _textFontFamily;
-            
+
             if (_textLines.Count > 1000)
             {
                 // Large file: update in background
@@ -1409,32 +881,32 @@ namespace Uviewer
             TextArea.Background = bg;
             TextItemsRepeater.ItemsSource = null;
             TextItemsRepeater.ItemsSource = _textLines;
-            
+
             // Restore scroll position based on ratio
-            if (TextScrollViewer != null) 
+            if (TextScrollViewer != null)
             {
-                 if (resetScroll)
-                 {
-                     TextScrollViewer.ChangeView(null, 0, null, true);
-                 }
-                 else
-                 {
-                     // We need to wait for layout update to get accurate ScrollableHeight
-                     // Since we cannot await here easily without making method async (which is fine but might affect callers)
-                     // Let's use a fire-and-forget task with delay
-                     _ = Task.Run(async () => 
-                     {
-                         await Task.Delay(50); // Small delay for layout
-                         RootGrid.DispatcherQueue.TryEnqueue(() => 
-                         {
-                             if (TextScrollViewer.ScrollableHeight > 0)
-                             {
-                                 double newOffset = scrollRatio * TextScrollViewer.ScrollableHeight;
-                                 TextScrollViewer.ChangeView(null, newOffset, null, true);
-                             }
-                     });
-                     });
-                 }
+                if (resetScroll)
+                {
+                    TextScrollViewer.ChangeView(null, 0, null, true);
+                }
+                else
+                {
+                    // We need to wait for layout update to get accurate ScrollableHeight
+                    // Since we cannot await here easily without making method async (which is fine but might affect callers)
+                    // Let's use a fire-and-forget task with delay
+                    _ = Task.Run(async () =>
+                    {
+                        await Task.Delay(50); // Small delay for layout
+                        RootGrid.DispatcherQueue.TryEnqueue(() =>
+                        {
+                            if (TextScrollViewer.ScrollableHeight > 0)
+                            {
+                                double newOffset = scrollRatio * TextScrollViewer.ScrollableHeight;
+                                TextScrollViewer.ChangeView(null, newOffset, null, true);
+                            }
+                        });
+                    });
+                }
             }
 
             // Trigger background page calculation
@@ -1458,13 +930,13 @@ namespace Uviewer
             {
                 ApplyLanguage(lang);
                 SaveTextSettings();
-                
+
                 // Give a moment for the system to process the language change
                 await Task.Delay(100);
-                
+
                 // Reload strings
                 Strings.Reload();
-                
+
                 // Refresh UI
                 ApplyLocalization();
                 UpdateLanguageMenuCheckmark();
@@ -1484,7 +956,8 @@ namespace Uviewer
         private void ApplyLanguage(string lang)
         {
             _languageSetting = lang;
-            try {
+            try
+            {
                 if (lang == "Auto" || string.IsNullOrEmpty(lang))
                 {
                     // For Auto, we explicitly fetch the first available language from system preferences
@@ -1503,7 +976,9 @@ namespace Uviewer
                 {
                     Microsoft.Windows.Globalization.ApplicationLanguages.PrimaryLanguageOverride = lang;
                 }
-            } catch (Exception ex) {
+            }
+            catch (Exception ex)
+            {
                 System.Diagnostics.Debug.WriteLine($"Language apply error: {ex.Message}");
             }
         }
@@ -1527,87 +1002,87 @@ namespace Uviewer
             try
             {
                 var bgHsl = ToHsl(_customBackgroundColor ?? ((SolidColorBrush)GetThemeBackground()).Color);
-            var fgHsl = ToHsl(_customForegroundColor ?? ((SolidColorBrush)GetThemeForeground()).Color);
+                var fgHsl = ToHsl(_customForegroundColor ?? ((SolidColorBrush)GetThemeForeground()).Color);
 
-            var previewBorder = new Border
-            {
-                Height = 60,
-                Margin = new Thickness(0, 0, 0, 10),
-                BorderBrush = new SolidColorBrush(Colors.Gray),
-                BorderThickness = new Thickness(1),
-                Background = new SolidColorBrush(FromHsl(bgHsl.h, bgHsl.s, bgHsl.l)),
-                Child = new TextBlock
+                var previewBorder = new Border
                 {
-                    Text = Strings.Preview + " - Abc 가나다 123",
-                    HorizontalAlignment = HorizontalAlignment.Center,
-                    VerticalAlignment = VerticalAlignment.Center,
-                    FontSize = 18,
-                    Foreground = new SolidColorBrush(FromHsl(fgHsl.h, fgHsl.s, fgHsl.l))
-                }
-            };
+                    Height = 60,
+                    Margin = new Thickness(0, 0, 0, 10),
+                    BorderBrush = new SolidColorBrush(Colors.Gray),
+                    BorderThickness = new Thickness(1),
+                    Background = new SolidColorBrush(FromHsl(bgHsl.h, bgHsl.s, bgHsl.l)),
+                    Child = new TextBlock
+                    {
+                        Text = Strings.Preview + " - Abc 가나다 123",
+                        HorizontalAlignment = HorizontalAlignment.Center,
+                        VerticalAlignment = VerticalAlignment.Center,
+                        FontSize = 18,
+                        Foreground = new SolidColorBrush(FromHsl(fgHsl.h, fgHsl.s, fgHsl.l))
+                    }
+                };
 
-            var previewText = (TextBlock)previewBorder.Child;
+                var previewText = (TextBlock)previewBorder.Child;
 
-            Slider CreateSlider(string label, double min, double max, double val, Action<double> onChange)
-            {
-                var slider = new Slider { Minimum = min, Maximum = max, Value = val, Margin = new Thickness(0, 0, 0, 8) };
-                slider.ValueChanged += (s, e) => onChange(e.NewValue);
-                return slider;
-            }
-
-            var stackPanel = new StackPanel { Width = 300 };
-            stackPanel.Children.Add(previewBorder);
-
-            stackPanel.Children.Add(new TextBlock { Text = Strings.BackgroundColor, FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 8, 0, 4) });
-            stackPanel.Children.Add(new TextBlock { Text = Strings.Hue, FontSize = 12 });
-            var bgHSlider = CreateSlider(Strings.Hue, 0, 360, bgHsl.h, v => { bgHsl.h = v; previewBorder.Background = new SolidColorBrush(FromHsl(bgHsl.h, bgHsl.s, bgHsl.l)); });
-            stackPanel.Children.Add(bgHSlider);
-            stackPanel.Children.Add(new TextBlock { Text = Strings.Saturation, FontSize = 12 });
-            var bgSSlider = CreateSlider(Strings.Saturation, 0, 100, bgHsl.s, v => { bgHsl.s = v; previewBorder.Background = new SolidColorBrush(FromHsl(bgHsl.h, bgHsl.s, bgHsl.l)); });
-            stackPanel.Children.Add(bgSSlider);
-            stackPanel.Children.Add(new TextBlock { Text = Strings.Lightness, FontSize = 12 });
-            var bgLSlider = CreateSlider(Strings.Lightness, 0, 100, bgHsl.l, v => { bgHsl.l = v; previewBorder.Background = new SolidColorBrush(FromHsl(bgHsl.h, bgHsl.s, bgHsl.l)); });
-            stackPanel.Children.Add(bgLSlider);
-
-            stackPanel.Children.Add(new TextBlock { Text = Strings.TextColor, FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 12, 0, 4) });
-            stackPanel.Children.Add(new TextBlock { Text = Strings.Hue, FontSize = 12 });
-            var fgHSlider = CreateSlider(Strings.Hue, 0, 360, fgHsl.h, v => { fgHsl.h = v; previewText.Foreground = new SolidColorBrush(FromHsl(fgHsl.h, fgHsl.s, fgHsl.l)); });
-            stackPanel.Children.Add(fgHSlider);
-            stackPanel.Children.Add(new TextBlock { Text = Strings.Saturation, FontSize = 12 });
-            var fgSSlider = CreateSlider(Strings.Saturation, 0, 100, fgHsl.s, v => { fgHsl.s = v; previewText.Foreground = new SolidColorBrush(FromHsl(fgHsl.h, fgHsl.s, fgHsl.l)); });
-            stackPanel.Children.Add(fgSSlider);
-            stackPanel.Children.Add(new TextBlock { Text = Strings.Lightness, FontSize = 12 });
-            var fgLSlider = CreateSlider(Strings.Lightness, 0, 100, fgHsl.l, v => { fgHsl.l = v; previewText.Foreground = new SolidColorBrush(FromHsl(fgHsl.h, fgHsl.s, fgHsl.l)); });
-            stackPanel.Children.Add(fgLSlider);
-
-            var dialog = new ContentDialog
-            {
-                Title = Strings.ChangeColors,
-                Content = stackPanel,
-                PrimaryButtonText = Strings.DialogPrimary,
-                CloseButtonText = Strings.DialogClose,
-                XamlRoot = this.Content.XamlRoot,
-                DefaultButton = ContentDialogButton.Primary,
-                RequestedTheme = RootGrid.ActualTheme
-            };
-
-            stackPanel.PreviewKeyDown += (s, e) =>
-            {
-                if (e.Key == Windows.System.VirtualKey.Escape)
+                Slider CreateSlider(string label, double min, double max, double val, Action<double> onChange)
                 {
-                    dialog.Hide(); // 강제 닫기
-                    e.Handled = true; // 이벤트 전파 중단
+                    var slider = new Slider { Minimum = min, Maximum = max, Value = val, Margin = new Thickness(0, 0, 0, 8) };
+                    slider.ValueChanged += (s, e) => onChange(e.NewValue);
+                    return slider;
                 }
-            };
 
-            if (await dialog.ShowAsync() == ContentDialogResult.Primary)
-            {
-                _customBackgroundColor = FromHsl(bgHsl.h, bgHsl.s, bgHsl.l);
-                _customForegroundColor = FromHsl(fgHsl.h, fgHsl.s, fgHsl.l);
-                _themeIndex = 3; // Custom
-                SaveTextSettings();
-                await RefreshTextDisplay();
-            }
+                var stackPanel = new StackPanel { Width = 300 };
+                stackPanel.Children.Add(previewBorder);
+
+                stackPanel.Children.Add(new TextBlock { Text = Strings.BackgroundColor, FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 8, 0, 4) });
+                stackPanel.Children.Add(new TextBlock { Text = Strings.Hue, FontSize = 12 });
+                var bgHSlider = CreateSlider(Strings.Hue, 0, 360, bgHsl.h, v => { bgHsl.h = v; previewBorder.Background = new SolidColorBrush(FromHsl(bgHsl.h, bgHsl.s, bgHsl.l)); });
+                stackPanel.Children.Add(bgHSlider);
+                stackPanel.Children.Add(new TextBlock { Text = Strings.Saturation, FontSize = 12 });
+                var bgSSlider = CreateSlider(Strings.Saturation, 0, 100, bgHsl.s, v => { bgHsl.s = v; previewBorder.Background = new SolidColorBrush(FromHsl(bgHsl.h, bgHsl.s, bgHsl.l)); });
+                stackPanel.Children.Add(bgSSlider);
+                stackPanel.Children.Add(new TextBlock { Text = Strings.Lightness, FontSize = 12 });
+                var bgLSlider = CreateSlider(Strings.Lightness, 0, 100, bgHsl.l, v => { bgHsl.l = v; previewBorder.Background = new SolidColorBrush(FromHsl(bgHsl.h, bgHsl.s, bgHsl.l)); });
+                stackPanel.Children.Add(bgLSlider);
+
+                stackPanel.Children.Add(new TextBlock { Text = Strings.TextColor, FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 12, 0, 4) });
+                stackPanel.Children.Add(new TextBlock { Text = Strings.Hue, FontSize = 12 });
+                var fgHSlider = CreateSlider(Strings.Hue, 0, 360, fgHsl.h, v => { fgHsl.h = v; previewText.Foreground = new SolidColorBrush(FromHsl(fgHsl.h, fgHsl.s, fgHsl.l)); });
+                stackPanel.Children.Add(fgHSlider);
+                stackPanel.Children.Add(new TextBlock { Text = Strings.Saturation, FontSize = 12 });
+                var fgSSlider = CreateSlider(Strings.Saturation, 0, 100, fgHsl.s, v => { fgHsl.s = v; previewText.Foreground = new SolidColorBrush(FromHsl(fgHsl.h, fgHsl.s, fgHsl.l)); });
+                stackPanel.Children.Add(fgSSlider);
+                stackPanel.Children.Add(new TextBlock { Text = Strings.Lightness, FontSize = 12 });
+                var fgLSlider = CreateSlider(Strings.Lightness, 0, 100, fgHsl.l, v => { fgHsl.l = v; previewText.Foreground = new SolidColorBrush(FromHsl(fgHsl.h, fgHsl.s, fgHsl.l)); });
+                stackPanel.Children.Add(fgLSlider);
+
+                var dialog = new ContentDialog
+                {
+                    Title = Strings.ChangeColors,
+                    Content = stackPanel,
+                    PrimaryButtonText = Strings.DialogPrimary,
+                    CloseButtonText = Strings.DialogClose,
+                    XamlRoot = this.Content.XamlRoot,
+                    DefaultButton = ContentDialogButton.Primary,
+                    RequestedTheme = RootGrid.ActualTheme
+                };
+
+                stackPanel.PreviewKeyDown += (s, e) =>
+                {
+                    if (e.Key == Windows.System.VirtualKey.Escape)
+                    {
+                        dialog.Hide(); // 강제 닫기
+                        e.Handled = true; // 이벤트 전파 중단
+                    }
+                };
+
+                if (await dialog.ShowAsync() == ContentDialogResult.Primary)
+                {
+                    _customBackgroundColor = FromHsl(bgHsl.h, bgHsl.s, bgHsl.l);
+                    _customForegroundColor = FromHsl(fgHsl.h, fgHsl.s, fgHsl.l);
+                    _themeIndex = 3; // Custom
+                    SaveTextSettings();
+                    await RefreshTextDisplay();
+                }
             }
             finally
             {
@@ -1869,7 +1344,7 @@ namespace Uviewer
             FontFamily ff;
             try { ff = new FontFamily(fontFamily); }
             catch { return; }
-            
+
             if (RootFontControl != null)
             {
                 RootFontControl.FontFamily = ff;
@@ -1878,14 +1353,14 @@ namespace Uviewer
             // Explicitly set on sidebar containers to ensure inheritance in virtualized templates
             if (FileListView != null) FileListView.FontFamily = ff;
             if (FileGridView != null) FileGridView.FontFamily = ff;
-            
+
             // Cast to FrameworkElement/Control/TextBlock to avoid build ambiguity
             if (CurrentPathText is TextBlock cpt) cpt.FontFamily = ff;
             if (NotificationText is TextBlock nt) nt.FontFamily = ff;
             if (FileNameText is TextBlock fnt) fnt.FontFamily = ff;
             if (ZoomLevelText is TextBlock zlt) zlt.FontFamily = ff;
             if (TextSizeLevelText is TextBlock tslt) tslt.FontFamily = ff;
-            
+
             // Favorites & Recent Containers (Pivots are Controls, so they have FontFamily)
             if (FavoritesPivot != null) FavoritesPivot.FontFamily = ff;
             if (SidebarFavoritesPivot != null) SidebarFavoritesPivot.FontFamily = ff;
@@ -1894,7 +1369,7 @@ namespace Uviewer
             UpdateFavoritesMenu();
             UpdateRecentMenu();
             UpdateWebDavServerList();
-            
+
             // Update app resources to affect popups/dialogs and theme-bound items
             try
             {
@@ -1908,7 +1383,7 @@ namespace Uviewer
                 resources["GridViewItemFontFamily"] = ff;
                 resources["MenuFlyoutItemFontFamily"] = ff;
                 resources["PickerPlaceholderTextFontFamily"] = ff;
-                
+
                 // Force WinUI to re-evaluate all {ThemeResource} bindings by toggling the theme
                 if (RootGrid != null)
                 {
@@ -1922,7 +1397,7 @@ namespace Uviewer
             {
                 System.Diagnostics.Debug.WriteLine($"Font resource update error: {ex.Message}");
             }
-            
+
             SaveTextSettings();
         }
 
@@ -1934,7 +1409,7 @@ namespace Uviewer
                 _textFontFamily = "Yu Mincho";
             else
                 _textFontFamily = "Yu Gothic Medium";
-                
+
             SaveTextSettings();
             await RefreshTextDisplay();
         }
@@ -1943,7 +1418,7 @@ namespace Uviewer
         {
             IncreaseTextSize();
         }
-        
+
         private async void IncreaseTextSize()
         {
             _textFontSize += 2;
@@ -1971,14 +1446,14 @@ namespace Uviewer
         {
             ToggleTheme();
         }
-        
+
         private async void ToggleTheme()
         {
             _themeIndex = (_themeIndex + 1) % 3;
             SaveTextSettings();
             await RefreshTextDisplay();
         }
-        
+
         private void GoToPageButton_Click(object sender, RoutedEventArgs e)
         {
             _ = ShowGoToLineDialog();
@@ -1986,215 +1461,215 @@ namespace Uviewer
 
         private void RootGrid_Text_PreviewKeyDown(object sender, KeyRoutedEventArgs e)
         {
-             if (e.Handled) return;
-             if (!_isTextMode) return;
-             
-             // Prevent file navigation with arrows/space in text mode
-             // Using PreviewKeyDown allows us to intercept before ListView gets it
-             if (e.Key == Windows.System.VirtualKey.Left || 
-                 e.Key == Windows.System.VirtualKey.Right || 
-                 e.Key == Windows.System.VirtualKey.Space)
-             {
-                 // Handle Logic Here to avoid bubbling
-                 // We will set Handled=true after processing
-             }
-             
-              if (e.Key == Windows.System.VirtualKey.Home)
-              {
-                   if (_isVerticalMode)
-                   {
-                       _currentVerticalPageIndex = 0;
-                       VerticalTextCanvas?.Invalidate();
-                       UpdateTextStatusBar();
-                   }
-                   else if (_isAozoraMode && _aozoraBlocks.Count > 0)
-                   {
-                       _aozoraNavHistory.Clear();
-                       RenderAozoraDynamicPage(0);
-                       UpdateAozoraStatusBar();
-                   }
-                   else if (TextScrollViewer != null)
-                   {
-                       TextScrollViewer.ChangeView(null, 0, null);
-                   }
-                   e.Handled = true;
-              }
-              else if (e.Key == Windows.System.VirtualKey.End)
-              {
-                   if (_isVerticalMode)
-                   {
-                       _currentVerticalPageIndex = _verticalPageInfos.Count - 1;
-                       VerticalTextCanvas?.Invalidate();
-                       UpdateTextStatusBar();
-                   }
-                   else if (_isAozoraMode && _aozoraBlocks.Count > 0)
-                   {
-                       _aozoraNavHistory.Clear();
-                       // Start rendering from slightly before the end to fill the last page
-                       int lastIdx = Math.Max(0, _aozoraBlocks.Count - 5);
-                       RenderAozoraDynamicPage(lastIdx);
-                       UpdateAozoraStatusBar();
-                   }
-                   else if (TextScrollViewer != null)
-                   {
-                       TextScrollViewer.ChangeView(null, TextScrollViewer.ExtentHeight, null);
-                   }
-                   e.Handled = true;
-              }
-              else if (e.Key == Windows.System.VirtualKey.G)
-              {
-                  _ = ShowGoToLineDialog();
-                  e.Handled = true;
-              }
-             else if (e.Key == Windows.System.VirtualKey.Left)
-             {
-                 if (_isVerticalMode)
-                 {
-                     NavigateVerticalPage(1);
-                 }
-                 else
-                 {
-                     int dir = ShouldInvertControls ? 1 : -1;
-                     if (_isAozoraMode)
-                     {
-                         NavigateAozoraPage(dir);
-                     }
-                     else if (TextScrollViewer != null)
-                     {
-                         NavigateTextPage(dir);
-                     }
-                 }
-                 e.Handled = true; 
-             }
-             else if (e.Key == Windows.System.VirtualKey.Right)
-             {
-                 if (_isVerticalMode)
-                 {
-                     NavigateVerticalPage(-1);
-                 }
-                 else
-                 {
-                     int dir = ShouldInvertControls ? -1 : 1;
-                     if (_isAozoraMode)
-                     {
-                         NavigateAozoraPage(dir);
-                     }
-                     else if (TextScrollViewer != null)
-                     {
-                         NavigateTextPage(dir);
-                     }
-                 }
-                 e.Handled = true;
-             }
-             else if (e.Key == Windows.System.VirtualKey.Add || e.Key == (Windows.System.VirtualKey)187) // +
-             {
-                 IncreaseTextSize();
-                 e.Handled = true;
-             }
-             else if (e.Key == Windows.System.VirtualKey.Subtract || e.Key == (Windows.System.VirtualKey)189) // -
-             {
-                 DecreaseTextSize();
-                 e.Handled = true;
-             }
-             else if (e.Key == Windows.System.VirtualKey.A)
-             {
-                 ToggleAozoraMode();
-                 e.Handled = true;
-             }
-             else if (e.Key == Windows.System.VirtualKey.V)
-             {
-                 _ = AddToRecentAsync(true);
-                 _isVerticalMode = !_isVerticalMode;
-                 if (VerticalToggleButton != null) VerticalToggleButton.IsChecked = _isVerticalMode;
-                 SaveTextSettings();
-                 ToggleVerticalMode();
-                 e.Handled = true;
-             }
-             else if (e.Key == Windows.System.VirtualKey.F)
-             {
-                 ToggleFont();
-                 e.Handled = true;
-             }
-             else if (e.Key == Windows.System.VirtualKey.B)
-             {
-                 var ctrlPressed = Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(
-                     Windows.System.VirtualKey.Control).HasFlag(Windows.UI.Core.CoreVirtualKeyStates.Down);
-                 
-                 if (ctrlPressed)
-                 {
-                     ToggleSidebar();
-                 }
-                 else
-                 {
-                     ToggleTheme();
-                 }
-                 e.Handled = true;
-             }
+            if (e.Handled) return;
+            if (!_isTextMode) return;
+
+            // Prevent file navigation with arrows/space in text mode
+            // Using PreviewKeyDown allows us to intercept before ListView gets it
+            if (e.Key == Windows.System.VirtualKey.Left ||
+                e.Key == Windows.System.VirtualKey.Right ||
+                e.Key == Windows.System.VirtualKey.Space)
+            {
+                // Handle Logic Here to avoid bubbling
+                // We will set Handled=true after processing
+            }
+
+            if (e.Key == Windows.System.VirtualKey.Home)
+            {
+                if (_isVerticalMode)
+                {
+                    _currentVerticalPageIndex = 0;
+                    VerticalTextCanvas?.Invalidate();
+                    UpdateTextStatusBar();
+                }
+                else if (_isAozoraMode && _aozoraBlocks.Count > 0)
+                {
+                    _aozoraNavHistory.Clear();
+                    RenderAozoraDynamicPage(0);
+                    UpdateAozoraStatusBar();
+                }
+                else if (TextScrollViewer != null)
+                {
+                    TextScrollViewer.ChangeView(null, 0, null);
+                }
+                e.Handled = true;
+            }
+            else if (e.Key == Windows.System.VirtualKey.End)
+            {
+                if (_isVerticalMode)
+                {
+                    _currentVerticalPageIndex = _verticalPageInfos.Count - 1;
+                    VerticalTextCanvas?.Invalidate();
+                    UpdateTextStatusBar();
+                }
+                else if (_isAozoraMode && _aozoraBlocks.Count > 0)
+                {
+                    _aozoraNavHistory.Clear();
+                    // Start rendering from slightly before the end to fill the last page
+                    int lastIdx = Math.Max(0, _aozoraBlocks.Count - 5);
+                    RenderAozoraDynamicPage(lastIdx);
+                    UpdateAozoraStatusBar();
+                }
+                else if (TextScrollViewer != null)
+                {
+                    TextScrollViewer.ChangeView(null, TextScrollViewer.ExtentHeight, null);
+                }
+                e.Handled = true;
+            }
+            else if (e.Key == Windows.System.VirtualKey.G)
+            {
+                _ = ShowGoToLineDialog();
+                e.Handled = true;
+            }
+            else if (e.Key == Windows.System.VirtualKey.Left)
+            {
+                if (_isVerticalMode)
+                {
+                    NavigateVerticalPage(1);
+                }
+                else
+                {
+                    int dir = ShouldInvertControls ? 1 : -1;
+                    if (_isAozoraMode)
+                    {
+                        NavigateAozoraPage(dir);
+                    }
+                    else if (TextScrollViewer != null)
+                    {
+                        NavigateTextPage(dir);
+                    }
+                }
+                e.Handled = true;
+            }
+            else if (e.Key == Windows.System.VirtualKey.Right)
+            {
+                if (_isVerticalMode)
+                {
+                    NavigateVerticalPage(-1);
+                }
+                else
+                {
+                    int dir = ShouldInvertControls ? -1 : 1;
+                    if (_isAozoraMode)
+                    {
+                        NavigateAozoraPage(dir);
+                    }
+                    else if (TextScrollViewer != null)
+                    {
+                        NavigateTextPage(dir);
+                    }
+                }
+                e.Handled = true;
+            }
+            else if (e.Key == Windows.System.VirtualKey.Add || e.Key == (Windows.System.VirtualKey)187) // +
+            {
+                IncreaseTextSize();
+                e.Handled = true;
+            }
+            else if (e.Key == Windows.System.VirtualKey.Subtract || e.Key == (Windows.System.VirtualKey)189) // -
+            {
+                DecreaseTextSize();
+                e.Handled = true;
+            }
+            else if (e.Key == Windows.System.VirtualKey.A)
+            {
+                ToggleAozoraMode();
+                e.Handled = true;
+            }
+            else if (e.Key == Windows.System.VirtualKey.V)
+            {
+                _ = AddToRecentAsync(true);
+                _isVerticalMode = !_isVerticalMode;
+                if (VerticalToggleButton != null) VerticalToggleButton.IsChecked = _isVerticalMode;
+                SaveTextSettings();
+                ToggleVerticalMode();
+                e.Handled = true;
+            }
+            else if (e.Key == Windows.System.VirtualKey.F)
+            {
+                ToggleFont();
+                e.Handled = true;
+            }
+            else if (e.Key == Windows.System.VirtualKey.B)
+            {
+                var ctrlPressed = Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(
+                    Windows.System.VirtualKey.Control).HasFlag(Windows.UI.Core.CoreVirtualKeyStates.Down);
+
+                if (ctrlPressed)
+                {
+                    ToggleSidebar();
+                }
+                else
+                {
+                    ToggleTheme();
+                }
+                e.Handled = true;
+            }
         }
 
         private async Task ShowGoToLineDialog()
         {
-             int currentLine = 1;
-             int totalLines = 1;
-             string title = Strings.DialogTitle;
-             
-             if (_currentPdfDocument != null)
-             {
-                 totalLines = (int)_currentPdfDocument.PageCount;
-                 currentLine = _currentIndex + 1;
-                 title = Strings.GoToPageTitle;
-             }
-             else if (_isAozoraMode && _aozoraBlocks.Count > 0)
-             {
-                 totalLines = _aozoraTotalLineCount;
-                 currentLine = _aozoraBlocks[_currentAozoraStartBlockIndex].SourceLineNumber;
-             }
-             else if (TextScrollViewer != null)
-             {
-                 totalLines = _textLines.Count;
-                 currentLine = GetTopVisibleLineIndex();
-             }
-             
-             if (currentLine < 1) currentLine = 1;
+            int currentLine = 1;
+            int totalLines = 1;
+            string title = Strings.DialogTitle;
 
-             var input = new TextBox 
-             { 
-                 InputScope = new InputScope { Names = { new InputScopeName(InputScopeNameValue.Number) } }, 
-                 PlaceholderText = $"1 - {totalLines}",
-                 Text = currentLine.ToString()
-             };
-             
-             input.SelectAll();
+            if (_currentPdfDocument != null)
+            {
+                totalLines = (int)_currentPdfDocument.PageCount;
+                currentLine = _currentIndex + 1;
+                title = Strings.GoToPageTitle;
+            }
+            else if (_isAozoraMode && _aozoraBlocks.Count > 0)
+            {
+                totalLines = _aozoraTotalLineCount;
+                currentLine = _aozoraBlocks[_currentAozoraStartBlockIndex].SourceLineNumber;
+            }
+            else if (TextScrollViewer != null)
+            {
+                totalLines = _textLines.Count;
+                currentLine = GetTopVisibleLineIndex();
+            }
 
-             var dialog = new ContentDialog
-             {
-                 Title = title,
-                 Content = input,
-                 PrimaryButtonText = Strings.DialogPrimary,
-                 CloseButtonText = Strings.DialogClose,
-                 XamlRoot = this.Content.XamlRoot,
-                 RequestedTheme = RootGrid.ActualTheme
-             };
- 
-             input.KeyDown += (s, e) => 
-             {
-                 if (e.Key == Windows.System.VirtualKey.Enter)
-                 {
-                     dialog.Hide();
-                     GoToLine(input.Text);
-                 }
-             };
- 
-             if (await dialog.ShowAsync() == ContentDialogResult.Primary)
-             {
-                 GoToLine(input.Text);
-             }
+            if (currentLine < 1) currentLine = 1;
+
+            var input = new TextBox
+            {
+                InputScope = new InputScope { Names = { new InputScopeName(InputScopeNameValue.Number) } },
+                PlaceholderText = $"1 - {totalLines}",
+                Text = currentLine.ToString()
+            };
+
+            input.SelectAll();
+
+            var dialog = new ContentDialog
+            {
+                Title = title,
+                Content = input,
+                PrimaryButtonText = Strings.DialogPrimary,
+                CloseButtonText = Strings.DialogClose,
+                XamlRoot = this.Content.XamlRoot,
+                RequestedTheme = RootGrid.ActualTheme
+            };
+
+            input.KeyDown += (s, e) =>
+            {
+                if (e.Key == Windows.System.VirtualKey.Enter)
+                {
+                    dialog.Hide();
+                    GoToLine(input.Text);
+                }
+            };
+
+            if (await dialog.ShowAsync() == ContentDialogResult.Primary)
+            {
+                GoToLine(input.Text);
+            }
         }
-        
+
         private void GoToLine(string lineText)
         {
             if (!int.TryParse(lineText, out int line) || line < 1) return;
-            
+
             if (_currentPdfDocument != null)
             {
                 int pageIndex = line - 1;
@@ -2206,37 +1681,37 @@ namespace Uviewer
                 return;
             }
 
-             if (_isVerticalMode)
-             {
-                 _ = PrepareVerticalTextAsync(line);
-                 return;
-             }
+            if (_isVerticalMode)
+            {
+                _ = PrepareVerticalTextAsync(line);
+                return;
+            }
 
-             if (_isAozoraMode && _aozoraBlocks.Count > 0)
-             {
-                 // Find block by line number
-                 int targetIdx = 0;
-                 for (int i = 0; i < _aozoraBlocks.Count; i++)
-                 {
-                     if (_aozoraBlocks[i].SourceLineNumber >= line)
-                     {
-                         if (_aozoraBlocks[i].SourceLineNumber == line)
-                         {
-                             targetIdx = i;
-                         }
-                         else
-                         {
-                             targetIdx = i > 0 ? i - 1 : 0;
-                         }
-                         break;
-                     }
-                     targetIdx = i;
-                 }
-                 
-                 _aozoraNavHistory.Clear();
-                 RenderAozoraDynamicPage(targetIdx);
-                 UpdateAozoraStatusBar();
-             }
+            if (_isAozoraMode && _aozoraBlocks.Count > 0)
+            {
+                // Find block by line number
+                int targetIdx = 0;
+                for (int i = 0; i < _aozoraBlocks.Count; i++)
+                {
+                    if (_aozoraBlocks[i].SourceLineNumber >= line)
+                    {
+                        if (_aozoraBlocks[i].SourceLineNumber == line)
+                        {
+                            targetIdx = i;
+                        }
+                        else
+                        {
+                            targetIdx = i > 0 ? i - 1 : 0;
+                        }
+                        break;
+                    }
+                    targetIdx = i;
+                }
+
+                _aozoraNavHistory.Clear();
+                RenderAozoraDynamicPage(targetIdx);
+                UpdateAozoraStatusBar();
+            }
             else if (TextScrollViewer != null)
             {
                 ScrollToLine(line);
@@ -2251,7 +1726,7 @@ namespace Uviewer
             {
                 if (args.Element is RichTextBlock rtb)
                 {
-                     PrepareAozoraElement(rtb, args.Index);
+                    PrepareAozoraElement(rtb, args.Index);
                 }
                 return;
             }
@@ -2259,7 +1734,7 @@ namespace Uviewer
             if (args.Element is TextBlock tb && _textLines.Count > args.Index)
             {
                 var line = _textLines[args.Index];
-                
+
                 // Binding Properties
                 tb.FontSize = line.FontSize;
                 tb.FontFamily = new FontFamily(line.FontFamily);
@@ -2269,8 +1744,8 @@ namespace Uviewer
                 tb.LineHeight = line.FontSize * 1.8;
                 tb.LineStackingStrategy = LineStackingStrategy.BlockLineHeight;
                 tb.Margin = line.Margin;
-                tb.Padding = line.Padding; 
-                
+                tb.Padding = line.Padding;
+
                 // Border support requires wrapping TextBlock in Border, but ItemsRepeater template is TextBlock.
                 // We will just apply simple styling or we'd need to change the DataTemplate.
                 // Since we can't easily change DataTemplate in C# code behind without XAML change,
@@ -2280,10 +1755,10 @@ namespace Uviewer
                 // For now, let's just stick to text properties we can set.
 
                 tb.Inlines.Clear();
-                
+
                 string content = line.Content;
                 var parts = Regex.Split(content, @"(\*\*.*?\*\*)");
-                
+
                 foreach (var part in parts)
                 {
                     if (part.StartsWith("**") && part.EndsWith("**") && part.Length >= 4)
@@ -2298,39 +1773,39 @@ namespace Uviewer
                 }
             }
         }
-        
+
         // --- Input Handling ---
-        
+
         private void TextArea_PointerPressed(object sender, PointerRoutedEventArgs e)
         {
-             // Use unified touch handler (Next/Prev + Fullscreen Edge UI)
-             var ptr = e.GetCurrentPoint(RootGrid);
-             if (ptr.Properties.IsLeftButtonPressed)
-             {
-                 if (_isAozoraMode)
-                 {
-                     HandleSmartTouchNavigation(e, 
-                        () => NavigateAozoraPage(-1), 
-                        () => NavigateAozoraPage(1));
-                 }
-                 else
-                 {
-                     HandleSmartTouchNavigation(e, 
-                        () => NavigateTextPage(-1), 
-                        () => NavigateTextPage(1));
-                 }
-                 
-                 e.Handled = true;
-                 RootGrid.Focus(FocusState.Programmatic);
-             }
+            // Use unified touch handler (Next/Prev + Fullscreen Edge UI)
+            var ptr = e.GetCurrentPoint(RootGrid);
+            if (ptr.Properties.IsLeftButtonPressed)
+            {
+                if (_isAozoraMode)
+                {
+                    HandleSmartTouchNavigation(e,
+                       () => NavigateAozoraPage(-1),
+                       () => NavigateAozoraPage(1));
+                }
+                else
+                {
+                    HandleSmartTouchNavigation(e,
+                       () => NavigateTextPage(-1),
+                       () => NavigateTextPage(1));
+                }
+
+                e.Handled = true;
+                RootGrid.Focus(FocusState.Programmatic);
+            }
         }
-        
+
         private void TextArea_PointerWheelChanged(object sender, PointerRoutedEventArgs e)
         {
             if (_isVerticalMode) return;
             var ptr = e.GetCurrentPoint(TextArea);
             var delta = ptr.Properties.MouseWheelDelta;
-            
+
             if (_isAozoraMode)
             {
                 if (delta > 0) NavigateAozoraPage(-1); // Up = Prev
@@ -2342,26 +1817,26 @@ namespace Uviewer
                 else NavigateTextPage(1); // Down = Next
                 UpdateTextStatusBar();
             }
-            
+
             e.Handled = true;
         }
 
         private void NavigateTextPage(int direction)
         {
             if (TextScrollViewer == null) return;
-            
+
             double current = TextScrollViewer.VerticalOffset;
             double viewport = TextScrollViewer.ViewportHeight;
-            
+
             // Calculate scroll amount based on LineHeight (FontSize * 1.8)
             double lineH = _textFontSize * 1.8;
             double overlap = lineH;
-            
+
             // Safety check for very small viewports
             if (overlap > viewport * 0.5) overlap = viewport * 0.2;
-            
+
             double scrollAmount = viewport - overlap;
-            
+
             if (direction > 0)
             {
                 TextScrollViewer.ChangeView(null, current + scrollAmount, null, true);
@@ -2372,7 +1847,7 @@ namespace Uviewer
             }
             UpdateTextStatusBar();
         }
-        
+
         private void UpdateTextStatusBar(string? fileName = null, int? totalLines = null, int? currentPage = null)
         {
             if (!_isTextMode && !_isEpubMode) return;
@@ -2380,42 +1855,42 @@ namespace Uviewer
             if (_isAozoraMode) { UpdateAozoraStatusBar(); return; }
             if (_isEpubMode) { UpdateEpubStatus(); return; }
 
-             if (fileName != null) FileNameText.Text = GetFormattedDisplayName(fileName, _currentTextArchiveEntryKey != null);
-             
-             int total = totalLines ?? _textLines.Count;
-             if (total == 0) total = 1;
+            if (fileName != null) FileNameText.Text = GetFormattedDisplayName(fileName, _currentTextArchiveEntryKey != null);
 
-             if (TextScrollViewer != null)
-             {
-                 int currentLine = GetTopVisibleLineIndex();
-                 if (currentLine > total) currentLine = total;
+            int total = totalLines ?? _textLines.Count;
+            if (total == 0) total = 1;
 
-                 double progress = (TextScrollViewer.ExtentHeight > 0) ? (TextScrollViewer.VerticalOffset + TextScrollViewer.ViewportHeight) * 100.0 / TextScrollViewer.ExtentHeight : 0;
-                 if (progress > 100) progress = 100;
+            if (TextScrollViewer != null)
+            {
+                int currentLine = GetTopVisibleLineIndex();
+                if (currentLine > total) currentLine = total;
 
-                 ImageInfoText.Text = Strings.LineInfo(currentLine, total);
-                 TextProgressText.Text = $"{progress:F1}%";
+                double progress = (TextScrollViewer.ExtentHeight > 0) ? (TextScrollViewer.VerticalOffset + TextScrollViewer.ViewportHeight) * 100.0 / TextScrollViewer.ExtentHeight : 0;
+                if (progress > 100) progress = 100;
 
-                 // Update Page Info if calculated
-                 if (_isPageCalculationCompleted && _calculatedTotalHeight > 0 && TextScrollViewer.ViewportHeight > 0)
-                 {
-                     int totalPages = (int)Math.Ceiling(_calculatedTotalHeight / TextScrollViewer.ViewportHeight);
-                     int calcCurrentPage = (int)Math.Floor(TextScrollViewer.VerticalOffset / TextScrollViewer.ViewportHeight) + 1;
-                     
-                 if (totalPages < 1) totalPages = 1;
-                     if (calcCurrentPage > totalPages) calcCurrentPage = totalPages;
-                     if (calcCurrentPage < 1) calcCurrentPage = 1;
+                ImageInfoText.Text = Strings.LineInfo(currentLine, total);
+                TextProgressText.Text = $"{progress:F1}%";
 
-                     ImageIndexText.Text = $"{calcCurrentPage} / {totalPages}";
-                 }
-                 else if (!_isPageCalculationCompleted)
-                 {
-                     ImageIndexText.Text = Strings.CalculatingPages.Trim().Replace("(", "").Replace(")", "");
-                 }
-                 else
-                 {
-                     ImageIndexText.Text = "";
-                 }
+                // Update Page Info if calculated
+                if (_isPageCalculationCompleted && _calculatedTotalHeight > 0 && TextScrollViewer.ViewportHeight > 0)
+                {
+                    int totalPages = (int)Math.Ceiling(_calculatedTotalHeight / TextScrollViewer.ViewportHeight);
+                    int calcCurrentPage = (int)Math.Floor(TextScrollViewer.VerticalOffset / TextScrollViewer.ViewportHeight) + 1;
+
+                    if (totalPages < 1) totalPages = 1;
+                    if (calcCurrentPage > totalPages) calcCurrentPage = totalPages;
+                    if (calcCurrentPage < 1) calcCurrentPage = 1;
+
+                    ImageIndexText.Text = $"{calcCurrentPage} / {totalPages}";
+                }
+                else if (!_isPageCalculationCompleted)
+                {
+                    ImageIndexText.Text = Strings.CalculatingPages.Trim().Replace("(", "").Replace(")", "");
+                }
+                else
+                {
+                    ImageIndexText.Text = "";
+                }
 
                 // Throttle Recent update: only if line changed
                 if (currentLine != _lastRecentSaveLine)
@@ -2423,14 +1898,14 @@ namespace Uviewer
                     _lastRecentSaveLine = currentLine;
                     _ = AddToRecentAsync(true);
                 }
-             }
+            }
         }
-        
+
         private void TextScrollViewer_ViewChanged(object sender, ScrollViewerViewChangedEventArgs e)
         {
             UpdateTextStatusBar();
         }
-        
+
         private void TextScrollViewer_SizeChanged(object sender, SizeChangedEventArgs e)
         {
             // Re-calc max width if needed, but it is bound to line prop.
@@ -2450,7 +1925,7 @@ namespace Uviewer
         {
             // Early exit if in Aozora mode (use Aozora's own page calculation)
             if (_isAozoraMode) return;
-            
+
             _pageCalcCts?.Cancel();
             _pageCalcCts = new CancellationTokenSource();
             var token = _pageCalcCts.Token;
@@ -2465,25 +1940,25 @@ namespace Uviewer
             int retryCount = 0;
             while (TextScrollViewer == null || TextScrollViewer.ViewportHeight <= 0 || TextScrollViewer.ViewportWidth <= 0)
             {
-                 if (retryCount++ > 50)
-                 {
-                     // Timeout: Fallback to ExtentHeight
-                     if (TextScrollViewer != null)
-                     {
-                         _calculatedTotalHeight = TextScrollViewer.ExtentHeight;
-                         _isPageCalculationCompleted = true;
-                         UpdateTextStatusBar();
-                     }
-                     return; 
-                 }
-                 try { await Task.Delay(100, token); } catch { return; }
+                if (retryCount++ > 50)
+                {
+                    // Timeout: Fallback to ExtentHeight
+                    if (TextScrollViewer != null)
+                    {
+                        _calculatedTotalHeight = TextScrollViewer.ExtentHeight;
+                        _isPageCalculationCompleted = true;
+                        UpdateTextStatusBar();
+                    }
+                    return;
+                }
+                try { await Task.Delay(100, token); } catch { return; }
             }
 
             if (_textLines.Count == 0) return;
 
             double viewportWidth = TextScrollViewer.ViewportWidth;
             if (viewportWidth <= 0) viewportWidth = TextScrollViewer.ActualWidth; // Fallback
-            
+
             try
             {
                 // Dummy TextBlock for measurement
@@ -2494,13 +1969,13 @@ namespace Uviewer
                 };
 
                 double totalH = 0;
-                
+
                 // Use Stopwatch for time slicing
                 var sw = System.Diagnostics.Stopwatch.StartNew();
-                
+
                 // Snapshot the list reference to iterate safely
                 var linesToCalc = _textLines;
-                
+
                 // Cache the font family if it's common
                 if (!string.IsNullOrEmpty(_textFontFamily))
                 {
@@ -2528,9 +2003,9 @@ namespace Uviewer
                     // Measure
                     // Constraint width is ViewportWidth, height is Infinite
                     dummy.Measure(new Size(viewportWidth, double.PositiveInfinity));
-                    
+
                     totalH += dummy.DesiredSize.Height;
-                    
+
                     // Yield if we've used up our time slice (e.g., 15ms to allow ~60fps)
                     if (sw.ElapsedMilliseconds > 15)
                     {
@@ -2545,12 +2020,12 @@ namespace Uviewer
                 }
                 else if (TextScrollViewer != null)
                 {
-                     // Fallback if calculation resulted in 0 (weird)
+                    // Fallback if calculation resulted in 0 (weird)
                     _calculatedTotalHeight = TextScrollViewer.ExtentHeight;
                 }
-                
+
                 _isPageCalculationCompleted = true;
-                
+
                 // Final update
                 UpdateTextStatusBar();
             }
@@ -2580,14 +2055,14 @@ namespace Uviewer
             {
                 // ScrollViewer의 Content 시작 지점(Padding.Top)을 기준으로 계산
                 double viewportTop = TextScrollViewer.Padding.Top;
-                
+
                 // Use VisualTreeHelper to check realized children
                 int childCount = VisualTreeHelper.GetChildrenCount(TextItemsRepeater);
                 if (childCount == 0) return 1;
 
                 UIElement? closest = null;
                 double minDist = double.MaxValue;
-                
+
                 for (int i = 0; i < childCount; i++)
                 {
                     var child = VisualTreeHelper.GetChild(TextItemsRepeater, i) as UIElement;
@@ -2595,17 +2070,17 @@ namespace Uviewer
 
                     var transform = child.TransformToVisual(TextScrollViewer);
                     var point = transform.TransformPoint(new Point(0, 0));
-                    
+
                     double top = point.Y;
                     double bottom = top + ((FrameworkElement)child).ActualHeight;
-                    
+
                     // 해당 라인이 뷰포트의 상단 경계(Padding 포함)를 걸치고 있는지 확인
                     if (top <= viewportTop && bottom > viewportTop)
                     {
                         int idx = TextItemsRepeater.GetElementIndex(child);
                         if (idx >= 0) return idx + 1;
                     }
-                    
+
                     // 정확히 걸치는 것을 못 찾을 경우 보정 지점에 가장 가까운 것을 찾음
                     double dist = Math.Abs(top - viewportTop);
                     if (dist < minDist)
@@ -2614,7 +2089,7 @@ namespace Uviewer
                         closest = child;
                     }
                 }
-                
+
                 if (closest != null)
                 {
                     int idx = TextItemsRepeater.GetElementIndex(closest);
@@ -2624,11 +2099,11 @@ namespace Uviewer
             catch { }
 
             // Fallback
-             double lineH = _textFontSize * 1.8;
-             if (lineH > 0) 
+            double lineH = _textFontSize * 1.8;
+            if (lineH > 0)
                 return (int)(TextScrollViewer.VerticalOffset / lineH) + 1;
-                
-             return 1;
+
+            return 1;
         }
 
         private async void ScrollToLine(int line)
@@ -2639,39 +2114,40 @@ namespace Uviewer
             if (_textLines == null || _textLines.Count == 0) return;
             if (index >= _textLines.Count) index = _textLines.Count - 1;
             if (index < 0) return;
-            
+
             double lineH = _textFontSize * 1.8;
             double targetOffset = index * lineH;
-            
+
             // 1. 대용량 파일에서 Extent가 아직 부족할 수 있으므로 강제 확장 유도
             if (targetOffset > TextScrollViewer.ScrollableHeight)
             {
                 // 최대한 아래로 붙여서 ItemsRepeater가 뒤쪽을 그리게 함
                 TextScrollViewer.ChangeView(null, TextScrollViewer.ScrollableHeight, null, true);
-                await Task.Delay(30); 
+                await Task.Delay(30);
             }
 
             // 2. 목표 위치로 즉시 이동
             TextScrollViewer.ChangeView(null, Math.Min(targetOffset, TextScrollViewer.ScrollableHeight), null, true);
-            
+
             // 3. 정밀 위치 보정 (요소 생성 후 BringIntoView)
             try
             {
                 var element = TextItemsRepeater.GetOrCreateElement(index);
                 if (element != null)
                 {
-                    element.StartBringIntoView(new BringIntoViewOptions { 
-                        VerticalAlignmentRatio = 0, 
-                        AnimationDesired = false 
+                    element.StartBringIntoView(new BringIntoViewOptions
+                    {
+                        VerticalAlignmentRatio = 0,
+                        AnimationDesired = false
                     });
                 }
             }
-            catch 
+            catch
             {
                 // Fallback
                 TextScrollViewer.ChangeView(null, targetOffset, null, true);
             }
-            
+
             UpdateTextStatusBar();
         }
     }
