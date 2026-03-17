@@ -642,7 +642,8 @@
                                SizeChanged="TextScrollViewer_SizeChanged"
                                ViewChanged="TextScrollViewer_ViewChanged">
                      <ItemsRepeater x:Name="TextItemsRepeater" ElementPrepared="TextItemsRepeater_ElementPrepared" 
-                                    ItemTemplate="{StaticResource TextItemTemplate}">
+                                    ItemTemplate="{StaticResource TextItemTemplate}"
+                                    Margin="0,0,0,40">
                          <ItemsRepeater.Layout>
                              <StackLayout Spacing="0"/>
                          </ItemsRepeater.Layout>
@@ -709,7 +710,8 @@
 
         <!-- Status Bar -->
         <Grid x:Name="StatusBarGrid" Grid.Row="3" Height="28" Padding="12,0" 
-              Background="{ThemeResource LayerFillColorDefaultBrush}"
+              Canvas.ZIndex="10"
+              Background="{ThemeResource SolidBackgroundFillColorBaseBrush}"
               BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="0,1,0,0"
               IsTabStop="False">
             <Grid.ColumnDefinitions>
