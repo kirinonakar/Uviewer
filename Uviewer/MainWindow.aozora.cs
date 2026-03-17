@@ -125,28 +125,35 @@ namespace Uviewer
             ToggleAozoraMode();
         }
 
-        private void ToggleAozoraMode()
+        private async void ToggleAozoraMode()
         {
-            // Capture current position BEFORE toggling logic
+            // 1. 모드 전환 전, 현재 보고 있는 줄 번호를 캡처합니다.
             int currentLine = 1;
+            
             if (_isAozoraMode)
             {
-                if (_aozoraBlocks.Count > 0 && _currentAozoraStartBlockIndex >= 0 && _currentAozoraStartBlockIndex < _aozoraBlocks.Count)
+                // 아오조라 모드 -> 일반 텍스트 모드로 갈 때: 현재 아오조라 페이지의 첫 줄 캡처
+                if (_aozoraBlocks != null && _aozoraBlocks.Count > 0 && 
+                    _currentAozoraStartBlockIndex >= 0 && _currentAozoraStartBlockIndex < _aozoraBlocks.Count)
                 {
                     currentLine = _aozoraBlocks[_currentAozoraStartBlockIndex].SourceLineNumber;
                 }
             }
             else
             {
-                // In Text Mode
-                currentLine = GetTopVisibleLineIndex();
+                // 일반 텍스트 모드 -> 아오조라 모드로 갈 때: 현재 스크롤에 보이는 첫 줄 캡처
+                if (TextScrollViewer != null)
+                {
+                    currentLine = GetTopVisibleLineIndex();
+                }
             }
 
-            // Simplest way: Logic Toggle, then Force UI Sync.
+            // 2. 캡처한 줄 번호를 대기열(Pending) 변수에 넣습니다. 
+            // (DisplayLoadedText가 실행될 때 이 값을 읽어 해당 줄로 이동시킵니다)
+            _aozoraPendingTargetLine = currentLine > 0 ? currentLine : 1;
+
+            // 3. 모드 토글
             _isAozoraMode = !_isAozoraMode;
-            
-            // Set pending target for the reload
-            _aozoraPendingTargetLine = currentLine;
             
             if (AozoraToggleButton != null)
             {
@@ -154,21 +161,15 @@ namespace Uviewer
             }
             
             SaveAozoraSettings();
-            
-            // Use cached content directly instead of re-reading from disk
+
+            // 4. 새 모드에 맞춰 텍스트 다시 렌더링
             if (!string.IsNullOrEmpty(_currentTextContent))
             {
-                string fileName = _currentTextFilePath != null ? System.IO.Path.GetFileName(_currentTextFilePath) : "Text";
-                _ = ReloadTextDisplayFromCacheAsync(fileName, currentLine);
-            }
-            else if (_currentTextFilePath != null)
-            {
-                // Fallback: reload from file if cache is empty
-                var entry = _imageEntries.FirstOrDefault(x => x.FilePath == _currentTextFilePath);
-                if (entry != null)
-                {
-                    _ = LoadTextEntryAsync(entry);
-                }
+                CancelAndResetGlobalTextCts();
+                // 파일 이름이 없으면 임시 이름 제공
+                string displayName = string.IsNullOrEmpty(_currentTextFilePath) ? "Document" : System.IO.Path.GetFileName(_currentTextFilePath);
+                
+                await DisplayLoadedText(_currentTextContent, displayName, _currentTextFilePath, _globalTextCts!.Token);
             }
         }
         

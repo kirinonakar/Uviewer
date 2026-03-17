@@ -232,6 +232,9 @@ namespace Uviewer
             _currentTextContent = content; // Save for reload
             _aozoraBlocks.Clear(); // [핵심 수정] 새 파일을 로드할 때 이전 파일의 블록 캐시를 제거합니다.
 
+            // [추가] 이전 파일의 스크롤 추적 기록을 초기화하여 엉뚱한 위치가 자동 저장되는 것을 방지합니다.
+            _lastRecentSaveLine = -1;
+
             string ext = System.IO.Path.GetExtension(name).ToLower();
             if (ext == ".html" || ext == ".htm")
             {
@@ -246,15 +249,10 @@ namespace Uviewer
                 targetLine = _aozoraPendingTargetLine;
                 _aozoraPendingTargetLine = 1; // Reset
             }
-            else if (_isAozoraMode)
-            {
-                // Fallback to automatic restoration from recent items only for Aozora mode
-                // For plain text, we now default to start of file per user request.
-                targetLine = GetSavedStartLine(name, uniquePath);
-            }
             else
             {
-                targetLine = 1; // Default to start for plain text
+                // 일반 텍스트 모드와 아오조라 모드 모두 저장된 위치에서 열리도록 통합
+                targetLine = GetSavedStartLine(name, uniquePath);
             }
 
             // Ensure visibility is mutually exclusive
@@ -565,6 +563,14 @@ namespace Uviewer
                 if (TextItemsRepeater != null)
                 {
                     TextItemsRepeater.ItemsSource = null;
+
+                    // [핵심 수정] 새 데이터를 바인딩하기 전에 스크롤을 맨 위로 강제 초기화합니다.
+                    // 이렇게 해야 이전 파일의 스크롤 위치를 기억하고 중간부터 렌더링하는 현상을 막을 수 있습니다.
+                    if (targetLine <= 1 && TextScrollViewer != null)
+                    {
+                        TextScrollViewer.ChangeView(null, 0, null, true);
+                    }
+
                     TextItemsRepeater.ItemsSource = _textLines;
                     if (targetLine > 1)
                     {
@@ -621,6 +627,13 @@ namespace Uviewer
                 if (TextItemsRepeater != null)
                 {
                     TextItemsRepeater.ItemsSource = null;
+
+                    // [핵심 수정] 스몰 파일 처리 시에도 데이터 바인딩 전 스크롤 0으로 초기화
+                    if (targetLine <= 1 && TextScrollViewer != null)
+                    {
+                        TextScrollViewer.ChangeView(null, 0, null, true);
+                    }
+
                     TextItemsRepeater.ItemsSource = _textLines;
                     if (targetLine > 1)
                     {
@@ -2118,18 +2131,26 @@ namespace Uviewer
             double lineH = _textFontSize * 1.8;
             double targetOffset = index * lineH;
 
-            // 1. 대용량 파일에서 Extent가 아직 부족할 수 있으므로 강제 확장 유도
-            if (targetOffset > TextScrollViewer.ScrollableHeight)
+            // 1. ItemsRepeater가 데이터 바인딩 후 UI 레이아웃을 계산할 수 있도록 대기
+            await Task.Delay(100);
+
+            // 2. 가상화(Virtualization) 환경에서는 ExtentHeight가 즉시 전체를 반영하지 못하므로,
+            // 목표 오프셋까지 도달할 수 있도록 점진적으로 ChangeView를 시도하여 Extent를 늘립니다.
+            for (int i = 0; i < 5; i++)
             {
-                // 최대한 아래로 붙여서 ItemsRepeater가 뒤쪽을 그리게 함
-                TextScrollViewer.ChangeView(null, TextScrollViewer.ScrollableHeight, null, true);
-                await Task.Delay(30);
+                TextScrollViewer.ChangeView(null, targetOffset, null, true);
+                await Task.Delay(50);
+
+                // 스크롤 오프셋이 목표치 근처에 도달했거나 화면 전체 Extent가 목표를 수용할 만큼 충분히 커졌다면 중단
+                if (Math.Abs(TextScrollViewer.VerticalOffset - targetOffset) <= lineH * 2 ||
+                    TextScrollViewer.ScrollableHeight >= targetOffset)
+                {
+                    TextScrollViewer.ChangeView(null, targetOffset, null, true);
+                    break;
+                }
             }
 
-            // 2. 목표 위치로 즉시 이동
-            TextScrollViewer.ChangeView(null, Math.Min(targetOffset, TextScrollViewer.ScrollableHeight), null, true);
-
-            // 3. 정밀 위치 보정 (요소 생성 후 BringIntoView)
+            // 3. 정밀 위치 보정 (실제 UI Element 생성 후 화면 상단에 맞춤)
             try
             {
                 var element = TextItemsRepeater.GetOrCreateElement(index);
@@ -2144,7 +2165,7 @@ namespace Uviewer
             }
             catch
             {
-                // Fallback
+                // 무시하고 넘어갑니다 (이미 ChangeView로 대부분 맞춰진 상태)
                 TextScrollViewer.ChangeView(null, targetOffset, null, true);
             }
 
