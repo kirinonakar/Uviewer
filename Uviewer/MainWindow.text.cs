@@ -134,6 +134,7 @@ namespace Uviewer
             try
             {
                 _globalTextCts?.Cancel();
+                _pageCalcCts?.Cancel(); // [추가] 모드 전환 시 뒤에서 돌고 있는 페이지 계산 작업 강제 종료
                 // do not dispose here because it might be in use
             }
             catch { }
@@ -253,6 +254,13 @@ namespace Uviewer
             {
                 // 일반 텍스트 모드와 아오조라 모드 모두 저장된 위치에서 열리도록 통합
                 targetLine = GetSavedStartLine(name, uniquePath);
+            }
+
+            // [핵심 추가] UI가 숨겨지면서 가상화가 풀려 수만 줄을 동시 렌더링(프리징)하는 것을 막기 위해 데이터 연결 끊기
+            if (_isAozoraMode || _isVerticalMode)
+            {
+                if (TextItemsRepeater != null) TextItemsRepeater.ItemsSource = null;
+                _textLines.Clear();
             }
 
             // Ensure visibility is mutually exclusive

@@ -635,6 +635,7 @@
                   PointerPressed="TextArea_PointerPressed" PointerWheelChanged="TextArea_PointerWheelChanged"
                   SizeChanged="TextArea_SizeChanged">
                  <ScrollViewer x:Name="TextScrollViewer" 
+                               Margin="0,0,0,10"
                                Padding="20,10,20,10"
                                HorizontalScrollBarVisibility="Disabled"
                                VerticalScrollBarVisibility="Hidden"
