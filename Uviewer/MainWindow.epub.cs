@@ -259,17 +259,9 @@ namespace Uviewer
             {
                  if (_isVerticalMode)
                  {
-                     if (_currentVerticalPageIndex > 0)
-                     {
-                         _currentVerticalPageIndex = 0;
-                         VerticalTextCanvas?.Invalidate();
-                         UpdateTextStatusBar();
-                     }
-                     else if (_currentEpubChapterIndex > 0)
-                     {
-                         _currentEpubChapterIndex--;
-                         _ = LoadEpubChapterAsync(_currentEpubChapterIndex);
-                     }
+                    _verticalNavHistory.Clear();
+                    RenderVerticalDynamicPage(0);
+                    UpdateVerticalStatusBar();
                  }
                  else if (_currentEpubChapterIndex > 0)
                  {
@@ -282,17 +274,12 @@ namespace Uviewer
             {
                  if (_isVerticalMode)
                  {
-                     if (_currentVerticalPageIndex < _verticalPageInfos.Count - 1)
-                     {
-                         _currentVerticalPageIndex = _verticalPageInfos.Count - 1;
-                         VerticalTextCanvas?.Invalidate();
-                         UpdateTextStatusBar();
-                     }
-                     else if (_currentEpubChapterIndex < _epubSpine.Count - 1)
-                     {
-                         _currentEpubChapterIndex++;
-                         _ = LoadEpubChapterAsync(_currentEpubChapterIndex);
-                     }
+                    // For virtualized vertical mode, jump to end is tricky without full calc.
+                    // For now, if calc is done, we jump to what we think is the end.
+                    // Or we just jump to a very large block index and let it clamp.
+                    _verticalNavHistory.Clear();
+                    RenderVerticalDynamicPage(999999); 
+                    UpdateVerticalStatusBar();
                  }
                  else if (_currentEpubChapterIndex < _epubSpine.Count - 1)
                  {

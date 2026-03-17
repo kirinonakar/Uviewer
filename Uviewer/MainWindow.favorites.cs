@@ -609,9 +609,9 @@ namespace Uviewer
                     if (_isEpubMode)
                     {
                         savedPage = CurrentEpubPageIndex;
-                        if (_isVerticalMode && _verticalPageInfos.Count > 0 && _currentVerticalPageIndex >= 0 && _currentVerticalPageIndex < _verticalPageInfos.Count)
+                        if (_isVerticalMode)
                         {
-                            savedLine = _verticalPageInfos[_currentVerticalPageIndex].StartLine;
+                            savedLine = _currentVerticalPageInfo.StartLine;
                             savedPage = 0; 
                         }
                         else if (EpubSelectedItem is Grid g && g.Tag is EpubPageInfoTag tag)
@@ -621,9 +621,9 @@ namespace Uviewer
                     }
                     else if (_isTextMode)
                     {
-                        if (_isVerticalMode && _verticalPageInfos.Count > 0 && _currentVerticalPageIndex >= 0 && _currentVerticalPageIndex < _verticalPageInfos.Count)
+                        if (_isVerticalMode)
                         {
-                            savedLine = _verticalPageInfos[_currentVerticalPageIndex].StartLine;
+                            savedLine = _currentVerticalPageInfo.StartLine;
                         }
                         else if (_isAozoraMode && _aozoraBlocks.Count > 0 && _currentAozoraStartBlockIndex >= 0 && _currentAozoraStartBlockIndex < _aozoraBlocks.Count)
                         {
@@ -992,9 +992,9 @@ namespace Uviewer
                     if (totalLines > 0)
                     {
                         int currentLine = 1;
-                        if (_isVerticalMode && _verticalPageInfos.Count > 0 && _currentVerticalPageIndex >= 0 && _currentVerticalPageIndex < _verticalPageInfos.Count)
+                        if (_isVerticalMode)
                         {
-                            currentLine = _verticalPageInfos[_currentVerticalPageIndex].StartLine;
+                            currentLine = _currentVerticalPageInfo.StartLine;
                         }
                         else if (_isAozoraMode && _aozoraBlocks.Count > 0 && _currentAozoraStartBlockIndex >= 0 && _currentAozoraStartBlockIndex < _aozoraBlocks.Count)
                         {
@@ -1469,9 +1469,9 @@ namespace Uviewer
                             targetPage = CurrentEpubPageIndex;
                             targetChapter = CurrentEpubChapterIndex;
                             
-                            if (_isVerticalMode && _verticalPageInfos.Count > 0 && _currentVerticalPageIndex >= 0 && _currentVerticalPageIndex < _verticalPageInfos.Count)
+                            if (_isVerticalMode)
                             {
-                                targetLine = _verticalPageInfos[_currentVerticalPageIndex].StartLine;
+                                targetLine = _currentVerticalPageInfo.StartLine;
                                 targetPage = 0; // Use line for restoration in vertical mode
                             }
                             else if (EpubSelectedItem is Grid g && g.Tag is EpubPageInfoTag tag)
@@ -1480,9 +1480,9 @@ namespace Uviewer
                     }
                     else if (_isTextMode)
                     {
-                        if (_isVerticalMode && _verticalPageInfos.Count > 0 && _currentVerticalPageIndex >= 0 && _currentVerticalPageIndex < _verticalPageInfos.Count)
+                        if (_isVerticalMode)
                         {
-                            targetLine = _verticalPageInfos[_currentVerticalPageIndex].StartLine;
+                            targetLine = _currentVerticalPageInfo.StartLine;
                             targetOffset = 0;
                         }
                         else if (TextScrollViewer != null)

@@ -638,9 +638,7 @@ namespace Uviewer
 
             if (_isVerticalMode)
             {
-                int currentLine = 1;
-                if (_verticalPageInfos.Count > _currentVerticalPageIndex)
-                    currentLine = _verticalPageInfos[_currentVerticalPageIndex].StartLine;
+                int currentLine = _currentVerticalPageInfo.StartLine;
                 _ = PrepareVerticalTextAsync(currentLine);
             }
             else if (_isEpubMode)
@@ -661,9 +659,7 @@ namespace Uviewer
 
             if (_isVerticalMode)
             {
-                int currentLine = 1;
-                if (_verticalPageInfos.Count > _currentVerticalPageIndex)
-                    currentLine = _verticalPageInfos[_currentVerticalPageIndex].StartLine;
+                int currentLine = _currentVerticalPageInfo.StartLine;
                 _ = PrepareVerticalTextAsync(currentLine);
             }
             else if (_isEpubMode)

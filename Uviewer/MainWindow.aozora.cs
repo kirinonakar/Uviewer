@@ -289,7 +289,7 @@ namespace Uviewer
 
                 var sw = System.Diagnostics.Stopwatch.StartNew();
 
-                AozoraBindingModel currentMergedBlock = null;
+                AozoraBindingModel? currentMergedBlock = null;
                 double currentMergedBlockHeight = 0;
 
                 for (int i = 0; i < _aozoraBlocks.Count; i++)
@@ -697,7 +697,7 @@ namespace Uviewer
 
             double currentHeight = 0;
             int endIdx = startIdx;
-            Paragraph currentParagraph = null;
+            Paragraph? currentParagraph = null;
 
             for (int i = startIdx; i < _aozoraBlocks.Count; i++)
             {
@@ -1305,7 +1305,12 @@ namespace Uviewer
                 return new List<AozoraBindingModel> { originalBlock };
             }
 
-            char[] terminators = { '。', '！', '？', '.', '!', '?' };
+            // ==========================================
+            // [버그 수정] 쉼표('、', ',') 추가
+            // 문장을 구(Clause) 단위로 더 잘게 쪼개어, 긴 문단이 다음 페이지로 넘어갈 때 
+            // 이전 페이지 하단에 큰 공백이 남는 현상을 해결합니다.
+            // ==========================================
+            char[] terminators = { '。', '！', '？', '.', '!', '?', '、', ',' };
             char[] quotes = { '」', '』', '"', '\'', '”', '’', '〉', '》', '】', '］', ')' };
 
             var result = new List<AozoraBindingModel>();
@@ -2259,10 +2264,7 @@ namespace Uviewer
                 int currentLine = 1;
                 if (_isVerticalMode)
                 {
-                    if (_verticalPageInfos != null && _currentVerticalPageIndex >= 0 && _currentVerticalPageIndex < _verticalPageInfos.Count)
-                    {
-                        currentLine = _verticalPageInfos[_currentVerticalPageIndex].StartLine;
-                    }
+                    currentLine = _currentVerticalPageInfo.StartLine;
                 }
                 else if (_isAozoraMode)
                 {

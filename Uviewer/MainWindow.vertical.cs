@@ -20,11 +20,26 @@ namespace Uviewer
     {
         private bool _isVerticalMode = false;
         private bool _verticalKeyAttached = false;
-        private List<string> _verticalPages = new();
-        private int _currentVerticalPageIndex = 0;
-        private System.Threading.CancellationTokenSource? _verticalPaginationCts;
         private Dictionary<string, CanvasBitmap> _verticalImageCache = new();
         private int? _pendingVerticalScrollLine = null;
+
+        private struct VerticalPageInfo
+        {
+            public List<AozoraBindingModel> Blocks;
+            public int StartLine;
+        }
+
+        // 가상화 렌더링을 위한 단일 페이지 캐시 및 네비게이션 상태
+        private VerticalPageInfo _currentVerticalPageInfo;
+        private int _currentVerticalStartBlockIndex = 0;
+        private int _currentVerticalEndBlockIndex = 0;
+        private Stack<int> _verticalNavHistory = new();
+        
+        // 백그라운드 전체 페이지 계산용 상태
+        private int _verticalTotalPages = 0;
+        private bool _isVerticalPageCalcCompleted = false;
+        private System.Threading.CancellationTokenSource? _verticalPageCalcCts;
+        private int _verticalCalculatedCurrentPage = 1;
 
         private async void VerticalToggleButton_Click(object sender, RoutedEventArgs e)
         {
@@ -110,8 +125,7 @@ namespace Uviewer
                     RootGrid.PreviewKeyDown -= RootGrid_Vertical_PreviewKeyDown;
                     _verticalKeyAttached = false;
                 }
-                int currentLine = _verticalPageInfos.Count > 0 && _currentVerticalPageIndex < _verticalPageInfos.Count 
-                    ? _verticalPageInfos[_currentVerticalPageIndex].StartLine : 1;
+                int currentLine = _currentVerticalPageInfo.Blocks != null ? _currentVerticalPageInfo.StartLine : 1;
 
                 if (VerticalTextCanvas != null) VerticalTextCanvas.Visibility = Visibility.Collapsed;
                 if (_isEpubMode)
@@ -144,152 +158,184 @@ namespace Uviewer
             UpdateTextStatusBar();
         }
 
-        private struct VerticalPageInfo
-        {
-            public List<AozoraBindingModel> Blocks;
-            public int StartLine;
-        }
-        private List<VerticalPageInfo> _verticalPageInfos = new();
 
         private async Task PrepareVerticalTextAsync(int targetLine = 1, CancellationToken externalToken = default)
         {
             if (string.IsNullOrEmpty(_currentTextContent) && !_isEpubMode) return;
 
-            // 로딩 상태 즉시 표시 (UI 멈춤 방지)
-            ImageInfoText.Text = Strings.Paginating;
+            // 로딩 오버레이 켬
             if (TextFastNavOverlay != null) TextFastNavOverlay.Visibility = Visibility.Visible;
+            ImageInfoText.Text = Strings.Paginating;
 
-            _verticalPaginationCts?.Cancel();
-            _verticalPaginationCts = new System.Threading.CancellationTokenSource();
-            using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(externalToken, _verticalPaginationCts.Token);
-            var token = linkedCts.Token;
-
-            _pendingVerticalScrollLine = targetLine;
-            _verticalPageInfos.Clear();
-            _currentVerticalPageIndex = 0;
+            _verticalPageCalcCts?.Cancel();
             _verticalImageCache.Clear();
-
-            float marginTop = 40, marginBottom = 40, marginRight = 40, marginLeft = 40;
-            float availableHeight = (float)(VerticalTextCanvas?.ActualHeight ?? 800);
-            if (availableHeight < 100) availableHeight = (float)RootGrid.ActualHeight - 200;
-            if (availableHeight < 100) availableHeight = 800;
-            availableHeight -= (marginTop + marginBottom); 
-            
-            float availableWidth = (float)(VerticalTextCanvas?.ActualWidth ?? 1200);
-            if (availableWidth < 100) availableWidth = (float)RootGrid.ActualWidth - 100;
-            if (availableWidth < 100) availableWidth = 1000;
-            availableWidth -= (marginRight + marginLeft);
-
-            // [핵심] UI 스레드에서 Device를 미리 꺼내 백그라운드로 안전하게 전달
-            var canvasDevice = VerticalTextCanvas?.Device;
+            _verticalNavHistory.Clear();
+            _pendingVerticalScrollLine = targetLine;
 
             try
             {
-                // UI 멈춤 방지를 위해 모든 계산을 백그라운드로 이동
-                await Task.Run(async () =>
+                if (_aozoraBlocks == null || _aozoraBlocks.Count == 0)
                 {
-                    if (_aozoraBlocks == null || _aozoraBlocks.Count == 0)
+                    _aozoraBlocks = await Task.Run(() => ParseAozoraContent(_currentTextContent));
+                    DispatcherQueue.TryEnqueue(() => { _textTotalLineCountInSource = _currentTextContent.Split('\n').Length; });
+                }
+
+                int startIdx = 0;
+                for (int i = 0; i < _aozoraBlocks.Count; i++)
+                {
+                    if (_aozoraBlocks[i].SourceLineNumber >= targetLine)
                     {
-                        _aozoraBlocks = ParseAozoraContent(_currentTextContent);
-                        DispatcherQueue.TryEnqueue(() => { _textTotalLineCountInSource = _currentTextContent.Split('\n').Length; });
+                        startIdx = _aozoraBlocks[i].SourceLineNumber == targetLine ? i : (i > 0 ? i - 1 : 0);
+                        break;
                     }
+                    startIdx = i;
+                }
 
-                    int limit = Math.Min(_aozoraBlocks.Count, 1000); 
-                    int targetBlockIdx = 0;
-                    for (int n = 0; n < _aozoraBlocks.Count; n++)
-                    {
-                        if (_aozoraBlocks[n].SourceLineNumber >= targetLine)
-                        {
-                            targetBlockIdx = _aozoraBlocks[n].SourceLineNumber == targetLine ? n : (n > 0 ? n - 1 : 0);
-                            break;
-                        }
-                        targetBlockIdx = n;
-                    }
-                    if (targetBlockIdx > limit) limit = Math.Min(_aozoraBlocks.Count, targetBlockIdx + 500);
+                // 타겟 라인이 음수(끝에서부터 접근)일 때의 예외 처리 (EPUB fromEnd 지원 등)
+                if (targetLine < 0) startIdx = Math.Max(0, _aozoraBlocks.Count - 15);
 
-                    int i = 0;
-                    bool foundTargetPage = false;
-                    var initialPages = new List<VerticalPageInfo>();
+                if (VerticalTextCanvas != null) VerticalTextCanvas.Visibility = Visibility.Visible;
+                
+                // [핵심] 수천 페이지를 기다리지 않고, 현재 화면에 그릴 '단 1페이지'만 즉시 렌더링
+                RenderVerticalDynamicPage(startIdx);
+                
+                if (TextFastNavOverlay != null) TextFastNavOverlay.Visibility = Visibility.Collapsed;
+                _pendingVerticalScrollLine = null;
 
-                    // 초기 로드 분량 백그라운드 계산
-                    while (i < limit)
-                    {
-                        if (token.IsCancellationRequested) return;
-                        
-                        // canvasDevice 인자 추가 전달
-                        var pageBlocks = PaginateAozoraPage(ref i, _aozoraBlocks, availableWidth, availableHeight, canvasDevice);
-                        if (pageBlocks.Count > 0)
-                        {
-                            var info = new VerticalPageInfo { Blocks = pageBlocks, StartLine = pageBlocks[0].SourceLineNumber };
-                            initialPages.Add(info);
-                            
-                            if (!foundTargetPage && (info.StartLine >= targetLine || i > targetBlockIdx))
-                            {
-                                int idx = initialPages.Count - 1;
-                                if (idx > 0 && info.StartLine > targetLine) idx--;
-                                
-                                int capturedIndex = idx;
-                                DispatcherQueue.TryEnqueue(() => {
-                                    _currentVerticalPageIndex = capturedIndex;
-                                    _pendingVerticalScrollLine = null;
-                                });
-                                foundTargetPage = true;
-                            }
-                        }
-                    }
-
-                    // 초기 연산 완료 후 UI에 한 번에 그리기 지시
-                    DispatcherQueue.TryEnqueue(() => 
-                    {
-                        if (token.IsCancellationRequested) return;
-                        _verticalPageInfos.AddRange(initialPages);
-                        VerticalTextCanvas?.Invalidate();
-                        UpdateTextStatusBar();
-                        if (TextFastNavOverlay != null) TextFastNavOverlay.Visibility = Visibility.Collapsed;
-                    });
-
-                    // 3. 나머지 백그라운드 페이지네이션
-                    if (i < _aozoraBlocks.Count)
-                    {
-                        int bgIdx = i;
-                        while (bgIdx < _aozoraBlocks.Count)
-                        {
-                            if (token.IsCancellationRequested) return;
-
-                            var batch = new List<VerticalPageInfo>();
-                            for (int b = 0; b < 20 && bgIdx < _aozoraBlocks.Count; b++)
-                            {
-                                var pBlocks = PaginateAozoraPage(ref bgIdx, _aozoraBlocks, availableWidth, availableHeight, canvasDevice);
-                                if (pBlocks.Count > 0) batch.Add(new VerticalPageInfo { Blocks = pBlocks, StartLine = pBlocks[0].SourceLineNumber });
-                            }
-
-                            if (batch.Count > 0)
-                            {
-                                DispatcherQueue.TryEnqueue(() => 
-                                {
-                                    if (token.IsCancellationRequested) return;
-                                    _verticalPageInfos.AddRange(batch);
-                                    UpdateTextStatusBar();
-                                });
-                            }
-                            await Task.Delay(5, token); // Yielding (CPU 독점 방지)
-                        }
-                    }
-                }, token);
+                // 전체 페이지 수와 스크롤바 세팅은 백그라운드에 던짐
+                StartVerticalPageCalculationAsync();
             }
-            catch (OperationCanceledException) { return; }
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"Vertical Pagination Error: {ex.Message}");
             }
         }
 
-        private List<AozoraBindingModel> PaginateAozoraPage(ref int index, List<AozoraBindingModel> blocks, float availableWidth, float availableHeight, Microsoft.Graphics.Canvas.CanvasDevice device)
+        private void RenderVerticalDynamicPage(int startIdx)
+        {
+            if (_aozoraBlocks == null || _aozoraBlocks.Count == 0 || VerticalTextCanvas == null) return;
+            
+            startIdx = Math.Max(0, Math.Min(startIdx, _aozoraBlocks.Count - 1));
+            _currentVerticalStartBlockIndex = startIdx;
+
+            float marginTop = 40, marginBottom = 40, marginRight = 40, marginLeft = 40;
+            float availableHeight = (float)VerticalTextCanvas.ActualHeight;
+            if (availableHeight < 100) availableHeight = (float)RootGrid.ActualHeight - 200;
+            if (availableHeight < 100) availableHeight = 800;
+            availableHeight -= (marginTop + marginBottom); 
+            
+            float availableWidth = (float)VerticalTextCanvas.ActualWidth;
+            if (availableWidth < 100) availableWidth = (float)RootGrid.ActualWidth - 100;
+            if (availableWidth < 100) availableWidth = 1000;
+            availableWidth -= (marginRight + marginLeft);
+
+            int index = startIdx;
+            
+            // [핵심 수정] Device가 null이면 측정 로직이 고장나서 글자가 겹치거나 왼쪽 밖으로 잘립니다.
+            // CanvasControl의 Device를 가져오고, 없으면 시스템 공용 Device를 강제로라도 가져와야 합니다.
+            var device = VerticalTextCanvas.Device ?? Microsoft.Graphics.Canvas.CanvasDevice.GetSharedDevice();
+            
+            // 디바이스를 정확히 넘겨주어 페이지를 측정합니다.
+            var pageBlocks = PaginateAozoraPage(ref index, _aozoraBlocks, availableWidth, availableHeight, device);
+            
+            _currentVerticalEndBlockIndex = index > startIdx ? index - 1 : startIdx;
+            
+            _currentVerticalPageInfo = new VerticalPageInfo 
+            { 
+                Blocks = pageBlocks, 
+                StartLine = pageBlocks.Count > 0 ? pageBlocks[0].SourceLineNumber : 1 
+            };
+
+            VerticalTextCanvas.Invalidate();
+            UpdateVerticalStatusBar();
+        }
+
+        private async void StartVerticalPageCalculationAsync()
+        {
+            if (!_isVerticalMode || _aozoraBlocks == null || _aozoraBlocks.Count == 0) return;
+            
+            _verticalPageCalcCts?.Cancel();
+            _verticalPageCalcCts = new System.Threading.CancellationTokenSource();
+            var token = _verticalPageCalcCts.Token;
+
+            _isVerticalPageCalcCompleted = false;
+            _verticalTotalPages = 0;
+            _verticalCalculatedCurrentPage = 1;
+
+            if (VerticalTextCanvas == null || VerticalTextCanvas.ActualHeight <= 0 || VerticalTextCanvas.ActualWidth <= 0) return;
+
+            float availableHeight = (float)VerticalTextCanvas.ActualHeight - 80;
+            float availableWidth = (float)VerticalTextCanvas.ActualWidth - 80;
+            var device = VerticalTextCanvas.Device;
+
+            try
+            {
+                await Task.Run(async () =>
+                {
+                    int pageCount = 1;
+                    float currentPageWidth = 0;
+                    float safetyBuffer = 5.0f;
+                    var blockToPageMap = new Dictionary<int, int>();
+
+                    for (int i = 0; i < _aozoraBlocks.Count; i++)
+                    {
+                        if (token.IsCancellationRequested) return;
+                        blockToPageMap[i] = pageCount;
+                        
+                        var block = _aozoraBlocks[i];
+                        if (block.HasImage)
+                        {
+                            if (currentPageWidth > 0)
+                            {
+                                pageCount++;
+                                currentPageWidth = 0;
+                                blockToPageMap[i] = pageCount;
+                            }
+                            pageCount++;
+                            currentPageWidth = 0;
+                            continue;
+                        }
+
+                        float fontSize = (float)(_textFontSize * block.FontSizeScale);
+                        float blockWidth = MeasureVerticalBlockWidth(device, block, availableHeight, fontSize);
+                        
+                        if (currentPageWidth > 0 && currentPageWidth + blockWidth > (availableWidth - safetyBuffer))
+                        {
+                            pageCount++;
+                            currentPageWidth = 0;
+                            blockToPageMap[i] = pageCount;
+                        }
+                        
+                        currentPageWidth += blockWidth;
+                        
+                        if (i % 50 == 0) await Task.Delay(1, token);
+                    }
+                    
+                    if (token.IsCancellationRequested) return;
+
+                    DispatcherQueue.TryEnqueue(() =>
+                    {
+                        _verticalTotalPages = pageCount;
+                        _isVerticalPageCalcCompleted = true;
+                        
+                        if (blockToPageMap.TryGetValue(_currentVerticalStartBlockIndex, out int cp))
+                            _verticalCalculatedCurrentPage = cp;
+                        else
+                            _verticalCalculatedCurrentPage = 1;
+                            
+                        UpdateVerticalStatusBar();
+                    });
+                }, token);
+            }
+            catch { }
+        }
+
+        private List<AozoraBindingModel> PaginateAozoraPage(ref int index, List<AozoraBindingModel> blocks, float availableWidth, float availableHeight, Microsoft.Graphics.Canvas.CanvasDevice? device = null)
         {
             var pageBlocks = new List<AozoraBindingModel>();
             float usedWidth = 0;
 
-            AozoraBindingModel currentMergedBlock = null;
+            AozoraBindingModel? currentMergedBlock = null;
             float currentMergedBlockWidth = 0;
 
             while (index < blocks.Count)
@@ -476,11 +522,11 @@ namespace Uviewer
 
         private void VerticalTextCanvas_Draw(CanvasControl sender, CanvasDrawEventArgs args)
         {
-            if (!_isVerticalMode || _verticalPageInfos.Count == 0 || _currentVerticalPageIndex >= _verticalPageInfos.Count) return;
+            if (!_isVerticalMode || _currentVerticalPageInfo.Blocks == null) return;
 
             var ds = args.DrawingSession;
             var size = sender.Size;
-            var page = _verticalPageInfos[_currentVerticalPageIndex];
+            var page = _currentVerticalPageInfo;
             Color textColor = GetVerticalTextColor();
             
             ds.Clear(GetVerticalBackgroundColor());
@@ -488,7 +534,6 @@ namespace Uviewer
             float marginTop = 40;
             float marginBottom = 40;
             float marginRight = 40;
-            float marginLeft = 40;
 
             // [좌표 기준] currentX: 현재 줄의 "가장 오른쪽 끝" 좌표
             float currentX = (float)size.Width - marginRight; 
@@ -613,9 +658,12 @@ namespace Uviewer
                 if (block.Alignment == TextAlignment.Center) drawY = (float)((size.Height - bounds.Height) / 2);
                 else if (block.Alignment == TextAlignment.Right) drawY = (float)(size.Height - bounds.Height - marginBottom);
 
-                // 5. [안전 장치] 왼쪽 여백 침범 체크 (marginLeft 사용)
-                // 여유 공간을 조금 더 타이트하게 잡음
-                if (currentX - currentLineThickness < marginLeft) break; 
+                // ==========================================
+                // [버그 수정] 왼쪽 여백 침범 체크 제거
+                // 미세한 오차로 인해 긴 문단(병합된 블록) 전체가 통째로 렌더링에서 누락되며
+                // 페이지를 건너뛰는 현상을 방지하기 위해 강제 break를 제거합니다.
+                // ==========================================
+                // if (currentX - currentLineThickness < marginLeft) break; 
 
                 // 5. 본문 그리기
                 ds.DrawTextLayout(textLayout, drawX, drawY, textColor);
@@ -730,24 +778,21 @@ namespace Uviewer
 
         private async void NavigateVerticalPage(int direction)
         {
-            if (_verticalPageInfos.Count == 0) return;
+            if (_aozoraBlocks == null || _aozoraBlocks.Count == 0) return;
 
-            int nextIndex = _currentVerticalPageIndex + direction;
-            if (nextIndex >= 0 && nextIndex < _verticalPageInfos.Count)
+            if (direction > 0) // 다음 페이지
             {
-                _currentVerticalPageIndex = nextIndex;
-                VerticalTextCanvas?.Invalidate();
-                UpdateTextStatusBar();
-            }
-            else if (_isEpubMode)
-            {
-                if (direction > 0)
+                if (_currentVerticalEndBlockIndex < _aozoraBlocks.Count - 1)
                 {
-                    // Find the max chapter index on the current page to skip already seen chapters
+                    _verticalNavHistory.Push(_currentVerticalStartBlockIndex);
+                    RenderVerticalDynamicPage(_currentVerticalEndBlockIndex + 1);
+                    if (_isVerticalPageCalcCompleted) { _verticalCalculatedCurrentPage++; UpdateVerticalStatusBar(); }
+                }
+                else if (_isEpubMode)
+                {
                     int maxChapterOnPage = _currentEpubChapterIndex;
-                    var currentPage = _verticalPageInfos[_currentVerticalPageIndex];
-                    if (currentPage.Blocks.Count > 0)
-                        maxChapterOnPage = currentPage.Blocks.Max(b => b.EpubChapterIndex);
+                    if (_currentVerticalPageInfo.Blocks != null && _currentVerticalPageInfo.Blocks.Count > 0)
+                        maxChapterOnPage = _currentVerticalPageInfo.Blocks.Max(b => b.EpubChapterIndex);
 
                     if (maxChapterOnPage < _epubSpine.Count - 1)
                     {
@@ -755,22 +800,76 @@ namespace Uviewer
                         await LoadEpubChapterAsync(_currentEpubChapterIndex);
                     }
                 }
-                else if (direction < 0 && _currentEpubChapterIndex > 0)
+            }
+            else if (direction < 0) // 이전 페이지
+            {
+                if (_verticalNavHistory.Count > 0)
                 {
-                    int prevIndex = _currentEpubChapterIndex - 1;
+                    int prevIdx = _verticalNavHistory.Pop();
+                    RenderVerticalDynamicPage(prevIdx);
+                    if (_isVerticalPageCalcCompleted) { _verticalCalculatedCurrentPage = Math.Max(1, _verticalCalculatedCurrentPage - 1); UpdateVerticalStatusBar(); }
+                }
+                else if (_currentVerticalStartBlockIndex > 0)
+                {
+                    // [핵심 수정: 즐겨찾기 점프 후 완벽한 이전 페이지 찾기 (역추적 알고리즘)]
+                    int targetIdx = _currentVerticalStartBlockIndex;
+                    int bestStart = Math.Max(0, targetIdx - 1);
+                    int currentTest = bestStart;
 
-                    // In SideBySide mode, chapters are often merged (Current + Next). 
-                    // Going back 1 chapter loads (Prev + Current), and fromEnd puts us at End of Current.
-                    // So we must go back 2 chapters to land at End of Prev.
-                    if (_isSideBySideMode && prevIndex > 0)
+                    // 문단 중간이 아닌 온전한 문단 시작점(문장)으로 정렬
+                    while (currentTest > 0 && _aozoraBlocks[currentTest].IsParagraphContinuation)
                     {
-                        var currentPage = _verticalPageInfos[_currentVerticalPageIndex];
-                        if (currentPage.Blocks.Any(b => b.HasImage))
+                        currentTest--;
+                    }
+
+                    float availWidth = (float)(VerticalTextCanvas?.ActualWidth ?? 1000) - 80;
+                    float availHeight = (float)(VerticalTextCanvas?.ActualHeight ?? 800) - 80;
+                    var device = VerticalTextCanvas?.Device ?? Microsoft.Graphics.Canvas.CanvasDevice.GetSharedDevice();
+
+                    int safetyCounter = 0; // 무한루프 방지
+
+                    // 역방향으로 시작점을 조금씩 당겨가며 화면에 꽉 차는 최적의 시작점을 찾습니다.
+                    while (currentTest >= 0 && safetyCounter < 500)
+                    {
+                        safetyCounter++;
+                        int tempIdx = currentTest;
+                        
+                        // 현재 테스트 중인 시작점에서 가상으로 페이지를 만들어봅니다.
+                        PaginateAozoraPage(ref tempIdx, _aozoraBlocks, availWidth, availHeight, device);
+                        
+                        // tempIdx는 만들어진 가상 페이지의 다음 블록 인덱스입니다.
+                        // 만들어진 페이지가 targetIdx(현재 보고 있는 페이지 첫 줄)를 포함하거나 넘어선다면?
+                        // -> 화면 안에 targetIdx - 1 이 안전하게 들어왔다는 뜻이므로 이 시작점은 합격!
+                        if (tempIdx >= targetIdx)
                         {
-                            prevIndex--;
+                            bestStart = currentTest; // 최고 기록 갱신
+                            
+                            // 더 많은 텍스트를 담을 수 있는지 한 칸 더 뒤로 가서 테스트
+                            currentTest--;
+                            while (currentTest > 0 && _aozoraBlocks[currentTest].IsParagraphContinuation)
+                            {
+                                currentTest--;
+                            }
+                        }
+                        else
+                        {
+                            // 시작점을 너무 뒤로 당겨서, 만들어진 페이지가 targetIdx 근처에도 오지 못하고 끊김.
+                            // 즉, 방금 전 성공했던 위치(bestStart)가 화면을 겹침 없이 꽉 채우는 '가장 완벽한 이전 페이지'였다는 뜻.
+                            break;
                         }
                     }
 
+                    RenderVerticalDynamicPage(bestStart);
+                    if (_isVerticalPageCalcCompleted) { _verticalCalculatedCurrentPage = Math.Max(1, _verticalCalculatedCurrentPage - 1); UpdateVerticalStatusBar(); }
+                }
+                else if (_isEpubMode && _currentEpubChapterIndex > 0)
+                {
+                    int prevIndex = _currentEpubChapterIndex - 1;
+                    if (_isSideBySideMode && prevIndex > 0)
+                    {
+                        if (_currentVerticalPageInfo.Blocks != null && _currentVerticalPageInfo.Blocks.Any(b => b.HasImage))
+                            prevIndex--;
+                    }
                     _currentEpubChapterIndex = prevIndex;
                     await LoadEpubChapterAsync(_currentEpubChapterIndex, fromEnd: true);
                 }
@@ -779,18 +878,15 @@ namespace Uviewer
 
         private void UpdateVerticalStatusBar()
         {
-            if (!_isVerticalMode || _verticalPageInfos == null || _verticalPageInfos.Count == 0) return;
-            if (_currentVerticalPageIndex < 0 || _currentVerticalPageIndex >= _verticalPageInfos.Count) return;
+            if (!_isVerticalMode || _currentVerticalPageInfo.Blocks == null) return;
 
-            int totalPages = _verticalPageInfos.Count;
-            int currentPage = _currentVerticalPageIndex + 1;
-            int currentLine = _verticalPageInfos[_currentVerticalPageIndex].StartLine;
+            int totalPages = _isVerticalPageCalcCompleted ? _verticalTotalPages : 0;
+            int currentPage = _isVerticalPageCalcCompleted ? _verticalCalculatedCurrentPage : 1;
+            int currentLine = _currentVerticalPageInfo.StartLine;
             
-            // Use cached total line count if available
             int totalLines = _textTotalLineCountInSource;
             if (totalLines <= 1 && !string.IsNullOrEmpty(_currentTextContent))
             {
-                // Fallback for first run or if not set
                 totalLines = _currentTextContent.Split('\n').Length;
                 _textTotalLineCountInSource = totalLines;
             }
@@ -798,30 +894,35 @@ namespace Uviewer
             if (_isEpubMode)
             {
                 ImageInfoText.Text = Strings.LineInfo(currentLine, totalLines);
-
-                // Calculate global progress for EPUB
                 double totalProgress = 0;
                 if (_epubSpine.Count > 0)
                 {
                     double chapterProgress = (double)_currentEpubChapterIndex / _epubSpine.Count;
-                    double pageProgressInChapter = (double)(currentPage - 1) / totalPages / _epubSpine.Count;
+                    double pageProgressInChapter = totalPages > 0 ? (double)(currentPage - 1) / totalPages / _epubSpine.Count : 0;
                     totalProgress = (chapterProgress + pageProgressInChapter) * 100.0;
                     if (totalProgress > 100) totalProgress = 100;
                 }
                 TextProgressText.Text = $"{totalProgress:F1}%";
-                ImageIndexText.Text = $"{currentPage} / {totalPages} (Ch.{_currentEpubChapterIndex + 1})";
+                ImageIndexText.Text = totalPages > 0 ? $"{currentPage} / {totalPages} (Ch.{_currentEpubChapterIndex + 1})" : $"계산 중... (Ch.{_currentEpubChapterIndex + 1})";
             }
             else
             {
                 ImageInfoText.Text = Strings.LineInfo(currentLine, totalLines);
-                ImageIndexText.Text = $"{currentPage} / {totalPages}";
-                
-                double progress = totalPages > 1 ? (double)_currentVerticalPageIndex / (totalPages - 1) * 100.0 : 100.0;
-                if (progress > 100) progress = 100;
-                TextProgressText.Text = $"{progress:F1}%";
+                if (_isVerticalPageCalcCompleted)
+                {
+                    ImageIndexText.Text = $"{currentPage} / {totalPages}";
+                    double progress = totalPages > 1 ? (double)(currentPage - 1) / (totalPages - 1) * 100.0 : 100.0;
+                    if (progress > 100) progress = 100;
+                    TextProgressText.Text = $"{progress:F1}%";
+                }
+                else
+                {
+                    ImageIndexText.Text = Strings.CalculatingPages.Trim().Replace("(", "").Replace(")", "");
+                    double progress = _aozoraBlocks.Count > 0 ? (double)_currentVerticalStartBlockIndex / _aozoraBlocks.Count * 100.0 : 0;
+                    TextProgressText.Text = $"{progress:F1}%";
+                }
             }
 
-            // Throttle Recent update: only if line changed
             if (currentLine != _lastRecentSaveLine)
             {
                 _lastRecentSaveLine = currentLine;
@@ -833,7 +934,6 @@ namespace Uviewer
         {
             if (_isVerticalMode && (!string.IsNullOrEmpty(_currentTextContent) || _isEpubMode))
             {
-                // [Fix] Avoid clearing screen during loading or mode switch if content not ready
                 if (_isEpubMode && (_aozoraBlocks == null || _aozoraBlocks.Count == 0)) return;
 
                 int currentLine = 1;
@@ -841,11 +941,11 @@ namespace Uviewer
                 {
                     currentLine = _pendingVerticalScrollLine.Value;
                 }
-                else if (_verticalPageInfos.Count > 0 && _currentVerticalPageIndex >= 0 && _currentVerticalPageIndex < _verticalPageInfos.Count)
+                else if (_currentVerticalPageInfo.Blocks != null)
                 {
-                    currentLine = _verticalPageInfos[_currentVerticalPageIndex].StartLine;
+                    currentLine = _currentVerticalPageInfo.StartLine;
                 }
-                _ = PrepareVerticalTextAsync(currentLine, _globalTextCts?.Token ?? default);
+                _ = PrepareVerticalTextAsync(currentLine);
             }
         }
 
@@ -855,30 +955,26 @@ namespace Uviewer
             if (!_isVerticalMode) return;
 
             // Space to toggle SideBySide for images in vertical mode
+            // 스페이스 키 부분:
             if (e.Key == Windows.System.VirtualKey.Space)
             {
                 _isSideBySideMode = !_isSideBySideMode;
                 UpdateSideBySideButtonState();
-
-                // Preserve current line position when toggling
-                int currentLine = 1;
-                if (_verticalPageInfos.Count > _currentVerticalPageIndex)
-                    currentLine = _verticalPageInfos[_currentVerticalPageIndex].StartLine;
-
+                // [수정]
+                int currentLine = _currentVerticalPageInfo.Blocks != null ? _currentVerticalPageInfo.StartLine : 1;
                 _ = PrepareVerticalTextAsync(currentLine);
                 e.Handled = true;
                 return;
             }
 
-            // Handle Home/End navigation (within page range or chapters)
-
+            // Home 키 부분:
             if (e.Key == Windows.System.VirtualKey.Home)
             {
-                if (_currentVerticalPageIndex > 0)
+                if (_currentVerticalStartBlockIndex > 0)
                 {
-                    _currentVerticalPageIndex = 0;
-                    VerticalTextCanvas?.Invalidate();
-                    UpdateTextStatusBar();
+                    _verticalNavHistory.Clear();
+                    RenderVerticalDynamicPage(0);
+                    if (_isVerticalPageCalcCompleted) { _verticalCalculatedCurrentPage = 1; UpdateVerticalStatusBar(); }
                     e.Handled = true;
                 }
                 else if (_isEpubMode && _currentEpubChapterIndex > 0)
@@ -888,13 +984,15 @@ namespace Uviewer
                     e.Handled = true;
                 }
             }
+            // End 키 부분:
             else if (e.Key == Windows.System.VirtualKey.End)
             {
-                if (_currentVerticalPageIndex < _verticalPageInfos.Count - 1)
+                if (_currentVerticalEndBlockIndex < _aozoraBlocks.Count - 1)
                 {
-                    _currentVerticalPageIndex = _verticalPageInfos.Count - 1;
-                    VerticalTextCanvas?.Invalidate();
-                    UpdateTextStatusBar();
+                    _verticalNavHistory.Clear();
+                    int lastIdx = Math.Max(0, _aozoraBlocks.Count - 15); // 끝부분 추정
+                    RenderVerticalDynamicPage(lastIdx);
+                    if (_isVerticalPageCalcCompleted) { _verticalCalculatedCurrentPage = _verticalTotalPages; UpdateVerticalStatusBar(); }
                     e.Handled = true;
                 }
                 else if (_isEpubMode && _currentEpubChapterIndex < _epubSpine.Count - 1)

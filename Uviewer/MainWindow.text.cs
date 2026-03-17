@@ -1515,8 +1515,8 @@ namespace Uviewer
             {
                 if (_isVerticalMode)
                 {
-                    _currentVerticalPageIndex = 0;
-                    VerticalTextCanvas?.Invalidate();
+                    _verticalNavHistory.Clear();
+                    RenderVerticalDynamicPage(0);
                     UpdateTextStatusBar();
                 }
                 else if (_isAozoraMode && _aozoraBlocks.Count > 0)
@@ -1535,8 +1535,8 @@ namespace Uviewer
             {
                 if (_isVerticalMode)
                 {
-                    _currentVerticalPageIndex = _verticalPageInfos.Count - 1;
-                    VerticalTextCanvas?.Invalidate();
+                    _verticalNavHistory.Clear();
+                    RenderVerticalDynamicPage(999999);
                     UpdateTextStatusBar();
                 }
                 else if (_isAozoraMode && _aozoraBlocks.Count > 0)
