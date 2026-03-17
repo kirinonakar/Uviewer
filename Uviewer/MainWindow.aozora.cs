@@ -843,7 +843,8 @@ namespace Uviewer
                 }
                 else if (item is AozoraRuby ruby) 
                 {
-                    p.Inlines.Add(CreateRubyInline(ruby.BaseText, ruby.RubyText, rtb.FontSize));
+                    var weight = (ruby.IsBold || block.IsBold) ? Microsoft.UI.Text.FontWeights.Bold : Microsoft.UI.Text.FontWeights.Normal;
+                    p.Inlines.Add(CreateRubyInline(ruby.BaseText, ruby.RubyText, rtb.FontSize, weight));
                 }
                 else if (item is AozoraItalic italic)
                 {

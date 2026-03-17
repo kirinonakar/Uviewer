@@ -380,18 +380,38 @@ namespace Uviewer
 
             // Build text same as in Draw method
             StringBuilder sb = new StringBuilder();
+            var boldRanges = new List<(int start, int length)>();
+            var italicRanges = new List<(int start, int length)>();
+
             foreach (var inline in block.Inlines)
             {
                 int start = sb.Length;
                 if (inline is string s) sb.Append(NormalizeVerticalText(s));
                 else if (inline is AozoraRuby ruby)
                 {
-                    sb.Append(NormalizeVerticalText(ruby.BaseText));
+                    var normBase = NormalizeVerticalText(ruby.BaseText);
+                    sb.Append(normBase);
+                    if (ruby.IsBold) boldRanges.Add((start, normBase.Length));
                 }
-                else if (inline is AozoraBold bold) sb.Append(NormalizeVerticalText(bold.Text));
-                else if (inline is AozoraItalic italic) sb.Append(NormalizeVerticalText(italic.Text));
+                else if (inline is AozoraBold bold)
+                {
+                    var normText = NormalizeVerticalText(bold.Text);
+                    sb.Append(normText);
+                    boldRanges.Add((start, normText.Length));
+                }
+                else if (inline is AozoraItalic italic)
+                {
+                    var normText = NormalizeVerticalText(italic.Text);
+                    sb.Append(normText);
+                    italicRanges.Add((start, normText.Length));
+                }
                 else if (inline is AozoraCode code) sb.Append(NormalizeVerticalText(code.Text));
-                else if (inline is AozoraTCY tcy) sb.Append(NormalizeVerticalText(tcy.Text));
+                else if (inline is AozoraTCY tcy)
+                {
+                    var normText = NormalizeVerticalText(tcy.Text);
+                    sb.Append(normText);
+                    if (tcy.IsBold) boldRanges.Add((start, normText.Length));
+                }
                 else if (inline is AozoraLineBreak) sb.Append("\n");
             }
             if (block.IsTable && block.TableRows.Count > 0)
@@ -415,6 +435,10 @@ namespace Uviewer
 
             // Using same measureWidth (fontSize * 2f) as in Draw method
             using var layout = new CanvasTextLayout(device, text, format, fontSize * 2.0f, availableHeight);
+            
+            if (block.IsBold) layout.SetFontWeight(0, text.Length, Microsoft.UI.Text.FontWeights.Bold);
+            foreach (var r in boldRanges) layout.SetFontWeight(r.start, r.length, Microsoft.UI.Text.FontWeights.Bold);
+            foreach (var r in italicRanges) layout.SetFontStyle(r.start, r.length, Windows.UI.Text.FontStyle.Italic);
             
             // [롤백]
             // using var typography = new CanvasTypography();
@@ -510,6 +534,7 @@ namespace Uviewer
                         var normBase = NormalizeVerticalText(ruby.BaseText);
                         sb.Append(normBase);
                         rubyRanges.Add((start, normBase.Length, ruby.RubyText));
+                        if (ruby.IsBold) boldRanges.Add((start, normBase.Length));
                     }
                     else if (inline is AozoraBold bold)
                     {
