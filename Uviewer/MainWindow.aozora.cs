@@ -1674,7 +1674,61 @@ namespace Uviewer
             img.HorizontalAlignment = HorizontalAlignment.Center;
             img.VerticalAlignment = VerticalAlignment.Center;
 
-            if (!string.IsNullOrEmpty(_currentTextFilePath))
+            if (_isWebDavMode && !string.IsNullOrEmpty(_currentWebDavItemPath))
+            {
+                // WebDAV Mode Case: Download relative images from the same remote directory
+                try
+                {
+                    // Calculate remote path relative to the current file
+                    string normItemPath = _currentWebDavItemPath.Replace('\\', '/');
+                    int lastSlash = normItemPath.LastIndexOf('/');
+                    string remoteDir = (lastSlash >= 0) ? normItemPath.Substring(0, lastSlash) : "";
+                    
+                    string normRelativePath = relativePath.Replace('\\', '/');
+                    if (normRelativePath.StartsWith("/")) normRelativePath = normRelativePath.Substring(1);
+                    
+                    string remoteFullPath = remoteDir + "/" + normRelativePath;
+
+                    _ = Task.Run(async () =>
+                    {
+                        try
+                        {
+                            // Use a separate CTS if available or just the global one
+                            var tempPath = await _webDavService.DownloadToTempFileAsync(remoteFullPath);
+                            if (string.IsNullOrEmpty(tempPath)) return;
+
+                            using var fs = new System.IO.FileStream(tempPath, System.IO.FileMode.Open, System.IO.FileAccess.Read);
+                            using var ms = new System.IO.MemoryStream();
+                            await fs.CopyToAsync(ms);
+                            var bytes = ms.ToArray();
+
+                            this.DispatcherQueue.TryEnqueue(async () =>
+                            {
+                                try
+                                {
+                                    var winrtStream = new Windows.Storage.Streams.InMemoryRandomAccessStream();
+                                    using (var writer = new Windows.Storage.Streams.DataWriter(winrtStream))
+                                    {
+                                        writer.WriteBytes(bytes);
+                                        await writer.StoreAsync();
+                                        await writer.FlushAsync();
+                                        writer.DetachStream();
+                                    }
+                                    winrtStream.Seek(0);
+                                    var bitmap = new Microsoft.UI.Xaml.Media.Imaging.BitmapImage();
+                                    await bitmap.SetSourceAsync(winrtStream);
+                                    img.Source = bitmap;
+                                }
+                                catch { }
+                            });
+                        }
+                        catch { }
+                    });
+                    return new InlineUIContainer { Child = img };
+                }
+                catch { }
+            }
+            else if (!string.IsNullOrEmpty(_currentTextFilePath))
             {
                 // Local File Case
                 try
