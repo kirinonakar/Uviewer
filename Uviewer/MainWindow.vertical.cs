@@ -1405,9 +1405,18 @@ namespace Uviewer
                 System.Diagnostics.Debug.WriteLine($"LoadVerticalImageAsync failed: {ex.Message}");
             }
         }
+
         private string NormalizeVerticalText(string text)
         {
-            // [롤백] 글자 자체를 변환하지 않고 그대로 반환 (사용자가 이전과 같다고 하여 스페이싱 조정 방식으로 변경)
+            if (string.IsNullOrEmpty(text)) return text;
+            
+            // 세로 모드 전용: !!, ??, ?!, !? 를 하나의 TCY(세로중짜) 유니코드 문자로 치환하여
+            // 세로 쓰기 레이아웃에서 나란히 바르게 서도록 처리합니다. (전각/반각 모두 지원)
+            text = text.Replace("!!", "‼").Replace("！！", "‼");
+            text = text.Replace("??", "⁇").Replace("？？", "⁇");
+            text = text.Replace("?!", "⁈").Replace("？！", "⁈");
+            text = text.Replace("!?", "⁉").Replace("！？", "⁉");
+
             return text;
         }
 
