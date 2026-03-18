@@ -1402,8 +1402,18 @@ namespace Uviewer
                 IsTable = source.IsTable,
                 IsBlankLine = source.IsBlankLine,
                 IsPageBreak = source.IsPageBreak,
-                IsParagraphContinuation = source.IsParagraphContinuation
+                IsParagraphContinuation = source.IsParagraphContinuation,
+                
+                // [버그 수정 1] EPUB 챕터 인덱스 복사 누락 해결 (이것이 챕터 1로 순환되던 원인입니다)
+                EpubChapterIndex = source.EpubChapterIndex 
             };
+
+            // [버그 수정 2] 테이블 데이터가 있을 경우 참조 오류를 막기 위해 깊은 복사(Deep Copy) 처리
+            if (source.IsTable && source.TableRows != null)
+            {
+                clone.TableRows = source.TableRows.Select(row => new List<string>(row)).ToList();
+            }
+
             if (copyInlines) clone.Inlines = new List<object>(source.Inlines);
             return clone;
         }
