@@ -312,21 +312,23 @@ namespace Uviewer
                             k++;
                         }
 
+                        double boxWidth = maxWidth - 10;
+                        if (boxWidth < 100) boxWidth = maxWidth;
+
                         var border = new Border
                         {
+                            HorizontalAlignment = HorizontalAlignment.Left, // 💡 [수정] 측정할 때도 동일하게 글자에 맞게 줄어들도록 설정
+                            MaxWidth = boxWidth,                            // 💡 [수정] 화면을 넘길 때만 줄바꿈
                             BorderBrush = new SolidColorBrush(block.BorderColor ?? Colors.Gray),
                             BorderThickness = block.BorderThickness.Top > 0 || block.BorderThickness.Left > 0 ? block.BorderThickness : new Thickness(1.5),
                             Padding = block.Padding.Left > 0 ? block.Padding : new Thickness(15),
                             Margin = new Thickness(0, 10, 0, 10)
                         };
 
-                        double boxWidth = maxWidth - 40;
-                        if (boxWidth < 100) boxWidth = maxWidth;
-
                         var innerRtb = new RichTextBlock
                         {
-                            TextWrapping = TextWrapping.Wrap,
-                            MaxWidth = boxWidth
+                            TextWrapping = TextWrapping.Wrap
+                            // (MaxWidth나 Width 속성은 적지 않습니다)
                         };
 
                         foreach (var kb in keigakomiBlocks)
@@ -815,8 +817,14 @@ namespace Uviewer
                         k++;
                     }
 
+                    // 박스의 최대 허용 너비 계산
+                    double boxWidth = currentMaxWidth - 10;
+                    if (boxWidth < 100) boxWidth = currentMaxWidth;
+
                     var border = new Border
                     {
+                        HorizontalAlignment = HorizontalAlignment.Left, // 💡 [수정] 박스가 글자 길이에 맞춰 알맞게 줄어듭니다.
+                        MaxWidth = boxWidth,                            // 💡 [수정] 글자가 너무 길어 화면을 넘길 때만 줄바꿈을 허용합니다.
                         BorderBrush = new SolidColorBrush(block.BorderColor ?? Colors.Gray),
                         BorderThickness = block.BorderThickness.Top > 0 || block.BorderThickness.Left > 0 ? block.BorderThickness : new Thickness(1.5),
                         Padding = block.Padding.Left > 0 ? block.Padding : new Thickness(15),
@@ -825,15 +833,11 @@ namespace Uviewer
                         Background = block.BackgroundColor != null ? new SolidColorBrush(block.BackgroundColor.Value) : null
                     };
 
-                    // 박스의 좌우 여백 확보
-                    double boxWidth = currentMaxWidth - 40;
-                    if (boxWidth < 100) boxWidth = currentMaxWidth;
-
                     var rtb = new RichTextBlock
                     {
                         TextWrapping = TextWrapping.Wrap,
-                        MaxWidth = boxWidth,
                         Foreground = GetThemeForeground()
+                        // (MaxWidth나 Width 속성은 적지 않습니다)
                     };
 
                     foreach (var kb in keigakomiBlocks)
@@ -1133,10 +1137,138 @@ namespace Uviewer
                 }
                 else if (_currentAozoraStartBlockIndex > 0)
                 {
-                    // Fallback if history empty but not at start
-                    // Guess a previous starting point (estimated backward)
-                    int guess = Math.Max(0, _currentAozoraStartBlockIndex - 20); 
-                    RenderAozoraDynamicPage(guess);
+                    int targetIdx = _currentAozoraStartBlockIndex;
+                    int bestStart = Math.Max(0, targetIdx - 1);
+                    int testStart = bestStart;
+
+                    double availableWidth = AozoraPageContainer?.ActualWidth ?? 800;
+                    if (availableWidth < 100) availableWidth = 800;
+                    double innerWidth = availableWidth - 40;
+                    double currentMaxWidth = _isMarkdownRenderMode ? innerWidth : Math.Min(innerWidth, GetUrlMaxWidth());
+
+                    double availableHeight = AozoraPageContainer?.ActualHeight ?? 800;
+                    if (availableHeight < 200) availableHeight = 800;
+                    availableHeight -= 55;
+
+                    var dummyRTB = new RichTextBlock
+                    {
+                        FontFamily = new FontFamily(_textFontFamily),
+                        FontSize = _textFontSize,
+                        MaxWidth = currentMaxWidth,
+                        TextWrapping = TextWrapping.Wrap,
+                        Padding = new Thickness(0, 15, 0, 0),
+                        LineStackingStrategy = LineStackingStrategy.BlockLineHeight // 실제 렌더링과 동일한 줄간격 강제 적용
+                    };
+
+                    // 💡 [수정] 박스나 단락이 길 경우를 대비해 탐색 한계치를 1000으로 넉넉하게 잡습니다.
+                    int safetyLimit = Math.Max(0, targetIdx - 1000);
+
+                    while (testStart >= safetyLimit)
+                    {
+                        dummyRTB.Blocks.Clear();
+                        Paragraph? currentParagraph = null;
+                        bool forcedBreak = false;
+
+                        for (int i = testStart; i < targetIdx; i++)
+                        {
+                            var block = _aozoraBlocks[i];
+
+                            if (block.HasImage || block.IsPageBreak)
+                            {
+                                if (dummyRTB.Blocks.Count > 0) 
+                                {
+                                    forcedBreak = true;
+                                    break; 
+                                }
+                            }
+
+                            // 💡 [수정] 박스(罫囲み)도 실제 화면에 그려지는 것과 100% 동일하게 그룹화하여 측정
+                            if (block.BorderColor != null || block.BorderThickness.Top > 0 || block.BorderThickness.Left > 0 || block.BorderThickness.Bottom > 0)
+                            {
+                                var keigakomiBlocks = new List<AozoraBindingModel>();
+                                int k = i;
+                                while (k < targetIdx && 
+                                    _aozoraBlocks[k].BorderColor == block.BorderColor && 
+                                    _aozoraBlocks[k].BorderThickness == block.BorderThickness)
+                                {
+                                    keigakomiBlocks.Add(_aozoraBlocks[k]);
+                                    k++;
+                                }
+
+                                double boxWidth = currentMaxWidth - 10;
+                                if (boxWidth < 100) boxWidth = currentMaxWidth;
+
+                                var border = new Border
+                                {
+                                    HorizontalAlignment = HorizontalAlignment.Left,
+                                    MaxWidth = boxWidth,
+                                    BorderBrush = new SolidColorBrush(block.BorderColor ?? Colors.Gray),
+                                    BorderThickness = block.BorderThickness.Top > 0 || block.BorderThickness.Left > 0 ? block.BorderThickness : new Thickness(1.5),
+                                    Padding = block.Padding.Left > 0 ? block.Padding : new Thickness(15),
+                                    Margin = new Thickness(0, 10, 0, 10),
+                                    CornerRadius = new CornerRadius(4),
+                                    Background = block.BackgroundColor != null ? new SolidColorBrush(block.BackgroundColor.Value) : null
+                                };
+
+                                var innerRtb = new RichTextBlock
+                                {
+                                    TextWrapping = TextWrapping.Wrap,
+                                    FontFamily = new FontFamily(_textFontFamily),
+                                    FontSize = _textFontSize
+                                };
+
+                                foreach (var kb in keigakomiBlocks)
+                                {
+                                    innerRtb.Blocks.Add(CreateParagraphFromBlock(kb, availableHeight, boxWidth));
+                                }
+                                border.Child = innerRtb;
+                                
+                                var pWrapper = new Paragraph();
+                                pWrapper.Inlines.Add(new InlineUIContainer { Child = border });
+                                dummyRTB.Blocks.Add(pWrapper);
+
+                                i = k - 1;
+                                currentParagraph = null;
+                                continue;
+                            }
+
+                            // 일반 문단 덧붙이기
+                            if (block.IsParagraphContinuation && currentParagraph != null && !block.HasImage && !block.IsTable && block.HeadingLevel == 0)
+                            {
+                                var pTemp = CreateParagraphFromBlock(block, availableHeight, innerWidth);
+                                var inlinesToMove = pTemp.Inlines.ToList();
+                                pTemp.Inlines.Clear(); 
+                                foreach (var inline in inlinesToMove) currentParagraph.Inlines.Add(inline);
+                                continue;
+                            }
+
+                            var p = CreateParagraphFromBlock(block, availableHeight, innerWidth);
+                            if (p.Inlines.Count > 0) dummyRTB.Blocks.Add(p);
+
+                            if (!block.HasImage && !block.IsTable && !block.IsPageBreak && block.HeadingLevel == 0)
+                                currentParagraph = p;
+                            else
+                                currentParagraph = null;
+                        }
+
+                        if (forcedBreak && testStart < bestStart) break;
+
+                        dummyRTB.Measure(new Windows.Foundation.Size((float)currentMaxWidth, double.PositiveInfinity));
+
+                        if (dummyRTB.DesiredSize.Height > availableHeight && testStart < bestStart)
+                        {
+                            break;
+                        }
+
+                        bestStart = testStart;
+                        if (testStart == 0) break;
+
+                        // 💡 [핵심 해결 포인트] 이전처럼 문단이나 박스 시작점으로 강제로 건너뛰지 않고 무조건 1줄씩 뒤로 갑니다.
+                        // 이로써 화면보다 큰 문단이나 박스도 자연스럽게 페이지가 나뉘어 스킵 없이 정확하게 측정됩니다.
+                        testStart--;
+                    }
+
+                    RenderAozoraDynamicPage(bestStart);
                     UpdateAozoraStatusBar();
                 }
             }
@@ -1195,7 +1327,10 @@ namespace Uviewer
                 startIdx = i;
             }
             
-            _aozoraNavHistory.Push(_currentAozoraStartBlockIndex);
+            // 💡 [수정] 점프하기 전의 위치를 '이전 페이지'로 오해하지 않도록 스택을 비워줍니다.
+            // 기존 _aozoraNavHistory.Push(_currentAozoraStartBlockIndex); 코드를 아래로 교체하세요.
+            _aozoraNavHistory.Clear();
+            
             RenderAozoraDynamicPage(startIdx);
             UpdateAozoraStatusBar();
         }
@@ -1473,7 +1608,15 @@ namespace Uviewer
 
         private List<AozoraBindingModel> SplitBlockBySentences(AozoraBindingModel originalBlock)
         {
-            if (originalBlock.HeadingLevel > 0 || originalBlock.HasImage || originalBlock.IsTable || originalBlock.IsPageBreak || originalBlock.IsBlankLine)
+            // 💡 [추가] 박스(罫囲み) 안에 있는 텍스트는 임의로 문장 단위 분리를 하지 않도록 조건 추가
+            bool isKeigakomi = originalBlock.BorderColor != null || 
+                               originalBlock.BorderThickness.Top > 0 || 
+                               originalBlock.BorderThickness.Left > 0 || 
+                               originalBlock.BorderThickness.Bottom > 0 || 
+                               originalBlock.BorderThickness.Right > 0;
+
+            // 💡 [수정] isKeigakomi 조건이 참일 경우 원본 블록을 쪼개지 않고 그대로 반환합니다.
+            if (originalBlock.HeadingLevel > 0 || originalBlock.HasImage || originalBlock.IsTable || originalBlock.IsPageBreak || originalBlock.IsBlankLine || isKeigakomi)
             {
                 return new List<AozoraBindingModel> { originalBlock };
             }
