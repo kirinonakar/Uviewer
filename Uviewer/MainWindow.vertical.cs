@@ -176,23 +176,55 @@ namespace Uviewer
             {
                 if (_aozoraBlocks == null || _aozoraBlocks.Count == 0)
                 {
-                    _aozoraBlocks = await Task.Run(() => ParseAozoraContent(_currentTextContent));
-                    DispatcherQueue.TryEnqueue(() => { _textTotalLineCountInSource = _currentTextContent.Split('\n').Length; });
+                    // [수정] 백그라운드에서 파싱과 줄 수 계산을 한 번에 처리 (UI 스레드 부하 제거)
+                    _aozoraBlocks = await Task.Run(() => 
+                    {
+                        var blocks = ParseAozoraContent(_currentTextContent);
+                        
+                        // Split('\n')을 사용하지 않고 문자만 순회하여 메모리 폭발 방지
+                        int lineCount = 1;
+                        for (int i = 0; i < _currentTextContent.Length; i++)
+                        {
+                            if (_currentTextContent[i] == '\n') lineCount++;
+                        }
+                        
+                        DispatcherQueue.TryEnqueue(() => { _textTotalLineCountInSource = lineCount; });
+                        return blocks;
+                    });
                 }
 
                 int startIdx = 0;
-                for (int i = 0; i < _aozoraBlocks.Count; i++)
-                {
-                    if (_aozoraBlocks[i].SourceLineNumber >= targetLine)
-                    {
-                        startIdx = _aozoraBlocks[i].SourceLineNumber == targetLine ? i : (i > 0 ? i - 1 : 0);
-                        break;
-                    }
-                    startIdx = i;
-                }
 
-                // 타겟 라인이 음수(끝에서부터 접근)일 때의 예외 처리 (EPUB fromEnd 지원 등)
-                if (targetLine < 0) startIdx = Math.Max(0, _aozoraBlocks.Count - 15);
+                // 타겟 라인이 음수(끝에서부터 접근)일 때의 예외 처리
+                if (targetLine < 0) 
+                {
+                    startIdx = Math.Max(0, _aozoraBlocks.Count - 15);
+                }
+                else if (_aozoraBlocks.Count > 0)
+                {
+                    // [수정] O(N) 선형 탐색을 O(log N) 이진 탐색으로 변경하여 즉시 탐색
+                    int left = 0;
+                    int right = _aozoraBlocks.Count - 1;
+                    
+                    while (left <= right)
+                    {
+                        int mid = left + (right - left) / 2;
+                        if (_aozoraBlocks[mid].SourceLineNumber == targetLine)
+                        {
+                            startIdx = mid;
+                            break;
+                        }
+                        else if (_aozoraBlocks[mid].SourceLineNumber < targetLine)
+                        {
+                            startIdx = mid; // 현재까지 발견된 가장 가까운 인덱스 기록
+                            left = mid + 1;
+                        }
+                        else
+                        {
+                            right = mid - 1;
+                        }
+                    }
+                }
 
                 if (VerticalTextCanvas != null) VerticalTextCanvas.Visibility = Visibility.Visible;
                 
@@ -884,10 +916,16 @@ namespace Uviewer
             int currentPage = _isVerticalPageCalcCompleted ? _verticalCalculatedCurrentPage : 1;
             int currentLine = _currentVerticalPageInfo.StartLine;
             
+            // 기존의 Split 코드를 아래처럼 변경합니다.
             int totalLines = _textTotalLineCountInSource;
             if (totalLines <= 1 && !string.IsNullOrEmpty(_currentTextContent))
             {
-                totalLines = _currentTextContent.Split('\n').Length;
+                int count = 1;
+                foreach (char c in _currentTextContent)
+                {
+                    if (c == '\n') count++;
+                }
+                totalLines = count;
                 _textTotalLineCountInSource = totalLines;
             }
             
