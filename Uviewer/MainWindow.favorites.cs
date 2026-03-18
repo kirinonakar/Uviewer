@@ -614,9 +614,27 @@ namespace Uviewer
                             savedLine = _currentVerticalPageInfo.StartLine;
                             savedPage = 0; 
                         }
-                        else if (EpubSelectedItem is Grid g && g.Tag is EpubPageInfoTag tag)
+                        else if (EpubSelectedItem is Grid g)
                         {
-                            savedLine = tag.StartLine;
+                            if (g.Tag is EpubPageInfoTag tag)
+                            {
+                                var tempBlocks = await GetEpubChapterAsAozoraBlocksAsync(CurrentEpubChapterIndex);
+                                if (tempBlocks.Count > 0 && tag.TotalLinesInChapter > 0)
+                                {
+                                    int maxSourceLine = tempBlocks.Last().SourceLineNumber;
+                                    double ratio = (double)tag.StartLine / tag.TotalLinesInChapter;
+                                    savedLine = (int)(maxSourceLine * ratio);
+                                    if (savedLine < 1) savedLine = 1;
+                                }
+                                else savedLine = tag.StartLine;
+                            }
+                            else if (g.Tag is EpubImageTag imgTag)
+                            {
+                                var tempBlocks = await GetEpubChapterAsAozoraBlocksAsync(CurrentEpubChapterIndex);
+                                var targetBlock = tempBlocks.FirstOrDefault(b => b.Inlines.OfType<AozoraImage>().Any(img => img.Source == imgTag.FullPath));
+                                if (targetBlock != null) savedLine = targetBlock.SourceLineNumber;
+                                else savedLine = 1;
+                            }
                         }
                     }
                     else if (_isTextMode)
@@ -1474,8 +1492,28 @@ namespace Uviewer
                                 targetLine = _currentVerticalPageInfo.StartLine;
                                 targetPage = 0; // Use line for restoration in vertical mode
                             }
-                            else if (EpubSelectedItem is Grid g && g.Tag is EpubPageInfoTag tag)
-                                targetLine = tag.StartLine;
+                            else if (EpubSelectedItem is Grid g)
+                            {
+                                if (g.Tag is EpubPageInfoTag tag)
+                                {
+                                    var tempBlocks = await GetEpubChapterAsAozoraBlocksAsync(targetChapter);
+                                    if (tempBlocks.Count > 0 && tag.TotalLinesInChapter > 0)
+                                    {
+                                        int maxSourceLine = tempBlocks.Last().SourceLineNumber;
+                                        double ratio = (double)tag.StartLine / tag.TotalLinesInChapter;
+                                        targetLine = (int)(maxSourceLine * ratio);
+                                        if (targetLine < 1) targetLine = 1;
+                                    }
+                                    else targetLine = tag.StartLine;
+                                }
+                                else if (g.Tag is EpubImageTag imgTag)
+                                {
+                                    var tempBlocks = await GetEpubChapterAsAozoraBlocksAsync(targetChapter);
+                                    var targetBlock = tempBlocks.FirstOrDefault(b => b.Inlines.OfType<AozoraImage>().Any(img => img.Source == imgTag.FullPath));
+                                    if (targetBlock != null) targetLine = targetBlock.SourceLineNumber;
+                                    else targetLine = 1;
+                                }
+                            }
                         }
                     }
                     else if (_isTextMode)

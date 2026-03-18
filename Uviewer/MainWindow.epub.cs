@@ -687,11 +687,13 @@ namespace Uviewer
             bool hasImages = html.Contains("<img", StringComparison.OrdinalIgnoreCase) || html.Contains("<image", StringComparison.OrdinalIgnoreCase);
             bool isFirstContent = true;
 
+            // [추가] 챕터 내 누적 줄 번호 유지
+            int globalLineCounter = 1; 
+
             foreach (var segment in segments)
             {
                 if (string.IsNullOrWhiteSpace(segment)) continue;
 
-                // Check if segment is an image tag
                 if (RxEpubIsImg.IsMatch(segment))
                 {
                     var imgPage = await CreateImagePageAsync(segment, currentPath);
@@ -699,27 +701,40 @@ namespace Uviewer
                     {
                         pages.Add(imgPage);
                         isFirstContent = false;
+                        globalLineCounter++; // [추가] 이미지는 1줄로 계산
                     }
                 }
                 else
                 {
-                    var textPages = await CreateTextPagesAsync(segment);
-                    if (textPages.Count == 0) continue;
-
-                    // [User Request] If this is a short title page at the start of a chapter with images, skip it.
-                    if (isFirstContent && hasImages && textPages.Count == 1)
+                    // [수정] 텍스트가 의미 없는 짧은 타이틀인 경우, 렌더링 스킵 처리(줄 번호 증가 방지)
+                    if (isFirstContent && hasImages)
                     {
                         string plainText = RxEpubAnyTag.Replace(segment, "");
                         plainText = System.Net.WebUtility.HtmlDecode(plainText).Trim();
                         if (plainText.Length > 0 && plainText.Length < 100)
                         {
-                            isFirstContent = false; // Mark that we've handled the "first" part
+                            isFirstContent = false;
                             continue;
                         }
                     }
 
+                    // [수정] 누적 줄 번호(globalLineCounter)를 전달하고, 생성된 줄 수를 반환받음
+                    var (textPages, cumulativeLines) = await CreateTextPagesAsync(segment, globalLineCounter);
+                    if (textPages.Count == 0) continue;
+
                     pages.AddRange(textPages);
+                    globalLineCounter += cumulativeLines;
                     isFirstContent = false;
+                }
+            }
+
+            // [추가] 챕터의 전체 세그먼트 파싱이 끝난 후, 모든 페이지의 '총 줄 수'를 최종 누적된 줄 수로 업데이트
+            int totalLinesInChapter = Math.Max(1, globalLineCounter - 1);
+            foreach (var page in pages)
+            {
+                if (page is Grid g && g.Tag is EpubPageInfoTag tag)
+                {
+                    tag.TotalLinesInChapter = totalLinesInChapter;
                 }
             }
 
@@ -845,10 +860,10 @@ namespace Uviewer
             return _currentEpubArchive?.Entries.FirstOrDefault(e => e.Name.Equals(name, StringComparison.OrdinalIgnoreCase));
         }
 
-        private async Task<List<UIElement>> CreateTextPagesAsync(string htmlContent)
+        private async Task<(List<UIElement> Pages, int CumulativeLines)> CreateTextPagesAsync(string htmlContent, int currentStartLine)
         {
             var blocks = ParseHtmlToBlocks(htmlContent);
-            if (blocks.Count == 0) return new List<UIElement>();
+            if (blocks.Count == 0) return (new List<UIElement>(), 0);
 
             List<UIElement> textPages = new List<UIElement>();
             
@@ -910,7 +925,9 @@ namespace Uviewer
             if (linesPerPage < 1) linesPerPage = 1;
             
             int cumulativeLines = linesPerPage;
-            page1Grid.Tag = new EpubPageInfoTag { StartLine = 1, LineCount = linesPerPage };
+            
+            // [수정] 무조건 1부터 시작하는 대신, 전달받은 누적 시작 줄 번호(currentStartLine)를 할당
+            page1Grid.Tag = new EpubPageInfoTag { StartLine = currentStartLine, LineCount = linesPerPage };
 
             // Chain Overflow
             FrameworkElement lastLinked = rtb;
@@ -953,23 +970,16 @@ namespace Uviewer
 
                 overflow.Measure(new Windows.Foundation.Size((float)targetWidth, (float)targetHeight));
                 
-                pageGrid.Tag = new EpubPageInfoTag { StartLine = cumulativeLines + 1, LineCount = linesPerPage };
+                // [수정] 오버플로우 페이지에도 누적된 줄 번호를 기준으로 StartLine 설정
+                pageGrid.Tag = new EpubPageInfoTag { StartLine = currentStartLine + cumulativeLines, LineCount = linesPerPage };
                 cumulativeLines += linesPerPage;
 
                 lastLinked = overflow;
                 pageCount++;
             }
             
-            // Set total lines in chapter for each page tag
-            foreach (var page in textPages)
-            {
-                if (page is Grid g && g.Tag is EpubPageInfoTag tag)
-                {
-                    tag.TotalLinesInChapter = cumulativeLines;
-                }
-            }
-            
-            return textPages;
+            // [추가] 다음 텍스트/이미지 세그먼트의 시작 줄 번호를 위해 누적 줄 수 반환
+            return (textPages, cumulativeLines);
         }
 
         private void AddTextPage(List<UIElement> pages, List<Block> pageBlocks, double width)
@@ -1432,35 +1442,61 @@ namespace Uviewer
                 }
                 
                 int finalTargetPage = 0;
-                if (targetPage >= 0)
+
+                // 1. 줄 번호(targetLine)가 존재하면 가장 우선순위로 적용합니다.
+                if (targetLine > 1) 
                 {
-                    finalTargetPage = Math.Min(targetPage, pages.Count - 1);
-                }
-                else if (progress.HasValue)
-                {
-                    int maxPage = Math.Max(0, pages.Count - 1);
-                    finalTargetPage = (int)(maxPage * progress.Value);
-                }
-                else if (targetLine > 0)
-                {
+                    var tempBlocks = await GetEpubChapterAsAozoraBlocksAsync(index);
+                    int maxSourceLine = tempBlocks.Count > 0 ? tempBlocks.Last().SourceLineNumber : 1;
+                    double targetRatio = (double)targetLine / Math.Max(1, maxSourceLine);
+                    if (targetRatio > 1.0) targetRatio = 1.0;
+
                     for (int i = 0; i < pages.Count; i++)
                     {
                         if (pages[i] is Grid pg && pg.Tag is EpubPageInfoTag tag)
                         {
-                            if (targetLine >= tag.StartLine && targetLine < tag.StartLine + tag.LineCount)
+                            double pageStartRatio = (double)tag.StartLine / Math.Max(1, tag.TotalLinesInChapter);
+                            double pageEndRatio = (double)(tag.StartLine + tag.LineCount) / Math.Max(1, tag.TotalLinesInChapter);
+
+                            if (targetRatio >= pageStartRatio && targetRatio <= pageEndRatio)
                             {
                                 finalTargetPage = i;
                                 break;
                             }
                             // Last page fallback
-                            if (i == pages.Count - 1 && targetLine >= tag.StartLine)
+                            if (i == pages.Count - 1 && targetRatio >= pageStartRatio)
                             {
                                 finalTargetPage = i;
                                 break;
                             }
                         }
+                        else if (pages[i] is Grid imgPg && imgPg.Tag is EpubImageTag imgTag)
+                        {
+                            var targetBlock = tempBlocks.FirstOrDefault(b => b.Inlines.OfType<AozoraImage>().Any(img => img.Source == imgTag.FullPath));
+                            if (targetBlock != null)
+                            {
+                                double imgRatio = (double)targetBlock.SourceLineNumber / Math.Max(1, maxSourceLine);
+                                if (targetLine == targetBlock.SourceLineNumber || Math.Abs(imgRatio - targetRatio) < 0.05)
+                                {
+                                    finalTargetPage = i;
+                                    break;
+                                }
+                            }
+                        }
                     }
                 }
+                // 2. 줄 번호가 없을 때 기존 저장된 페이지 인덱스를 사용합니다.
+                else if (targetPage > 0) 
+                {
+                    finalTargetPage = Math.Min(targetPage, pages.Count - 1);
+                }
+                // 3. 퍼센트 진행도가 있을 경우
+                else if (progress.HasValue)
+                {
+                    int maxPage = Math.Max(0, pages.Count - 1);
+                    finalTargetPage = (int)(maxPage * progress.Value);
+                }
+                // 4. 이전 챕터에서 넘어올 때 (마지막 페이지)
                 else if (fromEnd && pages.Count > 0)
                 {
                     finalTargetPage = pages.Count - 1;
