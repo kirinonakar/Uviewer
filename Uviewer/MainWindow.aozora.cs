@@ -440,6 +440,7 @@ namespace Uviewer
                     _isMarkdownRenderMode = true;
                     _aozoraBlocks = await Task.Run(() => ParseMarkdownContent(rawContent));
                     _aozoraTotalLineCountInSource = _aozoraBlocks.Count; // Markdown line count approximation
+                    _textTotalLineCountInSource = _aozoraBlocks.Count; 
                 }
                 else
                 {
@@ -465,6 +466,7 @@ namespace Uviewer
                     
                     var lines = rawContent.Replace("\r\n", "\n").Replace("\r", "\n").Split('\n');
                     _aozoraTotalLineCountInSource = lines.Length;
+                    _textTotalLineCountInSource = lines.Length; 
 
                     int initialLimit = 2000;
                     if (targetLine > initialLimit - 500) initialLimit = targetLine + 500;
@@ -478,6 +480,10 @@ namespace Uviewer
                         // Proceed to render first page immediately below...
                         
                         // 2. Queue Background Load for the rest
+                        var activeBlocksRef = _aozoraBlocks; 
+                        int expectedContentHash = rawContent.GetHashCode(); // [추가] 텍스트의 고유 해시값 캡처
+                        int expectedSourceCount = lines.Length; // [추가] 원본 텍스트의 실제 줄 수 캡처
+                        
                         _ = Task.Run(() => 
                         {
                             try
@@ -491,22 +497,34 @@ namespace Uviewer
                                 {
                                     if (token.IsCancellationRequested) return;
                                     
-                                    // [수정 1] 세로모드(_isVerticalMode)일 때도 데이터가 추가될 수 있도록 조건 변경
+                                    // [핵심 해결책] 화면에 로드된 텍스트가 로딩을 시작했던 텍스트와 다르면 즉시 폐기 (다른 파일로 넘어간 경우 완벽 차단)
+                                    if (string.IsNullOrEmpty(_currentTextContent) || _currentTextContent.GetHashCode() != expectedContentHash) return;
+                                    
+                                    // 모드 전환 등으로 객체가 새로 생성되었다면 병합 중단
+                                    if (_aozoraBlocks != activeBlocksRef) return;
+                                    
                                     if (!_isAozoraMode && !_isVerticalMode) return; 
                                     
                                     _aozoraBlocks.AddRange(restBlocks);
-                                    
-                                    // [수정 2] 데이터가 추가된 만큼 총 시각적 줄 수(블록 수) 갱신
                                     _aozoraTotalLineCount = _aozoraBlocks.Count;
+                                    _aozoraTotalLineCountInSource = expectedSourceCount; // [추가] 전체 줄 수 강제 동기화
+                                    _textTotalLineCountInSource = expectedSourceCount; 
                                     
                                     if (_isAozoraMode)
                                     {
-                                        // Trigger status update and full page recalc
                                         UpdateAozoraStatusBar();
                                         StartAozoraPageCalculationAsync();
                                     }
-                                    // 세로모드(_isVerticalMode)인 경우, 이미 _aozoraBlocks와 _aozoraTotalLineCount가 
-                                    // 갱신되었으므로 세로모드 UI 렌더링/상태바 로직이 정상적인 전체 크기를 반영하게 됩니다.
+                                    else if (_isVerticalMode)
+                                    {
+                                        try
+                                        {
+                                            int currentLine = _currentVerticalPageInfo.StartLine;
+                                            if (currentLine <= 0) currentLine = 1;
+                                            _ = PrepareVerticalTextAsync(currentLine);
+                                        }
+                                        catch { }
+                                    }
                                 });
                             }
                             catch (Exception ex)

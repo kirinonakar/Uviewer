@@ -541,6 +541,9 @@ namespace Uviewer
         {
             _isTextMode = false;
             _isEpubMode = false; // Reset Epub mode
+            _isVerticalMode = false; // [Fix] Images should always open in normal mode, not vertical
+            if (VerticalToggleButton != null) VerticalToggleButton.IsChecked = false;
+
             ImageArea.Visibility = Visibility.Visible;
             TextArea.Visibility = Visibility.Collapsed;
             EpubArea.Visibility = Visibility.Collapsed;

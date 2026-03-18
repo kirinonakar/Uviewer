@@ -230,11 +230,11 @@ namespace Uviewer
             itemGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
             itemGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
 
-            string vMark = favorite.IsVertical ? "[V] " : "";
-            string posString = "";
+            bool isImageFile = (favorite.Type == "File" || favorite.Type == "Archive") && !string.IsNullOrEmpty(favorite.Path) && 
+                               (SupportedImageExtensions.Contains(Path.GetExtension(favorite.Path).ToLowerInvariant()) || favorite.Type == "Archive");
 
-            bool isImageFile = favorite.Type == "File" && !string.IsNullOrEmpty(favorite.Path) && 
-                               SupportedImageExtensions.Contains(Path.GetExtension(favorite.Path).ToLowerInvariant());
+            string vMark = (favorite.IsVertical && !isImageFile) ? "[V] " : "";
+            string posString = "";
 
             if (!isImageFile)
             {
@@ -1157,11 +1157,11 @@ namespace Uviewer
                 itemGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
                 itemGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
 
-                string vMark = recent.IsVertical ? "[V] " : "";
-                string posString = "";
+                bool isImageFile = (recent.Type == "File" || recent.Type == "Archive") && !string.IsNullOrEmpty(recent.Path) && 
+                                   (SupportedImageExtensions.Contains(Path.GetExtension(recent.Path).ToLowerInvariant()) || recent.Type == "Archive");
 
-                bool isImageFile = recent.Type == "File" && !string.IsNullOrEmpty(recent.Path) && 
-                                   SupportedImageExtensions.Contains(Path.GetExtension(recent.Path).ToLowerInvariant());
+                string vMark = (recent.IsVertical && !isImageFile) ? "[V] " : "";
+                string posString = "";
 
                 if (!isImageFile)
                 {
