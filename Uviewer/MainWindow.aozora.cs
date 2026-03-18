@@ -490,13 +490,23 @@ namespace Uviewer
                                 this.DispatcherQueue.TryEnqueue(() => 
                                 {
                                     if (token.IsCancellationRequested) return;
-                                    if (!_isAozoraMode) return; // Mode switched?
+                                    
+                                    // [수정 1] 세로모드(_isVerticalMode)일 때도 데이터가 추가될 수 있도록 조건 변경
+                                    if (!_isAozoraMode && !_isVerticalMode) return; 
                                     
                                     _aozoraBlocks.AddRange(restBlocks);
                                     
-                                    // Trigger status update and full page recalc
-                                    UpdateAozoraStatusBar();
-                                    StartAozoraPageCalculationAsync();
+                                    // [수정 2] 데이터가 추가된 만큼 총 시각적 줄 수(블록 수) 갱신
+                                    _aozoraTotalLineCount = _aozoraBlocks.Count;
+                                    
+                                    if (_isAozoraMode)
+                                    {
+                                        // Trigger status update and full page recalc
+                                        UpdateAozoraStatusBar();
+                                        StartAozoraPageCalculationAsync();
+                                    }
+                                    // 세로모드(_isVerticalMode)인 경우, 이미 _aozoraBlocks와 _aozoraTotalLineCount가 
+                                    // 갱신되었으므로 세로모드 UI 렌더링/상태바 로직이 정상적인 전체 크기를 반영하게 됩니다.
                                 });
                             }
                             catch (Exception ex)
