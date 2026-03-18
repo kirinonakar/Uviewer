@@ -498,6 +498,13 @@ namespace Uviewer
                 float blockWidth = MeasureVerticalBlockWidth(device, block, availableHeight, fontSizeBase);
                 float safetyBuf = 5.0f;
 
+                // [추가] 박스 진입/이탈 시 양옆 여백(Padding)을 페이지 너비에 반영
+                bool isKeigakomi = block.BorderColor != null || block.BorderThickness.Top > 0;
+                bool wasKeigakomi = pageBlocks.Count > 0 && (pageBlocks[pageBlocks.Count - 1].BorderColor != null || pageBlocks[pageBlocks.Count - 1].BorderThickness.Top > 0);
+
+                if (isKeigakomi && !wasKeigakomi) blockWidth += 20f; // 박스 시작 우측 여백
+                if (!isKeigakomi && wasKeigakomi) blockWidth += 20f; // 박스 종료 좌측 여백
+
                 if (pageBlocks.Count > 0 && usedWidth + blockWidth > (availableWidth - safetyBuf))
                 {
                     break; 
@@ -647,13 +654,22 @@ namespace Uviewer
                 return; // 이미지 페이지는 텍스트를 그리지 않음
             }
 
-            foreach (var block in page.Blocks)
+            // [罫囲み] 박스 렌더링을 위한 상태 변수
+            bool isBoxing = false;
+            float boxRight = 0f;
+            float boxLeft = float.MaxValue;
+            float boxTop = float.MaxValue;
+            float boxBottom = float.MinValue;
+            Color boxColor = Colors.Gray;
+            float boxPad = 20f; // 박스 안팎 여백
+
+            // 기존 foreach를 for 문으로 교체합니다.
+            for (int i = 0; i < page.Blocks.Count; i++)
             {
+                var block = page.Blocks[i];
 
                 float fontSize = (float)(_textFontSize * block.FontSizeScale);
                 float rubyFontSize = fontSize * 0.5f;
-
-                // [레이아웃 너비] 폰트 크기보다 약간 여유 있게 잡음 (줄바꿈 방지 및 루비 공간 확보)
                 float measureWidth = fontSize * 2f;
 
                 using var format = new CanvasTextFormat
@@ -664,7 +680,6 @@ namespace Uviewer
                     WordWrapping = CanvasWordWrapping.EmergencyBreak,
                     LineSpacing = fontSize * 1.8f, 
                     VerticalGlyphOrientation = CanvasVerticalGlyphOrientation.Default,
-                    // [수정 1] 내부 정렬을 제거하거나 Center로 둡니다. (좌표 계산으로 직접 정렬할 것이므로)
                     VerticalAlignment = CanvasVerticalAlignment.Center 
                 };
 
@@ -716,46 +731,66 @@ namespace Uviewer
 
                 string blockText = sb.ToString();
 
-                // 1. 텍스트 레이아웃 생성
                 using var textLayout = new CanvasTextLayout(ds, blockText, format, measureWidth, drawHeight);
-
-                // [수정] 괄호 간격 수동 조정 (하단 여백이 있는 경우만 자간을 좁힘)
                 ApplyVerticalBracketSpacing(ds, format, textLayout, blockText, fontSize);
                 
                 if (block.IsBold) textLayout.SetFontWeight(0, blockText.Length, Microsoft.UI.Text.FontWeights.Bold);
                 foreach (var r in boldRanges) textLayout.SetFontWeight(r.start, r.length, Microsoft.UI.Text.FontWeights.Bold);
                 foreach (var r in italicRanges) textLayout.SetFontStyle(r.start, r.length, Windows.UI.Text.FontStyle.Italic);
-                // Note: SetVerticalGlyphOrientation is not supported in this version of Win2D for ranges.
-                // TCY will be shown but may be rotated depending on font/character.
 
-                // 2. [핵심 수정] 텍스트의 실제 점유 영역(Bounding Box) 계산
                 var bounds = textLayout.LayoutBounds;
-
-                // 3. [핵심 수정] 왼쪽 마진 진입 여부 체크 (잘림 방지)
-                // 루비 공간을 두께에 포함하지 않음 (루비는 오른쪽 여백 사용)
                 float currentLineThickness = (float)bounds.Width;
                 if (block.IsBlankLine) currentLineThickness *= 0.5f;
 
-                // 4. 그리기 위치(drawX) 보정
-                // 목표: 텍스트의 "오른쪽 끝(Left + Width)"이 "currentX"에 딱 맞아야 함.
-                float drawX = currentX - (float)(bounds.X + bounds.Width);
+                // --- 罫囲み (박스) 처리 ---
+                bool isKeigakomi = block.BorderColor != null || block.BorderThickness.Top > 0;
                 
-                // Y축 정렬
                 float drawY = startY + (float)block.Margin.Top;
                 if (block.Alignment == TextAlignment.Center) drawY = (float)((size.Height - bounds.Height) / 2);
                 else if (block.Alignment == TextAlignment.Right) drawY = (float)(size.Height - bounds.Height - marginBottom);
 
-                // ==========================================
-                // [버그 수정] 왼쪽 여백 침범 체크 제거
-                // 미세한 오차로 인해 긴 문단(병합된 블록) 전체가 통째로 렌더링에서 누락되며
-                // 페이지를 건너뛰는 현상을 방지하기 위해 강제 break를 제거합니다.
-                // ==========================================
-                // if (currentX - currentLineThickness < marginLeft) break; 
+                // 빈 줄일 경우 텍스트 높이가 너무 작아 박스가 찌그러지는 것을 방지
+                float currentH = (float)bounds.Height;
+                if (block.IsBlankLine && currentH < fontSize) currentH = fontSize;
+
+                if (isKeigakomi)
+                {
+                    if (!isBoxing)
+                    {
+                        // 박스 시작: 오른쪽 여백 확보
+                        currentX -= boxPad;
+                        isBoxing = true;
+                        boxRight = currentX;
+                        boxLeft = currentX - currentLineThickness;
+                        boxTop = drawY + (float)bounds.Y;
+                        boxBottom = drawY + (float)bounds.Y + currentH;
+                        boxColor = block.BorderColor ?? Colors.Gray;
+                    }
+                    else
+                    {
+                        // 박스 진행 중: 가장 넓은 상하좌우 영역으로 갱신
+                        boxLeft = currentX - currentLineThickness;
+                        boxTop = Math.Min(boxTop, drawY + (float)bounds.Y);
+                        boxBottom = Math.Max(boxBottom, drawY + (float)bounds.Y + currentH);
+                    }
+                }
+                else if (!isKeigakomi && isBoxing)
+                {
+                    // 박스 종료: 텍스트 뒤에 박스 테두리 그리기
+                    ds.DrawRectangle(boxLeft - boxPad, boxTop - boxPad, boxRight - boxLeft + boxPad * 2, boxBottom - boxTop + boxPad * 2, boxColor, 1.5f);
+                    isBoxing = false;
+                    
+                    // 박스 종료 후 왼쪽 여백 확보
+                    currentX -= boxPad;
+                }
+
+                // 4. 그리기 위치(drawX) 보정
+                float drawX = currentX - (float)(bounds.X + bounds.Width);
 
                 // 5. 본문 그리기
                 ds.DrawTextLayout(textLayout, drawX, drawY, textColor);
 
-                // 5. 루비 그리기 (개선됨: 겹침 방지 처리)
+                // 6. 루비 그리기 
                 using var rubyFormat = new CanvasTextFormat
                 {
                     FontSize = rubyFontSize,
@@ -765,23 +800,17 @@ namespace Uviewer
                     WordWrapping = CanvasWordWrapping.NoWrap
                 };
 
-                // [수정] 루비 겹침 방지를 위해 리스트에 먼저 담음
                 var rubyRenderInfos = new List<RubyRenderInfo>();
-
                 foreach (var ruby in rubyRanges)
                 {
                     var regions = textLayout.GetCharacterRegions(ruby.start, ruby.length);
                     if (regions.Length > 0)
                     {
                         var charBounds = regions[0].LayoutBounds;
-
                         float rubyX = drawX + (float)charBounds.Left + (float)charBounds.Width + (rubyFontSize * 2.2f);
-                        float rubyY = drawY + (float)charBounds.Top; // Base Y position
+                        float rubyY = drawY + (float)charBounds.Top; 
 
-                        // 루비 레이아웃 생성
                         var rubyLayout = new CanvasTextLayout(ds, ruby.rubyText, rubyFormat, 0.0f, rubyFontSize * 1.5f);
-                        
-                        // [추가] 본문(BaseText) 또는 블록이 볼드이면 루비도 볼드 처리
                         if (block.IsBold || boldRanges.Any(br => ruby.start >= br.start && ruby.start < br.start + br.length))
                         {
                             rubyLayout.SetFontWeight(0, ruby.rubyText.Length, Microsoft.UI.Text.FontWeights.Bold);
@@ -789,8 +818,6 @@ namespace Uviewer
 
                         float rubyHeight = (float)rubyLayout.LayoutBounds.Height;
                         float charHeight = (float)charBounds.Height;
-
-                        // 본문 글자 높이의 중앙에 정렬했을 때의 이상적인 Top 위치
                         float idealTop = rubyY + (charHeight - rubyHeight) / 2;
 
                         rubyRenderInfos.Add(new RubyRenderInfo
@@ -799,24 +826,29 @@ namespace Uviewer
                             IdealY = idealTop,
                             Height = rubyHeight,
                             X = rubyX,
-                            Y = idealTop // 초기값은 Ideal position
+                            Y = idealTop 
                         });
                     }
                 }
 
-                // [수정] 겹침 해결 로직 적용
                 ResolveRubyOverlaps(rubyRenderInfos);
 
-                // [수정] 최종 위치에 그리기
                 foreach (var info in rubyRenderInfos)
                 {
                     ds.DrawTextLayout(info.Layout, info.X, info.Y, textColor);
-                    info.Layout.Dispose(); // 중요: 자원 해제
+                    info.Layout.Dispose(); 
                 }
 
                 // 7. 다음 줄 위치 계산
                 float spacing = fontSize * (block.IsBlankLine ? 0.2f : 0.6f); 
                 currentX -= (currentLineThickness + spacing);
+
+                // 루프가 끝났는데(페이지의 끝) 박스가 닫히지 않은 경우 이어서 그리기
+                if (i == page.Blocks.Count - 1 && isBoxing)
+                {
+                    ds.DrawRectangle(boxLeft - boxPad, boxTop - boxPad, boxRight - boxLeft + boxPad * 2, boxBottom - boxTop + boxPad * 2, boxColor, 1.5f);
+                    isBoxing = false;
+                }
             }
         }
 

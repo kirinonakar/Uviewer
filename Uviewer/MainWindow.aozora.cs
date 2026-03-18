@@ -297,6 +297,75 @@ namespace Uviewer
                     if (token.IsCancellationRequested) return;
                     blockToPageMap[i] = pageCount;
                     var block = _aozoraBlocks[i];
+
+                    // --- [추가: 罫囲み 및 테두리 블록 그룹화 페이지 측정] ---
+                    if (block.BorderColor != null || block.BorderThickness.Top > 0 || block.BorderThickness.Left > 0 || block.BorderThickness.Bottom > 0)
+                    {
+                        var keigakomiBlocks = new List<AozoraBindingModel>();
+                        int k = i;
+                        while (k < _aozoraBlocks.Count && 
+                               _aozoraBlocks[k].BorderColor == block.BorderColor && 
+                               _aozoraBlocks[k].BorderThickness == block.BorderThickness)
+                        {
+                            blockToPageMap[k] = pageCount;
+                            keigakomiBlocks.Add(_aozoraBlocks[k]);
+                            k++;
+                        }
+
+                        var border = new Border
+                        {
+                            BorderBrush = new SolidColorBrush(block.BorderColor ?? Colors.Gray),
+                            BorderThickness = block.BorderThickness.Top > 0 || block.BorderThickness.Left > 0 ? block.BorderThickness : new Thickness(1.5),
+                            Padding = block.Padding.Left > 0 ? block.Padding : new Thickness(15),
+                            Margin = new Thickness(0, 10, 0, 10)
+                        };
+
+                        double boxWidth = maxWidth - 40;
+                        if (boxWidth < 100) boxWidth = maxWidth;
+
+                        var innerRtb = new RichTextBlock
+                        {
+                            TextWrapping = TextWrapping.Wrap,
+                            MaxWidth = boxWidth
+                        };
+
+                        foreach (var kb in keigakomiBlocks)
+                        {
+                            innerRtb.Blocks.Add(CreateParagraphFromBlock(kb, availableHeight, boxWidth));
+                        }
+                        border.Child = innerRtb;
+                        
+                        var pWrapper = new Paragraph();
+                        pWrapper.Inlines.Add(new InlineUIContainer { Child = border });
+
+                        dummyRTB.Blocks.Clear();
+                        dummyRTB.Blocks.Add(pWrapper);
+                        dummyRTB.Measure(new Windows.Foundation.Size((float)maxWidth, double.PositiveInfinity));
+                        
+                        double groupedBlockHeight = dummyRTB.DesiredSize.Height;
+
+                        if (currentPageHeight + groupedBlockHeight > availableHeight && currentPageHeight > 0)
+                        {
+                            pageCount++;
+                            currentPageHeight = 0;
+                            // 박스가 다음 페이지로 넘어갔으므로 매핑 업데이트
+                            for (int j = i; j < k; j++) blockToPageMap[j] = pageCount;
+                        }
+                        
+                        currentPageHeight += groupedBlockHeight;
+                        currentMergedBlockHeight = groupedBlockHeight;
+                        
+                        if (currentPageHeight > availableHeight)
+                        {
+                             currentPageHeight = 0; 
+                             pageCount++;
+                        }
+
+                        i = k - 1;
+                        currentMergedBlock = null;
+                        continue;
+                    }
+                    // --- [罫囲み 그룹화 끝] ---
                     
                     if (block.HasImage || block.IsPageBreak)
                     {
@@ -731,6 +800,73 @@ namespace Uviewer
             {
                 var block = _aozoraBlocks[i];
 
+                // --- [추가: 罫囲み 및 테두리 블록 그룹화 렌더링] ---
+                if (block.BorderColor != null || block.BorderThickness.Top > 0 || block.BorderThickness.Left > 0 || block.BorderThickness.Bottom > 0)
+                {
+                    var keigakomiBlocks = new List<AozoraBindingModel>();
+                    int k = i;
+                    
+                    // 속성이 완전히 동일한 연속된 테두리 블록들을 하나로 수집
+                    while (k < _aozoraBlocks.Count && 
+                           _aozoraBlocks[k].BorderColor == block.BorderColor && 
+                           _aozoraBlocks[k].BorderThickness == block.BorderThickness)
+                    {
+                        keigakomiBlocks.Add(_aozoraBlocks[k]);
+                        k++;
+                    }
+
+                    var border = new Border
+                    {
+                        BorderBrush = new SolidColorBrush(block.BorderColor ?? Colors.Gray),
+                        BorderThickness = block.BorderThickness.Top > 0 || block.BorderThickness.Left > 0 ? block.BorderThickness : new Thickness(1.5),
+                        Padding = block.Padding.Left > 0 ? block.Padding : new Thickness(15),
+                        Margin = new Thickness(0, 10, 0, 10),
+                        CornerRadius = new CornerRadius(4),
+                        Background = block.BackgroundColor != null ? new SolidColorBrush(block.BackgroundColor.Value) : null
+                    };
+
+                    // 박스의 좌우 여백 확보
+                    double boxWidth = currentMaxWidth - 40;
+                    if (boxWidth < 100) boxWidth = currentMaxWidth;
+
+                    var rtb = new RichTextBlock
+                    {
+                        TextWrapping = TextWrapping.Wrap,
+                        MaxWidth = boxWidth,
+                        Foreground = GetThemeForeground()
+                    };
+
+                    foreach (var kb in keigakomiBlocks)
+                    {
+                        rtb.Blocks.Add(CreateParagraphFromBlock(kb, availableHeight, boxWidth));
+                    }
+
+                    border.Child = rtb;
+                    
+                    var pWrapper = new Paragraph();
+                    pWrapper.Inlines.Add(new InlineUIContainer { Child = border });
+
+                    AozoraPageContent.Blocks.Add(pWrapper);
+                    AozoraPageContent.Measure(new Windows.Foundation.Size(AozoraPageContent.MaxWidth, double.PositiveInfinity));
+                    double groupedMeasuredHeight = AozoraPageContent.DesiredSize.Height;
+                    
+                    // 박스가 화면 높이를 초과하면 다음 페이지로 넘김
+                    if (AozoraPageContent.Blocks.Count > 1 && groupedMeasuredHeight > availableHeight)
+                    {
+                        AozoraPageContent.Blocks.Remove(pWrapper);
+                        break;
+                    }
+                    
+                    currentHeight = groupedMeasuredHeight;
+                    endIdx = k - 1;
+                    i = k - 1; // 처리한 인덱스만큼 건너뛰기
+                    currentParagraph = null; 
+                    
+                    if (currentHeight > availableHeight && AozoraPageContent.Blocks.Count == 1) break;
+                    continue;
+                }
+                // --- [罫囲み 그룹화 끝] ---
+
                 // 1. 이어지는 문장인 경우 현재 문단에 합치기 시도
                 if (block.IsParagraphContinuation && currentParagraph != null && !block.HasImage && !block.IsTable && block.HeadingLevel == 0)
                 {
@@ -1108,14 +1244,23 @@ namespace Uviewer
                 {
                      if (lastWasEmpty) continue; // Collapse consecutive empty lines
                      
-                     // Empty line -> Spacer
-                     blocks.Add(new AozoraBindingModel { 
+                     var blankModel = new AozoraBindingModel { 
                          Inlines = { "" }, 
                          Margin = new Thickness(0),
                          SourceLineNumber = startLineOffset + i,
                          BlockIndent = currentIndentEm * _textFontSize,
                          IsBlankLine = true
-                     });
+                     };
+
+                     // [핵심 추가] 빈 줄이라도 罫囲み(테두리) 내부에 있다면 테두리 속성 상속
+                     if (inKeigakomi)
+                     {
+                         blankModel.BorderColor = Colors.Gray;
+                         blankModel.BorderThickness = new Thickness(1);
+                         blankModel.Padding = new Thickness(10);
+                     }
+
+                     blocks.Add(blankModel);
                      lastWasEmpty = true;
                      continue;
                 }
