@@ -210,33 +210,33 @@ namespace Uviewer
                 int startIdx = 0;
 
                 // [수정] 이전 챕터로 돌아올 때(fromEnd: true) 마지막 페이지를 온전하게 계산하여 표시
+// [수정] 이전 챕터로 돌아올 때(fromEnd: true) 마지막 페이지를 온전하게 계산하여 표시
                 if (targetLine == 999999 && _aozoraBlocks.Count > 0)
                 {
-                    int bestStart = Math.Max(0, _aozoraBlocks.Count - 15);
+                    int targetIdx = _aozoraBlocks.Count;
+                    int bestStart = Math.Max(0, targetIdx - 1);
+                    int currentTest = bestStart;
+
                     float availWidth = (float)(VerticalTextCanvas?.ActualWidth ?? 1000) - 80;
                     float availHeight = (float)(VerticalTextCanvas?.ActualHeight ?? 800) - 80;
                     var device = VerticalTextCanvas?.Device ?? Microsoft.Graphics.Canvas.CanvasDevice.GetSharedDevice();
 
-                    int currentTest = _aozoraBlocks.Count - 1;
-                    while (currentTest > 0 && _aozoraBlocks[currentTest].IsParagraphContinuation) currentTest--;
+                    int safetyLimit = Math.Max(0, targetIdx - 1000);
 
-                    int safetyCounter = 0;
-                    while (currentTest >= 0 && safetyCounter < 500)
+                    while (currentTest >= safetyLimit)
                     {
-                        safetyCounter++;
                         int tempIdx = currentTest;
                         PaginateAozoraPage(ref tempIdx, _aozoraBlocks, availWidth, availHeight, device);
                         
-                        if (tempIdx >= _aozoraBlocks.Count)
-                        {
-                            bestStart = currentTest;
-                            currentTest--;
-                            while (currentTest > 0 && _aozoraBlocks[currentTest].IsParagraphContinuation) currentTest--;
-                        }
-                        else
+                        // 화면을 꽉 채우고 남을 때까지 1줄씩 역추산
+                        if (tempIdx < targetIdx && currentTest < bestStart)
                         {
                             break;
                         }
+
+                        bestStart = currentTest;
+                        if (currentTest == 0) break;
+                        currentTest--;
                     }
                     startIdx = bestStart;
                 }
@@ -933,31 +933,34 @@ namespace Uviewer
                 }
                 else if (blocks != null && _currentVerticalStartBlockIndex > 0)
                 {
-                    // [기존 역추적 알고리즘 유지]
                     int targetIdx = _currentVerticalStartBlockIndex;
                     int bestStart = Math.Max(0, targetIdx - 1);
                     int currentTest = bestStart;
-
-                    while (currentTest > 0 && blocks[currentTest].IsParagraphContinuation) currentTest--;
 
                     float availWidth = (float)(VerticalTextCanvas?.ActualWidth ?? 1000) - 80;
                     float availHeight = (float)(VerticalTextCanvas?.ActualHeight ?? 800) - 80;
                     var device = VerticalTextCanvas?.Device ?? Microsoft.Graphics.Canvas.CanvasDevice.GetSharedDevice();
 
-                    int safetyCounter = 0; 
-                    while (currentTest >= 0 && safetyCounter < 500)
+                    // 💡 [수정] 박스나 긴 단락 대비 탐색 한계치를 1000블록으로 넉넉하게 잡습니다.
+                    int safetyLimit = Math.Max(0, targetIdx - 1000); 
+
+                    while (currentTest >= safetyLimit)
                     {
-                        safetyCounter++;
                         int tempIdx = currentTest;
                         PaginateAozoraPage(ref tempIdx, blocks, availWidth, availHeight, device);
                         
-                        if (tempIdx >= targetIdx)
+                        // tempIdx가 targetIdx에 도달하지 못했다면, 
+                        // currentTest부터 시작하여 채운 페이지가 targetIdx 직전에 꽉 차버렸음을 의미합니다.
+                        if (tempIdx < targetIdx && currentTest < bestStart)
                         {
-                            bestStart = currentTest;
-                            currentTest--;
-                            while (currentTest > 0 && blocks[currentTest].IsParagraphContinuation) currentTest--;
+                            break;
                         }
-                        else break;
+
+                        bestStart = currentTest;
+                        if (currentTest == 0) break;
+                        
+                        // 💡 [핵심] 단락 처음으로 무조건 건너뛰는 코드를 삭제하고 1줄씩 뒤로 이동합니다.
+                        currentTest--;
                     }
 
                     RenderVerticalDynamicPage(bestStart);
