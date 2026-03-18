@@ -69,9 +69,10 @@ namespace Uviewer
                 if (TextArea != null) TextArea.Visibility = Visibility.Visible;
                 
                 int currentLine = 1;
-                if (_isAozoraMode) currentLine = (_aozoraBlocks != null && _aozoraBlocks.Count > _currentAozoraStartBlockIndex) ? _aozoraBlocks[_currentAozoraStartBlockIndex].SourceLineNumber : 1;
 
-                else if (_isEpubMode)
+                // [핵심 수정] EPUB 모드 검사를 가장 먼저 수행하여, 전역 설정인 _isAozoraMode가 켜져 있더라도 
+                // 무조건 EPUB 챕터 파싱과 페이지 위치 비율 계산을 최우선으로 가져오도록 합니다.
+                if (_isEpubMode)
                 {
                     _aozoraBlocks = await GetEpubChapterAsAozoraBlocksAsync(_currentEpubChapterIndex);
 
@@ -112,7 +113,15 @@ namespace Uviewer
                         }
                     }
                 }
-                else if (TextScrollViewer != null) currentLine = GetTopVisibleLineIndex();
+                // EPUB이 아닌 일반 텍스트 모드일 경우
+                else if (_isAozoraMode)
+                {
+                    currentLine = (_aozoraBlocks != null && _aozoraBlocks.Count > _currentAozoraStartBlockIndex) ? _aozoraBlocks[_currentAozoraStartBlockIndex].SourceLineNumber : 1;
+                }
+                else if (TextScrollViewer != null) 
+                {
+                    currentLine = GetTopVisibleLineIndex();
+                }
 
                 await PrepareVerticalTextAsync(currentLine, _globalTextCts?.Token ?? default);
             }
@@ -125,7 +134,9 @@ namespace Uviewer
                     RootGrid.PreviewKeyDown -= RootGrid_Vertical_PreviewKeyDown;
                     _verticalKeyAttached = false;
                 }
-                int currentLine = _currentVerticalPageInfo.Blocks != null ? _currentVerticalPageInfo.StartLine : 1;
+                
+                // [안전 장치] Blocks가 비어있을 때 발생하는 오류 방지
+                int currentLine = _currentVerticalPageInfo.Blocks != null && _currentVerticalPageInfo.Blocks.Count > 0 ? _currentVerticalPageInfo.StartLine : 1;
 
                 if (VerticalTextCanvas != null) VerticalTextCanvas.Visibility = Visibility.Collapsed;
                 if (_isEpubMode)
@@ -133,7 +144,6 @@ namespace Uviewer
                     if (EpubArea != null) EpubArea.Visibility = Visibility.Visible;
                     if (TextArea != null) TextArea.Visibility = Visibility.Collapsed;
                     
-                    // [Fix] Calculate progress ratio for EPUB
                     double? progress = null;
                     if (_aozoraBlocks != null && _aozoraBlocks.Count > 0)
                     {
@@ -1034,35 +1044,45 @@ namespace Uviewer
             // Home 키 부분:
             if (e.Key == Windows.System.VirtualKey.Home)
             {
-                if (_currentVerticalStartBlockIndex > 0)
+                // [수정] EPUB 모드일 때는 무조건 이전 챕터로 이동
+                if (_isEpubMode)
+                {
+                    if (_currentEpubChapterIndex > 0)
+                    {
+                        _currentEpubChapterIndex--;
+                        _ = LoadEpubChapterAsync(_currentEpubChapterIndex);
+                    }
+                    e.Handled = true;
+                }
+                // 일반 텍스트 모드일 때는 텍스트의 처음으로 이동
+                else if (_currentVerticalStartBlockIndex > 0)
                 {
                     _verticalNavHistory.Clear();
                     RenderVerticalDynamicPage(0);
                     if (_isVerticalPageCalcCompleted) { _verticalCalculatedCurrentPage = 1; UpdateVerticalStatusBar(); }
                     e.Handled = true;
                 }
-                else if (_isEpubMode && _currentEpubChapterIndex > 0)
-                {
-                    _currentEpubChapterIndex--;
-                    _ = LoadEpubChapterAsync(_currentEpubChapterIndex);
-                    e.Handled = true;
-                }
             }
             // End 키 부분:
             else if (e.Key == Windows.System.VirtualKey.End)
             {
-                if (_currentVerticalEndBlockIndex < _aozoraBlocks.Count - 1)
+                // [수정] EPUB 모드일 때는 무조건 다음 챕터로 이동
+                if (_isEpubMode)
+                {
+                    if (_currentEpubChapterIndex < _epubSpine.Count - 1)
+                    {
+                        _currentEpubChapterIndex++;
+                        _ = LoadEpubChapterAsync(_currentEpubChapterIndex);
+                    }
+                    e.Handled = true;
+                }
+                // 일반 텍스트 모드일 때는 텍스트의 끝으로 이동
+                else if (_currentVerticalEndBlockIndex < _aozoraBlocks.Count - 1)
                 {
                     _verticalNavHistory.Clear();
                     int lastIdx = Math.Max(0, _aozoraBlocks.Count - 15); // 끝부분 추정
                     RenderVerticalDynamicPage(lastIdx);
                     if (_isVerticalPageCalcCompleted) { _verticalCalculatedCurrentPage = _verticalTotalPages; UpdateVerticalStatusBar(); }
-                    e.Handled = true;
-                }
-                else if (_isEpubMode && _currentEpubChapterIndex < _epubSpine.Count - 1)
-                {
-                    _currentEpubChapterIndex++;
-                    _ = LoadEpubChapterAsync(_currentEpubChapterIndex);
                     e.Handled = true;
                 }
             }

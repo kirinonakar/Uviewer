@@ -257,13 +257,8 @@ namespace Uviewer
             }
             else if (e.Key == Windows.System.VirtualKey.Home)
             {
-                 if (_isVerticalMode)
-                 {
-                    _verticalNavHistory.Clear();
-                    RenderVerticalDynamicPage(0);
-                    UpdateVerticalStatusBar();
-                 }
-                 else if (_currentEpubChapterIndex > 0)
+                 // [수정] 세로 모드 여부와 관계없이 EPUB에서는 무조건 이전 챕터로 이동
+                 if (_currentEpubChapterIndex > 0)
                  {
                      _currentEpubChapterIndex--;
                      _ = LoadEpubChapterAsync(_currentEpubChapterIndex);
@@ -272,16 +267,8 @@ namespace Uviewer
             }
             else if (e.Key == Windows.System.VirtualKey.End)
             {
-                 if (_isVerticalMode)
-                 {
-                    // For virtualized vertical mode, jump to end is tricky without full calc.
-                    // For now, if calc is done, we jump to what we think is the end.
-                    // Or we just jump to a very large block index and let it clamp.
-                    _verticalNavHistory.Clear();
-                    RenderVerticalDynamicPage(999999); 
-                    UpdateVerticalStatusBar();
-                 }
-                 else if (_currentEpubChapterIndex < _epubSpine.Count - 1)
+                 // [수정] 세로 모드 여부와 관계없이 EPUB에서는 무조건 다음 챕터로 이동
+                 if (_currentEpubChapterIndex < _epubSpine.Count - 1)
                  {
                      _currentEpubChapterIndex++;
                      _ = LoadEpubChapterAsync(_currentEpubChapterIndex);
