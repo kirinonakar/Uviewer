@@ -1639,7 +1639,14 @@ namespace Uviewer
             }
 
             _textTotalLineCountInSource = lineNum - 1;
-            return blocks;
+
+            // ===== [추가] 문단이 긴 경우 문장 단위로 블록 분리 (Aozora와 일치) =====
+            var splitBlocks = new List<AozoraBindingModel>();
+            foreach (var block in blocks)
+            {
+                splitBlocks.AddRange(SplitBlockBySentences(block));
+            }
+            return splitBlocks;
         }
 
         private List<AozoraBindingModel> ParseHtmlToAozoraTextBlocks(string html, ref int lineNum, int chapterIndex)
