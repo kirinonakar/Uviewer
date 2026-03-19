@@ -573,7 +573,7 @@
                   SizeChanged="ImageArea_SizeChanged"
                   PointerWheelChanged="ImageArea_PointerWheelChanged"
                   PointerPressed="ImageArea_PointerPressed"
-                  ManipulationMode="None"
+                  ManipulationMode="Scale, TranslateX, TranslateY"
                   ManipulationDelta="ImageArea_ManipulationDelta"
                   ManipulationCompleted="ImageArea_ManipulationCompleted">
                 <!-- Empty State -->

@@ -945,6 +945,7 @@ namespace Uviewer
         {
             var properties = e.GetCurrentPoint(ImageArea).Properties;
             var wheelDelta = properties.MouseWheelDelta;
+            var isHorizontal = properties.IsHorizontalMouseWheel;
 
             var ctrl = Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(Windows.System.VirtualKey.Control);
             if (ctrl.HasFlag(Windows.UI.Core.CoreVirtualKeyStates.Down))
@@ -962,17 +963,27 @@ namespace Uviewer
 
             if (_currentPdfDocument != null && _currentBitmap != null)
             {
-                // PDF 연속 스크롤 처리
-                double step = 80;
-                double deltaY = (wheelDelta > 0) ? step : -step;
-                await HandlePdfScrollAsync(0, deltaY);
+                // [핵심] 강제로 80 단위로 움직이던 코드를 제거하고, 터치패드의 부드러운 실제 값을 그대로 전달합니다.
+                // 가로 스크롤(스와이프)도 함께 지원하도록 분기합니다.
+                if (isHorizontal)
+                {
+                    await HandlePdfScrollAsync(wheelDelta, 0);
+                }
+                else
+                {
+                    await HandlePdfScrollAsync(0, wheelDelta);
+                }
                 e.Handled = true;
                 return;
             }
 
-            // 일반 이미지 내비게이션
-            if (wheelDelta < 0) await NavigateToNextAsync();
-            else if (wheelDelta > 0) await NavigateToPreviousAsync();
+            // 일반 이미지 내비게이션 (단일 이미지 모드)
+            // 터치패드의 미세한 움직임에 의해 페이지가 너무 훅훅 넘어가는 것을 막기 위한 안전장치(Threshold)
+            if (Math.Abs(wheelDelta) >= 40)
+            {
+                if (wheelDelta < 0) await NavigateToNextAsync();
+                else await NavigateToPreviousAsync();
+            }
 
             e.Handled = true;
         }
