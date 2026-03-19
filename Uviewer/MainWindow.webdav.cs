@@ -587,5 +587,25 @@ namespace Uviewer
         }
 
         #endregion
+        private string? ResolveWebDavImagePath(string relativePath)
+        {
+            if (string.IsNullOrEmpty(_currentWebDavItemPath)) return null;
+
+            // Normalize
+            string rel = relativePath.Replace('\\', '/').TrimStart('/');
+            string baseDir = "";
+
+            int lastSlash = _currentWebDavItemPath.LastIndexOf('/');
+            if (lastSlash >= 0)
+            {
+                baseDir = _currentWebDavItemPath.Substring(0, lastSlash + 1);
+            }
+            else
+            {
+                baseDir = "/";
+            }
+
+            return baseDir + rel;
+        }
     }
 }

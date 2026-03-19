@@ -368,16 +368,32 @@ namespace Uviewer
                         blockToPageMap[i] = pageCount;
                         
                         var block = _aozoraBlocks[i];
-                        if (block.HasImage)
+
+                        // 페이지 시작 부분의 빈 줄(공백) 건너뛰기 - 빈 페이지 방지
+                        if (currentPageWidth == 0 && block.IsBlankLine && !block.HasImage && !block.IsPageBreak)
+                        {
+                            blockToPageMap[i] = pageCount;
+                            continue;
+                        }
+
+                        if (block.HasImage || block.IsPageBreak)
                         {
                             if (currentPageWidth > 0)
                             {
                                 pageCount++;
                                 currentPageWidth = 0;
-                                blockToPageMap[i] = pageCount;
                             }
+                            
+                            if (block.IsPageBreak)
+                            {
+                                blockToPageMap[i] = pageCount; // Map the page break to the new page it starts
+                                continue; // Skip the page break block itself
+                            }
+
+                            // If it's an image (and not a page break)
                             pageCount++;
                             currentPageWidth = 0;
+                            blockToPageMap[i] = pageCount; // Map the image to its new page
                             continue;
                         }
 
@@ -427,16 +443,32 @@ namespace Uviewer
             {
                 var block = blocks[index];
 
-                if (block.HasImage)
+                // [추가] 페이지 시작 시 빈 줄(공백) 건너뛰기 - 빈 페이지 방지
+                if (pageBlocks.Count == 0 && block.IsBlankLine && !block.HasImage && !block.IsPageBreak)
                 {
+                    index++;
+                    continue;
+                }
+
+                if (block.HasImage || block.IsPageBreak)
+                {
+                    // If the current page already has content, break to start a new page.
+                    // Otherwise, if it's a page break at the start of a page, just skip it.
+                    if (pageBlocks.Count > 0) break;
+
+                    if (block.IsPageBreak)
+                    {
+                        index++;
+                        continue; // Skip the page break block itself if at the start of a page
+                    }
+
+                    // Handle image block
                     var aozoraImg = block.Inlines.OfType<AozoraImage>().FirstOrDefault();
                     if (aozoraImg != null && !DoesVerticalImageExist(aozoraImg.Source))
                     {
                         index++;
                         continue;
                     }
-
-                    if (pageBlocks.Count > 0) break;
                     
                     pageBlocks.Add(block);
                     index++;
@@ -1289,11 +1321,15 @@ namespace Uviewer
 
             try
             {
+                if (_isWebDavMode && !string.IsNullOrEmpty(_currentWebDavItemPath))
+                {
+                    return true;
+                }
                 if (_isEpubMode && _currentEpubArchive != null)
                 {
                     string normPath = relativePath.Replace('\\', '/');
-                    return _currentEpubArchive.Entries.Any(e => 
-                        e.FullName.Replace('\\', '/') == normPath || 
+                    return _currentEpubArchive.Entries.Any(e =>
+                        e.FullName.Replace('\\', '/') == normPath ||
                         string.Equals(e.FullName.Replace('\\', '/'), normPath, StringComparison.OrdinalIgnoreCase));
                 }
                 if (!string.IsNullOrEmpty(_currentTextFilePath) && _currentTextArchiveEntryKey == null)
@@ -1316,14 +1352,14 @@ namespace Uviewer
 
                     if (_currentArchive != null)
                     {
-                        return _currentArchive.Entries.Any(e => e.Key != null && 
-                               (e.Key.Replace('\\', '/') == targetKey || 
+                        return _currentArchive.Entries.Any(e => e.Key != null &&
+                               (e.Key.Replace('\\', '/') == targetKey ||
                                 string.Equals(e.Key.Replace('\\', '/'), targetKey, StringComparison.OrdinalIgnoreCase)));
                     }
                     else if (_current7zArchive != null)
                     {
-                        return _current7zArchive.Entries.Any(e => e.FileName != null && 
-                               (e.FileName.Replace('\\', '/') == targetKey || 
+                        return _current7zArchive.Entries.Any(e => e.FileName != null &&
+                               (e.FileName.Replace('\\', '/') == targetKey ||
                                 string.Equals(e.FileName.Replace('\\', '/'), targetKey, StringComparison.OrdinalIgnoreCase)));
                     }
                 }
@@ -1338,7 +1374,19 @@ namespace Uviewer
             {
                 byte[]? bytes = null;
 
-                if (_isEpubMode && _currentEpubArchive != null)
+                if (_isWebDavMode && !string.IsNullOrEmpty(_currentWebDavItemPath))
+                {
+                    string? fullRemotePath = ResolveWebDavImagePath(relativePath);
+                    if (fullRemotePath != null)
+                    {
+                        var tempPath = await _webDavService.DownloadToTempFileAsync(fullRemotePath);
+                        if (!string.IsNullOrEmpty(tempPath) && System.IO.File.Exists(tempPath))
+                        {
+                            bytes = await System.IO.File.ReadAllBytesAsync(tempPath);
+                        }
+                    }
+                }
+                else if (_isEpubMode && _currentEpubArchive != null)
                 {
                     string normPath = relativePath.Replace('\\', '/');
                     var entry = _currentEpubArchive.Entries.FirstOrDefault(e => e.FullName.Replace('\\', '/') == normPath)
@@ -1383,9 +1431,9 @@ namespace Uviewer
                     {
                         if (_currentArchive != null)
                         {
-                            var entry = _currentArchive.Entries.FirstOrDefault(e => e.Key != null && e.Key.Replace('\\', '/') == targetKey) 
+                            var entry = _currentArchive.Entries.FirstOrDefault(e => e.Key != null && e.Key.Replace('\\', '/') == targetKey)
                                      ?? _currentArchive.Entries.FirstOrDefault(e => e.Key != null && string.Equals(e.Key.Replace('\\', '/'), targetKey, StringComparison.OrdinalIgnoreCase));
-                            
+
                             if (entry != null)
                             {
                                 using var ms = new System.IO.MemoryStream();
@@ -1396,9 +1444,9 @@ namespace Uviewer
                         }
                         else if (_current7zArchive != null)
                         {
-                            var entry = _current7zArchive.Entries.FirstOrDefault(e => e.FileName != null && e.FileName.Replace('\\', '/') == targetKey) 
+                            var entry = _current7zArchive.Entries.FirstOrDefault(e => e.FileName != null && e.FileName.Replace('\\', '/') == targetKey)
                                      ?? _current7zArchive.Entries.FirstOrDefault(e => e.FileName != null && string.Equals(e.FileName.Replace('\\', '/'), targetKey, StringComparison.OrdinalIgnoreCase));
-                            
+
                             if (entry != null)
                             {
                                 using var ms = new System.IO.MemoryStream();

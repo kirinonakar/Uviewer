@@ -410,14 +410,30 @@ namespace Uviewer
                         blockToPageMap[i] = pageCount;
 
                         var block = _aozoraBlocks[i];
+
+                        // 페이지 시작 부분의 빈 줄(공백) 건너뛰기 - 빈 페이지 방지
+                        if (currentPageHeight == 0 && block.IsBlankLine && !block.HasImage && !block.IsPageBreak)
+                        {
+                            blockToPageMap[i] = pageCount;
+                            continue;
+                        }
+
                         if (block.HasImage || block.IsPageBreak)
                         {
                             if (currentPageHeight > 0)
                             {
                                 pageCount++;
                                 currentPageHeight = 0;
-                                blockToPageMap[i] = pageCount;
                             }
+                            
+                            if (block.IsPageBreak)
+                            {
+                                // 페이지 분리 기호는 그 자체로 페이지를 차지하지 않고 다음 블록으로 넘김
+                                blockToPageMap[i] = pageCount;
+                                continue;
+                            }
+
+                            // 이미지는 한 페이지 전체 차지
                             pageCount++;
                             currentPageHeight = 0;
                             continue;
@@ -472,17 +488,26 @@ namespace Uviewer
             {
                 var block = blocks[index];
 
+                // [추가] 페이지 시작 시 빈 줄(공백) 건너뛰기 - 빈 페이지 방지
+                if (pageBlocks.Count == 0 && block.IsBlankLine && !block.HasImage && !block.IsPageBreak)
+                {
+                    index++;
+                    continue;
+                }
+
                 if (block.HasImage || block.IsPageBreak)
                 {
-                    var aozoraImg = block.Inlines.OfType<AozoraImage>().FirstOrDefault();
-                    if (aozoraImg != null && !DoesAozoraImageExist(aozoraImg.Source))
+                    // 현재 페이지에 이미 내용이 있다면 여기서 페이지를 마침 (분리 기호/이미지는 다음 페이지로)
+                    if (pageBlocks.Count > 0) break;
+
+                    if (block.IsPageBreak)
                     {
+                        // 페이지 분리 기호 그 자체로는 빈 페이지를 만들지 않고 건너뜀
                         index++;
                         continue;
                     }
 
-                    if (pageBlocks.Count > 0) break;
-
+                    // 이미지는 단독 페이지로 구성
                     pageBlocks.Add(block);
                     index++;
                     currentMergedBlock = null;
@@ -1064,13 +1089,21 @@ namespace Uviewer
             if (string.IsNullOrEmpty(relativePath)) return false;
             try
             {
+                if (_isWebDavMode && !string.IsNullOrEmpty(_currentWebDavItemPath))
+                {
+                    // For WebDAV, we assume it exists to avoid synchronous network calls.
+                    // The actual loading will handle failures.
+                    return true;
+                }
                 if (!string.IsNullOrEmpty(_currentTextFilePath) && _currentTextArchiveEntryKey == null)
                 {
+                    // Local File
                     string fullPath = System.IO.Path.Combine(System.IO.Path.GetDirectoryName(_currentTextFilePath)!, relativePath);
                     return System.IO.File.Exists(fullPath);
                 }
                 else if ((_currentArchive != null || _current7zArchive != null) && !string.IsNullOrEmpty(_currentTextArchiveEntryKey))
                 {
+                    // Archive
                     string normKey = _currentTextArchiveEntryKey.Replace('\\', '/');
                     string? baseDir = "";
                     int lastSlash = normKey.LastIndexOf('/');
@@ -1082,11 +1115,15 @@ namespace Uviewer
 
                     if (_currentArchive != null)
                     {
-                        return _currentArchive.Entries.Any(e => e.Key != null && string.Equals(e.Key.Replace('\\', '/'), targetKey, StringComparison.OrdinalIgnoreCase));
+                        return _currentArchive.Entries.Any(e => e.Key != null &&
+                               (e.Key.Replace('\\', '/') == targetKey ||
+                                string.Equals(e.Key.Replace('\\', '/'), targetKey, StringComparison.OrdinalIgnoreCase)));
                     }
                     else if (_current7zArchive != null)
                     {
-                        return _current7zArchive.Entries.Any(e => e.FileName != null && string.Equals(e.FileName.Replace('\\', '/'), targetKey, StringComparison.OrdinalIgnoreCase));
+                        return _current7zArchive.Entries.Any(e => e.FileName != null &&
+                               (e.FileName.Replace('\\', '/') == targetKey ||
+                                string.Equals(e.FileName.Replace('\\', '/'), targetKey, StringComparison.OrdinalIgnoreCase)));
                     }
                 }
             }
@@ -1129,13 +1166,30 @@ namespace Uviewer
             {
                 byte[]? bytes = null;
 
-                if (!string.IsNullOrEmpty(_currentTextFilePath) && _currentTextArchiveEntryKey == null)
+                if (_isWebDavMode && !string.IsNullOrEmpty(_currentWebDavItemPath))
                 {
+                    string? fullRemotePath = ResolveWebDavImagePath(relativePath);
+                    if (fullRemotePath != null)
+                    {
+                        var tempPath = await _webDavService.DownloadToTempFileAsync(fullRemotePath);
+                        if (!string.IsNullOrEmpty(tempPath) && System.IO.File.Exists(tempPath))
+                        {
+                            bytes = await System.IO.File.ReadAllBytesAsync(tempPath);
+                        }
+                    }
+                }
+                else if (!string.IsNullOrEmpty(_currentTextFilePath) && _currentTextArchiveEntryKey == null)
+                {
+                    // Local File
                     string fullPath = System.IO.Path.Combine(System.IO.Path.GetDirectoryName(_currentTextFilePath)!, relativePath);
-                    if (System.IO.File.Exists(fullPath)) bytes = await System.IO.File.ReadAllBytesAsync(fullPath);
+                    if (System.IO.File.Exists(fullPath))
+                    {
+                        bytes = await System.IO.File.ReadAllBytesAsync(fullPath);
+                    }
                 }
                 else if ((_currentArchive != null || _current7zArchive != null) && !string.IsNullOrEmpty(_currentTextArchiveEntryKey))
                 {
+                    // Archive
                     string normKey = _currentTextArchiveEntryKey.Replace('\\', '/');
                     string? baseDir = "";
                     int lastSlash = normKey.LastIndexOf('/');
@@ -1150,7 +1204,9 @@ namespace Uviewer
                     {
                         if (_currentArchive != null)
                         {
-                            var entry = _currentArchive.Entries.FirstOrDefault(e => e.Key != null && string.Equals(e.Key.Replace('\\', '/'), targetKey, StringComparison.OrdinalIgnoreCase));
+                            var entry = _currentArchive.Entries.FirstOrDefault(e => e.Key != null && e.Key.Replace('\\', '/') == targetKey)
+                                     ?? _currentArchive.Entries.FirstOrDefault(e => e.Key != null && string.Equals(e.Key.Replace('\\', '/'), targetKey, StringComparison.OrdinalIgnoreCase));
+
                             if (entry != null)
                             {
                                 using var ms = new System.IO.MemoryStream();
@@ -1161,7 +1217,9 @@ namespace Uviewer
                         }
                         else if (_current7zArchive != null)
                         {
-                            var entry = _current7zArchive.Entries.FirstOrDefault(e => e.FileName != null && string.Equals(e.FileName.Replace('\\', '/'), targetKey, StringComparison.OrdinalIgnoreCase));
+                            var entry = _current7zArchive.Entries.FirstOrDefault(e => e.FileName != null && e.FileName.Replace('\\', '/') == targetKey)
+                                     ?? _current7zArchive.Entries.FirstOrDefault(e => e.FileName != null && string.Equals(e.FileName.Replace('\\', '/'), targetKey, StringComparison.OrdinalIgnoreCase));
+
                             if (entry != null)
                             {
                                 using var ms = new System.IO.MemoryStream();
@@ -1173,8 +1231,10 @@ namespace Uviewer
                     finally { _archiveLock.Release(); }
                 }
 
-                if (bytes != null && AozoraTextCanvas != null)
+                if (bytes != null)
                 {
+                    if (AozoraTextCanvas == null) return;
+
                     var winrtStream = new Windows.Storage.Streams.InMemoryRandomAccessStream();
                     using (var writer = new Windows.Storage.Streams.DataWriter(winrtStream))
                     {
@@ -1185,7 +1245,7 @@ namespace Uviewer
                     }
                     winrtStream.Seek(0);
 
-                    var device = AozoraTextCanvas.Device ?? CanvasDevice.GetSharedDevice();
+                    var device = AozoraTextCanvas.Device;
                     var bitmap = await CanvasBitmap.LoadAsync(device, winrtStream);
 
                     this.DispatcherQueue.TryEnqueue(() =>
