@@ -25,7 +25,7 @@ namespace Uviewer
         private string _currentTextContent = ""; // Stores raw text for mode switching
         private string _userSelectedEncodingName = "Auto"; // User selected encoding
         private double _textFontSize = 18;
-        private string _textFontFamily = "Yu Gothic Medium";
+        private string _textFontFamily = "Yu Gothic";
         private string _uiFontFamily = ""; // Default empty (system default)
         private int _themeIndex = 0; // 0: White, 1: Beige, 2: Dark, 3: Custom
         private string _languageSetting = "Auto"; // Store "Auto", "ko-KR", etc.
@@ -46,7 +46,7 @@ namespace Uviewer
         {
             public string Content { get; set; } = "";
             public double FontSize { get; set; }
-            public string FontFamily { get; set; } = "Yu Gothic Medium";
+            public string FontFamily { get; set; } = "Yu Gothic";
             public Brush? Foreground { get; set; }
             public double MaxWidth { get; set; }
 
@@ -801,6 +801,17 @@ namespace Uviewer
             if (_themeIndex == 3 && _customForegroundColor.HasValue) return new SolidColorBrush(_customForegroundColor.Value);
             return new SolidColorBrush(Colors.Black);
         }
+        
+        private Windows.UI.Text.FontWeight GetFontWeightForFamily(string fontFamily)
+        {
+            if (string.IsNullOrEmpty(fontFamily)) return Microsoft.UI.Text.FontWeights.Normal;
+            if (fontFamily.Contains("Yu Gothic", StringComparison.OrdinalIgnoreCase) || 
+                fontFamily.Contains("游ゴシック", StringComparison.OrdinalIgnoreCase))
+            {
+                return Microsoft.UI.Text.FontWeights.Medium;
+            }
+            return Microsoft.UI.Text.FontWeights.Normal;
+        }
 
         private Brush GetThemeBackground()
         {
@@ -1445,10 +1456,10 @@ namespace Uviewer
 
         private async void ToggleFont()
         {
-            if (_textFontFamily == "Yu Gothic Medium")
+            if (_textFontFamily.Contains("Yu Gothic"))
                 _textFontFamily = "Yu Mincho";
             else
-                _textFontFamily = "Yu Gothic Medium";
+                _textFontFamily = "Yu Gothic";
 
             SaveTextSettings();
             await RefreshTextDisplay();
@@ -1776,6 +1787,7 @@ namespace Uviewer
                 // Binding Properties
                 tb.FontSize = line.FontSize;
                 tb.FontFamily = new FontFamily(line.FontFamily);
+                tb.FontWeight = GetFontWeightForFamily(line.FontFamily);
                 tb.Foreground = line.Foreground;
                 tb.MaxWidth = line.MaxWidth;
                 tb.TextAlignment = line.TextAlignment;
@@ -2043,6 +2055,8 @@ namespace Uviewer
                         dummy.FontFamily = _cachedFontFamily;
                     else
                         dummy.FontFamily = new FontFamily(line.FontFamily);
+                    
+                    dummy.FontWeight = GetFontWeightForFamily(line.FontFamily);
 
                     dummy.Text = line.Content;
                     dummy.MaxWidth = line.MaxWidth;

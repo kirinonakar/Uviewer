@@ -600,12 +600,13 @@ namespace Uviewer
 
             using var format = new CanvasTextFormat
             {
-                FontSize = fontSize,
-                FontFamily = block.FontFamily ?? _textFontFamily,
-                Direction = CanvasTextDirection.LeftToRightThenTopToBottom,
-                WordWrapping = CanvasWordWrapping.Wrap,
-                LineSpacing = lineSpacing,
-                VerticalAlignment = CanvasVerticalAlignment.Top
+                   FontSize = fontSize,
+                   FontFamily = block.FontFamily ?? _textFontFamily,
+                   FontWeight = GetFontWeightForFamily(block.FontFamily ?? _textFontFamily),
+                   Direction = CanvasTextDirection.LeftToRightThenTopToBottom,
+                   WordWrapping = CanvasWordWrapping.Wrap,
+                   LineSpacing = lineSpacing,
+                   VerticalAlignment = CanvasVerticalAlignment.Top
             };
 
             float indent = (float)(block.BlockIndent > 0 ? block.BlockIndent : block.Margin.Left);
@@ -724,6 +725,7 @@ namespace Uviewer
                 {
                     FontSize = fontSize,
                     FontFamily = block.FontFamily ?? _textFontFamily,
+                    FontWeight = GetFontWeightForFamily(block.FontFamily ?? _textFontFamily),
                     Direction = CanvasTextDirection.LeftToRightThenTopToBottom,
                     WordWrapping = CanvasWordWrapping.Wrap,
                     LineSpacing = lineSpacing,
@@ -786,6 +788,7 @@ namespace Uviewer
                 {
                     FontSize = rubyFontSize,
                     FontFamily = _textFontFamily,
+                    FontWeight = GetFontWeightForFamily(_textFontFamily),
                     Direction = CanvasTextDirection.LeftToRightThenTopToBottom,
                     VerticalAlignment = CanvasVerticalAlignment.Top,
                     WordWrapping = CanvasWordWrapping.NoWrap

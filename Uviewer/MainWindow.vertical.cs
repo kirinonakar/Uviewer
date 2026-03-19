@@ -582,6 +582,7 @@ namespace Uviewer
             {
                 FontSize = fontSize,
                 FontFamily = block.FontFamily ?? _textFontFamily,
+                FontWeight = GetFontWeightForFamily(block.FontFamily ?? _textFontFamily),
                 Direction = CanvasTextDirection.TopToBottomThenRightToLeft,
                 WordWrapping = CanvasWordWrapping.EmergencyBreak,
                 LineSpacing = fontSize * 1.8f,
@@ -676,6 +677,7 @@ namespace Uviewer
                 {
                     FontSize = fontSize,
                     FontFamily = block.FontFamily ?? _textFontFamily,
+                    FontWeight = GetFontWeightForFamily(block.FontFamily ?? _textFontFamily),
                     Direction = CanvasTextDirection.TopToBottomThenRightToLeft,
                     WordWrapping = CanvasWordWrapping.EmergencyBreak,
                     LineSpacing = fontSize * 1.8f, 
@@ -795,6 +797,7 @@ namespace Uviewer
                 {
                     FontSize = rubyFontSize,
                     FontFamily = _textFontFamily,
+                    FontWeight = GetFontWeightForFamily(_textFontFamily),
                     Direction = CanvasTextDirection.TopToBottomThenRightToLeft,
                     VerticalAlignment = CanvasVerticalAlignment.Top,
                     WordWrapping = CanvasWordWrapping.NoWrap
