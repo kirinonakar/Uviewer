@@ -954,6 +954,7 @@ namespace Uviewer
         private void VerticalTextCanvas_PointerWheelChanged(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
         {
             if (VerticalTextCanvas == null) return;
+            RootGrid.Focus(Microsoft.UI.Xaml.FocusState.Programmatic);
             var delta = e.GetCurrentPoint(VerticalTextCanvas).Properties.MouseWheelDelta;
             if (delta > 0) NavigateVerticalPage(-1);
             else NavigateVerticalPage(1);

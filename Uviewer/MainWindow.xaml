@@ -694,11 +694,27 @@
             
             <!-- Epub Display Area -->
             <Grid Grid.Column="2" x:Name="EpubArea" Visibility="Collapsed" Background="{ThemeResource SolidBackgroundFillColorBaseBrush}"
-                  IsTabStop="False">
-                <Grid x:Name="EpubPageDisplay" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" />
+                  IsTabStop="False"
+                  SizeChanged="EpubArea_SizeChanged">
+                <!-- Win2D Canvas for EPUB text rendering (DirectWrite) -->
+                <canvas:CanvasControl x:Name="EpubTextCanvas"
+                                      Visibility="Collapsed"
+                                      IsTabStop="True"
+                                      AllowFocusOnInteraction="True"
+                                      Draw="EpubTextCanvas_Draw"
+                                      CreateResources="EpubTextCanvas_CreateResources"
+                                      SizeChanged="EpubTextCanvas_SizeChanged"/>
+                <!-- Image host for EPUB image pages -->
+                <Grid x:Name="EpubImageHost" Visibility="Collapsed"
+                      HorizontalAlignment="Stretch" VerticalAlignment="Stretch">
+                    <Image x:Name="EpubImageDisplay" Stretch="Uniform"
+                           HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                </Grid>
                 <!-- Touch Overlay for Page Navigation (left half = prev, right half = next) -->
                 <Grid x:Name="EpubTouchOverlay" 
                       Background="Transparent" 
+                      AllowFocusOnInteraction="True"
+                      IsTabStop="True"
                       PointerPressed="EpubTouchOverlay_PointerPressed"
                       PointerWheelChanged="EpubTouchOverlay_PointerWheelChanged"
                       HorizontalAlignment="Stretch"

@@ -15,7 +15,10 @@ namespace Uviewer
 
             // Allow text input controls to function normally (e.g. WebDAV dialog)
             if (e.OriginalSource is TextBox || e.OriginalSource is PasswordBox || e.OriginalSource is NumberBox) return;
-            
+
+            var ctrlPressed = Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(
+                Windows.System.VirtualKey.Control).HasFlag(Windows.UI.Core.CoreVirtualKeyStates.Down);
+
             // --- Immediate Handled Actions (Sync) ---
 
             if (e.Key == Windows.System.VirtualKey.Escape)
@@ -33,6 +36,93 @@ namespace Uviewer
                 return;
             }
 
+            // --- EPUB/Vertical Mode Handling ---
+            if (_isEpubMode)
+            {
+                if (e.Key == Windows.System.VirtualKey.Left)
+                {
+                    e.Handled = true;
+                    if (_isVerticalMode) NavigateVerticalPage(1);
+                    else
+                    {
+                        if (ShouldInvertControls) _ = NavigateEpubAsync(1);
+                        else _ = NavigateEpubAsync(-1);
+                    }
+                    return;
+                }
+                else if (e.Key == Windows.System.VirtualKey.Right)
+                {
+                    e.Handled = true;
+                    if (_isVerticalMode) NavigateVerticalPage(-1);
+                    else
+                    {
+                        if (ShouldInvertControls) _ = NavigateEpubAsync(-1);
+                        else _ = NavigateEpubAsync(1);
+                    }
+                    return;
+                }
+                else if (e.Key == Windows.System.VirtualKey.G)
+                {
+                    e.Handled = true;
+                    _ = ShowEpubGoToLineDialog();
+                    return;
+                }
+                else if (e.Key == Windows.System.VirtualKey.F)
+                {
+                    e.Handled = true;
+                    ToggleFont();
+                    return;
+                }
+                else if (e.Key == Windows.System.VirtualKey.V)
+                {
+                    e.Handled = true;
+                    _isVerticalMode = !_isVerticalMode;
+                    if (VerticalToggleButton != null) VerticalToggleButton.IsChecked = _isVerticalMode;
+                    SaveTextSettings();
+                    ToggleVerticalMode();
+                    return;
+                }
+                else if (e.Key == Windows.System.VirtualKey.Subtract || e.Key == (Windows.System.VirtualKey)189) // - key
+                {
+                    e.Handled = true;
+                    DecreaseTextSize();
+                    return;
+                }
+                else if (e.Key == Windows.System.VirtualKey.Add || e.Key == (Windows.System.VirtualKey)187) // + key
+                {
+                    e.Handled = true;
+                    IncreaseTextSize();
+                    return;
+                }
+                else if (e.Key == Windows.System.VirtualKey.B)
+                {
+                    e.Handled = true;
+                    if (ctrlPressed) ToggleSidebar();
+                    else ToggleTheme();
+                    return;
+                }
+                else if (e.Key == Windows.System.VirtualKey.Home)
+                {
+                    e.Handled = true;
+                    if (_currentEpubChapterIndex > 0)
+                    {
+                        _currentEpubChapterIndex--;
+                        _ = LoadEpubChapterAsync(_currentEpubChapterIndex);
+                    }
+                    return;
+                }
+                else if (e.Key == Windows.System.VirtualKey.End)
+                {
+                    e.Handled = true;
+                    if (_currentEpubChapterIndex < _epubSpine.Count - 1)
+                    {
+                        _currentEpubChapterIndex++;
+                        _ = LoadEpubChapterAsync(_currentEpubChapterIndex);
+                    }
+                    return;
+                }
+            }
+
             // Handle Space to prevent toolbar buttons from capturing it
             if (e.Key == Windows.System.VirtualKey.Space)
             {
@@ -43,7 +133,6 @@ namespace Uviewer
 
             // --- Async Actions (Fire and Forget with Handled = true) ---
 
-            // Text/Epub Mode usually handled elsewhere, but we block certain keys here if needed
             if (!_isTextMode && !_isEpubMode)
             {
                 // Intercept Left/Right for Archive/Image internal navigation
@@ -89,7 +178,7 @@ namespace Uviewer
                 }
             }
 
-            // Handle Up/Down keys in PreviewKeyDown for file navigation
+            // Handle Up/Down keys in PreviewKeyDown for file navigation (Works in EPUB mode too as requested)
             if (e.Key == Windows.System.VirtualKey.Up || e.Key == Windows.System.VirtualKey.PageUp)
             {
                 e.Handled = true;

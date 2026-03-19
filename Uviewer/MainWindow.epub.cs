@@ -1,10 +1,11 @@
+using Microsoft.Graphics.Canvas;
+using Microsoft.Graphics.Canvas.Text;
+using Microsoft.Graphics.Canvas.UI.Xaml;
 using Microsoft.UI;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
-using Microsoft.UI.Xaml.Documents;
 using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Media.Imaging;
-using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Dispatching;
 using System;
 using System.Collections.Generic;
@@ -13,6 +14,7 @@ using System.IO.Compression;
 using System.Linq;
 using System.Text;
 using System.Text.RegularExpressions;
+using Windows.Foundation;
 using Windows.UI;
 using System.Threading;
 using System.Threading.Tasks;
@@ -31,18 +33,32 @@ namespace Uviewer
         private object _epubLock = new object();
         private SemaphoreSlim _epubArchiveLock = new SemaphoreSlim(1, 1);
 
-        private double _epubTextWidth = 0;
         private bool _isEpubMode = false;
         public int PendingEpubChapterIndex { get; set; } = -1;
         public int PendingEpubPageIndex { get; set; } = -1;
-        private List<UIElement> _epubPages = new();
+
+        // Win2D 기반 EPUB 페이지 정보
+        public class EpubWin2DPage
+        {
+            public List<AozoraBindingModel> Blocks { get; set; } = new();
+            public int StartLine { get; set; }
+            public int LineCount { get; set; }
+            public int TotalLinesInChapter { get; set; }
+            public bool IsImagePage { get; set; }
+            public string ImagePath { get; set; } = "";
+        }
+
+        private List<EpubWin2DPage> _epubWin2DPages = new();
         private int _currentEpubPageIndex = 0;
-        private UIElement? EpubSelectedItem => (_epubPages.Count > 0 && _currentEpubPageIndex >= 0 && _currentEpubPageIndex < _epubPages.Count) ? _epubPages[_currentEpubPageIndex] : null;
+        private EpubWin2DPage? CurrentEpubWin2DPage => (_epubWin2DPages.Count > 0 && _currentEpubPageIndex >= 0 && _currentEpubPageIndex < _epubWin2DPages.Count) ? _epubWin2DPages[_currentEpubPageIndex] : null;
         private bool _isEpubShowingTwoPages = false;
 
-        private Dictionary<int, List<UIElement>> _epubPreloadCache = new();
+        private Dictionary<int, List<EpubWin2DPage>> _epubPreloadCache = new();
         private Dictionary<int, bool> _epubChapterHasText = new();
         private CancellationTokenSource? _epubPreloadCts;
+
+        // 이미지 캐시 (Win2D CanvasBitmap)
+        private Dictionary<string, CanvasBitmap?> _epubImageCache = new();
 
         // Optimized Static Regexes
         private static readonly Regex RxEpubFullPath = new Regex("full-path=[\"']([^\"']+)[\"']", RegexOptions.IgnoreCase | RegexOptions.Compiled);
@@ -81,20 +97,6 @@ namespace Uviewer
         private List<EpubTocItem> _epubToc = new();
 
 
-        public class EpubPageInfoTag
-        {
-            public int StartLine { get; set; }
-            public int LineCount { get; set; }
-            public int TotalLinesInChapter { get; set; }
-        }
-
-        public class EpubImageTag
-        {
-            public string FullPath { get; set; } = "";
-        }
-
-
-
         public int CurrentEpubChapterIndex => _currentEpubChapterIndex;
         public int CurrentEpubPageIndex => _currentEpubPageIndex;
 
@@ -109,21 +111,13 @@ namespace Uviewer
                 _epubResizeTimer = this.DispatcherQueue.CreateTimer();
                 _epubResizeTimer.Interval = TimeSpan.FromMilliseconds(500);
                 _epubResizeTimer.IsRepeating = false;
-                _epubResizeTimer.Tick += (s, e) => 
+                _epubResizeTimer.Tick += (s, e) =>
                 {
                      if (_isEpubMode)
                      {
                          _epubPreloadCache.Clear();
-                         // Maintain current page ratio or just reload chapter (which defaults to page 0 usually, need to keep index?)
-                         // LoadEpubChapterAsync resets index to 0 by default but we can try to restore?
-                         // Ideally we want to stay at same *percentage* or *text position*.
-                         // For now, simple reload as requested. 
-                         int currentLine = 1;
-                         if (EpubSelectedItem is Grid g && g.Tag is EpubPageInfoTag tag)
-                         {
-                             currentLine = tag.StartLine;
-                         }
-                         
+                         _epubImageCache.Clear();
+                         int currentLine = CurrentEpubWin2DPage?.StartLine ?? 1;
                          _ = LoadEpubChapterAsync(_currentEpubChapterIndex, targetLine: currentLine);
                      }
                 };
@@ -143,7 +137,7 @@ namespace Uviewer
                      // Wait for rendering
                  await Task.Delay(100);
                  
-                 if (pageIndex >= 0 && pageIndex < _epubPages.Count)
+                 if (pageIndex >= 0 && pageIndex < _epubWin2DPages.Count)
                  {
                      SetEpubPageIndex(pageIndex);
                  }
@@ -166,116 +160,9 @@ namespace Uviewer
             }
         }
 
-        private bool _epubInputInitialized = false;
-
         private void InitializeEpub()
         {
-            if (!_epubInputInitialized)
-            {
-                 RootGrid.PreviewKeyDown += RootGrid_Epub_PreviewKeyDown;
-                 _epubInputInitialized = true;
-            }
-        }
-
-        private void RootGrid_Epub_PreviewKeyDown(object sender, Microsoft.UI.Xaml.Input.KeyRoutedEventArgs e)
-        {
-            if (e.Handled) return;
-            if (!_isEpubMode) return;
-
-            var ctrlPressed = Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(
-                Windows.System.VirtualKey.Control).HasFlag(Windows.UI.Core.CoreVirtualKeyStates.Down);
-
-            if (e.Key == Windows.System.VirtualKey.Left)
-            {
-                if (_isVerticalMode)
-                {
-                    // In vertical mode: Left -> Next page
-                    NavigateVerticalPage(1);
-                }
-                else
-                {
-                    if (ShouldInvertControls) _ = NavigateEpubAsync(1);
-                    else _ = NavigateEpubAsync(-1);
-                }
-                e.Handled = true;
-            }
-            else if (e.Key == Windows.System.VirtualKey.Right)
-            {
-                if (_isVerticalMode)
-                {
-                    // In vertical mode: Right -> Previous page
-                    NavigateVerticalPage(-1);
-                }
-                else
-                {
-                    if (ShouldInvertControls) _ = NavigateEpubAsync(-1);
-                    else _ = NavigateEpubAsync(1);
-                }
-                e.Handled = true;
-            }
-            else if (e.Key == Windows.System.VirtualKey.G)
-            {
-                _ = ShowEpubGoToLineDialog();
-                e.Handled = true;
-            }
-            else if (e.Key == Windows.System.VirtualKey.F)
-            {
-                 ToggleFont();
-                 e.Handled = true;
-            }
-            else if (e.Key == Windows.System.VirtualKey.V)
-            {
-                // Toggle vertical mode from EPUB key handler as well
-                _ = AddToRecentAsync(true);
-                _isVerticalMode = !_isVerticalMode;
-                if (VerticalToggleButton != null) VerticalToggleButton.IsChecked = _isVerticalMode;
-                SaveTextSettings();
-                ToggleVerticalMode();
-                e.Handled = true;
-            }
-            else if (e.Key == Windows.System.VirtualKey.Subtract || e.Key == (Windows.System.VirtualKey)189) // - key
-            {
-                DecreaseTextSize();
-                e.Handled = true;
-            }
-            else if (e.Key == Windows.System.VirtualKey.Add || e.Key == (Windows.System.VirtualKey)187) // + key
-            {
-                IncreaseTextSize();
-                e.Handled = true;
-            }
-            else if (e.Key == Windows.System.VirtualKey.B)
-            {
-                 if (ctrlPressed)
-                 {
-                     ToggleSidebar();
-                 }
-                 else
-                 {
-                     ToggleTheme();
-                 }
-                 e.Handled = true;
-            }
-            else if (e.Key == Windows.System.VirtualKey.Home)
-            {
-                 // [수정] 세로 모드 여부와 관계없이 EPUB에서는 무조건 이전 챕터로 이동
-                 if (_currentEpubChapterIndex > 0)
-                 {
-                     _currentEpubChapterIndex--;
-                     _ = LoadEpubChapterAsync(_currentEpubChapterIndex);
-                 }
-                 e.Handled = true;
-            }
-            else if (e.Key == Windows.System.VirtualKey.End)
-            {
-                 // [수정] 세로 모드 여부와 관계없이 EPUB에서는 무조건 다음 챕터로 이동
-                 if (_currentEpubChapterIndex < _epubSpine.Count - 1)
-                 {
-                     _currentEpubChapterIndex++;
-                     _ = LoadEpubChapterAsync(_currentEpubChapterIndex);
-                 }
-                 e.Handled = true;
-            }
-
+            // Now handled in MainWindow.keys.cs via RootGrid_PreviewKeyDown
         }
 
         private async Task LoadEpubFileAsync(StorageFile file)
@@ -325,7 +212,7 @@ namespace Uviewer
                      if (!_isVerticalMode && PendingEpubPageIndex > 0)
                      {
                          await Task.Delay(100);
-                         if (PendingEpubPageIndex < _epubPages.Count)
+                         if (PendingEpubPageIndex < _epubWin2DPages.Count)
                          {
                              SetEpubPageIndex(PendingEpubPageIndex);
                          }
@@ -370,8 +257,9 @@ namespace Uviewer
                     _currentEpubArchive = null;
                     _currentEpubFilePath = null;
                     _epubSpine.Clear();
-                    _epubPages.Clear();
+                    _epubWin2DPages.Clear();
                     _epubPreloadCache.Clear();
+                    _epubImageCache.Clear();
                 }
                 finally
                 {
@@ -549,7 +437,7 @@ namespace Uviewer
 
                     var pages = await RenderEpubPagesAsync(html, path);
                     _epubPreloadCache[idx] = pages;
-                    _epubChapterHasText[idx] = pages.Any(p => p is Grid g && g.Tag is EpubPageInfoTag);
+                    _epubChapterHasText[idx] = pages.Any(p => !p.IsImagePage);
 
                     await Task.Delay(50, token);
 
@@ -584,17 +472,12 @@ namespace Uviewer
             if (!_isEpubMode) return;
             
             int currentPage = _currentEpubPageIndex + 1;
-            int totalPages = _epubPages.Count;
+            int totalPages = _epubWin2DPages.Count;
             if (totalPages == 0) totalPages = 1;
 
-            int currentLine = 1;
-            int totalLines = 1;
-
-            if (EpubSelectedItem is Grid g && g.Tag is EpubPageInfoTag tag)
-            {
-                currentLine = tag.StartLine;
-                totalLines = tag.TotalLinesInChapter;
-            }
+            var pg = CurrentEpubWin2DPage;
+            int currentLine = pg?.StartLine ?? 1;
+            int totalLines = pg?.TotalLinesInChapter ?? 1;
 
             double totalProgress = 0;
             if (_epubSpine.Count > 0)
@@ -675,333 +558,492 @@ namespace Uviewer
             }
         }
 
-        private async Task<List<UIElement>> RenderEpubPagesAsync(string html, string currentPath)
+        private async Task<List<EpubWin2DPage>> RenderEpubPagesAsync(string html, string currentPath)
         {
-            var pages = new List<UIElement>();
-            
-            _epubTextWidth = 42 * _textFontSize; 
-            
-            // Regex to split by img/image tags
-            var segments = RxEpubImgTag.Split(html);
+            var pages = new List<EpubWin2DPage>();
 
-            bool hasImages = html.Contains("<img", StringComparison.OrdinalIgnoreCase) || html.Contains("<image", StringComparison.OrdinalIgnoreCase);
-            bool isFirstContent = true;
+            // EPUB 챕터의 블록을 AozoraBindingModel로 파싱 (세로 모드와 동일한 파이프라인 활용)
+            var allBlocks = ParseEpubHtmlToAozoraBlocks(html, currentPath, _currentEpubChapterIndex);
 
-            // [추가] 챕터 내 누적 줄 번호 유지
-            int globalLineCounter = 1; 
+            if (allBlocks.Count == 0) return pages;
 
-            foreach (var segment in segments)
+            // 페이지 분할 파라미터 계산
+            float availableWidth = (float)(EpubArea?.ActualWidth ?? 800);
+            if (availableWidth < 100) availableWidth = (float)(RootGrid.ActualWidth - (SidebarColumn?.ActualWidth ?? 320));
+            float availableHeight = (float)(EpubArea?.ActualHeight ?? 800);
+            if (availableHeight < 200) availableHeight = (float)(RootGrid.ActualHeight - 120);
+
+            float marginH = 80f; // Left 40 + Right 40
+            float marginV = 40f; // Top 30 + Bottom 10
+            float limitedWidth = (float)(_textFontSize * 42); 
+            float maxWidth = availableWidth - marginH;
+            if (maxWidth > limitedWidth) maxWidth = limitedWidth; // Limit to 42 characters
+            if (maxWidth < 200) maxWidth = 600;
+
+            float pageHeight = availableHeight - marginV;
+            if (pageHeight < 200) pageHeight = 600;
+
+            var device = EpubTextCanvas?.Device ?? CanvasDevice.GetSharedDevice();
+
+            // 이미지 블록은 단독 페이지로, 텍스트 블록은 Win2D 높이 측정 기반으로 분할
+            int i = 0;
+            int totalBlocks = allBlocks.Count;
+            int maxSourceLine = allBlocks[allBlocks.Count - 1].SourceLineNumber;
+
+            while (i < totalBlocks)
             {
-                if (string.IsNullOrWhiteSpace(segment)) continue;
+                if (i % 100 == 0) await Task.Delay(1);
 
-                if (RxEpubIsImg.IsMatch(segment))
+                var block = allBlocks[i];
+
+                // 이미지 블록
+                if (block.HasImage)
                 {
-                    var imgPage = await CreateImagePageAsync(segment, currentPath);
-                    if (imgPage != null) 
+                    var imgSrc = block.Inlines.OfType<AozoraImage>().FirstOrDefault()?.Source ?? "";
+                    pages.Add(new EpubWin2DPage
                     {
-                        pages.Add(imgPage);
-                        isFirstContent = false;
-                        globalLineCounter++; // [추가] 이미지는 1줄로 계산
-                    }
+                        Blocks = new List<AozoraBindingModel> { block },
+                        IsImagePage = true,
+                        ImagePath = imgSrc,
+                        StartLine = block.SourceLineNumber,
+                        LineCount = 1
+                    });
+                    i++;
+                    continue;
                 }
-                else
+
+                // 페이지 분리 기호 건너뜀
+                if (block.IsPageBreak)
                 {
-                    // [수정] 텍스트가 의미 없는 짧은 타이틀인 경우, 렌더링 스킵 처리(줄 번호 증가 방지)
-                    if (isFirstContent && hasImages)
-                    {
-                        string plainText = RxEpubAnyTag.Replace(segment, "");
-                        plainText = System.Net.WebUtility.HtmlDecode(plainText).Trim();
-                        if (plainText.Length > 0 && plainText.Length < 100)
-                        {
-                            isFirstContent = false;
-                            continue;
-                        }
-                    }
-
-                    // [수정] 누적 줄 번호(globalLineCounter)를 전달하고, 생성된 줄 수를 반환받음
-                    var (textPages, cumulativeLines) = await CreateTextPagesAsync(segment, globalLineCounter);
-                    if (textPages.Count == 0) continue;
-
-                    pages.AddRange(textPages);
-                    globalLineCounter += cumulativeLines;
-                    isFirstContent = false;
+                    i++;
+                    continue;
                 }
+
+                // 텍스트 블록 페이지 분할 (AozoraHorizontal 방식과 동일)
+                int pageStart = i;
+                var pageBlocks = new List<AozoraBindingModel>();
+
+                int ref_i = i;
+                pageBlocks = PaginateHorizontalAozoraPage(ref ref_i, allBlocks, maxWidth, pageHeight, device);
+                i = ref_i;
+
+                if (pageBlocks.Count == 0)
+                {
+                    i++;
+                    continue;
+                }
+
+                pages.Add(new EpubWin2DPage
+                {
+                    Blocks = pageBlocks,
+                    IsImagePage = false,
+                    StartLine = pageBlocks[0].SourceLineNumber,
+                    LineCount = pageBlocks.Count
+                });
             }
 
-            // [추가] 챕터의 전체 세그먼트 파싱이 끝난 후, 모든 페이지의 '총 줄 수'를 최종 누적된 줄 수로 업데이트
-            int totalLinesInChapter = Math.Max(1, globalLineCounter - 1);
-            foreach (var page in pages)
-            {
-                if (page is Grid g && g.Tag is EpubPageInfoTag tag)
-                {
-                    tag.TotalLinesInChapter = totalLinesInChapter;
-                }
-            }
+            // TotalLinesInChapter 역산
+            int total = Math.Max(1, maxSourceLine);
+            foreach (var p in pages) p.TotalLinesInChapter = total;
 
             return pages;
         }
 
+        private void EpubArea_SizeChanged(object sender, SizeChangedEventArgs e)
+        {
+            if (!_isEpubMode || _isVerticalMode) return;
+            TriggerEpubResize();
+        }
 
+        private void EpubTextCanvas_CreateResources(CanvasControl sender, Microsoft.Graphics.Canvas.UI.CanvasCreateResourcesEventArgs args) { }
+
+        private void EpubTextCanvas_SizeChanged(object sender, SizeChangedEventArgs e)
+        {
+            if (!_isEpubMode || _isVerticalMode) return;
+            if (_epubWin2DPages.Count > 0)
+                EpubTextCanvas?.Invalidate();
+        }
+
+        private void EpubTextCanvas_Draw(CanvasControl sender, CanvasDrawEventArgs args)
+        {
+            if (!_isEpubMode) return;
+            var ds = args.DrawingSession;
+            var size = sender.Size;
+
+            Color bgColor = GetVerticalBackgroundColor();
+            Color textColor = GetVerticalTextColor();
+            ds.Clear(bgColor);
+
+            var pg = CurrentEpubWin2DPage;
+            if (pg == null || pg.Blocks == null || pg.Blocks.Count == 0) return;
+
+            // 이미지 페이지는 EpubImageHost에서 처리
+            if (pg.IsImagePage) return;
+
+            float limitedWidth = (float)(_textFontSize * 42);
+            float marginLeft = 40f; 
+            float contentWidth = Math.Min(limitedWidth, (float)size.Width - 80f);
+            float marginTop = 30f;
+            float currentY = marginTop;
+
+            // Aozora 수평 드로우 로직 재사용 (세로모드 예외)
+            DrawHorizontalEpubBlocks(ds, size, pg.Blocks, textColor, marginLeft, marginTop, contentWidth);
+        }
+
+        private void DrawHorizontalEpubBlocks(CanvasDrawingSession ds, Windows.Foundation.Size size,
+            List<AozoraBindingModel> blocks, Color textColor, float marginLeft, float marginTop, float maxWidth)
+        {
+            float currentY = marginTop;
+
+            bool isBoxing = false;
+            float boxLeft = float.MaxValue, boxRight = float.MinValue;
+            float boxTop = 0f, boxBottom = float.MaxValue;
+            Color boxColor = Colors.Gray;
+            float boxPad = 20f;
+
+            for (int i = 0; i < blocks.Count; i++)
+            {
+                var block = blocks[i];
+                float fontSize = (float)(_textFontSize * block.FontSizeScale);
+                float rubyFontSize = fontSize * 0.5f;
+
+                // 테이블
+                if (block.IsTable && block.TableRows != null && block.TableRows.Count > 0)
+                {
+                    var row = block.TableRows[0];
+                    int colCount = row.Count;
+                    int r = block.TableRowIndex;
+                    bool isHeader = (r == 0);
+                    bool isFirstOnPage = (i == 0) || !blocks[i - 1].IsTable;
+
+                    float tableIndent = (float)(block.BlockIndent > 0 ? block.BlockIndent : block.Margin.Left);
+                    float tableMaxWidth = maxWidth - tableIndent;
+                    float tableDrawX = marginLeft + tableIndent;
+                    float colWidth = tableMaxWidth / colCount;
+
+                    using var tableFormat = new CanvasTextFormat
+                    {
+                        FontSize = fontSize,
+                        FontFamily = block.FontFamily ?? _textFontFamily,
+                        WordWrapping = CanvasWordWrapping.Wrap,
+                        FontWeight = isHeader ? Microsoft.UI.Text.FontWeights.Bold : GetFontWeightForFamily(block.FontFamily ?? _textFontFamily)
+                    };
+
+                    if (isHeader || isFirstOnPage)
+                        ds.DrawLine(tableDrawX, currentY, tableDrawX + tableMaxWidth, currentY, Colors.Gray, 1.5f);
+
+                    float maxCellHeight = 0;
+                    var cellLayouts = new List<CanvasTextLayout>();
+                    foreach (var cellText in row)
+                    {
+                        var parsed = ParseTableInline(cellText);
+                        var cellLayout = new CanvasTextLayout(ds, parsed.text, tableFormat, Math.Max(10, colWidth - 20), 0.0f);
+                        cellLayout.Options = Microsoft.Graphics.Canvas.Text.CanvasDrawTextOptions.EnableColorFont;
+                        foreach (var br in parsed.boldRanges)
+                            cellLayout.SetFontWeight(br.start, br.length, Microsoft.UI.Text.FontWeights.Bold);
+                        cellLayouts.Add(cellLayout);
+                        float h = (float)cellLayout.LayoutBounds.Height;
+                        if (h > maxCellHeight) maxCellHeight = h;
+                    }
+                    float rowHeight = maxCellHeight + 20f;
+                    if (isHeader)
+                        ds.FillRectangle(tableDrawX, currentY, tableMaxWidth, rowHeight, Microsoft.UI.ColorHelper.FromArgb(30, 128, 128, 128));
+                    else if (r % 2 == 1)
+                        ds.FillRectangle(tableDrawX, currentY, tableMaxWidth, rowHeight, Microsoft.UI.ColorHelper.FromArgb(10, 128, 128, 128));
+                    for (int c = 0; c < colCount; c++)
+                    {
+                        float cellX = tableDrawX + (c * colWidth);
+                        ds.DrawTextLayout(cellLayouts[c], cellX + 10, currentY + 10, textColor);
+                        cellLayouts[c].Dispose();
+                        ds.DrawLine(cellX, currentY, cellX, currentY + rowHeight, Colors.Gray, 1f);
+                    }
+                    ds.DrawLine(tableDrawX + tableMaxWidth, currentY, tableDrawX + tableMaxWidth, currentY + rowHeight, Colors.Gray, 1f);
+                    currentY += rowHeight;
+                    ds.DrawLine(tableDrawX, currentY, tableDrawX + tableMaxWidth, currentY, Colors.Gray, isHeader ? 2f : 1f);
+                    if (r == block.TableRowCount - 1) currentY += 20f;
+                    continue;
+                }
+
+                float lineSpacing = block.IsTable ? fontSize * 1.3f : fontSize * 2.1f;
+
+                var sb2 = new StringBuilder();
+                var rubyRanges = new List<(int start, int length, string rubyText)>();
+                var boldRanges2 = new List<(int start, int length)>();
+                var italicRanges2 = new List<(int start, int length)>();
+
+                foreach (var inline in block.Inlines)
+                {
+                    int st = sb2.Length;
+                    if (inline is string s) sb2.Append(s);
+                    else if (inline is AozoraRuby ruby) { sb2.Append(ruby.BaseText); rubyRanges.Add((st, ruby.BaseText.Length, ruby.RubyText)); if (ruby.IsBold) boldRanges2.Add((st, ruby.BaseText.Length)); }
+                    else if (inline is AozoraBold bold) { sb2.Append(bold.Text); boldRanges2.Add((st, bold.Text.Length)); }
+                    else if (inline is AozoraItalic italic) { sb2.Append(italic.Text); italicRanges2.Add((st, italic.Text.Length)); }
+                    else if (inline is AozoraCode code) sb2.Append(code.Text);
+                    else if (inline is AozoraTCY tcy) { sb2.Append(tcy.Text); if (tcy.IsBold) boldRanges2.Add((st, tcy.Text.Length)); }
+                    else if (inline is AozoraLineBreak) sb2.Append("\n");
+                }
+
+                string blockText = sb2.ToString();
+                float indent = (float)(block.BlockIndent > 0 ? block.BlockIndent : block.Margin.Left);
+                float actualMaxWidth = maxWidth - indent;
+
+                using var format = new CanvasTextFormat
+                {
+                    FontSize = fontSize,
+                    FontFamily = block.FontFamily ?? _textFontFamily,
+                    FontWeight = GetFontWeightForFamily(block.FontFamily ?? _textFontFamily),
+                    Direction = CanvasTextDirection.LeftToRightThenTopToBottom,
+                    WordWrapping = block.IsTable ? CanvasWordWrapping.NoWrap : CanvasWordWrapping.Wrap,
+                    LineSpacing = lineSpacing,
+                    VerticalAlignment = CanvasVerticalAlignment.Top
+                };
+
+                using var textLayout = new CanvasTextLayout(ds, blockText, format, actualMaxWidth, 0.0f);
+                textLayout.Options = Microsoft.Graphics.Canvas.Text.CanvasDrawTextOptions.EnableColorFont;
+                if (block.IsBold) textLayout.SetFontWeight(0, blockText.Length, Microsoft.UI.Text.FontWeights.Bold);
+                foreach (var rr in boldRanges2) textLayout.SetFontWeight(rr.start, rr.length, Microsoft.UI.Text.FontWeights.Bold);
+                foreach (var ir in italicRanges2) textLayout.SetFontStyle(ir.start, ir.length, Windows.UI.Text.FontStyle.Italic);
+
+                int lineCount2 = textLayout.LineCount;
+                float currentBlockHeight = block.IsBlankLine ? lineSpacing * 0.3f : lineCount2 * lineSpacing;
+
+                var bounds = textLayout.LayoutBounds;
+                float drawX = marginLeft + indent;
+                if (block.Alignment == TextAlignment.Center) drawX = (float)((size.Width - bounds.Width) / 2);
+                else if (block.Alignment == TextAlignment.Right) drawX = (float)(size.Width - bounds.Width - 40);
+
+                bool isKeigakomi = block.BorderThickness.Top > 0 && block.BorderThickness.Bottom > 0 && block.BorderThickness.Left > 0 && block.BorderThickness.Right > 0;
+                float currentW = (float)bounds.Width;
+                if (block.IsBlankLine && currentW < fontSize) currentW = fontSize;
+
+                if (isKeigakomi)
+                {
+                    if (!isBoxing) { currentY += boxPad; isBoxing = true; boxTop = currentY; boxBottom = currentY + currentBlockHeight; boxLeft = drawX + (float)bounds.X; boxRight = drawX + (float)bounds.X + currentW; boxColor = block.BorderColor ?? Colors.Gray; }
+                    else { boxTop = Math.Min(boxTop, currentY + (float)bounds.Y); boxBottom = Math.Max(boxBottom, currentY + (float)bounds.Y + currentBlockHeight); boxLeft = Math.Min(boxLeft, drawX + (float)bounds.X); boxRight = Math.Max(boxRight, drawX + (float)bounds.X + currentW); }
+                }
+                else if (isBoxing)
+                {
+                    ds.DrawRectangle(boxLeft - boxPad, boxTop - boxPad, boxRight - boxLeft + boxPad * 2, boxBottom - boxTop + boxPad * 2, boxColor, 1.5f);
+                    isBoxing = false; currentY += boxPad + lineSpacing;
+                }
+
+                if (block.BackgroundColor != null)
+                {
+                    var db = textLayout.DrawBounds;
+                    float dbTop = (float)db.Top; float dbH = (float)db.Height;
+                    if (dbH < fontSize) dbH = fontSize;
+                    ds.FillRectangle(drawX - 4, currentY + dbTop - 4f, currentW + 8, dbH + 8f, block.BackgroundColor.Value);
+                }
+
+                ds.DrawTextLayout(textLayout, drawX, currentY, textColor);
+
+                if (!isKeigakomi && block.BorderColor != null)
+                {
+                    var db2 = textLayout.DrawBounds;
+                    float actualTextBottom = (float)Math.Max(db2.Bottom, fontSize);
+                    float borderBottomY = currentY + actualTextBottom - 20f;
+                    if (block.BorderThickness.Bottom > 0) ds.DrawLine(drawX, borderBottomY, drawX + currentW, borderBottomY, block.BorderColor.Value, (float)block.BorderThickness.Bottom);
+                    if (block.BorderThickness.Left > 0) { float quoteLeft = drawX - 15; float actualTextTop = (float)Math.Min(db2.Top, 0); ds.DrawLine(quoteLeft, currentY + actualTextTop, quoteLeft, borderBottomY, block.BorderColor.Value, (float)block.BorderThickness.Left); }
+                }
+
+                // 루비 그리기
+                using var rubyFormat2 = new CanvasTextFormat { FontSize = rubyFontSize, FontFamily = _textFontFamily, FontWeight = GetFontWeightForFamily(_textFontFamily), Direction = CanvasTextDirection.LeftToRightThenTopToBottom, VerticalAlignment = CanvasVerticalAlignment.Top, WordWrapping = CanvasWordWrapping.NoWrap };
+                var rubyRenderInfos2 = new List<HorizontalRubyRenderInfo>();
+                foreach (var ruby in rubyRanges)
+                {
+                    var regions = textLayout.GetCharacterRegions(ruby.start, ruby.length);
+                    if (regions.Length > 0)
+                    {
+                        var charBounds = regions[0].LayoutBounds;
+                        float lineBoxTop = currentY + (float)charBounds.Top;
+                        float rubyY = lineBoxTop - rubyFontSize - 20f;
+                        float charCenter = drawX + (float)charBounds.Left + (float)charBounds.Width / 2.0f;
+                        var rubyLayout = new CanvasTextLayout(ds, ruby.rubyText, rubyFormat2, 0.0f, 0.0f);
+                        rubyLayout.Options = Microsoft.Graphics.Canvas.Text.CanvasDrawTextOptions.EnableColorFont;
+                        float rubyWidth = (float)rubyLayout.LayoutBounds.Width;
+                        float idealLeft = charCenter - (rubyWidth / 2.0f);
+                        rubyRenderInfos2.Add(new HorizontalRubyRenderInfo { Layout = rubyLayout, IdealX = idealLeft, Width = rubyWidth, X = idealLeft, Y = rubyY });
+                    }
+                }
+                ResolveHorizontalRubyOverlaps(rubyRenderInfos2);
+                foreach (var info in rubyRenderInfos2) { ds.DrawTextLayout(info.Layout, info.X, info.Y, textColor); info.Layout.Dispose(); }
+
+                currentY += currentBlockHeight;
+
+                if (i == blocks.Count - 1 && isBoxing)
+                {
+                    ds.DrawRectangle(boxLeft - boxPad, boxTop - boxPad, boxRight - boxLeft + boxPad * 2, boxBottom - boxTop + boxPad * 2, boxColor, 1.5f);
+                    isBoxing = false;
+                }
+            }
+        }
 
         private void EpubTouchOverlay_PointerPressed(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
         {
-             if (!_isEpubMode) return;
-
-             var ptr = e.GetCurrentPoint(EpubArea);
-             if (ptr.Properties.IsLeftButtonPressed)
-             {
-                 HandleSmartTouchNavigation(e, 
-                     () => _ = NavigateEpubAsync(-1), 
-                     () => _ = NavigateEpubAsync(1));
-                 e.Handled = true;
-                 RootGrid.Focus(FocusState.Programmatic);
-             }
+            if (!_isEpubMode) return;
+            DispatcherQueue.TryEnqueue(() => EpubTextCanvas?.Focus(Microsoft.UI.Xaml.FocusState.Programmatic));
+            var pt = e.GetCurrentPoint(EpubTouchOverlay);
+            double half = EpubTouchOverlay.ActualWidth / 2;
+            if (pt.Position.X < half) _ = NavigateEpubAsync(-1);
+            else _ = NavigateEpubAsync(1);
         }
 
         private void EpubTouchOverlay_PointerWheelChanged(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
         {
             if (!_isEpubMode) return;
-
-            var ptr = e.GetCurrentPoint(EpubArea);
-            var delta = ptr.Properties.MouseWheelDelta;
-
-            if (delta > 0)
-            {
-                // Scroll up -> Previous page
-                _ = NavigateEpubAsync(-1);
-            }
-            else if (delta < 0)
-            {
-                // Scroll down -> Next page
-                _ = NavigateEpubAsync(1);
-            }
-
-            e.Handled = true;
+            DispatcherQueue.TryEnqueue(() => EpubTextCanvas?.Focus(Microsoft.UI.Xaml.FocusState.Programmatic));
+            var delta = e.GetCurrentPoint(EpubTouchOverlay).Properties.MouseWheelDelta;
+            if (delta > 0) _ = NavigateEpubAsync(-1);
+            else _ = NavigateEpubAsync(1);
         }
 
         private void EpubPage_PointerPressed(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
         {
              if (!_isEpubMode) return;
-             // Handled by FlipView parent
         }
 
-        private async Task<UIElement?> CreateImagePageAsync(string imgTag, string currentPath)
+        private async Task LoadEpubImageForWin2DAsync(string imagePath)
         {
-            // Extract src or xlink:href (for svg image tags)
-            var match = RxEpubSrc.Match(imgTag);
-            if (!match.Success) return null;
-            
-            string src = match.Groups[1].Value;
-            string fullPath = ResolveRelativePath(currentPath, src);
-            
-            var entry = FindEntryLoose(fullPath);
-            if (entry == null) 
-            {
-                System.Diagnostics.Debug.WriteLine($"Image not found: {fullPath} (orig: {src})");
-                return null;
-            }
+            if (string.IsNullOrEmpty(imagePath)) return;
+            if (_epubImageCache.ContainsKey(imagePath)) return;
 
+            _epubImageCache[imagePath] = null;
             try
             {
-                var mem = new MemoryStream();
+                var entry = FindEntryLoose(imagePath);
+                if (entry == null) return;
+
+                byte[] bytes;
                 await _epubArchiveLock.WaitAsync();
                 try
                 {
-                    using var stream = entry.Open();
-                    await stream.CopyToAsync(mem);
+                    using var ms = new MemoryStream();
+                    using var es = entry.Open();
+                    await es.CopyToAsync(ms);
+                    bytes = ms.ToArray();
                 }
-                finally
-                {
-                    _epubArchiveLock.Release();
-                }
+                finally { _epubArchiveLock.Release(); }
 
-                mem.Position = 0;
-                
-                var bitmap = new BitmapImage();
-                await bitmap.SetSourceAsync(mem.AsRandomAccessStream());
-                
-                var img = new Image
+                if (EpubTextCanvas == null) return;
+                var winrtStream = new InMemoryRandomAccessStream();
+                using (var writer = new DataWriter(winrtStream))
                 {
-                    Source = bitmap,
-                    Stretch = Stretch.Uniform, // Keep Stretch on the image
-                };
-                
-                // Use a Viewbox or just Grid to center
-                var grid = new Grid
+                    writer.WriteBytes(bytes);
+                    await writer.StoreAsync();
+                    await writer.FlushAsync();
+                    writer.DetachStream();
+                }
+                winrtStream.Seek(0);
+                var bitmap = await CanvasBitmap.LoadAsync(EpubTextCanvas.Device, winrtStream);
+                this.DispatcherQueue.TryEnqueue(() =>
                 {
-                    HorizontalAlignment = HorizontalAlignment.Center,
-                    VerticalAlignment = VerticalAlignment.Center,
-                    Children = { img },
-                    Background = GetEpubThemeBackground(), // Use theme background
-                    Opacity = 0,
-                    IsHitTestVisible = false,
-                    Tag = new EpubImageTag { FullPath = fullPath }
-                };
-                
-                // Attach Navigation
-                grid.PointerPressed += EpubPage_PointerPressed;
-                
-                return grid;
+                    _epubImageCache[imagePath] = bitmap;
+                    if (_isEpubMode && CurrentEpubWin2DPage?.IsImagePage == true)
+                        ShowEpubImagePage(CurrentEpubWin2DPage);
+                });
             }
-            catch
+            catch (Exception ex)
             {
-                return null;
+                System.Diagnostics.Debug.WriteLine($"LoadEpubImageForWin2DAsync failed: {ex.Message}");
             }
+        }
+
+        private void ShowEpubImagePage(EpubWin2DPage page)
+        {
+            if (page == null || !page.IsImagePage) return;
+            EpubTextCanvas.Visibility = Visibility.Collapsed;
+            EpubImageHost.Visibility = Visibility.Visible;
+
+            if (_epubImageCache.TryGetValue(page.ImagePath, out var bitmap) && bitmap != null)
+            {
+                var bitmapImage = new BitmapImage();
+                // CanvasBitmap to BitmapImage: use stream
+                _ = LoadBitmapToImageDisplayAsync(page.ImagePath);
+            }
+            else
+            {
+                EpubImageDisplay.Source = null;
+                _ = LoadEpubImageForWin2DAsync(page.ImagePath);
+            }
+        }
+
+        private async Task LoadBitmapToImageDisplayAsync(string imagePath)
+        {
+            try
+            {
+                var entry = FindEntryLoose(imagePath);
+                if (entry == null) return;
+                byte[] bytes;
+                await _epubArchiveLock.WaitAsync();
+                try
+                {
+                    using var ms = new MemoryStream();
+                    using var es = entry.Open();
+                    await es.CopyToAsync(ms);
+                    bytes = ms.ToArray();
+                }
+                finally { _epubArchiveLock.Release(); }
+
+                var ras = new InMemoryRandomAccessStream();
+                using (var dw = new DataWriter(ras))
+                {
+                    dw.WriteBytes(bytes); await dw.StoreAsync(); await dw.FlushAsync(); dw.DetachStream();
+                }
+                ras.Seek(0);
+                var bitmapImage = new BitmapImage();
+                await bitmapImage.SetSourceAsync(ras);
+                EpubImageDisplay.Source = bitmapImage;
+            }
+            catch { }
         }
 
         private ZipArchiveEntry? FindEntryLoose(string path)
         {
-            // Try exact match
             var entry = _currentEpubArchive?.GetEntry(path);
             if (entry != null) return entry;
-            
-            // Try matching just filename (fallback) - dangerous but useful for flat structures
             string name = Path.GetFileName(path);
             return _currentEpubArchive?.Entries.FirstOrDefault(e => e.Name.Equals(name, StringComparison.OrdinalIgnoreCase));
         }
 
-        private async Task<(List<UIElement> Pages, int CumulativeLines)> CreateTextPagesAsync(string htmlContent, int currentStartLine)
+        private object? EpubSelectedItem 
         {
-            var blocks = ParseHtmlToBlocks(htmlContent);
-            if (blocks.Count == 0) return (new List<UIElement>(), 0);
-
-            List<UIElement> textPages = new List<UIElement>();
-            
-            // Get available dimensions
-            double availableWidth = EpubArea?.ActualWidth ?? 800;
-            if (availableWidth < 100) availableWidth = RootGrid.ActualWidth - (SidebarColumn?.ActualWidth ?? 320);
-            
-            double availableHeight = EpubArea?.ActualHeight ?? 800;
-            if (availableHeight < 200) 
+            get
             {
-               availableHeight = RootGrid.ActualHeight;
-               if (!_isFullscreen) availableHeight -= 120;
-            }
-            
-            // Text Area Width (subtracting 20 padding each side)
-            double textPadding = 20;
-            double targetWidth = Math.Min(availableWidth - (textPadding * 2), 45 * _textFontSize);
-            if (targetWidth < 200) targetWidth = 600;
-
-            // Reserved height (subtracting padding + ruby safety buffer)
-            double targetHeight = availableHeight - 45; 
-            if (targetHeight < 200) targetHeight = 800; 
-
-            // 1. Create Master RichTextBlock
-            var rtb = new RichTextBlock 
-            { 
-                IsTextSelectionEnabled = false,
-                FontFamily = new FontFamily(_textFontFamily),
-                FontSize = _textFontSize,
-                Foreground = GetEpubThemeForeground(),
-                Width = targetWidth,
-                Height = targetHeight,
-                HorizontalAlignment = HorizontalAlignment.Left,
-                TextAlignment = TextAlignment.Left,
-                Margin = new Thickness(0),
-                Padding = new Thickness(0),
-                LineStackingStrategy = LineStackingStrategy.BlockLineHeight,
-                LineHeight = _textFontSize * 2, // Increased multiplier for better ruby spacing
-                TextWrapping = TextWrapping.Wrap
-            };
-
-            foreach (var b in blocks) rtb.Blocks.Add(b);
-
-            var page1Grid = new Grid 
-            { 
-                Background = GetEpubThemeBackground(), 
-                Padding = new Thickness(20, 25, 20, 20), // Added top padding for ruby safety
-                Opacity = 0,
-                IsHitTestVisible = false
-            };
-            page1Grid.Children.Add(rtb);
-            page1Grid.PointerPressed += EpubPage_PointerPressed;
-            textPages.Add(page1Grid);
-            
-            // Force measure
-            rtb.Measure(new Windows.Foundation.Size((float)targetWidth, (float)targetHeight));
-
-            int linesPerPage = (int)(targetHeight / (_textFontSize * 2));
-            if (linesPerPage < 1) linesPerPage = 1;
-            
-            int cumulativeLines = linesPerPage;
-            
-            // [수정] 무조건 1부터 시작하는 대신, 전달받은 누적 시작 줄 번호(currentStartLine)를 할당
-            page1Grid.Tag = new EpubPageInfoTag { StartLine = currentStartLine, LineCount = linesPerPage };
-
-            // Chain Overflow
-            FrameworkElement lastLinked = rtb;
-            int maxPages = 2000;
-            int pageCount = 1;
-
-            while (pageCount < maxPages)
-            {
-                // [Optimization] Yield UI control periodically to keep app responsive
-                if (pageCount % 50 == 0) await Task.Delay(1);
-
-                bool hasOverflow = false;
-                if (lastLinked is RichTextBlock m && m.HasOverflowContent) hasOverflow = true;
-                else if (lastLinked is RichTextBlockOverflow o && o.HasOverflowContent) hasOverflow = true;
-
-                if (!hasOverflow) break;
-
-                var overflow = new RichTextBlockOverflow
+                if (_currentEpubPageIndex >= 0 && _currentEpubPageIndex < _epubWin2DPages.Count)
                 {
-                    Width = targetWidth,
-                    Height = targetHeight,
-                    HorizontalAlignment = HorizontalAlignment.Left,
-                    Margin = new Thickness(0),
-                    Padding = new Thickness(0)
-                };
-
-                if (lastLinked is RichTextBlock master) master.OverflowContentTarget = overflow;
-                else if (lastLinked is RichTextBlockOverflow ov) ov.OverflowContentTarget = overflow;
-
-                var pageGrid = new Grid 
-                { 
-                    Background = GetEpubThemeBackground(), 
-                    Padding = new Thickness(20, 25, 20, 20), // Added top padding for ruby safety
-                    Opacity = 0,
-                    IsHitTestVisible = false
-                };
-                pageGrid.Children.Add(overflow);
-                pageGrid.PointerPressed += EpubPage_PointerPressed;
-                textPages.Add(pageGrid);
-
-                overflow.Measure(new Windows.Foundation.Size((float)targetWidth, (float)targetHeight));
-                
-                // [수정] 오버플로우 페이지에도 누적된 줄 번호를 기준으로 StartLine 설정
-                pageGrid.Tag = new EpubPageInfoTag { StartLine = currentStartLine + cumulativeLines, LineCount = linesPerPage };
-                cumulativeLines += linesPerPage;
-
-                lastLinked = overflow;
-                pageCount++;
+                    var p = _epubWin2DPages[_currentEpubPageIndex];
+                    var grid = new Grid();
+                    if (p.IsImagePage) grid.Tag = new EpubImageTag { FullPath = p.ImagePath };
+                    else grid.Tag = new EpubPageInfoTag { StartLine = p.StartLine, LineCount = p.LineCount, TotalLinesInChapter = p.TotalLinesInChapter };
+                    return grid;
+                }
+                return null;
             }
-            
-            // [추가] 다음 텍스트/이미지 세그먼트의 시작 줄 번호를 위해 누적 줄 수 반환
-            return (textPages, cumulativeLines);
         }
 
-        private void AddTextPage(List<UIElement> pages, List<Block> pageBlocks, double width)
+        private List<UIElement> _epubPages
         {
-            // This method is now obsolete as pagination is handled inline in CreateTextPages
-            // to ensure accurate container measurement.
+            get
+            {
+                var list = new List<UIElement>();
+                foreach (var p in _epubWin2DPages)
+                {
+                    var grid = new Grid();
+                    if (p.IsImagePage) grid.Tag = new EpubImageTag { FullPath = p.ImagePath };
+                    else grid.Tag = new EpubPageInfoTag { StartLine = p.StartLine, LineCount = p.LineCount, TotalLinesInChapter = p.TotalLinesInChapter };
+                    list.Add(grid);
+                }
+                return list;
+            }
         }
+
+
 
         private async Task ShowEpubGoToLineDialog()
         {
-             int totalLines = 1;
-             int currentLine = 1;
-             if (EpubSelectedItem is Grid cg && cg.Tag is EpubPageInfoTag ctag)
-             {
-                 currentLine = ctag.StartLine;
-                 totalLines = ctag.TotalLinesInChapter;
-             }
-             else if (_epubPages.Count > 0)
-             {
-                 totalLines = _epubPages.Count; // Page fallback if no tag
-                 currentLine = _currentEpubPageIndex + 1;
-             }
+             var pg = CurrentEpubWin2DPage;
+             int totalLines = pg?.TotalLinesInChapter ?? _epubWin2DPages.Count;
+             int currentLine = pg?.StartLine ?? (_currentEpubPageIndex + 1);
 
              var dialog = new ContentDialog
              {
@@ -1016,8 +1058,7 @@ namespace Uviewer
              var input = new TextBox 
              { 
                  PlaceholderText = $"1 - {totalLines}",
-                 Text = currentLine.ToString(),
-                 InputScope = new InputScope { Names = { new InputScopeName { NameValue = InputScopeNameValue.Number } } }
+                 Text = currentLine.ToString()
              };
              
              input.SelectAll();
@@ -1034,30 +1075,25 @@ namespace Uviewer
                      }
 
                      // Find page that contains this line
-                     for (int i = 0; i < _epubPages.Count; i++)
+                     for (int i = 0; i < _epubWin2DPages.Count; i++)
                      {
-                         if (_epubPages[i] is Grid pg && pg.Tag is EpubPageInfoTag ptag)
+                         var p = _epubWin2DPages[i];
+                         if (targetLine >= p.StartLine && targetLine < p.StartLine + Math.Max(1, p.LineCount))
                          {
-                             if (targetLine >= ptag.StartLine && targetLine < ptag.StartLine + ptag.LineCount)
-                             {
-                                 SetEpubPageIndex(i);
-                                 return;
-                             }
-                             // Last page safety or exact chapter end
-                             if (i == _epubPages.Count - 1 && targetLine >= ptag.StartLine)
-                             {
-                                 SetEpubPageIndex(i);
-                                 return;
-                             }
+                             SetEpubPageIndex(i);
+                             return;
+                         }
+                         if (i == _epubWin2DPages.Count - 1 && targetLine >= p.StartLine)
+                         {
+                             SetEpubPageIndex(i);
+                             return;
                          }
                      }
                      
-                     // Fallback to page-based indexing if tags missing or out of bounds
+                     // Fallback
                      int pageIndex = targetLine - 1;
-                     if (pageIndex >= 0 && pageIndex < _epubPages.Count)
-                     {
+                     if (pageIndex >= 0 && pageIndex < _epubWin2DPages.Count)
                          SetEpubPageIndex(pageIndex);
-                     }
                  }
              }
 
@@ -1077,233 +1113,45 @@ namespace Uviewer
              }
         }
 
-        private List<Block> ParseHtmlToBlocks(string html)
-        {
-            var blocks = new List<Block>();
-            
-            // Cleanup
-            html = RxEpubScript.Replace(html, "");
-            html = RxEpubStyle.Replace(html, "");
-            
-            // Pre-process special tags
-            html = RxEpubBr.Replace(html, "\n");
-
-            // --- Ruby Processing ---
-            html = RxEpubRuby.Replace(html, m => 
-            {
-                string rubyContent = m.Groups[1].Value;
-                // Strip <rp>
-                rubyContent = RxEpubRp.Replace(rubyContent, "");
-                
-                StringBuilder sb = new StringBuilder();
-                var rtMatches = RxEpubRt.Matches(rubyContent);
-                
-                int lastIndex = 0;
-                foreach (Match rtMatch in rtMatches)
-                {
-                    string basePart = rubyContent.Substring(lastIndex, rtMatch.Index - lastIndex);
-                    string rtPart = rtMatch.Groups[1].Value;
-                    
-                    // Cleanup tags like <rb> from basePart and rtPart
-                    string baseText = RxEpubAnyTag.Replace(basePart, "").Trim();
-                    string rtText = RxEpubAnyTag.Replace(rtPart, "").Trim();
-                    
-                    if (!string.IsNullOrEmpty(baseText) || !string.IsNullOrEmpty(rtText))
-                    {
-                        sb.Append($"{{{{RUBY|{baseText}|~|{rtText}}}}}");
-                    }
-                    lastIndex = rtMatch.Index + rtMatch.Length;
-                }
-                
-                // Append any remaining text after the last <rt>
-                if (lastIndex < rubyContent.Length)
-                {
-                    string tail = rubyContent.Substring(lastIndex);
-                    string tailText = RxEpubAnyTag.Replace(tail, "").Trim();
-                    if (!string.IsNullOrEmpty(tailText)) sb.Append(tailText);
-                }
-                
-                return sb.ToString();
-            });
-            
-            // Strip remaining tags
-            html = RxEpubAnyTag.Replace(html, ""); 
-            html = System.Net.WebUtility.HtmlDecode(html);
-            
-            // Normalize newlines and whitespace
-            html = html.Replace("\r\n", "\n").Replace("\r", "\n");
-            
-            // Split
-            var lines = html.Split('\n');
-            
-            foreach (var rawLine in lines)
-            {
-                // aggressive trim to find "empty" lines even if they contain nbsp or fullwidth space
-                var line = rawLine; 
-                var trimmed = line.Replace('\u3000', ' ').Replace('\u00A0', ' ').Trim();
-                
-                if (string.IsNullOrWhiteSpace(trimmed)) continue;
-                
-                var p = new Paragraph();
-                p.TextAlignment = TextAlignment.Left;
-                p.Margin = new Thickness(0, 0, 0, _textFontSize * 0.5); 
-                p.LineHeight = _textFontSize * 2; // Increased multiplier for better ruby spacing
-                p.LineStackingStrategy = LineStackingStrategy.BlockLineHeight; // Force rigid line height
-                
-                // Tokenize by custom Ruby marker
-                var tokens = RxEpubRubySplit.Split(line);
-                
-                foreach (var token in tokens)
-                {
-                    if (token.StartsWith("{{RUBY|"))
-                    {
-                        var content = token.Substring(7, token.Length - 9); // Strip {{RUBY| and }}
-                        var parts = content.Split(new[] { "|~|" }, StringSplitOptions.None);
-                        if (parts.Length == 2)
-                        {
-                            p.Inlines.Add(CreateRuby(parts[0], parts[1]));
-                        }
-                    }
-                    else
-                    {
-                        if (!string.IsNullOrEmpty(token))
-                        {
-                            p.Inlines.Add(new Run { Text = token });
-                        }
-                    }
-                }
-                
-                blocks.Add(p);
-            }
-            
-            return blocks;
-        }
-
-        private InlineUIContainer CreateRuby(string baseText, string rubyText)
-        {
-            var grid = new Grid();
-            
-            // Use Auto height
-            grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto }); // Ruby
-            grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto }); // Base
-            
-            var rt = new TextBlock
-            {
-                Text = rubyText,
-                FontSize = _textFontSize * 0.5,
-                HorizontalAlignment = HorizontalAlignment.Center,
-                Foreground = GetThemeForeground(),
-                FontFamily = new FontFamily(_textFontFamily),
-                Opacity = 1,
-                TextLineBounds = TextLineBounds.Tight,
-                IsHitTestVisible = false,
-                Margin = new Thickness(0, 0, 0, 4)
-            };
-
-            // [추가] 루비가 너무 길어지는 경우 장평(ScaleX)을 75%로 설정
-            bool shouldScale = (baseText.Length == 1 && rubyText.Length >= 3) || 
-                               (baseText.Length == 2 && rubyText.Length >= 5) ||
-                               (baseText.Length == 3 && rubyText.Length >= 7);
-            if (shouldScale)
-            {
-                rt.RenderTransform = new ScaleTransform { ScaleX = 0.75 };
-                rt.RenderTransformOrigin = new Windows.Foundation.Point(0.5, 0.5);
-            }
-            
-            var rb = new TextBlock
-            {
-                Text = baseText,
-                FontSize = _textFontSize,
-                HorizontalAlignment = HorizontalAlignment.Center,
-                Foreground = GetThemeForeground(),
-                FontFamily = new FontFamily(_textFontFamily),
-                TextLineBounds = TextLineBounds.Tight,
-                Margin = new Thickness(0),
-                Padding = new Thickness(0)
-            };
-            
-            Grid.SetRow(rt, 0);
-            Grid.SetRow(rb, 1);
-            
-            grid.Children.Add(rt);
-            grid.Children.Add(rb);
-            
-            // [수정] 중요: Grid 자체의 수직 정렬을 Bottom으로 설정하여
-            // 본문 텍스트(rb)의 하단이 주변 텍스트의 기준선(Baseline)에 맞도록 유도
-            grid.VerticalAlignment = VerticalAlignment.Bottom;
-
-            // [수정] 루비가 3자인 경우 자간이 넓어지는 것을 방지하기 위해 왼쪽/오른쪽 마진을 음수로 설정
-            double sideMargin = 0;
-            if (rubyText.Length == 3 && baseText.Length == 1)
-            {
-                sideMargin = -(_textFontSize * 0.25);
-            }
-            grid.Margin = new Thickness(sideMargin, 0, sideMargin, 0); 
-
-            return new InlineUIContainer { Child = grid };
-        }
-
-        // FlipView SelectionChanged logic is now handled in SetEpubPageIndex
-        
-        // Navigation Handlers (Hooked from MainWindow.xaml.cs logic ideally, or replicated keys)
-        // Since we are in Partial Class, we can handle keys if we route them.
+        // Navigation Handlers
         
         public async Task NavigateEpubAsync(int direction)
         {
             if (!_isEpubMode) return;
-            
+
             int step = direction;
-            if (_isSideBySideMode)
-            {
-                if (_isEpubShowingTwoPages)
-                {
-                    step = direction * 2;
-                }
-                else
-                {
-                    step = direction;
-                }
-            }
+            if (_isSideBySideMode && _isEpubShowingTwoPages) step = direction * 2;
 
             int targetChapter = _currentEpubChapterIndex;
             int targetPage = _currentEpubPageIndex + step;
 
-            // Handle multi-chapter transitions
             while (true)
             {
-                // Get current page count for the 'targetChapter'
-                int currentLimit = (targetChapter == _currentEpubChapterIndex) 
-                    ? _epubPages.Count 
+                int currentLimit = (targetChapter == _currentEpubChapterIndex)
+                    ? _epubWin2DPages.Count
                     : (_epubPreloadCache.TryGetValue(targetChapter, out var cached) ? cached.Count : 0);
 
-                // Forward check
                 if (targetPage >= currentLimit && targetChapter < _epubSpine.Count - 1)
                 {
-                     targetPage -= currentLimit;
-                     targetChapter++;
-                     
-                     await ForceLoadChapterPagesAsync(targetChapter);
-                     continue;
+                    targetPage -= currentLimit;
+                    targetChapter++;
+                    await ForceLoadChapterPagesAsync(targetChapter);
+                    continue;
                 }
-                
-                // Backward check
+
                 if (targetPage < 0 && targetChapter > 0)
                 {
                     targetChapter--;
                     await ForceLoadChapterPagesAsync(targetChapter);
-                    
-                    int prevLimit = (targetChapter == _currentEpubChapterIndex) 
-                        ? _epubPages.Count 
+                    int prevLimit = (targetChapter == _currentEpubChapterIndex)
+                        ? _epubWin2DPages.Count
                         : (_epubPreloadCache.TryGetValue(targetChapter, out var cachedPrev) ? cachedPrev.Count : 0);
-                        
                     targetPage += prevLimit;
                     continue;
                 }
-                
                 break;
             }
 
-            // Cap inside current (potential) chapter
             if (targetChapter != _currentEpubChapterIndex)
             {
                 _currentEpubChapterIndex = targetChapter;
@@ -1311,7 +1159,7 @@ namespace Uviewer
             }
             else
             {
-                int finalIndex = Math.Clamp(targetPage, 0, _epubPages.Count - 1);
+                int finalIndex = Math.Clamp(targetPage, 0, _epubWin2DPages.Count - 1);
                 SetEpubPageIndex(finalIndex);
             }
         }
@@ -1351,11 +1199,11 @@ namespace Uviewer
             // Wait, let's fix the loop to use the correct source.
         }
 
-        private UIElement? GetEpubPage(int chapterIndex, int pageIndex)
+        private EpubWin2DPage? GetEpubWin2DPage(int chapterIndex, int pageIndex)
         {
             if (chapterIndex == _currentEpubChapterIndex)
             {
-                if (pageIndex >= 0 && pageIndex < _epubPages.Count) return _epubPages[pageIndex];
+                if (pageIndex >= 0 && pageIndex < _epubWin2DPages.Count) return _epubWin2DPages[pageIndex];
             }
             else if (_epubPreloadCache.TryGetValue(chapterIndex, out var cachedPages))
             {
@@ -1370,11 +1218,10 @@ namespace Uviewer
 
             try
             {
-                // Show loading
                 FileNameText.Text = (Path.GetFileName(_currentEpubFilePath) ?? "") + Strings.Loading;
-                await Task.Delay(1); // UI yield to show status change
+                await Task.Delay(1);
 
-                List<UIElement> pages;
+                List<EpubWin2DPage> pages;
                 if (_epubPreloadCache.TryGetValue(index, out var cachedPages))
                 {
                     pages = cachedPages;
@@ -1393,58 +1240,42 @@ namespace Uviewer
                         using var reader = new StreamReader(stream);
                         html = await reader.ReadToEndAsync();
                     }
-                    finally
-                    {
-                        _epubArchiveLock.Release();
-                    }
+                    finally { _epubArchiveLock.Release(); }
 
-                    // Convert HTML to Blocks and Images
                     pages = await RenderEpubPagesAsync(html, path);
                     _epubPreloadCache[index] = pages;
-                    _epubChapterHasText[index] = pages.Any(p => p is Grid g && g.Tag is EpubPageInfoTag);
+                    _epubChapterHasText[index] = pages.Any(p => !p.IsImagePage);
                 }
-                
-                // Update pages list
-                _epubPages = pages;
+
+                _epubWin2DPages = pages;
                 _currentEpubPageIndex = -1;
 
                 if (_isVerticalMode)
                 {
                     _currentEpubChapterIndex = index;
                     var blocks = await GetEpubChapterAsAozoraBlocksAsync(index);
-                    
-                    // If side-by-side mode is on and current chapter is just images, try to pull in the next chapter's blocks
-                    // to allow SBS grouping across chapter boundaries.
                     if (_isSideBySideMode && blocks.Count > 0 && blocks.All(b => b.HasImage))
                     {
                         int nextIdx = index + 1;
                         if (nextIdx < _epubSpine.Count)
                         {
                             var nextBlocks = await GetEpubChapterAsAozoraBlocksAsync(nextIdx);
-                            // Only pull in if next chapter also starts with an image (don't mixing text chapters too much)
                             if (nextBlocks.Count > 0 && nextBlocks[0].HasImage)
-                            {
                                 blocks.AddRange(nextBlocks);
-                            }
                         }
                     }
-
                     _aozoraBlocks = blocks;
                     await PrepareVerticalTextAsync(fromEnd ? 999999 : (targetLine > 0 ? targetLine : 1));
                     return;
                 }
 
-                // Update UI Container
-                EpubPageDisplay.Children.Clear();
-                foreach (var page in _epubPages)
-                {
-                    EpubPageDisplay.Children.Add(page);
-                }
-                
+                // 가로 모드: Win2D 캔버스 활성화
+                EpubTextCanvas.Visibility = Visibility.Visible;
+                EpubImageHost.Visibility = Visibility.Collapsed;
+
                 int finalTargetPage = 0;
 
-                // 1. 줄 번호(targetLine)가 존재하면 가장 우선순위로 적용합니다.
-                if (targetLine > 1) 
+                if (targetLine > 1)
                 {
                     var tempBlocks = await GetEpubChapterAsAozoraBlocksAsync(index);
                     int maxSourceLine = tempBlocks.Count > 0 ? tempBlocks.Last().SourceLineNumber : 1;
@@ -1453,58 +1284,32 @@ namespace Uviewer
 
                     for (int i = 0; i < pages.Count; i++)
                     {
-                        if (pages[i] is Grid pg && pg.Tag is EpubPageInfoTag tag)
+                        var p = pages[i];
+                        if (!p.IsImagePage)
                         {
-                            double pageStartRatio = (double)tag.StartLine / Math.Max(1, tag.TotalLinesInChapter);
-                            double pageEndRatio = (double)(tag.StartLine + tag.LineCount) / Math.Max(1, tag.TotalLinesInChapter);
-
+                            double pageStartRatio = (double)p.StartLine / Math.Max(1, p.TotalLinesInChapter);
+                            double pageEndRatio = (double)(p.StartLine + p.LineCount) / Math.Max(1, p.TotalLinesInChapter);
                             if (targetRatio >= pageStartRatio && targetRatio <= pageEndRatio)
-                            {
-                                finalTargetPage = i;
-                                break;
-                            }
-                            // Last page fallback
+                            { finalTargetPage = i; break; }
                             if (i == pages.Count - 1 && targetRatio >= pageStartRatio)
-                            {
-                                finalTargetPage = i;
-                                break;
-                            }
-                        }
-                        else if (pages[i] is Grid imgPg && imgPg.Tag is EpubImageTag imgTag)
-                        {
-                            var targetBlock = tempBlocks.FirstOrDefault(b => b.Inlines.OfType<AozoraImage>().Any(img => img.Source == imgTag.FullPath));
-                            if (targetBlock != null)
-                            {
-                                double imgRatio = (double)targetBlock.SourceLineNumber / Math.Max(1, maxSourceLine);
-                                if (targetLine == targetBlock.SourceLineNumber || Math.Abs(imgRatio - targetRatio) < 0.05)
-                                {
-                                    finalTargetPage = i;
-                                    break;
-                                }
-                            }
+                            { finalTargetPage = i; break; }
                         }
                     }
                 }
-                // 2. 줄 번호가 없을 때 기존 저장된 페이지 인덱스를 사용합니다.
-                else if (targetPage > 0) 
+                else if (targetPage > 0)
                 {
                     finalTargetPage = Math.Min(targetPage, pages.Count - 1);
                 }
-                // 3. 퍼센트 진행도가 있을 경우
                 else if (progress.HasValue)
                 {
-                    int maxPage = Math.Max(0, pages.Count - 1);
-                    finalTargetPage = (int)(maxPage * progress.Value);
+                    finalTargetPage = (int)(Math.Max(0, pages.Count - 1) * progress.Value);
                 }
-                // 4. 이전 챕터에서 넘어올 때 (마지막 페이지)
                 else if (fromEnd && pages.Count > 0)
                 {
                     finalTargetPage = pages.Count - 1;
                 }
-                
-                SetEpubPageIndex(finalTargetPage);
 
-                // Trigger preloading for neighbors
+                SetEpubPageIndex(finalTargetPage);
                 _ = PreloadEpubChaptersAsync(index);
             }
             finally
@@ -1515,122 +1320,40 @@ namespace Uviewer
 
         private void SetEpubPageIndex(int index)
         {
-            if (index < 0 || index >= _epubPages.Count) return;
-
-            // 1. Reset current state
-            _isEpubShowingTwoPages = false;
-            foreach (UIElement p in EpubPageDisplay.Children)
-            {
-                p.Opacity = 0;
-                p.IsHitTestVisible = false;
-                if (p is FrameworkElement fe)
-                {
-                    Grid.SetColumn(fe, 0);
-                    Grid.SetColumnSpan(fe, 2);
-                }
-            }
-            EpubPageDisplay.ColumnDefinitions.Clear();
+            if (index < 0 || index >= _epubWin2DPages.Count) return;
 
             _currentEpubPageIndex = index;
-            UIElement page1 = _epubPages[index];
+            var page = _epubWin2DPages[index];
 
-            // 2. Side-by-Side Logic (Images only for now)
-            bool isImg1 = (page1 is Grid g1 && g1.Tag is EpubImageTag);
-
-            if (_isSideBySideMode && isImg1)
+            // 이미지 페이지 처리
+            if (page.IsImagePage)
             {
-                // Try to find next page (could be in next chapter)
-                int nextChapIndex = _currentEpubChapterIndex;
-                int nextPgIndex = index + 1;
+                _isEpubShowingTwoPages = false;
+                EpubTextCanvas.Visibility = Visibility.Collapsed;
+                ShowEpubImagePage(page);
 
-                if (nextPgIndex >= _epubPages.Count)
+                // 연속 이미지 SBS 처리
+                if (_isSideBySideMode)
                 {
-                    nextChapIndex++;
-                    nextPgIndex = 0;
-                }
-
-                UIElement? page2 = GetEpubPage(nextChapIndex, nextPgIndex);
-                bool isImg2 = page2 != null && (page2 is Grid g2 && g2.Tag is EpubImageTag);
-
-                if (isImg2 && page2 != null && page2 != page1)
-                {
-                    _isEpubShowingTwoPages = true;
-
-                    // Setup 2-column layout
-                    EpubPageDisplay.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-                    EpubPageDisplay.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-
-                    // Ensure page2 is a child of display
-                    if (!EpubPageDisplay.Children.Contains(page2))
+                    int nextChapIndex = _currentEpubChapterIndex;
+                    int nextPgIndex = index + 1;
+                    if (nextPgIndex >= _epubWin2DPages.Count) { nextChapIndex++; nextPgIndex = 0; }
+                    var pg2 = GetEpubWin2DPage(nextChapIndex, nextPgIndex);
+                    if (pg2 != null && pg2.IsImagePage)
                     {
-                        EpubPageDisplay.Children.Add(page2);
+                        _isEpubShowingTwoPages = true;
+                        // 이미지는 EpubImageDisplay가 Grid에 있으면서 SBS는 모드지원 안함
                     }
-
-                    // Position based on progression direction
-                    if (_nextImageOnRight)
-                    {
-                        // Left-to-Right: Current on Left (Col 0), Next on Right (Col 1)
-                        Grid.SetColumn((FrameworkElement)page1, 0);
-                        Grid.SetColumn((FrameworkElement)page2, 1);
-                        ((FrameworkElement)page1).HorizontalAlignment = HorizontalAlignment.Right;
-                        ((FrameworkElement)page2).HorizontalAlignment = HorizontalAlignment.Left;
-                    }
-                    else
-                    {
-                        // Right-to-Left: Current on Right (Col 1), Next on Left (Col 0)
-                        Grid.SetColumn((FrameworkElement)page1, 1);
-                        Grid.SetColumn((FrameworkElement)page2, 0);
-                        ((FrameworkElement)page1).HorizontalAlignment = HorizontalAlignment.Left;
-                        ((FrameworkElement)page2).HorizontalAlignment = HorizontalAlignment.Right;
-                    }
-
-                    page1.Opacity = 1;
-                    page1.IsHitTestVisible = true;
-                    page2.Opacity = 1;
-                    page2.IsHitTestVisible = true;
-
-                    Grid.SetColumnSpan((FrameworkElement)page1, 1);
-                    Grid.SetColumnSpan((FrameworkElement)page2, 1);
-                }
-                else if (nextChapIndex < _epubSpine.Count && page2 == null)
-                {
-                    // Next page is in another chapter and not yet loaded.
-                    // Setup layout as SBS to avoid flicker when it loads soon.
-                    _isEpubShowingTwoPages = true;
-
-                    EpubPageDisplay.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-                    EpubPageDisplay.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-
-                    if (_nextImageOnRight)
-                    {
-                        Grid.SetColumn((FrameworkElement)page1, 0);
-                        ((FrameworkElement)page1).HorizontalAlignment = HorizontalAlignment.Right;
-                    }
-                    else
-                    {
-                        Grid.SetColumn((FrameworkElement)page1, 1);
-                        ((FrameworkElement)page1).HorizontalAlignment = HorizontalAlignment.Left;
-                    }
-
-                    page1.Opacity = 1;
-                    page1.IsHitTestVisible = true;
-                    Grid.SetColumnSpan((FrameworkElement)page1, 1);
-                    
-                    // Trigger proactive preloading if next page is null
-                    _ = PreloadEpubChaptersAsync(_currentEpubChapterIndex);
                 }
             }
-
-            if (!_isEpubShowingTwoPages)
+            else
             {
-                page1.Opacity = 1;
-                page1.IsHitTestVisible = true;
-                
-                // Only center images. Text should be left-aligned (stretching the container)
-                ((FrameworkElement)page1).HorizontalAlignment = isImg1 ? HorizontalAlignment.Center : HorizontalAlignment.Stretch;
+                // 텍스트 페이지: Win2D 캐단스
+                EpubImageHost.Visibility = Visibility.Collapsed;
+                EpubTextCanvas.Visibility = Visibility.Visible;
+                EpubTextCanvas.Invalidate();
 
-                Grid.SetColumn((FrameworkElement)page1, 0);
-                Grid.SetColumnSpan((FrameworkElement)page1, 2); 
+                _isEpubShowingTwoPages = false;
             }
 
             UpdateEpubStatus();
@@ -1662,48 +1385,10 @@ namespace Uviewer
         private void UpdateEpubVisuals()
         {
             var bg = GetEpubThemeBackground();
-            var fg = GetEpubThemeForeground();
-            
             if (EpubArea != null) EpubArea.Background = bg;
-            // if (StatusBarGrid != null) StatusBarGrid.Background = bg; // Keep status bar default color
-
-            if (_epubPages != null)
+            if (_isEpubMode && !_isVerticalMode)
             {
-                foreach (var item in _epubPages)
-                {
-                    if (item is Grid pageGrid)
-                    {
-                        pageGrid.Background = bg;
-                        
-                        // Find child... deeper
-                        if (pageGrid.Children.Count > 0 && pageGrid.Children[0] is RichTextBlock rtb)
-                        {
-                            rtb.Foreground = fg;
-                            rtb.FontFamily = new FontFamily(_textFontFamily);
-                            
-                            foreach (var block in rtb.Blocks)
-                            {
-                                if (block is Paragraph p)
-                                {
-                                    foreach (var inline in p.Inlines)
-                                    {
-                                        if (inline is InlineUIContainer container && container.Child is Grid rGrid)
-                                        {
-                                             foreach (var child in rGrid.Children)
-                                             {
-                                                 if (child is TextBlock rubytb)
-                                                 {
-                                                     rubytb.Foreground = fg;
-                                                     rubytb.FontFamily = new FontFamily(_textFontFamily);
-                                                 }
-                                             }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
+                EpubTextCanvas?.Invalidate();
             }
         }
 
@@ -2031,5 +1716,16 @@ namespace Uviewer
             
             return blocks;
         }
+    }
+    public class EpubPageInfoTag
+    {
+        public int StartLine { get; set; }
+        public int LineCount { get; set; }
+        public int TotalLinesInChapter { get; set; }
+    }
+
+    public class EpubImageTag
+    {
+        public string FullPath { get; set; } = string.Empty;
     }
 }
