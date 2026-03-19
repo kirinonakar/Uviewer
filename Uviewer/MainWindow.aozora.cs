@@ -109,14 +109,28 @@ namespace Uviewer
 
             if (_isAozoraMode)
             {
-                if (_currentAozoraPageInfo.Blocks != null && _currentAozoraPageInfo.Blocks.Count > 0)
+                // [수정] 가로 렌더링 대기 라인을 우선 확인
+                if (_aozoraPendingTargetLine > 1)
+                {
+                    currentLine = _aozoraPendingTargetLine;
+                }
+                else if (_currentAozoraPageInfo.Blocks != null && _currentAozoraPageInfo.Blocks.Count > 0)
                 {
                     currentLine = _currentAozoraPageInfo.StartLine;
                 }
             }
             else
             {
-                if (TextScrollViewer != null)
+                // [수정] 세로 모드에서 넘어올 때의 방어 로직 추가
+                if (_isVerticalMode && _pendingVerticalScrollLine.HasValue)
+                {
+                    currentLine = _pendingVerticalScrollLine.Value;
+                }
+                else if (_isVerticalMode && _currentVerticalPageInfo.Blocks != null && _currentVerticalPageInfo.Blocks.Count > 0)
+                {
+                    currentLine = _currentVerticalPageInfo.StartLine;
+                }
+                else if (TextScrollViewer != null)
                 {
                     currentLine = GetTopVisibleLineIndex();
                 }
@@ -198,7 +212,7 @@ namespace Uviewer
         if (_aozoraPendingTargetLine != 1)
         {
             targetLine = _aozoraPendingTargetLine;
-            _aozoraPendingTargetLine = 1;
+            // _aozoraPendingTargetLine = 1; // <--- 이 줄을 삭제하세요! (섣불리 지우면 위치를 잃어버립니다)
         }
 
         // 화면 전환 전 불필요한 UI 숨기기 (로딩 뷰가 있다면 여기서 띄워도 좋습니다)
@@ -305,6 +319,8 @@ namespace Uviewer
                 {
                     RenderAozoraDynamicPage(_currentAozoraStartBlockIndex);
                 }
+
+                _aozoraPendingTargetLine = 1; // <--- 렌더링이 화면에 반영된 직후인 이 위치에서 초기화해 줍니다!
 
                 // 렌더링 완료 후 남은 전체 페이지 계산 백그라운드 시작
                 StartAozoraPageCalculationAsync();

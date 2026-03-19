@@ -358,95 +358,120 @@ namespace Uviewer
         }
 
         private List<AozoraBindingModel> SplitBlockBySentences(AozoraBindingModel originalBlock)
+{
+    // 💡 [유지] 박스(罫囲み) 여부 판별
+    bool isKeigakomi = originalBlock.BorderColor != null ||
+                       originalBlock.BorderThickness.Top > 0 ||
+                       originalBlock.BorderThickness.Left > 0 ||
+                       originalBlock.BorderThickness.Bottom > 0 ||
+                       originalBlock.BorderThickness.Right > 0;
+
+    if (originalBlock.HeadingLevel > 0 || originalBlock.HasImage || originalBlock.IsTable || originalBlock.IsPageBreak || originalBlock.IsBlankLine || isKeigakomi)
+    {
+        return new List<AozoraBindingModel> { originalBlock };
+    }
+
+    // ==========================================
+    // [버그 수정] 쉼표('、', ',') 분리 시 남은 길이(줄 길이) 보정 로직 추가
+    // ==========================================
+    char[] terminators = { '。', '！', '？', '.', '!', '?' }; // 문장 종료 기호
+    char[] commaTerminators = { '、', ',' };                  // 구 단위 종료 기호 (콤마)
+    char[] quotes = { '」', '』', '"', '\'', '”', '’', '〉', '》', '】', '］', ')' };
+
+    var result = new List<AozoraBindingModel>();
+    var currentBlock = CloneBlockProperties(originalBlock);
+    bool isFirst = true;
+
+    for (int i = 0; i < originalBlock.Inlines.Count; i++)
+    {
+        var inline = originalBlock.Inlines[i];
+
+        if (inline is string text)
         {
-            // 💡 [유지] 박스(罫囲み) 여부 판별
-            bool isKeigakomi = originalBlock.BorderColor != null ||
-                               originalBlock.BorderThickness.Top > 0 ||
-                               originalBlock.BorderThickness.Left > 0 ||
-                               originalBlock.BorderThickness.Bottom > 0 ||
-                               originalBlock.BorderThickness.Right > 0;
-
-            if (originalBlock.HeadingLevel > 0 || originalBlock.HasImage || originalBlock.IsTable || originalBlock.IsPageBreak || originalBlock.IsBlankLine || isKeigakomi)
+            int start = 0;
+            for (int j = 0; j < text.Length; j++)
             {
-                return new List<AozoraBindingModel> { originalBlock };
-            }
+                char c = text[j];
+                bool isTerminator = Array.IndexOf(terminators, c) >= 0;
+                bool isComma = Array.IndexOf(commaTerminators, c) >= 0;
 
-            // ==========================================
-            // [버그 수정] 쉼표('、', ',') 추가
-            // 문장을 구(Clause) 단위로 더 잘게 쪼개어, 긴 문단이 다음 페이지로 넘어갈 때 
-            // 이전 페이지 하단에 큰 공백이 남는 현상을 해결합니다.
-            // ==========================================
-            char[] terminators = { '。', '！', '？', '.', '!', '?', '、', ',' };
-            char[] quotes = { '」', '』', '"', '\'', '”', '’', '〉', '》', '】', '］', ')' };
-
-            var result = new List<AozoraBindingModel>();
-            var currentBlock = CloneBlockProperties(originalBlock);
-            bool isFirst = true;
-
-            for (int i = 0; i < originalBlock.Inlines.Count; i++)
-            {
-                var inline = originalBlock.Inlines[i];
-
-                if (inline is string text)
+                if (isTerminator || isComma)
                 {
-                    int start = 0;
-                    for (int j = 0; j < text.Length; j++)
+                    if (c == '.' && j > 0 && j < text.Length - 1 && char.IsDigit(text[j - 1]) && char.IsDigit(text[j + 1])) continue;
+                    if (j < text.Length - 1 && (Array.IndexOf(terminators, text[j + 1]) >= 0 || Array.IndexOf(commaTerminators, text[j + 1]) >= 0)) continue;
+
+                    // 💡 [핵심 로직] 콤마인 경우, 다음 구분자까지 남은 글자 수를 미리(Lookahead) 확인합니다.
+                    if (isComma)
                     {
-                        char c = text[j];
-                        if (Array.IndexOf(terminators, c) >= 0)
+                        int remainingLength = 0;
+                        bool foundEnd = false;
+                        for (int k = j + 1; k < text.Length; k++)
                         {
-                            if (c == '.' && j > 0 && j < text.Length - 1 && char.IsDigit(text[j - 1]) && char.IsDigit(text[j + 1])) continue;
-                            if (j < text.Length - 1 && Array.IndexOf(terminators, text[j + 1]) >= 0) continue;
-
-                            int splitPos = j + 1;
-                            while (splitPos < text.Length && Array.IndexOf(quotes, text[splitPos]) >= 0) splitPos++;
-
-                            bool isLastInText = (splitPos == text.Length);
-                            bool isLastInline = (i == originalBlock.Inlines.Count - 1);
-
-                            if (isLastInText && isLastInline) continue;
-
-                            string part = text.Substring(start, splitPos - start);
-                            if (currentBlock.Inlines.Count == 0) part = part.TrimStart();
-                            if (!string.IsNullOrEmpty(part)) currentBlock.Inlines.Add(part);
-
-                            if (currentBlock.Inlines.Count > 0)
+                            if (Array.IndexOf(terminators, text[k]) >= 0 || Array.IndexOf(commaTerminators, text[k]) >= 0)
                             {
-                                if (!isFirst) currentBlock.IsParagraphContinuation = true;
-                                result.Add(currentBlock);
-                                isFirst = false;
+                                remainingLength = k - j;
+                                foundEnd = true;
+                                break;
                             }
+                        }
+                        if (!foundEnd) remainingLength = text.Length - j;
 
-                            currentBlock = CloneBlockProperties(originalBlock);
-                            currentBlock.BlockIndent = 0;
-                            currentBlock.Margin = new Thickness(0);
-
-                            start = splitPos;
-                            j = splitPos - 1;
+                        // 한 줄에 충분히 들어갈 수 있는 길이(약 40자 이하)라면 여기서 분리하지 않고 계속 이어붙입니다.
+                        if (remainingLength <= 40)
+                        {
+                            continue; 
                         }
                     }
 
-                    if (start < text.Length)
+                    int splitPos = j + 1;
+                    while (splitPos < text.Length && Array.IndexOf(quotes, text[splitPos]) >= 0) splitPos++;
+
+                    bool isLastInText = (splitPos == text.Length);
+                    bool isLastInline = (i == originalBlock.Inlines.Count - 1);
+
+                    if (isLastInText && isLastInline) continue;
+
+                    string part = text.Substring(start, splitPos - start);
+                    if (currentBlock.Inlines.Count == 0) part = part.TrimStart();
+                    if (!string.IsNullOrEmpty(part)) currentBlock.Inlines.Add(part);
+
+                    if (currentBlock.Inlines.Count > 0)
                     {
-                        string left = text.Substring(start);
-                        if (currentBlock.Inlines.Count == 0) left = left.TrimStart();
-                        if (!string.IsNullOrEmpty(left)) currentBlock.Inlines.Add(left);
+                        if (!isFirst) currentBlock.IsParagraphContinuation = true;
+                        result.Add(currentBlock);
+                        isFirst = false;
                     }
-                }
-                else
-                {
-                    currentBlock.Inlines.Add(inline);
+
+                    currentBlock = CloneBlockProperties(originalBlock);
+                    currentBlock.BlockIndent = 0;
+                    currentBlock.Margin = new Thickness(0);
+
+                    start = splitPos;
+                    j = splitPos - 1;
                 }
             }
 
-            if (currentBlock.Inlines.Count > 0)
+            if (start < text.Length)
             {
-                if (!isFirst) currentBlock.IsParagraphContinuation = true;
-                result.Add(currentBlock);
+                string left = text.Substring(start);
+                if (currentBlock.Inlines.Count == 0) left = left.TrimStart();
+                if (!string.IsNullOrEmpty(left)) currentBlock.Inlines.Add(left);
             }
-
-            return result;
         }
+        else
+        {
+            currentBlock.Inlines.Add(inline);
+        }
+    }
+
+    if (currentBlock.Inlines.Count > 0)
+    {
+        if (!isFirst) currentBlock.IsParagraphContinuation = true;
+        result.Add(currentBlock);
+    }
+
+    return result;
+}
 
         private List<AozoraBindingModel> ParseMarkdownContent(string text)
         {

@@ -116,7 +116,23 @@ namespace Uviewer
                 // EPUB이 아닌 일반 텍스트 모드일 경우
                 else if (_isAozoraMode)
                 {
-                    currentLine = (_aozoraBlocks != null && _aozoraBlocks.Count > _currentAozoraStartBlockIndex) ? _aozoraBlocks[_currentAozoraStartBlockIndex].SourceLineNumber : 1;
+                    // [수정] 진행 중인 렌더링이 있다면 해당 목표 라인을 우선 사용
+                    if (_aozoraPendingTargetLine > 1) 
+                    {
+                        currentLine = _aozoraPendingTargetLine;
+                    }
+                    else if (_currentAozoraPageInfo.Blocks != null && _currentAozoraPageInfo.Blocks.Count > 0)
+                    {
+                        currentLine = _currentAozoraPageInfo.StartLine;
+                    }
+                    else if (_aozoraBlocks != null && _aozoraBlocks.Count > _currentAozoraStartBlockIndex)
+                    {
+                        currentLine = _aozoraBlocks[_currentAozoraStartBlockIndex].SourceLineNumber;
+                    }
+                    else 
+                    {
+                        currentLine = 1;
+                    }
                 }
                 else if (TextScrollViewer != null) 
                 {
@@ -127,7 +143,19 @@ namespace Uviewer
             }
             else
             {
-                _pendingVerticalScrollLine = null;
+                // [수정] _pendingVerticalScrollLine을 null로 초기화하기 전에 값을 먼저 구출합니다.
+                int currentLine = 1;
+                if (_pendingVerticalScrollLine.HasValue)
+                {
+                    currentLine = _pendingVerticalScrollLine.Value;
+                }
+                else if (_currentVerticalPageInfo.Blocks != null && _currentVerticalPageInfo.Blocks.Count > 0)
+                {
+                    currentLine = _currentVerticalPageInfo.StartLine;
+                }
+
+                _pendingVerticalScrollLine = null; // 값을 구출한 뒤에 초기화
+
                 // Detach vertical key handler
                 if (_verticalKeyAttached && RootGrid != null)
                 {
@@ -135,9 +163,6 @@ namespace Uviewer
                     _verticalKeyAttached = false;
                 }
                 
-                // [안전 장치] Blocks가 비어있을 때 발생하는 오류 방지
-                int currentLine = _currentVerticalPageInfo.Blocks != null && _currentVerticalPageInfo.Blocks.Count > 0 ? _currentVerticalPageInfo.StartLine : 1;
-
                 if (VerticalTextCanvas != null) VerticalTextCanvas.Visibility = Visibility.Collapsed;
                 if (_isEpubMode)
                 {
