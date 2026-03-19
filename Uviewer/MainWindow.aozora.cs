@@ -185,130 +185,99 @@ namespace Uviewer
         private int _aozoraPendingTargetLine = 1;
 
         private async Task PrepareAozoraDisplayAsync(string rawContent, int targetLine = 1, CancellationToken token = default)
+{
+    try
+    {
+        // 1. 상태 초기화 (UI 스레드)
+        _currentAozoraStartBlockIndex = 0;
+        _currentAozoraEndBlockIndex = 0;
+        _aozoraImageCache.Clear();
+        _currentAozoraPageInfo = new AozoraPageInfo { Blocks = new List<AozoraBindingModel>(), StartLine = 1 };
+        _aozoraNavHistory.Clear();
+
+        if (_aozoraPendingTargetLine != 1)
         {
-            try
+            targetLine = _aozoraPendingTargetLine;
+            _aozoraPendingTargetLine = 1;
+        }
+
+        // 화면 전환 전 불필요한 UI 숨기기 (로딩 뷰가 있다면 여기서 띄워도 좋습니다)
+        if (EmptyStatePanel != null) EmptyStatePanel.Visibility = Visibility.Collapsed;
+        if (TextScrollViewer != null) TextScrollViewer.Visibility = Visibility.Collapsed;
+        if (TextFastNavOverlay != null) TextFastNavOverlay.Visibility = Visibility.Collapsed;
+
+        if (TextArea != null)
+        {
+            TextArea.Visibility = Visibility.Visible;
+            TextArea.Background = GetThemeBackground();
+        }
+
+        bool isMarkdown = false;
+        if (!string.IsNullOrEmpty(_currentTextFilePath))
+        {
+            var ext = System.IO.Path.GetExtension(_currentTextFilePath).ToLower();
+            if (ext == ".md" || ext == ".markdown") isMarkdown = true;
+        }
+
+        _isMarkdownRenderMode = isMarkdown;
+
+        // 2. 전체 데이터 백그라운드 파싱 (UI 프리징 방지)
+        await Task.Run(() =>
+        {
+            if (token.IsCancellationRequested) return;
+
+            List<AozoraBindingModel> parsedBlocks;
+            int sourceLineCount;
+
+            if (isMarkdown)
             {
-                _currentAozoraStartBlockIndex = 0;
-                _currentAozoraEndBlockIndex = 0;
-                _aozoraImageCache.Clear();
-                _currentAozoraPageInfo = new AozoraPageInfo { Blocks = new List<AozoraBindingModel>(), StartLine = 1 };
-
-                if (_aozoraPendingTargetLine != 1)
+                parsedBlocks = ParseMarkdownContent(rawContent);
+                sourceLineCount = parsedBlocks.Count;
+            }
+            else
+            {
+                // 🔥 중요: 무거운 정규식 작업과 Split을 UI 스레드에서 백그라운드로 이동
+                string boldStartTag = @"［＃(?:ここから太字)］";
+                string boldEndTag = @"［＃(?:ここで太字終わり)］";
+                string processedContent = Regex.Replace(rawContent, $"{boldStartTag}(.*?){boldEndTag}", (m) =>
                 {
-                    targetLine = _aozoraPendingTargetLine;
-                    _aozoraPendingTargetLine = 1;
-                }
+                    string inner = m.Groups[1].Value;
+                    var startRegex = new Regex(boldStartTag);
+                    var parts = startRegex.Split(inner);
+                    if (parts.Length <= 1) return $"@@BOLD_START@@{inner}@@BOLD_END@@";
+                    string prefix = string.Join("", parts.Take(parts.Length - 1));
+                    string boldContent = parts.Last();
+                    return $"{prefix}@@BOLD_START@@{boldContent}@@BOLD_END@@";
+                }, RegexOptions.Singleline);
 
-                bool isMarkdown = false;
-                if (!string.IsNullOrEmpty(_currentTextFilePath))
-                {
-                    var ext = System.IO.Path.GetExtension(_currentTextFilePath).ToLower();
-                    if (ext == ".md" || ext == ".markdown") isMarkdown = true;
-                }
+                var lines = processedContent.Replace("\r\n", "\n").Replace("\r", "\n").Split('\n');
+                sourceLineCount = lines.Length;
 
-                if (isMarkdown)
-                {
-                    _isMarkdownRenderMode = true;
-                    _aozoraBlocks = await Task.Run(() => ParseMarkdownContent(rawContent));
-                    _aozoraTotalLineCountInSource = _aozoraBlocks.Count;
-                    _textTotalLineCountInSource = _aozoraBlocks.Count;
-                }
-                else
-                {
-                    _isMarkdownRenderMode = false;
-                    
-                    string boldStartTag = @"［＃(?:ここから太字)］";
-                    string boldEndTag = @"［＃(?:ここで太字終わり)］";
-                    rawContent = Regex.Replace(rawContent, $"{boldStartTag}(.*?){boldEndTag}", (m) =>
-                    {
-                        string inner = m.Groups[1].Value;
-                        var startRegex = new Regex(boldStartTag);
-                        var parts = startRegex.Split(inner);
-                        if (parts.Length <= 1) return $"@@BOLD_START@@{inner}@@BOLD_END@@";
-                        string prefix = string.Join("", parts.Take(parts.Length - 1));
-                        string boldContent = parts.Last();
-                        return $"{prefix}@@BOLD_START@@{boldContent}@@BOLD_END@@";
-                    }, RegexOptions.Singleline);
+                // 제한 없이 전체 라인 파싱
+                parsedBlocks = ParseAozoraLines(lines, 1);
+            }
 
-                    var lines = rawContent.Replace("\r\n", "\n").Replace("\r", "\n").Split('\n');
-                    _aozoraTotalLineCountInSource = lines.Length;
-                    _textTotalLineCountInSource = lines.Length;
+            if (token.IsCancellationRequested) return;
 
-                    int initialLimit = 2000;
-                    if (targetLine > initialLimit - 500) initialLimit = targetLine + 500;
+            // 3. 파싱 완료 후 UI 스레드에서 화면 업데이트
+            DispatcherQueue.TryEnqueue(async () =>
+            {
+                if (token.IsCancellationRequested) return;
 
-                    if (lines.Length > initialLimit)
-                    {
-                        var initialLines = lines.Take(initialLimit).ToArray();
-                        _aozoraBlocks = await Task.Run(() => ParseAozoraLines(initialLines, 1));
-
-                        var activeBlocksRef = _aozoraBlocks;
-                        int expectedContentHash = rawContent.GetHashCode();
-                        int expectedSourceCount = lines.Length;
-
-                        _ = Task.Run(() =>
-                        {
-                            try
-                            {
-                                if (token.IsCancellationRequested) return;
-                                var restLines = lines.Skip(initialLimit).ToArray();
-                                var restBlocks = ParseAozoraLines(restLines, initialLimit + 1);
-
-                                if (token.IsCancellationRequested) return;
-                                this.DispatcherQueue.TryEnqueue(() =>
-                                {
-                                    if (token.IsCancellationRequested) return;
-                                    if (string.IsNullOrEmpty(_currentTextContent) || _currentTextContent.GetHashCode() != expectedContentHash) return;
-                                    if (_aozoraBlocks != activeBlocksRef) return;
-                                    if (!_isAozoraMode && !_isVerticalMode) return;
-
-                                    _aozoraBlocks.AddRange(restBlocks);
-                                    _aozoraTotalLineCount = _aozoraBlocks.Count;
-                                    _aozoraTotalLineCountInSource = expectedSourceCount;
-                                    _textTotalLineCountInSource = expectedSourceCount;
-
-                                    if (_isAozoraMode)
-                                    {
-                                        UpdateAozoraStatusBar();
-                                        StartAozoraPageCalculationAsync();
-                                    }
-                                    else if (_isVerticalMode)
-                                    {
-                                        try
-                                        {
-                                            int currentLine = _currentVerticalPageInfo.StartLine;
-                                            if (currentLine <= 0) currentLine = 1;
-                                            _ = PrepareVerticalTextAsync(currentLine);
-                                        }
-                                        catch { }
-                                    }
-                                });
-                            }
-                            catch (Exception ex)
-                            {
-                                System.Diagnostics.Debug.WriteLine($"Background Parse Error: {ex.Message}");
-                            }
-                        }, token);
-                    }
-                    else
-                    {
-                        _aozoraBlocks = await Task.Run(() => ParseAozoraLines(lines, 1));
-                    }
-                }
-
+                _aozoraBlocks = parsedBlocks;
                 _aozoraTotalLineCount = _aozoraBlocks.Count;
-                _aozoraNavHistory.Clear();
+                _aozoraTotalLineCountInSource = sourceLineCount;
+                _textTotalLineCountInSource = sourceLineCount;
 
+                // 목표 라인(TargetLine) 인덱스 탐색
                 int startIdx = 0;
                 if (targetLine > 1)
                 {
                     for (int i = 0; i < _aozoraBlocks.Count; i++)
                     {
-                        startIdx = i;
                         if (_aozoraBlocks[i].SourceLineNumber >= targetLine)
                         {
-                            if (_aozoraBlocks[i].SourceLineNumber == targetLine) startIdx = i;
-                            else startIdx = i > 0 ? i - 1 : 0;
+                            startIdx = (_aozoraBlocks[i].SourceLineNumber == targetLine) ? i : (i > 0 ? i - 1 : 0);
                             break;
                         }
                     }
@@ -316,43 +285,43 @@ namespace Uviewer
                 else if (targetLine < 0)
                 {
                     int targetPage = -targetLine;
-                    startIdx = Math.Min((targetPage - 1) * 30, _aozoraBlocks.Count - 1);
+                    startIdx = Math.Min((targetPage - 1) * 30, Math.Max(0, _aozoraBlocks.Count - 1));
                 }
 
                 _currentAozoraStartBlockIndex = startIdx;
 
-                if (EmptyStatePanel != null) EmptyStatePanel.Visibility = Visibility.Collapsed;
-                if (TextScrollViewer != null) TextScrollViewer.Visibility = Visibility.Collapsed;
-                if (TextArea != null)
-                {
-                    TextArea.Visibility = Visibility.Visible;
-                    TextArea.Background = GetThemeBackground();
-                }
-                
                 if (AozoraTextCanvas != null)
                 {
                     AozoraTextCanvas.Visibility = Visibility.Visible;
+                    // 캔버스 크기가 아직 잡히지 않았다면 잠시 대기
                     if (AozoraTextCanvas.ActualHeight == 0 || AozoraTextCanvas.ActualWidth == 0)
                     {
                         await Task.Delay(50);
                     }
                 }
 
+                // 현재 화면에 보이는 만큼만 가상화 렌더링
                 if (_aozoraBlocks.Count > 0)
                 {
                     RenderAozoraDynamicPage(_currentAozoraStartBlockIndex);
                 }
 
-                if (TextFastNavOverlay != null) TextFastNavOverlay.Visibility = Visibility.Collapsed;
+                // 렌더링 완료 후 남은 전체 페이지 계산 백그라운드 시작
                 StartAozoraPageCalculationAsync();
-            }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"Aozora Load Error: {ex.Message}");
-            }
+                UpdateAozoraStatusBar();
+            });
 
-            UpdateAozoraStatusBar();
-        }
+        }, token);
+    }
+    catch (TaskCanceledException)
+    {
+        // 토큰 취소 시 무시
+    }
+    catch (Exception ex)
+    {
+        System.Diagnostics.Debug.WriteLine($"Aozora Load Error: {ex.Message}");
+    }
+}
 
         private void AozoraTextCanvas_SizeChanged(object sender, SizeChangedEventArgs e)
         {
@@ -556,7 +525,7 @@ namespace Uviewer
                 bool wasKeigakomi = pageBlocks.Count > 0 && (pageBlocks[pageBlocks.Count - 1].BorderColor != null || pageBlocks[pageBlocks.Count - 1].BorderThickness.Top > 0);
 
                 if (isKeigakomi && !wasKeigakomi) blockHeight += 20f; // 박스 진입 마진
-                if (!isKeigakomi && wasKeigakomi) blockHeight += 20f + (fontSizeBase * 2.2f); // 박스 종료 마진
+                if (!isKeigakomi && wasKeigakomi) blockHeight += 20f + (fontSizeBase * 2.1f); // 박스 종료 마진
 
                 if (pageBlocks.Count > 0 && usedHeight + blockHeight > availableHeight + bottomTolerance)
                 {
@@ -626,8 +595,8 @@ namespace Uviewer
             string text = sb.ToString();
             if (string.IsNullOrEmpty(text)) text = " ";
 
-            // 드로우와 동일한 lineSpacing 사용 (루비 공간 포함 2.2배)
-            float lineSpacing = fontSize * 2.2f;
+            // 드로우와 동일한 lineSpacing 사용 (루비 공간 포함 2.1배)
+            float lineSpacing = fontSize * 2.1f;
 
             using var format = new CanvasTextFormat
             {
@@ -705,8 +674,8 @@ namespace Uviewer
                 float fontSize = (float)(_textFontSize * block.FontSizeScale);
                 float rubyFontSize = fontSize * 0.5f;
 
-                // lineSpacing 2.2: 루비(furigana) 공간을 충분히 확보하는 일본어 표준 행간
-                float lineSpacing = fontSize * 2.2f;
+                // lineSpacing 2.1: 루비(furigana) 공간을 충분히 확보하는 일본어 표준 행간
+                float lineSpacing = fontSize * 2.1f;
 
                 StringBuilder sb = new StringBuilder();
                 var rubyRanges = new List<(int start, int length, string rubyText)>();
