@@ -378,7 +378,7 @@ namespace Uviewer
             startIdx = Math.Max(0, Math.Min(startIdx, _aozoraBlocks.Count - 1));
             _currentAozoraStartBlockIndex = startIdx;
 
-            float marginTop = 40, marginBottom = 40, marginRight = 40, marginLeft = 40;
+            float marginTop = 40, marginBottom = 20, marginRight = 40, marginLeft = 40;
             float availableHeight = (float)AozoraTextCanvas.ActualHeight;
             if (availableHeight < 100) availableHeight = (float)RootGrid.ActualHeight - 200;
             if (availableHeight < 100) availableHeight = 800;
@@ -423,7 +423,7 @@ namespace Uviewer
             if (AozoraTextCanvas == null || AozoraTextCanvas.ActualHeight <= 0 || AozoraTextCanvas.ActualWidth <= 0) return;
 
             float availableWidth = (float)AozoraTextCanvas.ActualWidth - 80;
-            float availableHeight = (float)AozoraTextCanvas.ActualHeight - 80;
+            float availableHeight = (float)AozoraTextCanvas.ActualHeight - 60;
             float maxWidth = _isMarkdownRenderMode ? availableWidth : Math.Min(availableWidth, (float)GetUrlMaxWidth());
             var device = AozoraTextCanvas.Device;
 
@@ -458,7 +458,10 @@ namespace Uviewer
                         float fontSize = (float)(_textFontSize * block.FontSizeScale);
                         float blockHeight = MeasureHorizontalBlockHeight(device, block, maxWidth, fontSize);
 
-                        if (currentPageHeight > 0 && currentPageHeight + blockHeight > (availableHeight - safetyBuffer))
+                        // 빈 공간 보정값 추가 (폰트 크기 1배만큼 하단 오버플로우 허용)
+                        float bottomTolerance = fontSize * 1.0f;
+
+                        if (currentPageHeight > 0 && currentPageHeight + blockHeight > (availableHeight + bottomTolerance - safetyBuffer))
                         {
                             pageCount++;
                             currentPageHeight = 0;
@@ -526,9 +529,12 @@ namespace Uviewer
                     float fontSize = (float)(_textFontSize * tempMerged.FontSizeScale);
                     float newHeight = MeasureHorizontalBlockHeight(device, tempMerged, availableWidth, fontSize);
                     float heightDiff = newHeight - currentMergedBlockHeight;
-                    float safetyBuffer = 5.0f;
+                    float safetyBuffer = 0f;
 
-                    if (usedHeight + heightDiff > (availableHeight - safetyBuffer) && pageBlocks.Count > 0)
+                    // 병합 블록 보정값 추가
+                    float bottomToleranceMerged = fontSize * 1.0f;
+
+                    if (usedHeight + heightDiff > (availableHeight + bottomToleranceMerged - safetyBuffer) && pageBlocks.Count > 0)
                     {
                         break;
                     }
@@ -543,7 +549,10 @@ namespace Uviewer
 
                 float fontSizeBase = (float)(_textFontSize * block.FontSizeScale);
                 float blockHeight = MeasureHorizontalBlockHeight(device, block, availableWidth, fontSizeBase);
-                float safetyBuf = 5.0f;
+                float safetyBuf = 0f;
+
+                // 일반 블록 보정값 추가
+                float bottomTolerance = fontSizeBase * 1.0f;
 
                 bool isKeigakomi = block.BorderColor != null || block.BorderThickness.Top > 0;
                 bool wasKeigakomi = pageBlocks.Count > 0 && (pageBlocks[pageBlocks.Count - 1].BorderColor != null || pageBlocks[pageBlocks.Count - 1].BorderThickness.Top > 0);
@@ -551,7 +560,7 @@ namespace Uviewer
                 if (isKeigakomi && !wasKeigakomi) blockHeight += 20f; // 박스 진입 마진
                 if (!isKeigakomi && wasKeigakomi) blockHeight += 20f; // 박스 종료 마진
 
-                if (pageBlocks.Count > 0 && usedHeight + blockHeight > (availableHeight - safetyBuf))
+                if (pageBlocks.Count > 0 && usedHeight + blockHeight > availableHeight + bottomTolerance)
                 {
                     break;
                 }
@@ -571,7 +580,7 @@ namespace Uviewer
                 }
 
                 index++;
-                if (usedHeight >= (availableHeight - safetyBuf)) break;
+                if (usedHeight >= availableHeight) break;
             }
             return pageBlocks;
         }
@@ -619,13 +628,16 @@ namespace Uviewer
             string text = sb.ToString();
             if (string.IsNullOrEmpty(text)) text = " ";
 
+            // 드로우와 동일한 lineSpacing 사용 (루비 공간 포함 2.2배)
+            float lineSpacing = fontSize * 2.2f;
+
             using var format = new CanvasTextFormat
             {
                 FontSize = fontSize,
                 FontFamily = block.FontFamily ?? _textFontFamily,
                 Direction = CanvasTextDirection.LeftToRightThenTopToBottom,
                 WordWrapping = CanvasWordWrapping.Wrap,
-                LineSpacing = fontSize * 1.8f,
+                LineSpacing = lineSpacing,
                 VerticalAlignment = CanvasVerticalAlignment.Top
             };
 
@@ -639,11 +651,12 @@ namespace Uviewer
             foreach (var r in boldRanges) layout.SetFontWeight(r.start, r.length, Microsoft.UI.Text.FontWeights.Bold);
             foreach (var r in italicRanges) layout.SetFontStyle(r.start, r.length, Windows.UI.Text.FontStyle.Italic);
 
-            float boundsHeight = (float)layout.LayoutBounds.Height;
-            float spacing = fontSize * (block.IsBlankLine ? 0.2f : 0.6f);
+            // lineCount × lineSpacing: 블록 내/간 줄간격을 완전 통일하는 유일한 방법.
+            // 이 값을 드로우의 currentY advance와 동일하게 맞춰야 일관된 레이아웃이 보장됨.
+            int lineCount = layout.LineCount;
 
-            if (block.IsBlankLine) return (boundsHeight * 0.5f) + spacing;
-            return boundsHeight + spacing;
+            if (block.IsBlankLine) return lineSpacing * 0.5f;
+            return lineCount * lineSpacing;
         }
 
         private void AozoraTextCanvas_CreateResources(CanvasControl sender, Microsoft.Graphics.Canvas.UI.CanvasCreateResourcesEventArgs args)
@@ -665,7 +678,7 @@ namespace Uviewer
             var page = _currentAozoraPageInfo;
 
             float marginTop = 40;
-            float marginBottom = 40;
+            float marginBottom = 20;
             float marginLeft = 40;
 
             float currentY = marginTop;
@@ -695,15 +708,8 @@ namespace Uviewer
                 float fontSize = (float)(_textFontSize * block.FontSizeScale);
                 float rubyFontSize = fontSize * 0.5f;
 
-                using var format = new CanvasTextFormat
-                {
-                    FontSize = fontSize,
-                    FontFamily = block.FontFamily ?? _textFontFamily,
-                    Direction = CanvasTextDirection.LeftToRightThenTopToBottom,
-                    WordWrapping = CanvasWordWrapping.Wrap,
-                    LineSpacing = fontSize * 1.8f,
-                    VerticalAlignment = CanvasVerticalAlignment.Top
-                };
+                // lineSpacing 2.2: 루비(furigana) 공간을 충분히 확보하는 일본어 표준 행간
+                float lineSpacing = fontSize * 2.2f;
 
                 StringBuilder sb = new StringBuilder();
                 var rubyRanges = new List<(int start, int length, string rubyText)>();
@@ -748,15 +754,29 @@ namespace Uviewer
                 float indent = (float)(block.BlockIndent > 0 ? block.BlockIndent : block.Margin.Left);
                 float actualMaxWidth = maxWidth - indent;
 
+                using var format = new CanvasTextFormat
+                {
+                    FontSize = fontSize,
+                    FontFamily = block.FontFamily ?? _textFontFamily,
+                    Direction = CanvasTextDirection.LeftToRightThenTopToBottom,
+                    WordWrapping = CanvasWordWrapping.Wrap,
+                    LineSpacing = lineSpacing,
+                    VerticalAlignment = CanvasVerticalAlignment.Top
+                };
+
                 using var textLayout = new CanvasTextLayout(ds, blockText, format, actualMaxWidth, 0.0f);
                 if (block.IsBold) textLayout.SetFontWeight(0, blockText.Length, Microsoft.UI.Text.FontWeights.Bold);
                 foreach (var r in boldRanges) textLayout.SetFontWeight(r.start, r.length, Microsoft.UI.Text.FontWeights.Bold);
                 foreach (var r in italicRanges) textLayout.SetFontStyle(r.start, r.length, Windows.UI.Text.FontStyle.Italic);
 
-                var bounds = textLayout.LayoutBounds;
-                float currentBlockHeight = (float)bounds.Height;
-                if (block.IsBlankLine) currentBlockHeight *= 0.5f;
+                // 측정(MeasureHorizontalBlockHeight)과 동일한 lineCount×lineSpacing 공식.
+                // 블록 내 줄간격 = lineSpacing, 블록 간 간격 = lineSpacing → 모든 줄이 동일 간격.
+                int lineCount = textLayout.LineCount;
+                float currentBlockHeight = block.IsBlankLine
+                    ? lineSpacing * 0.5f
+                    : lineCount * lineSpacing;
 
+                var bounds = textLayout.LayoutBounds;
                 float drawX = marginLeft + indent;
                 if (block.Alignment == TextAlignment.Center) drawX = (float)((size.Width - bounds.Width) / 2);
                 else if (block.Alignment == TextAlignment.Right) drawX = (float)(size.Width - bounds.Width - 40);
@@ -795,7 +815,7 @@ namespace Uviewer
                 // 본문 그리기
                 ds.DrawTextLayout(textLayout, drawX, currentY, textColor);
 
-                // 루비 그리기 (가로 모드는 텍스트 위쪽에 표시됨)
+                // 루비 그리기 (가로 모드: 글자 위쪽에 표시)
                 using var rubyFormat = new CanvasTextFormat
                 {
                     FontSize = rubyFontSize,
@@ -812,10 +832,15 @@ namespace Uviewer
                     if (regions.Length > 0)
                     {
                         var charBounds = regions[0].LayoutBounds;
-                        
+
+                        // charBounds.Top = 해당 라인 박스의 layout 좌표 상단 (N번째 줄이면 N*lineSpacing)
+                        // lineSpacing 안의 여분 공간은 글자 아래에 쌓임(Win2D 기본 동작).
+                        // 따라서 루비는 라인 박스 상단 바로 위 = charBounds.Top - rubyFontSize - gap
+                        float lineBoxTop = currentY + (float)charBounds.Top;
+                        float rubyY = lineBoxTop - rubyFontSize - 20f;
+
                         // 루비 X 중앙 정렬
                         float charCenter = drawX + (float)charBounds.Left + (float)charBounds.Width / 2.0f;
-                        float rubyY = currentY + (float)charBounds.Top - (rubyFontSize * 1.5f); // 본문 위에 배치
 
                         var rubyLayout = new CanvasTextLayout(ds, ruby.rubyText, rubyFormat, 0.0f, 0.0f);
                         if (block.IsBold || boldRanges.Any(br => ruby.start >= br.start && ruby.start < br.start + br.length))
@@ -845,8 +870,8 @@ namespace Uviewer
                     info.Layout.Dispose();
                 }
 
-                float spacing = fontSize * (block.IsBlankLine ? 0.2f : 0.6f);
-                currentY += (currentBlockHeight + spacing);
+                // spacing 별도 없이 lineCount×lineSpacing이 모든 줄 간격을 포함
+                currentY += currentBlockHeight;
 
                 if (i == page.Blocks.Count - 1 && isBoxing)
                 {
