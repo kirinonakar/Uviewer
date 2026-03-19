@@ -12,7 +12,7 @@
 - **Broad Format Support**: PDF, JPEG, PNG, GIF, BMP, TIFF, ICO, SVG, WebP, AVIF (AV1 Video Extension required), JXL (JPEG XL Image Extension required) and **Animated WebP**.
 - **High-Performance Rendering**: Powered by **Win2D** (Direct2D) for smooth zooming and panning.
 - **Smart Scaling**: Customizable zoom levels (0.1x to 10x), fit-to-window, and actual size.
-- **Tools**: Sharpening filter, Side-by-Side view mode, **Match Control Direction** (R-to-L navigation support), and Fast Navigation overlay.
+- **Tools**: Sharpening filter, Side-by-Side view mode, **Auto Side-by-Side in Archive**, **Match Control Direction** (R-to-L navigation support), and Fast Navigation overlay.
 
 ### 📝 Text & Novel Viewing
 - **Advanced Text Engine**: 
@@ -35,7 +35,7 @@
 
 ### 📂 File Management
 - **Integrated Explorer**: Sidebar with Folder/Thumbnail views for easy navigation.
-- **Archive Support**: Read images directly from compressed archives (`.zip`, `.rar`, `.7z`, etc.) using **SharpCompress** and **SevenZipExtractor**.
+- **Archive Support**: Read images directly from compressed archives (`.zip`, `.rar`, `.7z`, etc.) using **SharpCompress** and **SevenZipExtractor**. Includes **Auto Side-by-Side** support for portrait images within archives.
 - **Organization**: "Favorites" and "Recent Files" management.
 - **WebDAV Support**: Read images directly from WebDAV (HTTPS) servers.
 
@@ -52,6 +52,11 @@
   - Default: **Enabled** (`true`)
   - Toggle via Settings menu
   - Setting persists across sessions
+
+#### 🖼️ Image Viewing Options
+- **Auto Side-by-Side in Archive**: When enabled, the viewer automatically applies side-by-side (2-page) view for portrait-oriented images (height > width * 1.2) when browsing archives.
+  - Toggle via Settings menu (Settings icon → Auto Side-by-Side in Archive)
+  - Setting persists across sessions.
 
 ### 🌍 Localization
 - **Multi-language Support**: Automatically detects and switches between **English**, **Korean**, and **Japanese** based on system settings.
