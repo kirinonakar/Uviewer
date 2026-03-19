@@ -655,22 +655,15 @@
                      </ItemsRepeater>
                  </ScrollViewer>
                  
-                 <!-- Simple container for virtualized Aozora page rendering -->
-                 <Grid x:Name="AozoraPageContainer" 
-                       Visibility="Collapsed"
-                       Padding="20"
-                       PointerPressed="AozoraPageContainer_PointerPressed"
-                       PointerWheelChanged="AozoraPageContainer_PointerWheelChanged"
-                       SizeChanged="AozoraPageContainer_SizeChanged">
-                     <ScrollViewer x:Name="AozoraPageScroll"
-                                   VerticalScrollBarVisibility="Hidden"
-                                   HorizontalScrollBarVisibility="Disabled">
-                         <RichTextBlock x:Name="AozoraPageContent"
-                                        IsTextSelectionEnabled="False"
-                                        TextWrapping="Wrap"
-                                        HorizontalAlignment="Left"/>
-                     </ScrollViewer>
-                 </Grid>
+                 <!-- Win2D Canvas for Aozora rendering (replaces XAML-based container) -->
+                 <canvas:CanvasControl x:Name="AozoraTextCanvas"
+                                       Visibility="Collapsed"
+                                       IsTabStop="False"
+                                       Draw="AozoraTextCanvas_Draw"
+                                       CreateResources="AozoraTextCanvas_CreateResources"
+                                       PointerPressed="AozoraTextCanvas_PointerPressed"
+                                       PointerWheelChanged="AozoraTextCanvas_PointerWheelChanged"
+                                       SizeChanged="AozoraTextCanvas_SizeChanged"/>
                  
                   <Grid x:Name="TextFastNavOverlay"
                         Canvas.ZIndex="999"

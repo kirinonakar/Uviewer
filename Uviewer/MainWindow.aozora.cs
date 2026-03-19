@@ -1,15 +1,19 @@
+using Microsoft.Graphics.Canvas;
+using Microsoft.Graphics.Canvas.Text;
+using Microsoft.Graphics.Canvas.UI.Xaml;
 using Microsoft.UI;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
-using Microsoft.UI.Xaml.Documents;
-using Microsoft.UI.Xaml.Media;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Numerics;
+using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
-using Windows.UI.Text;
+using Windows.Foundation;
+using Windows.UI;
 
 namespace Uviewer
 {
@@ -18,20 +22,28 @@ namespace Uviewer
         private bool _isAozoraMode = true;
         private bool _isMarkdownRenderMode = false;
         private List<AozoraBindingModel> _aozoraBlocks = new();
-        private int _aozoraTotalLineCount = 0; // Total visual blocks
-        private int _aozoraTotalLineCountInSource = 0; // Total text lines in source file
+        private int _aozoraTotalLineCount = 0;
+        private int _aozoraTotalLineCountInSource = 0;
 
-        // On-demand rendering state
+        private struct AozoraPageInfo
+        {
+            public List<AozoraBindingModel> Blocks;
+            public int StartLine;
+        }
+
+        // Win2D Rendering State
+        private AozoraPageInfo _currentAozoraPageInfo;
         private int _currentAozoraStartBlockIndex = 0;
         private int _currentAozoraEndBlockIndex = 0;
         private Stack<int> _aozoraNavHistory = new();
+        private Dictionary<string, CanvasBitmap> _aozoraImageCache = new();
+        private int? _pendingAozoraScrollLine = null;
 
         // Page Calculation
         private int _aozoraTotalPages = 0;
         private bool _isAozoraPageCalcCompleted = false;
         private System.Threading.CancellationTokenSource? _aozoraPageCalcCts;
         private int _aozoraCalculatedCurrentPage = 1;
-
 
         // Settings
         public class AozoraSettings
@@ -44,7 +56,6 @@ namespace Uviewer
 
         [System.Text.Json.Serialization.JsonSerializable(typeof(AozoraSettings))]
         public partial class AozoraSettingsContext : System.Text.Json.Serialization.JsonSerializerContext;
-
 
         private void LoadAozoraSettings()
         {
@@ -61,7 +72,6 @@ namespace Uviewer
                     }
                 }
 
-                // Sync UI
                 if (AozoraToggleButton != null)
                 {
                     AozoraToggleButton.IsChecked = _isAozoraMode;
@@ -95,99 +105,70 @@ namespace Uviewer
         {
             if (TextFastNavOverlay != null) TextFastNavOverlay.Visibility = Visibility.Visible;
             await Task.Delay(10);
-            // 1. 모드 전환 전, 현재 보고 있는 줄 번호를 캡처합니다.
+            
             int currentLine = 1;
 
             if (_isAozoraMode)
             {
-                // 아오조라 모드 -> 일반 텍스트 모드로 갈 때: 현재 아오조라 페이지의 첫 줄 캡처
-                if (_aozoraBlocks != null && _aozoraBlocks.Count > 0 &&
-                    _currentAozoraStartBlockIndex >= 0 && _currentAozoraStartBlockIndex < _aozoraBlocks.Count)
+                if (_currentAozoraPageInfo.Blocks != null && _currentAozoraPageInfo.Blocks.Count > 0)
                 {
-                    currentLine = _aozoraBlocks[_currentAozoraStartBlockIndex].SourceLineNumber;
+                    currentLine = _currentAozoraPageInfo.StartLine;
                 }
             }
             else
             {
-                // 일반 텍스트 모드 -> 아오조라 모드로 갈 때: 현재 스크롤에 보이는 첫 줄 캡처
                 if (TextScrollViewer != null)
                 {
                     currentLine = GetTopVisibleLineIndex();
                 }
             }
 
-            // 2. 캡처한 줄 번호를 대기열(Pending) 변수에 넣습니다. 
-            // (DisplayLoadedText가 실행될 때 이 값을 읽어 해당 줄로 이동시킵니다)
             _aozoraPendingTargetLine = currentLine > 0 ? currentLine : 1;
-
-            // 3. 모드 토글
             _isAozoraMode = !_isAozoraMode;
 
-            if (AozoraToggleButton != null)
-            {
-                AozoraToggleButton.IsChecked = _isAozoraMode;
-            }
-
+            if (AozoraToggleButton != null) AozoraToggleButton.IsChecked = _isAozoraMode;
             SaveAozoraSettings();
 
-            // 4. 새 모드에 맞춰 텍스트 다시 렌더링
             if (!string.IsNullOrEmpty(_currentTextContent))
             {
                 CancelAndResetGlobalTextCts();
-                // 파일 이름이 없으면 임시 이름 제공
                 string displayName = string.IsNullOrEmpty(_currentTextFilePath) ? "Document" : System.IO.Path.GetFileName(_currentTextFilePath);
-
                 await DisplayLoadedText(_currentTextContent, displayName, _currentTextFilePath, _globalTextCts!.Token);
             }
         }
 
-        /// <summary>
-        /// Reload text display using cached content (no disk I/O)
-        /// </summary>
         private async Task ReloadTextDisplayFromCacheAsync(string fileName, int targetLine)
         {
             try
             {
-                // CRITICAL: Cancel ALL pending background calculations immediately
-                // This prevents the old mode's heavy background work from blocking UI
                 _aozoraPageCalcCts?.Cancel();
                 _pageCalcCts?.Cancel();
-                _aozoraResizeCts?.Cancel();
-
-                // Set pending target
+                
                 _aozoraPendingTargetLine = targetLine;
-
                 CancelAndResetGlobalTextCts();
                 var token = _globalTextCts!.Token;
 
                 if (_isAozoraMode)
                 {
-                    // Switch to Aozora mode display
                     if (TextScrollViewer != null) TextScrollViewer.Visibility = Visibility.Collapsed;
-                    if (AozoraPageContainer != null) AozoraPageContainer.Visibility = Visibility.Visible;
+                    if (AozoraTextCanvas != null) AozoraTextCanvas.Visibility = Visibility.Visible;
 
                     await PrepareAozoraDisplayAsync(_currentTextContent, targetLine, token);
                     FileNameText.Text = GetFormattedDisplayName(fileName, _currentTextArchiveEntryKey != null);
                 }
                 else
                 {
-                    // Switch to Simple Text mode display
                     if (TextScrollViewer != null) TextScrollViewer.Visibility = Visibility.Visible;
-                    if (AozoraPageContainer != null) AozoraPageContainer.Visibility = Visibility.Collapsed;
+                    if (AozoraTextCanvas != null) AozoraTextCanvas.Visibility = Visibility.Collapsed;
 
-                    // Ensure default template
                     if (TextItemsRepeater != null && RootGrid.Resources.TryGetValue("TextItemTemplate", out var template))
                     {
                         TextItemsRepeater.ItemTemplate = (DataTemplate)template;
                     }
 
-                    // Progressive loading using cached content
                     await LoadTextLinesProgressivelyAsync(_currentTextContent, targetLine, token);
-
-                    // Update Text Status
                     UpdateTextStatusBar(fileName, _textTotalLineCountInSource, 1);
 
-                    // Scroll to target line
                     if (targetLine > 1)
                     {
                         await Task.Delay(50);
@@ -202,316 +183,41 @@ namespace Uviewer
             }
         }
 
-        private async void StartAozoraPageCalculationAsync()
-        {
-            // Early exit if not in Aozora mode
-            if (!_isAozoraMode) return;
-
-            _aozoraPageCalcCts?.Cancel();
-            _aozoraPageCalcCts = new System.Threading.CancellationTokenSource();
-            var token = _aozoraPageCalcCts.Token;
-
-            _isAozoraPageCalcCompleted = false;
-            _aozoraTotalPages = 0;
-            _aozoraCalculatedCurrentPage = 1;
-            UpdateAozoraStatusBar();
-
-            if (AozoraPageContainer == null || AozoraPageContainer.ActualHeight <= 0 || AozoraPageContainer.ActualWidth <= 0)
-            {
-                // Wait a bit or return. PrepareAozoraDisplayAsync waits for container, so we should be good mostly.
-                // But if resized to 0?
-                return;
-            }
-
-            double availableWidth = AozoraPageContainer.ActualWidth;
-            if (availableWidth < 100) availableWidth = 800;
-            double innerWidth = availableWidth - 40; // Grid Padding (20+20)
-
-            double availableHeight = AozoraPageContainer.ActualHeight;
-            if (availableHeight < 200) availableHeight = 800;
-            availableHeight -= 45; // 40 (Grid Padding) + 5 (Ruby safety gap)
-
-            double maxWidth = _isMarkdownRenderMode ? innerWidth : Math.Min(innerWidth, GetUrlMaxWidth());
-
-            try
-            {
-                var dummyRTB = new RichTextBlock
-                {
-                    FontFamily = new FontFamily(_textFontFamily),
-                    FontSize = _textFontSize,
-                    LineStackingStrategy = LineStackingStrategy.BlockLineHeight,
-                    TextWrapping = TextWrapping.Wrap,
-                    MaxWidth = maxWidth
-                };
-
-                double currentPageHeight = 0;
-                int pageCount = 1;
-
-                // Track start indices of pages to find current page later? 
-                // Or just count total. For Current Page, we need to map _currentAozoraStartBlockIndex to a page number.
-                // We'll store a map: BlockIndex -> PageNumber
-                var blockToPageMap = new Dictionary<int, int>();
-
-                var sw = System.Diagnostics.Stopwatch.StartNew();
-
-                AozoraBindingModel? currentMergedBlock = null;
-                double currentMergedBlockHeight = 0;
-
-                for (int i = 0; i < _aozoraBlocks.Count; i++)
-                {
-                    if (token.IsCancellationRequested) return;
-                    blockToPageMap[i] = pageCount;
-                    var block = _aozoraBlocks[i];
-
-                    // --- [추가: 罫囲み 및 테두리 블록 그룹화 페이지 측정] ---
-                    if (block.BorderColor != null || block.BorderThickness.Top > 0 || block.BorderThickness.Left > 0 || block.BorderThickness.Bottom > 0)
-                    {
-                        double boxWidth = maxWidth - 10;
-                        if (boxWidth < 100) boxWidth = maxWidth;
-
-                        var border = new Border
-                        {
-                            HorizontalAlignment = HorizontalAlignment.Left,
-                            MaxWidth = boxWidth,
-                            BorderBrush = new SolidColorBrush(block.BorderColor ?? Colors.Gray),
-                            BorderThickness = block.BorderThickness.Top > 0 || block.BorderThickness.Left > 0 ? block.BorderThickness : new Thickness(1.5),
-                            Padding = block.Padding.Left > 0 ? block.Padding : new Thickness(15),
-                            Margin = new Thickness(0, 10, 0, 10)
-                        };
-
-                        var innerRtb = new RichTextBlock { TextWrapping = TextWrapping.Wrap };
-                        border.Child = innerRtb;
-
-                        var pWrapper = new Paragraph();
-                        pWrapper.Inlines.Add(new InlineUIContainer { Child = border });
-
-                        dummyRTB.Blocks.Clear();
-                        dummyRTB.Blocks.Add(pWrapper);
-
-                        int k = i;
-                        bool forcedRender = false;
-
-                        // 💡 [수정] 페이지 계산 시에도 화면을 초과하면 분할하여 측정합니다.
-                        while (k < _aozoraBlocks.Count &&
-                               _aozoraBlocks[k].BorderColor == block.BorderColor &&
-                               _aozoraBlocks[k].BorderThickness == block.BorderThickness)
-                        {
-                            var kb = _aozoraBlocks[k];
-                            var innerP = CreateParagraphFromBlock(kb, availableHeight, boxWidth);
-                            innerRtb.Blocks.Add(innerP);
-
-                            dummyRTB.Measure(new Windows.Foundation.Size((float)maxWidth, double.PositiveInfinity));
-                            double currentBoxHeight = dummyRTB.DesiredSize.Height;
-
-                            if (currentPageHeight + currentBoxHeight > availableHeight)
-                            {
-                                if (innerRtb.Blocks.Count > 1)
-                                {
-                                    innerRtb.Blocks.Remove(innerP);
-                                    break;
-                                }
-                                else if (currentPageHeight > 0)
-                                {
-                                    // 현재 페이지에 자리가 부족하면 박스를 새 페이지로 이동
-                                    pageCount++;
-                                    currentPageHeight = 0;
-                                    dummyRTB.Measure(new Windows.Foundation.Size((float)maxWidth, double.PositiveInfinity));
-                                    if (dummyRTB.DesiredSize.Height > availableHeight)
-                                    {
-                                        forcedRender = true;
-                                        blockToPageMap[k] = pageCount;
-                                        k++;
-                                        break;
-                                    }
-                                }
-                                else
-                                {
-                                    forcedRender = true;
-                                    blockToPageMap[k] = pageCount;
-                                    k++;
-                                    break;
-                                }
-                            }
-
-                            blockToPageMap[k] = pageCount;
-                            k++;
-                        }
-
-                        dummyRTB.Measure(new Windows.Foundation.Size((float)maxWidth, double.PositiveInfinity));
-                        double finalBoxHeight = dummyRTB.DesiredSize.Height;
-
-                        currentPageHeight += finalBoxHeight;
-                        currentMergedBlockHeight = finalBoxHeight;
-
-                        bool willBreakPage = false;
-                        if (k < _aozoraBlocks.Count &&
-                            _aozoraBlocks[k].BorderColor == block.BorderColor &&
-                            _aozoraBlocks[k].BorderThickness == block.BorderThickness)
-                        {
-                            willBreakPage = true; // 아직 렌더링할 박스 내용이 남음
-                        }
-
-                        if (currentPageHeight > availableHeight || forcedRender || willBreakPage)
-                        {
-                            currentPageHeight = 0;
-                            pageCount++;
-                        }
-
-                        i = k - 1;
-                        currentMergedBlock = null;
-                        continue;
-                    }
-                    // --- [罫囲み 그룹화 끝] ---
-
-                    if (block.HasImage || block.IsPageBreak)
-                    {
-                        if (currentPageHeight > 0)
-                        {
-                            pageCount++;
-                            currentPageHeight = 0;
-                            blockToPageMap[i] = pageCount;
-                        }
-                        pageCount++;
-                        currentPageHeight = 0;
-                        currentMergedBlock = null;
-                        continue;
-                    }
-
-                    if (block.IsParagraphContinuation && currentMergedBlock != null)
-                    {
-                        currentMergedBlock.Inlines.AddRange(block.Inlines);
-
-                        dummyRTB.Blocks.Clear();
-                        dummyRTB.Blocks.Add(CreateParagraphFromBlock(currentMergedBlock, availableHeight));
-                        dummyRTB.Measure(new Windows.Foundation.Size((float)maxWidth, double.PositiveInfinity));
-
-                        double newHeight = dummyRTB.DesiredSize.Height;
-                        double heightDiff = newHeight - currentMergedBlockHeight;
-
-                        if (currentPageHeight + heightDiff > availableHeight)
-                        {
-                            pageCount++;
-                            currentPageHeight = 0;
-
-                            // 초과한 문장은 새 페이지의 시작 문단이 됨
-                            currentMergedBlock = CloneBlockProperties(block, true);
-                            dummyRTB.Blocks.Clear();
-                            dummyRTB.Blocks.Add(CreateParagraphFromBlock(currentMergedBlock, availableHeight));
-                            dummyRTB.Measure(new Windows.Foundation.Size((float)maxWidth, double.PositiveInfinity));
-
-                            currentMergedBlockHeight = dummyRTB.DesiredSize.Height;
-                            currentPageHeight = currentMergedBlockHeight;
-                            blockToPageMap[i] = pageCount;
-                        }
-                        else
-                        {
-                            currentPageHeight += heightDiff;
-                            currentMergedBlockHeight = newHeight;
-                        }
-                        continue;
-                    }
-
-                    currentMergedBlock = CloneBlockProperties(block, true);
-                    dummyRTB.Blocks.Clear();
-                    dummyRTB.Blocks.Add(CreateParagraphFromBlock(block, availableHeight));
-                    dummyRTB.Measure(new Windows.Foundation.Size((float)maxWidth, double.PositiveInfinity));
-                    double blockHeight = dummyRTB.DesiredSize.Height;
-
-                    if (currentPageHeight + blockHeight > availableHeight && currentPageHeight > 0)
-                    {
-                        pageCount++;
-                        currentPageHeight = 0;
-                        blockToPageMap[i] = pageCount;
-                    }
-
-                    currentPageHeight += blockHeight;
-                    currentMergedBlockHeight = blockHeight;
-
-                    if (currentPageHeight > availableHeight)
-                    {
-                        currentPageHeight = 0;
-                        pageCount++;
-                    }
-
-                    if (sw.ElapsedMilliseconds > 3)
-                    {
-                        await Task.Delay(1, token);
-                        sw.Restart();
-                    }
-                }
-
-                _aozoraTotalPages = pageCount;
-                _isAozoraPageCalcCompleted = true;
-
-                // Find current page based on _currentAozoraStartBlockIndex
-                if (blockToPageMap.TryGetValue(_currentAozoraStartBlockIndex, out int cp))
-                {
-                    _aozoraCalculatedCurrentPage = cp;
-                }
-                else
-                {
-                    _aozoraCalculatedCurrentPage = 1;
-                }
-
-                UpdateAozoraStatusBar();
-            }
-            catch (OperationCanceledException) { }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"Aozora Page Calc Error: {ex}");
-            }
-        }
-
-        // Current page index for virtualized navigation
-
-        private int _aozoraPendingTargetLine = 1; // Used to carry target position during load (positive=line, negative=page)
-        private double _lastAozoraContainerHeight = 0;
-        private double _lastAozoraContainerWidth = 0;
-        private System.Threading.CancellationTokenSource? _aozoraResizeCts;
+        private int _aozoraPendingTargetLine = 1;
 
         private async Task PrepareAozoraDisplayAsync(string rawContent, int targetLine = 1, CancellationToken token = default)
         {
             try
             {
-                // Reset state immediately to prevent stale index usage during async parsing
                 _currentAozoraStartBlockIndex = 0;
                 _currentAozoraEndBlockIndex = 0;
-                // Do not clear _aozoraBlocks here if we need them for transition, 
-                // but since we are replacing content, safer to clear or let it be replaced.
-                // Clearing might cause UI flicker if binding is live? 
-                // But we act on _aozoraBlocks in other threads. 
-                // Ideally, we shouldn't touch _aozoraBlocks until we have new ones.
-                // But _currentAozoraStartBlockIndex MUST be reset.
+                _aozoraImageCache.Clear();
+                _currentAozoraPageInfo = new AozoraPageInfo { Blocks = new List<AozoraBindingModel>(), StartLine = 1 };
 
-                // Priority: Explicit pending target from Favorite/Recent navigation overrides automatic restoration
                 if (_aozoraPendingTargetLine != 1)
                 {
                     targetLine = _aozoraPendingTargetLine;
-                    _aozoraPendingTargetLine = 1; // Reset after use
+                    _aozoraPendingTargetLine = 1;
                 }
-                // Check if current file is Markdown
+
                 bool isMarkdown = false;
                 if (!string.IsNullOrEmpty(_currentTextFilePath))
                 {
                     var ext = System.IO.Path.GetExtension(_currentTextFilePath).ToLower();
-                    if (ext == ".md" || ext == ".markdown")
-                    {
-                        isMarkdown = true;
-                    }
+                    if (ext == ".md" || ext == ".markdown") isMarkdown = true;
                 }
 
                 if (isMarkdown)
                 {
                     _isMarkdownRenderMode = true;
                     _aozoraBlocks = await Task.Run(() => ParseMarkdownContent(rawContent));
-                    _aozoraTotalLineCountInSource = _aozoraBlocks.Count; // Markdown line count approximation
+                    _aozoraTotalLineCountInSource = _aozoraBlocks.Count;
                     _textTotalLineCountInSource = _aozoraBlocks.Count;
                 }
                 else
                 {
                     _isMarkdownRenderMode = false;
-
-                    // [Bold Preprocessing] Handle "last start wins" logic globally across lines
+                    
                     string boldStartTag = @"［＃(?:ここから太字)］";
                     string boldEndTag = @"［＃(?:ここで太字終わり)］";
                     rawContent = Regex.Replace(rawContent, $"{boldStartTag}(.*?){boldEndTag}", (m) =>
@@ -525,11 +231,6 @@ namespace Uviewer
                         return $"{prefix}@@BOLD_START@@{boldContent}@@BOLD_END@@";
                     }, RegexOptions.Singleline);
 
-                    // Optimized Loading for Large Files
-                    // User Request: "File first open, then TOC background calculate"
-                    // TOC is derived from _aozoraBlocks structure. Parsing creates blocks.
-                    // We split parsing: First Chunk (Immediate) -> Render -> Rest (Background)
-
                     var lines = rawContent.Replace("\r\n", "\n").Replace("\r", "\n").Split('\n');
                     _aozoraTotalLineCountInSource = lines.Length;
                     _textTotalLineCountInSource = lines.Length;
@@ -539,16 +240,12 @@ namespace Uviewer
 
                     if (lines.Length > initialLimit)
                     {
-                        // 1. Initial Load (First initialLimit lines)
                         var initialLines = lines.Take(initialLimit).ToArray();
                         _aozoraBlocks = await Task.Run(() => ParseAozoraLines(initialLines, 1));
 
-                        // Proceed to render first page immediately below...
-
-                        // 2. Queue Background Load for the rest
                         var activeBlocksRef = _aozoraBlocks;
-                        int expectedContentHash = rawContent.GetHashCode(); // [추가] 텍스트의 고유 해시값 캡처
-                        int expectedSourceCount = lines.Length; // [추가] 원본 텍스트의 실제 줄 수 캡처
+                        int expectedContentHash = rawContent.GetHashCode();
+                        int expectedSourceCount = lines.Length;
 
                         _ = Task.Run(() =>
                         {
@@ -562,18 +259,13 @@ namespace Uviewer
                                 this.DispatcherQueue.TryEnqueue(() =>
                                 {
                                     if (token.IsCancellationRequested) return;
-
-                                    // [핵심 해결책] 화면에 로드된 텍스트가 로딩을 시작했던 텍스트와 다르면 즉시 폐기 (다른 파일로 넘어간 경우 완벽 차단)
                                     if (string.IsNullOrEmpty(_currentTextContent) || _currentTextContent.GetHashCode() != expectedContentHash) return;
-
-                                    // 모드 전환 등으로 객체가 새로 생성되었다면 병합 중단
                                     if (_aozoraBlocks != activeBlocksRef) return;
-
                                     if (!_isAozoraMode && !_isVerticalMode) return;
 
                                     _aozoraBlocks.AddRange(restBlocks);
                                     _aozoraTotalLineCount = _aozoraBlocks.Count;
-                                    _aozoraTotalLineCountInSource = expectedSourceCount; // [추가] 전체 줄 수 강제 동기화
+                                    _aozoraTotalLineCountInSource = expectedSourceCount;
                                     _textTotalLineCountInSource = expectedSourceCount;
 
                                     if (_isAozoraMode)
@@ -601,85 +293,58 @@ namespace Uviewer
                     }
                     else
                     {
-                        // Small file, load all
                         _aozoraBlocks = await Task.Run(() => ParseAozoraLines(lines, 1));
                     }
                 }
 
-                _aozoraTotalLineCount = _aozoraBlocks.Count; // Actual block count (visual lines)
-                                                             // SourceLineNumber is already set in parsing
-
-                // ... (Rest of function)
-
+                _aozoraTotalLineCount = _aozoraBlocks.Count;
                 _aozoraNavHistory.Clear();
+
                 int startIdx = 0;
                 if (targetLine > 1)
                 {
-                    // Find block by line number
                     for (int i = 0; i < _aozoraBlocks.Count; i++)
                     {
-                        // Default to current index as fallback (for lines beyond end)
                         startIdx = i;
-
                         if (_aozoraBlocks[i].SourceLineNumber >= targetLine)
                         {
-                            if (_aozoraBlocks[i].SourceLineNumber == targetLine)
-                            {
-                                startIdx = i;
-                            }
-                            else
-                            {
-                                // Target is between previous block and this block
-                                startIdx = i > 0 ? i - 1 : 0;
-                            }
+                            if (_aozoraBlocks[i].SourceLineNumber == targetLine) startIdx = i;
+                            else startIdx = i > 0 ? i - 1 : 0;
                             break;
                         }
                     }
                 }
                 else if (targetLine < 0)
                 {
-                    // Legacy support: targetLine is -SavedPage
                     int targetPage = -targetLine;
-                    // We can't jump to EXACT page without calculating.
-                    // Let's just estimate or start from beginning?
-                    // Actually, let's keep it simple: 1 page = ~50 blocks? 
-                    // No, let's just start at the beginning for legacy bookmarks 
-                    // or try to guess.
                     startIdx = Math.Min((targetPage - 1) * 30, _aozoraBlocks.Count - 1);
                 }
 
                 _currentAozoraStartBlockIndex = startIdx;
 
-                // UI 설정 및 가시성 확보
-                if (AozoraPageContainer != null)
-                {
-                    AozoraPageContainer.Background = GetThemeBackground();
-                    AozoraPageContainer.Visibility = Visibility.Visible;
-                }
                 if (EmptyStatePanel != null) EmptyStatePanel.Visibility = Visibility.Collapsed;
                 if (TextScrollViewer != null) TextScrollViewer.Visibility = Visibility.Collapsed;
                 if (TextArea != null)
                 {
                     TextArea.Visibility = Visibility.Visible;
                     TextArea.Background = GetThemeBackground();
-
-                    // On-demand rendering requires Container size
-                    if (AozoraPageContainer != null && (AozoraPageContainer.ActualHeight == 0 || AozoraPageContainer.ActualWidth == 0))
+                }
+                
+                if (AozoraTextCanvas != null)
+                {
+                    AozoraTextCanvas.Visibility = Visibility.Visible;
+                    if (AozoraTextCanvas.ActualHeight == 0 || AozoraTextCanvas.ActualWidth == 0)
                     {
-                        // Wait for a proper size
                         await Task.Delay(50);
                     }
                 }
 
-                if (_aozoraBlocks.Count == 0) return;
+                if (_aozoraBlocks.Count > 0)
+                {
+                    RenderAozoraDynamicPage(_currentAozoraStartBlockIndex);
+                }
 
-                // 즉시 현재 페이지만 렌더링
-                RenderAozoraDynamicPage(_currentAozoraStartBlockIndex);
-
-                // 로딩 오버레이 제거
                 if (TextFastNavOverlay != null) TextFastNavOverlay.Visibility = Visibility.Collapsed;
-
-                // Start background page calculation
                 StartAozoraPageCalculationAsync();
             }
             catch (Exception ex)
@@ -690,454 +355,536 @@ namespace Uviewer
             UpdateAozoraStatusBar();
         }
 
-        private void AozoraPageContainer_SizeChanged(object sender, SizeChangedEventArgs e)
-        {
-            HandleAozoraContainerResize(e.NewSize.Width, e.NewSize.Height);
-        }
-
-        private void TextArea_SizeChanged(object sender, SizeChangedEventArgs e)
-        {
-            // Also handle TextArea resize for window drag resizing
-            if (!_isAozoraMode) return;
-            HandleAozoraContainerResize(e.NewSize.Width, e.NewSize.Height);
-        }
-
-        private void HandleAozoraContainerResize(double newWidth, double newHeight)
+        private void AozoraTextCanvas_SizeChanged(object sender, SizeChangedEventArgs e)
         {
             if (!_isTextMode || !_isAozoraMode) return;
             if (_aozoraBlocks.Count == 0) return;
 
-            // Debounce: Only recalculate after size change settles
-            // Check both width and height changes (width affects text wrapping)
-            bool heightChanged = Math.Abs(newHeight - _lastAozoraContainerHeight) >= 10;
-            bool widthChanged = Math.Abs(newWidth - _lastAozoraContainerWidth) >= 10;
-
-            if (!heightChanged && !widthChanged) return; // Ignore small changes
-
-            _lastAozoraContainerHeight = newHeight;
-            _lastAozoraContainerWidth = newWidth;
-
-            // Cancel previous resize task
-            _aozoraResizeCts?.Cancel();
-            _aozoraResizeCts = new System.Threading.CancellationTokenSource();
-            var token = _aozoraResizeCts.Token;
-
-            // Delay recalculation to avoid excessive updates during drag
-            _ = RecalculateAozoraPagesDelayedAsync(token);
-        }
-
-        private async Task RecalculateAozoraPagesDelayedAsync(System.Threading.CancellationToken token)
-        {
-            try
-            {
-                await Task.Delay(300, token); // Wait for resize to settle
-                if (token.IsCancellationRequested) return;
-
-                // On-demand rendering: Just re-render the same starting block
-                RenderAozoraDynamicPage(_currentAozoraStartBlockIndex);
-                StartAozoraPageCalculationAsync(); // Recalc pages on resize
-                UpdateAozoraStatusBar();
-            }
-            catch (TaskCanceledException) { }
+            // 크기 변경 시 현재 위치 다시 렌더링
+            RenderAozoraDynamicPage(_currentAozoraStartBlockIndex);
+            StartAozoraPageCalculationAsync();
         }
 
         private void RenderAozoraDynamicPage(int startIdx)
         {
-            if (AozoraPageContent == null || _aozoraBlocks.Count == 0) return;
+            if (AozoraTextCanvas == null || _aozoraBlocks == null || _aozoraBlocks.Count == 0)
+            {
+                _currentAozoraPageInfo = new AozoraPageInfo { Blocks = new List<AozoraBindingModel>(), StartLine = 1 };
+                if (AozoraTextCanvas != null) AozoraTextCanvas.Invalidate();
+                UpdateAozoraStatusBar();
+                return;
+            }
 
             startIdx = Math.Max(0, Math.Min(startIdx, _aozoraBlocks.Count - 1));
             _currentAozoraStartBlockIndex = startIdx;
 
-            AozoraPageContent.Blocks.Clear();
-            AozoraPageContent.Padding = new Thickness(0, 15, 0, 0); // Add top padding to prevent first-line ruby clipping
+            float marginTop = 40, marginBottom = 40, marginRight = 40, marginLeft = 40;
+            float availableHeight = (float)AozoraTextCanvas.ActualHeight;
+            if (availableHeight < 100) availableHeight = (float)RootGrid.ActualHeight - 200;
+            if (availableHeight < 100) availableHeight = 800;
+            availableHeight -= (marginTop + marginBottom);
 
-            // Reflow fix: Calculate available width for proper measurement and wrapping
-            double availableWidth = AozoraPageContainer?.ActualWidth ?? 800;
-            if (availableWidth < 100) availableWidth = 800;
-            double innerWidth = availableWidth - 40; // Grid Padding (20+20)
+            float availableWidth = (float)AozoraTextCanvas.ActualWidth;
+            if (availableWidth < 100) availableWidth = (float)RootGrid.ActualWidth - 100;
+            if (availableWidth < 100) availableWidth = 1000;
+            availableWidth -= (marginRight + marginLeft);
 
-            double currentMaxWidth = _isMarkdownRenderMode ? innerWidth : Math.Min(innerWidth, GetUrlMaxWidth());
-            AozoraPageContent.MaxWidth = currentMaxWidth;
+            float maxWidth = _isMarkdownRenderMode ? availableWidth : Math.Min(availableWidth, (float)GetUrlMaxWidth());
 
-            AozoraPageContent.FontFamily = new FontFamily(_textFontFamily);
-            AozoraPageContent.FontSize = _textFontSize;
-            AozoraPageContent.Foreground = GetThemeForeground();
+            int index = startIdx;
+            var device = AozoraTextCanvas.Device ?? Microsoft.Graphics.Canvas.CanvasDevice.GetSharedDevice();
 
-            double availableHeight = AozoraPageContainer?.ActualHeight ?? 800;
-            if (availableHeight < 200) availableHeight = 800;
+            var pageBlocks = PaginateHorizontalAozoraPage(ref index, _aozoraBlocks, maxWidth, availableHeight, device);
 
-            // Image pages should NOT have top padding for ruby safety as it might push the image down unnecessarily
-            bool isImagePage = startIdx < _aozoraBlocks.Count && _aozoraBlocks[startIdx].HasImage && AozoraPageContent.Blocks.Count == 0;
-
-            if (isImagePage)
+            _currentAozoraEndBlockIndex = index > startIdx ? index - 1 : startIdx;
+            _currentAozoraPageInfo = new AozoraPageInfo
             {
-                if (AozoraPageContainer != null) AozoraPageContainer.Padding = new Thickness(0);
-                AozoraPageContent.Padding = new Thickness(0);
-                availableWidth = AozoraPageContainer?.ActualWidth ?? 800; // Recalculate full width without padding
-                innerWidth = availableWidth; // No grid padding
-                availableHeight = AozoraPageContainer?.ActualHeight ?? 800; // Reset height to full container
+                Blocks = pageBlocks,
+                StartLine = pageBlocks.Count > 0 ? pageBlocks[0].SourceLineNumber : 1
+            };
 
-                AozoraPageContent.MaxWidth = innerWidth; // Bypass GetUrlMaxWidth() for images to allow full screen width
-                AozoraPageContent.VerticalAlignment = VerticalAlignment.Center;
-            }
-            else
+            AozoraTextCanvas.Invalidate();
+            UpdateAozoraStatusBar();
+        }
+
+        private async void StartAozoraPageCalculationAsync()
+        {
+            if (!_isAozoraMode || _aozoraBlocks == null || _aozoraBlocks.Count == 0) return;
+
+            _aozoraPageCalcCts?.Cancel();
+            _aozoraPageCalcCts = new System.Threading.CancellationTokenSource();
+            var token = _aozoraPageCalcCts.Token;
+
+            _isAozoraPageCalcCompleted = false;
+            _aozoraTotalPages = 0;
+            _aozoraCalculatedCurrentPage = 1;
+            UpdateAozoraStatusBar();
+
+            if (AozoraTextCanvas == null || AozoraTextCanvas.ActualHeight <= 0 || AozoraTextCanvas.ActualWidth <= 0) return;
+
+            float availableWidth = (float)AozoraTextCanvas.ActualWidth - 80;
+            float availableHeight = (float)AozoraTextCanvas.ActualHeight - 80;
+            float maxWidth = _isMarkdownRenderMode ? availableWidth : Math.Min(availableWidth, (float)GetUrlMaxWidth());
+            var device = AozoraTextCanvas.Device;
+
+            try
             {
-                if (AozoraPageContainer != null) AozoraPageContainer.Padding = new Thickness(20);
-                AozoraPageContent.Padding = new Thickness(0, 15, 0, 0);
-                availableHeight -= 55; // Grid Padding + Ruby safety gap
-                AozoraPageContent.MaxWidth = _isMarkdownRenderMode ? innerWidth : Math.Min(innerWidth, GetUrlMaxWidth());
-                AozoraPageContent.VerticalAlignment = VerticalAlignment.Top;
-            }
-
-            double currentHeight = 0;
-            int endIdx = startIdx;
-            Paragraph? currentParagraph = null;
-
-            for (int i = startIdx; i < _aozoraBlocks.Count; i++)
-            {
-                var block = _aozoraBlocks[i];
-
-                // --- [추가: 罫囲み 및 테두리 블록 그룹화 렌더링] ---
-                if (block.BorderColor != null || block.BorderThickness.Top > 0 || block.BorderThickness.Left > 0 || block.BorderThickness.Bottom > 0)
+                await Task.Run(async () =>
                 {
-                    double boxWidth = currentMaxWidth - 10;
-                    if (boxWidth < 100) boxWidth = currentMaxWidth;
+                    int pageCount = 1;
+                    float currentPageHeight = 0;
+                    float safetyBuffer = 5.0f;
+                    var blockToPageMap = new Dictionary<int, int>();
 
-                    var border = new Border
+                    for (int i = 0; i < _aozoraBlocks.Count; i++)
                     {
-                        HorizontalAlignment = HorizontalAlignment.Left,
-                        MaxWidth = boxWidth,
-                        BorderBrush = new SolidColorBrush(block.BorderColor ?? Colors.Gray),
-                        BorderThickness = block.BorderThickness.Top > 0 || block.BorderThickness.Left > 0 ? block.BorderThickness : new Thickness(1.5),
-                        Padding = block.Padding.Left > 0 ? block.Padding : new Thickness(15),
-                        Margin = new Thickness(0, 10, 0, 10),
-                        CornerRadius = new CornerRadius(4),
-                        Background = block.BackgroundColor != null ? new SolidColorBrush(block.BackgroundColor.Value) : null
-                    };
+                        if (token.IsCancellationRequested) return;
+                        blockToPageMap[i] = pageCount;
 
-                    var rtb = new RichTextBlock
-                    {
-                        TextWrapping = TextWrapping.Wrap,
-                        Foreground = GetThemeForeground()
-                    };
-
-                    border.Child = rtb;
-
-                    var pWrapper = new Paragraph();
-                    pWrapper.Inlines.Add(new InlineUIContainer { Child = border });
-                    AozoraPageContent.Blocks.Add(pWrapper);
-
-                    int k = i;
-                    bool forcedRender = false;
-
-                    // 💡 [핵심 수정] 박스 안의 내용을 하나씩 추가하며 높이를 재고, 초과하면 루프를 중단합니다.
-                    while (k < _aozoraBlocks.Count &&
-                           _aozoraBlocks[k].BorderColor == block.BorderColor &&
-                           _aozoraBlocks[k].BorderThickness == block.BorderThickness)
-                    {
-                        var kb = _aozoraBlocks[k];
-                        var innerPara = CreateParagraphFromBlock(kb, availableHeight, boxWidth);
-                        rtb.Blocks.Add(innerPara);
-
-                        AozoraPageContent.Measure(new Windows.Foundation.Size(AozoraPageContent.MaxWidth, double.PositiveInfinity));
-
-                        if (AozoraPageContent.DesiredSize.Height > availableHeight)
+                        var block = _aozoraBlocks[i];
+                        if (block.HasImage || block.IsPageBreak)
                         {
-                            if (rtb.Blocks.Count > 1)
+                            if (currentPageHeight > 0)
                             {
-                                // 현재 줄을 추가했더니 화면을 넘어감 -> 이 줄부터는 다음 페이지로
-                                rtb.Blocks.Remove(innerPara);
-                                break;
+                                pageCount++;
+                                currentPageHeight = 0;
+                                blockToPageMap[i] = pageCount;
                             }
-                            else if (AozoraPageContent.Blocks.Count > 1)
-                            {
-                                // 박스의 첫 줄조차 화면에 다 안 들어감 -> 박스 전체를 다음 페이지로 이동
-                                AozoraPageContent.Blocks.Remove(pWrapper);
-                                break;
-                            }
-                            else
-                            {
-                                // 한 줄짜리인데 화면보다 큰 경우 -> 강제 렌더링 (무한루프 방지)
-                                forcedRender = true;
-                                k++;
-                                break;
-                            }
+                            pageCount++;
+                            currentPageHeight = 0;
+                            continue;
                         }
-                        k++;
+
+                        float fontSize = (float)(_textFontSize * block.FontSizeScale);
+                        float blockHeight = MeasureHorizontalBlockHeight(device, block, maxWidth, fontSize);
+
+                        if (currentPageHeight > 0 && currentPageHeight + blockHeight > (availableHeight - safetyBuffer))
+                        {
+                            pageCount++;
+                            currentPageHeight = 0;
+                            blockToPageMap[i] = pageCount;
+                        }
+
+                        currentPageHeight += blockHeight;
+
+                        if (i % 50 == 0) await Task.Delay(1, token);
                     }
 
-                    if (!AozoraPageContent.Blocks.Contains(pWrapper))
+                    if (token.IsCancellationRequested) return;
+
+                    DispatcherQueue.TryEnqueue(() =>
                     {
-                        // 박스 전체가 다음 페이지로 밀린 경우 루프 종료
-                        break;
-                    }
+                        _aozoraTotalPages = pageCount;
+                        _isAozoraPageCalcCompleted = true;
 
-                    AozoraPageContent.Measure(new Windows.Foundation.Size(AozoraPageContent.MaxWidth, double.PositiveInfinity));
-                    currentHeight = AozoraPageContent.DesiredSize.Height;
-                    endIdx = k - 1;
-                    i = endIdx;
-                    currentParagraph = null;
+                        if (blockToPageMap.TryGetValue(_currentAozoraStartBlockIndex, out int cp))
+                            _aozoraCalculatedCurrentPage = cp;
+                        else
+                            _aozoraCalculatedCurrentPage = 1;
 
-                    // 💡 아직 렌더링하지 못한 남은 박스 내용이 있다면, 이 시점에서 페이지를 끊고 다음 페이지로 넘깁니다.
-                    if (k < _aozoraBlocks.Count &&
-                        _aozoraBlocks[k].BorderColor == block.BorderColor &&
-                        _aozoraBlocks[k].BorderThickness == block.BorderThickness)
-                    {
-                        break;
-                    }
-                    if (forcedRender || (currentHeight > availableHeight && AozoraPageContent.Blocks.Count == 1)) break;
-                    continue;
-                }
-                // --- [罫囲み 그룹화 끝] ---
+                        UpdateAozoraStatusBar();
+                    });
+                }, token);
+            }
+            catch { }
+        }
 
-                // 1. 이어지는 문장인 경우 현재 문단에 합치기 시도
-                if (block.IsParagraphContinuation && currentParagraph != null && !block.HasImage && !block.IsTable && block.HeadingLevel == 0)
-                {
-                    var pTemp = CreateParagraphFromBlock(block, availableHeight, innerWidth);
-                    var inlinesToMove = pTemp.Inlines.ToList();
-                    pTemp.Inlines.Clear();
+        private List<AozoraBindingModel> PaginateHorizontalAozoraPage(ref int index, List<AozoraBindingModel> blocks, float availableWidth, float availableHeight, CanvasDevice? device = null)
+        {
+            var pageBlocks = new List<AozoraBindingModel>();
+            float usedHeight = 0;
 
-                    foreach (var inline in inlinesToMove) currentParagraph.Inlines.Add(inline);
+            AozoraBindingModel? currentMergedBlock = null;
+            float currentMergedBlockHeight = 0;
 
-                    AozoraPageContent.Measure(new Windows.Foundation.Size(AozoraPageContent.MaxWidth, double.PositiveInfinity));
-                    double newHeight = AozoraPageContent.DesiredSize.Height;
-
-                    // 합쳤는데 페이지를 초과하면 원상복구하고 다음 페이지로 넘김
-                    if (newHeight > availableHeight)
-                    {
-                        foreach (var inline in inlinesToMove) currentParagraph.Inlines.Remove(inline);
-                        break;
-                    }
-
-                    currentHeight = newHeight;
-                    endIdx = i;
-                    continue; // 덧붙이기 성공했으므로 다음 블록으로
-                }
-
-                // 2. 새 문단이거나 분리가 안 되는 블록 처리
-                var p = CreateParagraphFromBlock(block, availableHeight, innerWidth);
-
-                if (p.Inlines.Count == 0)
-                {
-                    endIdx = i;
-                    continue;
-                }
+            while (index < blocks.Count)
+            {
+                var block = blocks[index];
 
                 if (block.HasImage || block.IsPageBreak)
                 {
-                    if (AozoraPageContent.Blocks.Count > 0) break;
-                    else
+                    var aozoraImg = block.Inlines.OfType<AozoraImage>().FirstOrDefault();
+                    if (aozoraImg != null && !DoesAozoraImageExist(aozoraImg.Source))
                     {
-                        if (block.HasImage)
-                        {
-                            p.TextAlignment = TextAlignment.Center;
-                            if (AozoraPageContainer != null) AozoraPageContainer.Padding = new Thickness(0);
-                            AozoraPageContent.MaxWidth = innerWidth;
-                            AozoraPageContent.Padding = new Thickness(0);
-                            AozoraPageContent.VerticalAlignment = VerticalAlignment.Center;
-                        }
-                        AozoraPageContent.Blocks.Add(p);
-                        endIdx = i;
-                        break;
+                        index++;
+                        continue;
                     }
-                }
 
-                AozoraPageContent.Blocks.Add(p);
-                AozoraPageContent.Measure(new Windows.Foundation.Size(AozoraPageContent.MaxWidth, double.PositiveInfinity));
-                double measuredHeight = AozoraPageContent.DesiredSize.Height;
+                    if (pageBlocks.Count > 0) break;
 
-                if (AozoraPageContent.Blocks.Count > 1 && measuredHeight > availableHeight)
-                {
-                    AozoraPageContent.Blocks.Remove(p);
+                    pageBlocks.Add(block);
+                    index++;
+                    currentMergedBlock = null;
                     break;
                 }
 
-                currentHeight = measuredHeight;
-                endIdx = i;
+                if (block.IsParagraphContinuation && currentMergedBlock != null && !block.IsTable && block.HeadingLevel == 0)
+                {
+                    var tempMerged = CloneBlockProperties(currentMergedBlock, true);
+                    tempMerged.Inlines.AddRange(block.Inlines);
 
-                // 다음 블록이 덧붙일 수 있도록 기준 문단 캐싱
-                if (!block.HasImage && !block.IsTable && !block.IsPageBreak && block.HeadingLevel == 0)
-                    currentParagraph = p;
+                    float fontSize = (float)(_textFontSize * tempMerged.FontSizeScale);
+                    float newHeight = MeasureHorizontalBlockHeight(device, tempMerged, availableWidth, fontSize);
+                    float heightDiff = newHeight - currentMergedBlockHeight;
+                    float safetyBuffer = 5.0f;
+
+                    if (usedHeight + heightDiff > (availableHeight - safetyBuffer) && pageBlocks.Count > 0)
+                    {
+                        break;
+                    }
+
+                    pageBlocks[pageBlocks.Count - 1] = tempMerged;
+                    currentMergedBlock = tempMerged;
+                    usedHeight += heightDiff;
+                    currentMergedBlockHeight = newHeight;
+                    index++;
+                    continue;
+                }
+
+                float fontSizeBase = (float)(_textFontSize * block.FontSizeScale);
+                float blockHeight = MeasureHorizontalBlockHeight(device, block, availableWidth, fontSizeBase);
+                float safetyBuf = 5.0f;
+
+                bool isKeigakomi = block.BorderColor != null || block.BorderThickness.Top > 0;
+                bool wasKeigakomi = pageBlocks.Count > 0 && (pageBlocks[pageBlocks.Count - 1].BorderColor != null || pageBlocks[pageBlocks.Count - 1].BorderThickness.Top > 0);
+
+                if (isKeigakomi && !wasKeigakomi) blockHeight += 20f; // 박스 진입 마진
+                if (!isKeigakomi && wasKeigakomi) blockHeight += 20f; // 박스 종료 마진
+
+                if (pageBlocks.Count > 0 && usedHeight + blockHeight > (availableHeight - safetyBuf))
+                {
+                    break;
+                }
+
+                var blockCopy = CloneBlockProperties(block, true);
+                pageBlocks.Add(blockCopy);
+                usedHeight += blockHeight;
+
+                if (!block.IsTable && !block.IsPageBreak && block.HeadingLevel == 0)
+                {
+                    currentMergedBlock = blockCopy;
+                    currentMergedBlockHeight = blockHeight;
+                }
                 else
-                    currentParagraph = null;
+                {
+                    currentMergedBlock = null;
+                }
 
-                if (currentHeight > availableHeight && AozoraPageContent.Blocks.Count == 1) break;
+                index++;
+                if (usedHeight >= (availableHeight - safetyBuf)) break;
             }
-
-            _currentAozoraEndBlockIndex = endIdx;
-
-            // Scroll to top
-            if (AozoraPageScroll != null)
-            {
-                AozoraPageScroll.ChangeView(null, 0, null, true);
-            }
+            return pageBlocks;
         }
 
-        private Paragraph CreateParagraphFromBlock(AozoraBindingModel block, double availableHeight = 0, double targetWidth = -1)
+        private float MeasureHorizontalBlockHeight(CanvasDevice? device, AozoraBindingModel block, float availableWidth, float fontSize)
         {
-            if (block.IsTable)
+            if (device == null) return fontSize * 2.0f;
+
+            StringBuilder sb = new StringBuilder();
+            var boldRanges = new List<(int start, int length)>();
+            var italicRanges = new List<(int start, int length)>();
+
+            foreach (var inline in block.Inlines)
             {
-                var tablePara = new Paragraph();
-                tablePara.Inlines.Add(CreateTableInline(block.TableRows));
-                return tablePara;
+                int start = sb.Length;
+                if (inline is string s) sb.Append(s);
+                else if (inline is AozoraRuby ruby)
+                {
+                    sb.Append(ruby.BaseText);
+                    if (ruby.IsBold) boldRanges.Add((start, ruby.BaseText.Length));
+                }
+                else if (inline is AozoraBold bold)
+                {
+                    sb.Append(bold.Text);
+                    boldRanges.Add((start, bold.Text.Length));
+                }
+                else if (inline is AozoraItalic italic)
+                {
+                    sb.Append(italic.Text);
+                    italicRanges.Add((start, italic.Text.Length));
+                }
+                else if (inline is AozoraCode code) sb.Append(code.Text);
+                else if (inline is AozoraTCY tcy)
+                {
+                    sb.Append(tcy.Text);
+                    if (tcy.IsBold) boldRanges.Add((start, tcy.Text.Length));
+                }
+                else if (inline is AozoraLineBreak) sb.Append("\n");
+            }
+            if (block.IsTable && block.TableRows.Count > 0)
+            {
+                foreach (var row in block.TableRows) sb.AppendLine(string.Join(" | ", row));
             }
 
-            var p = new Paragraph();
-            if (block.HasImage)
-            {
-                // Images shouldn't have forced line height which might cause clipping/offsetting
-                p.LineHeight = 0;
-                p.LineStackingStrategy = LineStackingStrategy.MaxHeight;
-            }
-            else
-            {
-                p.LineHeight = _textFontSize * block.FontSizeScale * (block.IsBlankLine ? 1.0 : 2.0); // Reduced multiplier for blank lines
-                p.LineStackingStrategy = LineStackingStrategy.BlockLineHeight;
-            }
-            p.Margin = new Thickness(block.BlockIndent > 0 ? block.BlockIndent : 0, block.Margin.Top, 0, block.Margin.Bottom);
-            p.TextAlignment = block.Alignment;
-            p.FontFamily = block.FontFamily != null ? new FontFamily(block.FontFamily) : new FontFamily(_textFontFamily);
-            p.FontWeight = block.IsBold ? Microsoft.UI.Text.FontWeights.Bold : Microsoft.UI.Text.FontWeights.Normal;
+            string text = sb.ToString();
+            if (string.IsNullOrEmpty(text)) text = " ";
 
-            foreach (var item in block.Inlines)
+            using var format = new CanvasTextFormat
             {
-                if (item is string text)
-                {
-                    p.Inlines.Add(new Run { Text = text, FontSize = _textFontSize * block.FontSizeScale });
-                }
-                else if (item is AozoraBold bold)
-                {
-                    p.Inlines.Add(new Run { Text = bold.Text, FontWeight = Microsoft.UI.Text.FontWeights.Bold, FontSize = _textFontSize * block.FontSizeScale });
-                }
-                else if (item is AozoraItalic italic)
-                {
-                    p.Inlines.Add(new Run { Text = italic.Text, FontStyle = Windows.UI.Text.FontStyle.Italic, FontSize = _textFontSize * block.FontSizeScale });
-                }
-                else if (item is AozoraLineBreak)
-                {
-                    p.Inlines.Add(new LineBreak());
-                }
-                else if (item is AozoraCode code)
-                {
-                    p.Inlines.Add(new Run { Text = code.Text, FontFamily = new FontFamily("Consolas, Courier New, Monospace"), Foreground = new SolidColorBrush(Colors.DarkSlateGray), FontSize = _textFontSize * block.FontSizeScale });
-                }
-                else if (item is AozoraRuby ruby)
-                {
-                    var weight = (ruby.IsBold || block.IsBold) ? Microsoft.UI.Text.FontWeights.Bold : Microsoft.UI.Text.FontWeights.Normal;
-                    p.Inlines.Add(CreateRubyInline(ruby.BaseText, ruby.RubyText, _textFontSize * block.FontSizeScale, weight));
-                }
-                else if (item is AozoraTCY tcy)
-                {
-                    var weight = (tcy.IsBold || block.IsBold) ? Microsoft.UI.Text.FontWeights.Bold : Microsoft.UI.Text.FontWeights.Normal;
-                    p.Inlines.Add(new Run { Text = tcy.Text, FontSize = _textFontSize * block.FontSizeScale, FontWeight = weight });
-                }
-                else if (item is AozoraImage img)
-                {
-                    var ui = CreateImageInline(img.Source, availableHeight, targetWidth);
-                    if (ui != null) p.Inlines.Add(ui);
-                }
-            }
-            return p;
+                FontSize = fontSize,
+                FontFamily = block.FontFamily ?? _textFontFamily,
+                Direction = CanvasTextDirection.LeftToRightThenTopToBottom,
+                WordWrapping = CanvasWordWrapping.Wrap,
+                LineSpacing = fontSize * 1.8f,
+                VerticalAlignment = CanvasVerticalAlignment.Top
+            };
+
+            float indent = (float)(block.BlockIndent > 0 ? block.BlockIndent : block.Margin.Left);
+            float actualAvailableWidth = availableWidth - indent;
+            if (actualAvailableWidth < 100) actualAvailableWidth = 100;
+
+            using var layout = new CanvasTextLayout(device, text, format, actualAvailableWidth, 0.0f);
+
+            if (block.IsBold) layout.SetFontWeight(0, text.Length, Microsoft.UI.Text.FontWeights.Bold);
+            foreach (var r in boldRanges) layout.SetFontWeight(r.start, r.length, Microsoft.UI.Text.FontWeights.Bold);
+            foreach (var r in italicRanges) layout.SetFontStyle(r.start, r.length, Windows.UI.Text.FontStyle.Italic);
+
+            float boundsHeight = (float)layout.LayoutBounds.Height;
+            float spacing = fontSize * (block.IsBlankLine ? 0.2f : 0.6f);
+
+            if (block.IsBlankLine) return (boundsHeight * 0.5f) + spacing;
+            return boundsHeight + spacing;
         }
 
-
-
-        private void UpdateRichTextBlockForMeasurement(RichTextBlock rtb, AozoraBindingModel block, double availableHeight = 0)
+        private void AozoraTextCanvas_CreateResources(CanvasControl sender, Microsoft.Graphics.Canvas.UI.CanvasCreateResourcesEventArgs args)
         {
-            rtb.Blocks.Clear();
-            rtb.FontSize = _textFontSize * block.FontSizeScale;
-            rtb.FontFamily = block.FontFamily != null ? new FontFamily(block.FontFamily) : new FontFamily(_textFontFamily);
+        }
 
-            if (block.IsTable)
+        private void AozoraTextCanvas_Draw(CanvasControl sender, CanvasDrawEventArgs args)
+        {
+            if (!_isAozoraMode) return;
+
+            var ds = args.DrawingSession;
+            var size = sender.Size;
+            Color textColor = GetVerticalTextColor(); // 색상은 수직모드 함수와 동일 (블랙, 베이지, 다크)
+
+            ds.Clear(GetVerticalBackgroundColor());
+
+            if (_currentAozoraPageInfo.Blocks == null || _currentAozoraPageInfo.Blocks.Count == 0) return;
+
+            var page = _currentAozoraPageInfo;
+
+            float marginTop = 40;
+            float marginBottom = 40;
+            float marginLeft = 40;
+
+            float currentY = marginTop;
+            float availableWidth = (float)size.Width - 80; // Left & Right margin
+            float maxWidth = _isMarkdownRenderMode ? availableWidth : Math.Min(availableWidth, (float)GetUrlMaxWidth());
+
+            var imgBlocks = page.Blocks.Where(b => b.HasImage).ToList();
+            if (imgBlocks.Count > 0)
             {
-                var tablePara = new Paragraph();
-                tablePara.Inlines.Add(CreateTableInline(block.TableRows));
-                rtb.Blocks.Add(tablePara);
+                var src = imgBlocks[0].Inlines.OfType<AozoraImage>().First().Source;
+                DrawHorizontalImage(ds, size, src);
                 return;
             }
 
-            var p = new Paragraph();
-            // 실제 렌더링 시 사용하는 배수와 동일하게 설정
-            p.LineHeight = rtb.FontSize * (block.IsBlankLine ? 1.1 : 2.2);
-            p.LineStackingStrategy = LineStackingStrategy.BlockLineHeight;
+            bool isBoxing = false;
+            float boxLeft = float.MaxValue;
+            float boxRight = float.MinValue;
+            float boxTop = 0f;
+            float boxBottom = float.MaxValue;
+            Color boxColor = Colors.Gray;
+            float boxPad = 20f;
 
-            foreach (var item in block.Inlines)
+            for (int i = 0; i < page.Blocks.Count; i++)
             {
-                if (item is string text)
+                var block = page.Blocks[i];
+
+                float fontSize = (float)(_textFontSize * block.FontSizeScale);
+                float rubyFontSize = fontSize * 0.5f;
+
+                using var format = new CanvasTextFormat
                 {
-                    p.Inlines.Add(new Run { Text = text });
-                }
-                else if (item is AozoraBold bold)
+                    FontSize = fontSize,
+                    FontFamily = block.FontFamily ?? _textFontFamily,
+                    Direction = CanvasTextDirection.LeftToRightThenTopToBottom,
+                    WordWrapping = CanvasWordWrapping.Wrap,
+                    LineSpacing = fontSize * 1.8f,
+                    VerticalAlignment = CanvasVerticalAlignment.Top
+                };
+
+                StringBuilder sb = new StringBuilder();
+                var rubyRanges = new List<(int start, int length, string rubyText)>();
+                var boldRanges = new List<(int start, int length)>();
+                var italicRanges = new List<(int start, int length)>();
+
+                foreach (var inline in block.Inlines)
                 {
-                    p.Inlines.Add(new Run { Text = bold.Text, FontWeight = Microsoft.UI.Text.FontWeights.Bold });
-                }
-                else if (item is AozoraRuby ruby)
-                {
-                    var weight = (ruby.IsBold || block.IsBold) ? Microsoft.UI.Text.FontWeights.Bold : Microsoft.UI.Text.FontWeights.Normal;
-                    p.Inlines.Add(CreateRubyInline(ruby.BaseText, ruby.RubyText, rtb.FontSize, weight));
-                }
-                else if (item is AozoraItalic italic)
-                {
-                    p.Inlines.Add(new Run { Text = italic.Text, FontStyle = Windows.UI.Text.FontStyle.Italic });
-                }
-                else if (item is AozoraLineBreak)
-                {
-                    p.Inlines.Add(new LineBreak());
-                }
-                else if (item is AozoraCode code)
-                {
-                    p.Inlines.Add(new Run
+                    int start = sb.Length;
+                    if (inline is string s) sb.Append(s);
+                    else if (inline is AozoraRuby ruby)
                     {
-                        Text = code.Text,
-                        FontFamily = new FontFamily("Consolas, Courier New, Monospace"),
-                        Foreground = new SolidColorBrush(Colors.DarkSlateGray)
-                    });
+                        sb.Append(ruby.BaseText);
+                        rubyRanges.Add((start, ruby.BaseText.Length, ruby.RubyText));
+                        if (ruby.IsBold) boldRanges.Add((start, ruby.BaseText.Length));
+                    }
+                    else if (inline is AozoraBold bold)
+                    {
+                        sb.Append(bold.Text);
+                        boldRanges.Add((start, bold.Text.Length));
+                    }
+                    else if (inline is AozoraItalic italic)
+                    {
+                        sb.Append(italic.Text);
+                        italicRanges.Add((start, italic.Text.Length));
+                    }
+                    else if (inline is AozoraCode code) sb.Append(code.Text);
+                    else if (inline is AozoraTCY tcy)
+                    {
+                        sb.Append(tcy.Text);
+                        if (tcy.IsBold) boldRanges.Add((start, tcy.Text.Length));
+                    }
+                    else if (inline is AozoraLineBreak) sb.Append("\n");
                 }
-                else if (item is AozoraImage img)
+
+                if (block.IsTable && block.TableRows.Count > 0)
                 {
-                    var ui = CreateImageInline(img.Source, availableHeight);
-                    if (ui != null) p.Inlines.Add(ui);
+                    foreach (var row in block.TableRows) sb.AppendLine(string.Join(" | ", row));
+                }
+
+                string blockText = sb.ToString();
+                float indent = (float)(block.BlockIndent > 0 ? block.BlockIndent : block.Margin.Left);
+                float actualMaxWidth = maxWidth - indent;
+
+                using var textLayout = new CanvasTextLayout(ds, blockText, format, actualMaxWidth, 0.0f);
+                if (block.IsBold) textLayout.SetFontWeight(0, blockText.Length, Microsoft.UI.Text.FontWeights.Bold);
+                foreach (var r in boldRanges) textLayout.SetFontWeight(r.start, r.length, Microsoft.UI.Text.FontWeights.Bold);
+                foreach (var r in italicRanges) textLayout.SetFontStyle(r.start, r.length, Windows.UI.Text.FontStyle.Italic);
+
+                var bounds = textLayout.LayoutBounds;
+                float currentBlockHeight = (float)bounds.Height;
+                if (block.IsBlankLine) currentBlockHeight *= 0.5f;
+
+                float drawX = marginLeft + indent;
+                if (block.Alignment == TextAlignment.Center) drawX = (float)((size.Width - bounds.Width) / 2);
+                else if (block.Alignment == TextAlignment.Right) drawX = (float)(size.Width - bounds.Width - 40);
+
+                bool isKeigakomi = block.BorderColor != null || block.BorderThickness.Top > 0;
+                float currentW = (float)bounds.Width;
+                if (block.IsBlankLine && currentW < fontSize) currentW = fontSize;
+
+                if (isKeigakomi)
+                {
+                    if (!isBoxing)
+                    {
+                        currentY += boxPad;
+                        isBoxing = true;
+                        boxTop = currentY;
+                        boxBottom = currentY + currentBlockHeight;
+                        boxLeft = drawX + (float)bounds.X;
+                        boxRight = drawX + (float)bounds.X + currentW;
+                        boxColor = block.BorderColor ?? Colors.Gray;
+                    }
+                    else
+                    {
+                        boxTop = Math.Min(boxTop, currentY + (float)bounds.Y);
+                        boxBottom = Math.Max(boxBottom, currentY + (float)bounds.Y + currentBlockHeight);
+                        boxLeft = Math.Min(boxLeft, drawX + (float)bounds.X);
+                        boxRight = Math.Max(boxRight, drawX + (float)bounds.X + currentW);
+                    }
+                }
+                else if (!isKeigakomi && isBoxing)
+                {
+                    ds.DrawRectangle(boxLeft - boxPad, boxTop - boxPad, boxRight - boxLeft + boxPad * 2, boxBottom - boxTop + boxPad * 2, boxColor, 1.5f);
+                    isBoxing = false;
+                    currentY += boxPad;
+                }
+
+                // 본문 그리기
+                ds.DrawTextLayout(textLayout, drawX, currentY, textColor);
+
+                // 루비 그리기 (가로 모드는 텍스트 위쪽에 표시됨)
+                using var rubyFormat = new CanvasTextFormat
+                {
+                    FontSize = rubyFontSize,
+                    FontFamily = _textFontFamily,
+                    Direction = CanvasTextDirection.LeftToRightThenTopToBottom,
+                    VerticalAlignment = CanvasVerticalAlignment.Top,
+                    WordWrapping = CanvasWordWrapping.NoWrap
+                };
+
+                var rubyRenderInfos = new List<HorizontalRubyRenderInfo>();
+                foreach (var ruby in rubyRanges)
+                {
+                    var regions = textLayout.GetCharacterRegions(ruby.start, ruby.length);
+                    if (regions.Length > 0)
+                    {
+                        var charBounds = regions[0].LayoutBounds;
+                        
+                        // 루비 X 중앙 정렬
+                        float charCenter = drawX + (float)charBounds.Left + (float)charBounds.Width / 2.0f;
+                        float rubyY = currentY + (float)charBounds.Top - (rubyFontSize * 1.5f); // 본문 위에 배치
+
+                        var rubyLayout = new CanvasTextLayout(ds, ruby.rubyText, rubyFormat, 0.0f, 0.0f);
+                        if (block.IsBold || boldRanges.Any(br => ruby.start >= br.start && ruby.start < br.start + br.length))
+                        {
+                            rubyLayout.SetFontWeight(0, ruby.rubyText.Length, Microsoft.UI.Text.FontWeights.Bold);
+                        }
+
+                        float rubyWidth = (float)rubyLayout.LayoutBounds.Width;
+                        float idealLeft = charCenter - (rubyWidth / 2.0f);
+
+                        rubyRenderInfos.Add(new HorizontalRubyRenderInfo
+                        {
+                            Layout = rubyLayout,
+                            IdealX = idealLeft,
+                            Width = rubyWidth,
+                            X = idealLeft,
+                            Y = rubyY
+                        });
+                    }
+                }
+
+                ResolveHorizontalRubyOverlaps(rubyRenderInfos);
+
+                foreach (var info in rubyRenderInfos)
+                {
+                    ds.DrawTextLayout(info.Layout, info.X, info.Y, textColor);
+                    info.Layout.Dispose();
+                }
+
+                float spacing = fontSize * (block.IsBlankLine ? 0.2f : 0.6f);
+                currentY += (currentBlockHeight + spacing);
+
+                if (i == page.Blocks.Count - 1 && isBoxing)
+                {
+                    ds.DrawRectangle(boxLeft - boxPad, boxTop - boxPad, boxRight - boxLeft + boxPad * 2, boxBottom - boxTop + boxPad * 2, boxColor, 1.5f);
+                    isBoxing = false;
                 }
             }
-            rtb.Blocks.Add(p);
         }
 
-        private void AozoraPageContainer_PointerPressed(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
+        private void AozoraTextCanvas_PointerPressed(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
         {
-            if (!_isTextMode || !_isAozoraMode) return;
+            if (AozoraTextCanvas == null || !_isAozoraMode) return;
+            var pt = e.GetCurrentPoint(AozoraTextCanvas).Position;
+            var width = AozoraTextCanvas.ActualWidth;
 
-            var ptr = e.GetCurrentPoint(RootGrid);
-            if (ptr.Properties.IsLeftButtonPressed)
-            {
-                HandleSmartTouchNavigation(e,
-                    () => NavigateAozoraPage(-1),
-                    () => NavigateAozoraPage(1));
+            // 가로 모드는 좌클릭/터치 시 오른쪽 화면이 다음 페이지
+            if (pt.X > width / 2) NavigateAozoraPage(1);
+            else NavigateAozoraPage(-1);
 
-                e.Handled = true;
-                RootGrid.Focus(FocusState.Programmatic);
-            }
+            e.Handled = true;
+            RootGrid.Focus(FocusState.Programmatic);
         }
 
-        private void AozoraPageContainer_PointerWheelChanged(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
+        private void AozoraTextCanvas_PointerWheelChanged(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
         {
-            if (!_isTextMode || !_isAozoraMode) return;
-
-            var ptr = e.GetCurrentPoint(AozoraPageContainer);
-            var delta = ptr.Properties.MouseWheelDelta;
-
+            if (AozoraTextCanvas == null || !_isAozoraMode) return;
+            var delta = e.GetCurrentPoint(AozoraTextCanvas).Properties.MouseWheelDelta;
             if (delta > 0) NavigateAozoraPage(-1);
             else NavigateAozoraPage(1);
-
             e.Handled = true;
         }
 
         private void NavigateAozoraPage(int direction)
         {
-            if (_aozoraBlocks.Count == 0) return;
+            if (_aozoraBlocks == null || _aozoraBlocks.Count == 0) return;
 
             if (direction > 0)
             {
-                // Next Page
                 if (_currentAozoraEndBlockIndex < _aozoraBlocks.Count - 1)
                 {
                     _aozoraNavHistory.Push(_currentAozoraStartBlockIndex);
@@ -1147,7 +894,6 @@ namespace Uviewer
             }
             else if (direction < 0)
             {
-                // Previous Page
                 if (_aozoraNavHistory.Count > 0)
                 {
                     int prevIdx = _aozoraNavHistory.Pop();
@@ -1158,133 +904,25 @@ namespace Uviewer
                 {
                     int targetIdx = _currentAozoraStartBlockIndex;
                     int bestStart = Math.Max(0, targetIdx - 1);
-                    int testStart = bestStart;
+                    int currentTest = bestStart;
 
-                    double availableWidth = AozoraPageContainer?.ActualWidth ?? 800;
-                    if (availableWidth < 100) availableWidth = 800;
-                    double innerWidth = availableWidth - 40;
-                    double currentMaxWidth = _isMarkdownRenderMode ? innerWidth : Math.Min(innerWidth, GetUrlMaxWidth());
+                    float availWidth = (float)(AozoraTextCanvas?.ActualWidth ?? 1000) - 80;
+                    float availHeight = (float)(AozoraTextCanvas?.ActualHeight ?? 800) - 80;
+                    float maxWidth = _isMarkdownRenderMode ? availWidth : Math.Min(availWidth, (float)GetUrlMaxWidth());
+                    var device = AozoraTextCanvas?.Device ?? CanvasDevice.GetSharedDevice();
 
-                    double availableHeight = AozoraPageContainer?.ActualHeight ?? 800;
-                    if (availableHeight < 200) availableHeight = 800;
-                    availableHeight -= 55;
-
-                    var dummyRTB = new RichTextBlock
-                    {
-                        FontFamily = new FontFamily(_textFontFamily),
-                        FontSize = _textFontSize,
-                        MaxWidth = currentMaxWidth,
-                        TextWrapping = TextWrapping.Wrap,
-                        Padding = new Thickness(0, 15, 0, 0),
-                        LineStackingStrategy = LineStackingStrategy.BlockLineHeight // 실제 렌더링과 동일한 줄간격 강제 적용
-                    };
-
-                    // 💡 [수정] 박스나 단락이 길 경우를 대비해 탐색 한계치를 1000으로 넉넉하게 잡습니다.
                     int safetyLimit = Math.Max(0, targetIdx - 1000);
 
-                    while (testStart >= safetyLimit)
+                    while (currentTest >= safetyLimit)
                     {
-                        dummyRTB.Blocks.Clear();
-                        Paragraph? currentParagraph = null;
-                        bool forcedBreak = false;
+                        int tempIdx = currentTest;
+                        PaginateHorizontalAozoraPage(ref tempIdx, _aozoraBlocks, maxWidth, availHeight, device);
 
-                        for (int i = testStart; i < targetIdx; i++)
-                        {
-                            var block = _aozoraBlocks[i];
+                        if (tempIdx < targetIdx && currentTest < bestStart) break;
 
-                            if (block.HasImage || block.IsPageBreak)
-                            {
-                                if (dummyRTB.Blocks.Count > 0)
-                                {
-                                    forcedBreak = true;
-                                    break;
-                                }
-                            }
-
-                            // 💡 [수정] 박스(罫囲み)도 실제 화면에 그려지는 것과 100% 동일하게 그룹화하여 측정
-                            if (block.BorderColor != null || block.BorderThickness.Top > 0 || block.BorderThickness.Left > 0 || block.BorderThickness.Bottom > 0)
-                            {
-                                var keigakomiBlocks = new List<AozoraBindingModel>();
-                                int k = i;
-                                while (k < targetIdx &&
-                                    _aozoraBlocks[k].BorderColor == block.BorderColor &&
-                                    _aozoraBlocks[k].BorderThickness == block.BorderThickness)
-                                {
-                                    keigakomiBlocks.Add(_aozoraBlocks[k]);
-                                    k++;
-                                }
-
-                                double boxWidth = currentMaxWidth - 10;
-                                if (boxWidth < 100) boxWidth = currentMaxWidth;
-
-                                var border = new Border
-                                {
-                                    HorizontalAlignment = HorizontalAlignment.Left,
-                                    MaxWidth = boxWidth,
-                                    BorderBrush = new SolidColorBrush(block.BorderColor ?? Colors.Gray),
-                                    BorderThickness = block.BorderThickness.Top > 0 || block.BorderThickness.Left > 0 ? block.BorderThickness : new Thickness(1.5),
-                                    Padding = block.Padding.Left > 0 ? block.Padding : new Thickness(15),
-                                    Margin = new Thickness(0, 10, 0, 10),
-                                    CornerRadius = new CornerRadius(4),
-                                    Background = block.BackgroundColor != null ? new SolidColorBrush(block.BackgroundColor.Value) : null
-                                };
-
-                                var innerRtb = new RichTextBlock
-                                {
-                                    TextWrapping = TextWrapping.Wrap,
-                                    FontFamily = new FontFamily(_textFontFamily),
-                                    FontSize = _textFontSize
-                                };
-
-                                foreach (var kb in keigakomiBlocks)
-                                {
-                                    innerRtb.Blocks.Add(CreateParagraphFromBlock(kb, availableHeight, boxWidth));
-                                }
-                                border.Child = innerRtb;
-
-                                var pWrapper = new Paragraph();
-                                pWrapper.Inlines.Add(new InlineUIContainer { Child = border });
-                                dummyRTB.Blocks.Add(pWrapper);
-
-                                i = k - 1;
-                                currentParagraph = null;
-                                continue;
-                            }
-
-                            // 일반 문단 덧붙이기
-                            if (block.IsParagraphContinuation && currentParagraph != null && !block.HasImage && !block.IsTable && block.HeadingLevel == 0)
-                            {
-                                var pTemp = CreateParagraphFromBlock(block, availableHeight, innerWidth);
-                                var inlinesToMove = pTemp.Inlines.ToList();
-                                pTemp.Inlines.Clear();
-                                foreach (var inline in inlinesToMove) currentParagraph.Inlines.Add(inline);
-                                continue;
-                            }
-
-                            var p = CreateParagraphFromBlock(block, availableHeight, innerWidth);
-                            if (p.Inlines.Count > 0) dummyRTB.Blocks.Add(p);
-
-                            if (!block.HasImage && !block.IsTable && !block.IsPageBreak && block.HeadingLevel == 0)
-                                currentParagraph = p;
-                            else
-                                currentParagraph = null;
-                        }
-
-                        if (forcedBreak && testStart < bestStart) break;
-
-                        dummyRTB.Measure(new Windows.Foundation.Size((float)currentMaxWidth, double.PositiveInfinity));
-
-                        if (dummyRTB.DesiredSize.Height > availableHeight && testStart < bestStart)
-                        {
-                            break;
-                        }
-
-                        bestStart = testStart;
-                        if (testStart == 0) break;
-
-                        // 💡 [핵심 해결 포인트] 이전처럼 문단이나 박스 시작점으로 강제로 건너뛰지 않고 무조건 1줄씩 뒤로 갑니다.
-                        // 이로써 화면보다 큰 문단이나 박스도 자연스럽게 페이지가 나뉘어 스킵 없이 정확하게 측정됩니다.
-                        testStart--;
+                        bestStart = currentTest;
+                        if (currentTest == 0) break;
+                        currentTest--;
                     }
 
                     RenderAozoraDynamicPage(bestStart);
@@ -1328,496 +966,245 @@ namespace Uviewer
                 return;
             }
 
+            int left = 0;
+            int right = _aozoraBlocks.Count - 1;
             int startIdx = 0;
-            for (int i = 0; i < _aozoraBlocks.Count; i++)
+
+            while (left <= right)
             {
-                if (_aozoraBlocks[i].SourceLineNumber >= targetLine)
+                int mid = left + (right - left) / 2;
+                if (_aozoraBlocks[mid].SourceLineNumber == targetLine)
                 {
-                    if (_aozoraBlocks[i].SourceLineNumber == targetLine)
-                    {
-                        startIdx = i;
-                    }
-                    else
-                    {
-                        startIdx = i > 0 ? i - 1 : 0;
-                    }
+                    startIdx = mid;
                     break;
                 }
-                startIdx = i;
+                else if (_aozoraBlocks[mid].SourceLineNumber < targetLine)
+                {
+                    startIdx = mid;
+                    left = mid + 1;
+                }
+                else
+                {
+                    right = mid - 1;
+                }
             }
 
-            // 💡 [수정] 점프하기 전의 위치를 '이전 페이지'로 오해하지 않도록 스택을 비워줍니다.
-            // 기존 _aozoraNavHistory.Push(_currentAozoraStartBlockIndex); 코드를 아래로 교체하세요.
             _aozoraNavHistory.Clear();
-
             RenderAozoraDynamicPage(startIdx);
-            UpdateAozoraStatusBar();
         }
 
-        private void PrepareAozoraElement(RichTextBlock rtb, int index, double availableHeight = 0)
+        private class HorizontalRubyRenderInfo
         {
-            if (index < 0 || index >= _aozoraBlocks.Count) return;
-            var block = _aozoraBlocks[index];
+            public required CanvasTextLayout Layout;
+            public float IdealX;
+            public float Width;
+            public float X;
+            public float Y;
+        }
 
-            // Setup Container Properties
-            rtb.FontSize = _textFontSize * block.FontSizeScale;
-            rtb.FontFamily = block.FontFamily != null ? new FontFamily(block.FontFamily) : new FontFamily(_textFontFamily);
-            rtb.Foreground = GetThemeForeground();
-            rtb.TextAlignment = block.Alignment;
-            rtb.Margin = new Thickness(block.BlockIndent > 0 ? block.BlockIndent : block.Margin.Left, block.Margin.Top, block.Margin.Right, block.Margin.Bottom);
-            rtb.Padding = block.Padding;
-            rtb.FontWeight = block.IsBold ? Microsoft.UI.Text.FontWeights.Bold : Microsoft.UI.Text.FontWeights.Normal;
+        private void ResolveHorizontalRubyOverlaps(List<HorizontalRubyRenderInfo> rubies)
+        {
+            if (rubies.Count == 0) return;
 
-            if (_isMarkdownRenderMode)
+            int startIndex = 0;
+            while (startIndex < rubies.Count)
             {
-                rtb.MaxWidth = double.PositiveInfinity; // No limit for Markdown
+                int endIndex = startIndex;
+                float currentY = rubies[startIndex].Y;
+
+                while (endIndex + 1 < rubies.Count && Math.Abs(rubies[endIndex + 1].Y - currentY) < 2.0f)
+                {
+                    endIndex++;
+                }
+
+                ResolveHorizontalRubyOverlapsInRow(rubies, startIndex, endIndex);
+                startIndex = endIndex + 1;
+            }
+        }
+
+        private void ResolveHorizontalRubyOverlapsInRow(List<HorizontalRubyRenderInfo> rubies, int start, int end)
+        {
+            float prevRight = -10000f; 
+
+            int i = start;
+            while (i <= end)
+            {
+                float clusterSumCenter = rubies[i].IdealX + rubies[i].Width / 2.0f;
+                float clusterTotalWidth = rubies[i].Width;
+                int clusterCount = 1;
+                int clusterEnd = i;
+
+                while (clusterEnd + 1 <= end)
+                {
+                    var next = rubies[clusterEnd + 1];
+                    float currentHypotheticalLeft = (clusterSumCenter / clusterCount) - (clusterTotalWidth / 2.0f);
+                    float currentHypotheticalRight = currentHypotheticalLeft + clusterTotalWidth;
+
+                    if (currentHypotheticalRight > next.IdealX)
+                    {
+                        clusterEnd++;
+                        clusterSumCenter += (next.IdealX + next.Width / 2.0f);
+                        clusterTotalWidth += next.Width;
+                        clusterCount++;
+                    }
+                    else break;
+                }
+
+                float finalLeft = (clusterSumCenter / clusterCount) - (clusterTotalWidth / 2.0f);
+
+                if (finalLeft < prevRight) finalLeft = prevRight;
+
+                for (int k = i; k <= clusterEnd; k++)
+                {
+                    rubies[k].X = finalLeft;
+                    finalLeft += rubies[k].Width;
+                }
+
+                prevRight = finalLeft;
+                i = clusterEnd + 1;
+            }
+        }
+
+        private bool DoesAozoraImageExist(string relativePath)
+        {
+            if (string.IsNullOrEmpty(relativePath)) return false;
+            try
+            {
+                if (!string.IsNullOrEmpty(_currentTextFilePath) && _currentTextArchiveEntryKey == null)
+                {
+                    string fullPath = System.IO.Path.Combine(System.IO.Path.GetDirectoryName(_currentTextFilePath)!, relativePath);
+                    return System.IO.File.Exists(fullPath);
+                }
+                else if ((_currentArchive != null || _current7zArchive != null) && !string.IsNullOrEmpty(_currentTextArchiveEntryKey))
+                {
+                    string normKey = _currentTextArchiveEntryKey.Replace('\\', '/');
+                    string? baseDir = "";
+                    int lastSlash = normKey.LastIndexOf('/');
+                    if (lastSlash >= 0) baseDir = normKey.Substring(0, lastSlash);
+
+                    string subPath = relativePath.Replace('\\', '/').TrimStart('/');
+                    string targetKey = string.IsNullOrEmpty(baseDir) ? subPath : (baseDir.TrimEnd('/') + "/" + subPath);
+                    targetKey = targetKey.Replace("/./", "/");
+
+                    if (_currentArchive != null)
+                    {
+                        return _currentArchive.Entries.Any(e => e.Key != null && string.Equals(e.Key.Replace('\\', '/'), targetKey, StringComparison.OrdinalIgnoreCase));
+                    }
+                    else if (_current7zArchive != null)
+                    {
+                        return _current7zArchive.Entries.Any(e => e.FileName != null && string.Equals(e.FileName.Replace('\\', '/'), targetKey, StringComparison.OrdinalIgnoreCase));
+                    }
+                }
+            }
+            catch { }
+            return false;
+        }
+
+        private void DrawHorizontalImage(CanvasDrawingSession ds, Size canvasSize, string relativePath)
+        {
+            if (string.IsNullOrEmpty(relativePath)) return;
+
+            if (_aozoraImageCache.TryGetValue(relativePath, out var bitmap))
+            {
+                if (bitmap == null) return;
+
+                float canvasW = (float)canvasSize.Width;
+                float canvasH = (float)canvasSize.Height;
+                float imgW = (float)bitmap.Size.Width;
+                float imgH = (float)bitmap.Size.Height;
+
+                float scale = Math.Min(canvasW / imgW, canvasH / imgH);
+                float drawW = imgW * scale;
+                float drawH = imgH * scale;
+
+                float drawX = (canvasW - drawW) / 2;
+                float drawY = (canvasH - drawH) / 2;
+
+                ds.DrawImage(bitmap, new Rect(drawX, drawY, drawW, drawH));
             }
             else
             {
-                rtb.MaxWidth = GetUrlMaxWidth();
+                _aozoraImageCache[relativePath] = null!;
+                _ = LoadAozoraImageAsync(relativePath);
             }
-            rtb.Blocks.Clear();
-
-            if (block.IsTable)
-            {
-                var ui = CreateTableInline(block.TableRows);
-                var para = new Paragraph();
-                para.Inlines.Add(ui);
-                rtb.Blocks.Add(para);
-                return;
-            }
-
-            rtb.Blocks.Clear();
-            var p = new Paragraph(); // We put everything in one paragraph per "Block" (Line)
-            p.LineHeight = rtb.FontSize * 2.2; // Increased multiplier for better ruby spacing
-            p.LineStackingStrategy = LineStackingStrategy.BlockLineHeight; // Enforce consistent line height
-            p.FontWeight = block.IsBold ? Microsoft.UI.Text.FontWeights.Bold : Microsoft.UI.Text.FontWeights.Normal;
-
-            // Build Inlines
-            foreach (var item in block.Inlines)
-            {
-                if (item is string text)
-                {
-                    p.Inlines.Add(new Run { Text = text });
-                }
-                else if (item is AozoraBold bold)
-                {
-                    p.Inlines.Add(new Run { Text = bold.Text, FontWeight = Microsoft.UI.Text.FontWeights.Bold });
-                }
-                else if (item is AozoraItalic italic)
-                {
-                    p.Inlines.Add(new Run { Text = italic.Text, FontStyle = Windows.UI.Text.FontStyle.Italic });
-                }
-                else if (item is AozoraLineBreak)
-                {
-                    p.Inlines.Add(new LineBreak());
-                }
-                else if (item is AozoraCode code)
-                {
-                    // Inline Code: Monospace, maybe slightly different color?
-                    p.Inlines.Add(new Run { Text = code.Text, FontFamily = new FontFamily("Consolas, Courier New, Monospace"), Foreground = new SolidColorBrush(Colors.DarkSlateGray) });
-                }
-                else if (item is AozoraRuby ruby)
-                {
-                    var weight = (ruby.IsBold || block.IsBold) ? Microsoft.UI.Text.FontWeights.Bold : Microsoft.UI.Text.FontWeights.Normal;
-                    p.Inlines.Add(CreateRubyInline(ruby.BaseText, ruby.RubyText, rtb.FontSize, weight));
-                }
-                else if (item is AozoraTCY tcy)
-                {
-                    var weight = (tcy.IsBold || block.IsBold) ? Microsoft.UI.Text.FontWeights.Bold : Microsoft.UI.Text.FontWeights.Normal;
-                    p.Inlines.Add(new Run { Text = tcy.Text, FontWeight = weight });
-                }
-                else if (item is AozoraImage img)
-                {
-                    var ui = CreateImageInline(img.Source, availableHeight);
-                    if (ui != null) p.Inlines.Add(ui);
-                }
-            }
-
-            rtb.Blocks.Add(p);
         }
 
-        private InlineUIContainer CreateRubyInline(string baseText, string rubyText, double baseFontSize, FontWeight? fontWeight = null)
+        private async Task LoadAozoraImageAsync(string relativePath)
         {
-            var grid = new Grid();
-
-            // Auto 높이를 사용하여 내용물 크기에 딱 맞게 설정
-            grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto }); // Ruby (0행)
-            grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto }); // Base (1행)
-
-            // 루비 텍스트 (윗첨자)
-            var rt = new TextBlock
+            try
             {
-                Text = (rubyText == "'" || rubyText == "’") ? "・" : rubyText,
-                FontSize = baseFontSize * 0.5,
-                HorizontalAlignment = HorizontalAlignment.Center,
-                Foreground = GetThemeForeground(),
-                Opacity = 1,
-                TextLineBounds = TextLineBounds.Tight, // 여백 없이 텍스트 영역만 차지
-                IsHitTestVisible = false,
-                Margin = new Thickness(0, 0, 0, 4),
-                FontWeight = fontWeight ?? Microsoft.UI.Text.FontWeights.Normal
-            };
+                byte[]? bytes = null;
 
-            // [추가] 루비가 너무 길어지는 경우 장평(ScaleX)을 75%로 설정
-            bool shouldScale = (baseText != null && baseText.Length == 1 && rubyText != null && rubyText.Length >= 3) ||
-                               (baseText != null && baseText.Length == 2 && rubyText != null && rubyText.Length >= 5) ||
-                               (baseText != null && baseText.Length == 3 && rubyText != null && rubyText.Length >= 7);
-            if (shouldScale)
-            {
-                rt.RenderTransform = new ScaleTransform { ScaleX = 0.75 };
-                rt.RenderTransformOrigin = new Windows.Foundation.Point(0.5, 0.5);
-            }
-            Grid.SetRow(rt, 0);
-
-            // 본문 텍스트 (베이스)
-            var rb = new TextBlock
-            {
-                Text = baseText,
-                FontSize = baseFontSize,
-                HorizontalAlignment = HorizontalAlignment.Center,
-                Foreground = GetThemeForeground(),
-                TextLineBounds = TextLineBounds.Tight, // 주변 텍스트와 높이 맞춤을 위해 Tight 유지
-                Margin = new Thickness(0, 0, 0, 0),
-                Padding = new Thickness(0),
-                FontWeight = fontWeight ?? Microsoft.UI.Text.FontWeights.Normal
-            };
-            Grid.SetRow(rb, 1);
-
-            grid.Children.Add(rt);
-            grid.Children.Add(rb);
-
-            // [수정] 중요: Grid 자체의 수직 정렬을 Bottom으로 설정하여
-            // 본문 텍스트(rb)의 하단이 주변 텍스트의 기준선(Baseline)에 맞도록 유도
-            grid.VerticalAlignment = VerticalAlignment.Bottom;
-
-            // [수정] 루비가 3자인 경우 자간이 넓어지는 것을 방지하기 위해 왼쪽/오른쪽 마진을 음수로 설정
-            double sideMargin = 0;
-            if (rubyText != null && rubyText.Length == 3 && baseText != null && baseText.Length == 1)
-            {
-                sideMargin = -(baseFontSize * 0.25);
-            }
-            grid.Margin = new Thickness(sideMargin, 0, sideMargin, 0);
-            // Grid의 아래쪽(BaseText의 바닥)이 기준선에 오게 되므로, 주변 텍스트와 높이가 맞게 됩니다.
-            return new InlineUIContainer { Child = grid };
-        }
-
-        private InlineUIContainer? CreateImageInline(string relativePath, double maxHeight = 0, double targetWidth = -1)
-        {
-            if (string.IsNullOrEmpty(_currentTextFilePath) && (_currentArchive == null && _current7zArchive == null || string.IsNullOrEmpty(_currentTextArchiveEntryKey))) return null;
-
-            relativePath = relativePath.Trim().TrimStart('/', '\\');
-
-            var img = new Image();
-            img.Stretch = Stretch.Uniform;
-            img.Margin = new Thickness(0);
-
-            double maxWidth = targetWidth > 0 ? targetWidth : (AozoraPageContainer?.ActualWidth ?? 800);
-            if (targetWidth <= 0 && maxWidth > 40) maxWidth -= 40; // Safety padding only if not explicit targetWidth
-            if (maxWidth < 100) maxWidth = 800; // Minimal width
-
-            img.Width = maxWidth;
-            if (maxHeight > 0) img.Height = maxHeight * 0.98; // 위아래 크기를 화면보다 약간 줄임 (약 90% 수준)
-
-            img.HorizontalAlignment = HorizontalAlignment.Center;
-            img.VerticalAlignment = VerticalAlignment.Center;
-
-            if (_isWebDavMode && !string.IsNullOrEmpty(_currentWebDavItemPath))
-            {
-                // WebDAV Mode Case: Download relative images from the same remote directory
-                try
+                if (!string.IsNullOrEmpty(_currentTextFilePath) && _currentTextArchiveEntryKey == null)
                 {
-                    // Calculate remote path relative to the current file
-                    string normItemPath = _currentWebDavItemPath.Replace('\\', '/');
-                    int lastSlash = normItemPath.LastIndexOf('/');
-                    string remoteDir = (lastSlash >= 0) ? normItemPath.Substring(0, lastSlash) : "";
-
-                    string normRelativePath = relativePath.Replace('\\', '/');
-                    if (normRelativePath.StartsWith("/")) normRelativePath = normRelativePath.Substring(1);
-
-                    string remoteFullPath = remoteDir + "/" + normRelativePath;
-
-                    _ = Task.Run(async () =>
-                    {
-                        try
-                        {
-                            // Use a separate CTS if available or just the global one
-                            var tempPath = await _webDavService.DownloadToTempFileAsync(remoteFullPath);
-                            if (string.IsNullOrEmpty(tempPath)) return;
-
-                            using var fs = new System.IO.FileStream(tempPath, System.IO.FileMode.Open, System.IO.FileAccess.Read);
-                            using var ms = new System.IO.MemoryStream();
-                            await fs.CopyToAsync(ms);
-                            var bytes = ms.ToArray();
-
-                            this.DispatcherQueue.TryEnqueue(async () =>
-                            {
-                                try
-                                {
-                                    var winrtStream = new Windows.Storage.Streams.InMemoryRandomAccessStream();
-                                    using (var writer = new Windows.Storage.Streams.DataWriter(winrtStream))
-                                    {
-                                        writer.WriteBytes(bytes);
-                                        await writer.StoreAsync();
-                                        await writer.FlushAsync();
-                                        writer.DetachStream();
-                                    }
-                                    winrtStream.Seek(0);
-                                    var bitmap = new Microsoft.UI.Xaml.Media.Imaging.BitmapImage();
-                                    await bitmap.SetSourceAsync(winrtStream);
-                                    img.Source = bitmap;
-                                }
-                                catch { }
-                            });
-                        }
-                        catch { }
-                    });
-                    return new InlineUIContainer { Child = img };
+                    string fullPath = System.IO.Path.Combine(System.IO.Path.GetDirectoryName(_currentTextFilePath)!, relativePath);
+                    if (System.IO.File.Exists(fullPath)) bytes = await System.IO.File.ReadAllBytesAsync(fullPath);
                 }
-                catch { }
-            }
-            else if (!string.IsNullOrEmpty(_currentTextFilePath))
-            {
-                // Local File Case
-                try
+                else if ((_currentArchive != null || _current7zArchive != null) && !string.IsNullOrEmpty(_currentTextArchiveEntryKey))
                 {
-                    string? dir = System.IO.Path.GetDirectoryName(_currentTextFilePath);
-                    if (dir == null) return null;
+                    string normKey = _currentTextArchiveEntryKey.Replace('\\', '/');
+                    string? baseDir = "";
+                    int lastSlash = normKey.LastIndexOf('/');
+                    if (lastSlash >= 0) baseDir = normKey.Substring(0, lastSlash);
 
-                    string normPath = relativePath.Replace('/', System.IO.Path.DirectorySeparatorChar);
-                    string fullPath = System.IO.Path.GetFullPath(System.IO.Path.Combine(dir, normPath));
+                    string subPath = relativePath.Replace('\\', '/').TrimStart('/');
+                    string targetKey = string.IsNullOrEmpty(baseDir) ? subPath : (baseDir.TrimEnd('/') + "/" + subPath);
+                    targetKey = targetKey.Replace("/./", "/");
 
-                    if (System.IO.File.Exists(fullPath))
-                    {
-                        // Use stream to avoid UI thread issues and ensure better compatibility
-                        _ = Task.Run(async () =>
-                        {
-                            try
-                            {
-                                using var fs = new System.IO.FileStream(fullPath, System.IO.FileMode.Open, System.IO.FileAccess.Read);
-                                using var ms = new System.IO.MemoryStream();
-                                await fs.CopyToAsync(ms);
-                                var bytes = ms.ToArray();
-
-                                this.DispatcherQueue.TryEnqueue(async () =>
-                                {
-                                    try
-                                    {
-                                        var winrtStream = new Windows.Storage.Streams.InMemoryRandomAccessStream();
-                                        using (var writer = new Windows.Storage.Streams.DataWriter(winrtStream))
-                                        {
-                                            writer.WriteBytes(bytes);
-                                            await writer.StoreAsync();
-                                            await writer.FlushAsync();
-                                            writer.DetachStream();
-                                        }
-                                        winrtStream.Seek(0);
-                                        var bitmap = new Microsoft.UI.Xaml.Media.Imaging.BitmapImage();
-                                        await bitmap.SetSourceAsync(winrtStream);
-                                        img.Source = bitmap;
-                                    }
-                                    catch { }
-                                });
-                            }
-                            catch { }
-                        });
-                        return new InlineUIContainer { Child = img };
-                    }
-                }
-                catch { }
-            }
-            else if ((_currentArchive != null || _current7zArchive != null) && !string.IsNullOrEmpty(_currentTextArchiveEntryKey))
-            {
-                // Synchronously check if entry exists to avoid empty placeholder
-                // This prevents blank pages when an image tag refers to a missing file
-                string normKey = _currentTextArchiveEntryKey.Replace('\\', '/');
-                string? baseDir = "";
-                int lastSlash = normKey.LastIndexOf('/');
-                if (lastSlash >= 0) baseDir = normKey.Substring(0, lastSlash);
-
-                string subPath = relativePath.Replace('\\', '/').TrimStart('/');
-                string targetKey = string.IsNullOrEmpty(baseDir) ? subPath : (baseDir.TrimEnd('/') + "/" + subPath);
-
-                // Remove redundant ./ if present
-                targetKey = targetKey.Replace("/./", "/");
-
-                // Manual search to match the logic inside the task
-                bool exists = false;
-                if (_currentArchive != null)
-                {
-                    exists = _currentArchive.Entries.Any(e => e.Key != null &&
-                             (e.Key.Replace('\\', '/') == targetKey ||
-                              string.Equals(e.Key.Replace('\\', '/'), targetKey, StringComparison.OrdinalIgnoreCase)));
-                }
-                else if (_current7zArchive != null)
-                {
-                    exists = _current7zArchive.Entries.Any(e => e.FileName != null &&
-                             (e.FileName.Replace('\\', '/') == targetKey ||
-                              string.Equals(e.FileName.Replace('\\', '/'), targetKey, StringComparison.OrdinalIgnoreCase)));
-                }
-
-                if (!exists) return null;
-
-                // Archive Case (Async Load)
-                _ = Task.Run(async () =>
-                {
+                    await _archiveLock.WaitAsync();
                     try
                     {
-                        await _archiveLock.WaitAsync();
-                        byte[]? bytes = null;
-                        try
+                        if (_currentArchive != null)
                         {
-                            if (_currentArchive != null)
+                            var entry = _currentArchive.Entries.FirstOrDefault(e => e.Key != null && string.Equals(e.Key.Replace('\\', '/'), targetKey, StringComparison.OrdinalIgnoreCase));
+                            if (entry != null)
                             {
-                                // Re-normalization inside task to be safe and consistent
-                                var entry = _currentArchive.Entries.FirstOrDefault(e => e.Key != null && e.Key.Replace('\\', '/') == targetKey)
-                                         ?? _currentArchive.Entries.FirstOrDefault(e => e.Key != null && string.Equals(e.Key.Replace('\\', '/'), targetKey, StringComparison.OrdinalIgnoreCase));
-
-                                if (entry != null)
-                                {
-                                    using var ms = new System.IO.MemoryStream();
-                                    using var es = entry.OpenEntryStream();
-                                    es.CopyTo(ms);
-                                    bytes = ms.ToArray();
-                                }
-                            }
-                            else if (_current7zArchive != null)
-                            {
-                                var entry = _current7zArchive.Entries.FirstOrDefault(e => e.FileName != null && e.FileName.Replace('\\', '/') == targetKey)
-                                         ?? _current7zArchive.Entries.FirstOrDefault(e => e.FileName != null && string.Equals(e.FileName.Replace('\\', '/'), targetKey, StringComparison.OrdinalIgnoreCase));
-
-                                if (entry != null)
-                                {
-                                    using var ms = new System.IO.MemoryStream();
-                                    entry.Extract(ms);
-                                    bytes = ms.ToArray();
-                                }
+                                using var ms = new System.IO.MemoryStream();
+                                using var es = entry.OpenEntryStream();
+                                es.CopyTo(ms);
+                                bytes = ms.ToArray();
                             }
                         }
-                        finally { _archiveLock.Release(); }
-
-                        if (bytes != null)
+                        else if (_current7zArchive != null)
                         {
-                            this.DispatcherQueue.TryEnqueue(async () =>
+                            var entry = _current7zArchive.Entries.FirstOrDefault(e => e.FileName != null && string.Equals(e.FileName.Replace('\\', '/'), targetKey, StringComparison.OrdinalIgnoreCase));
+                            if (entry != null)
                             {
-                                try
-                                {
-                                    var winrtStream = new Windows.Storage.Streams.InMemoryRandomAccessStream();
-                                    using (var writer = new Windows.Storage.Streams.DataWriter(winrtStream))
-                                    {
-                                        writer.WriteBytes(bytes);
-                                        await writer.StoreAsync();
-                                        await writer.FlushAsync();
-                                        writer.DetachStream();
-                                    }
-                                    winrtStream.Seek(0);
-
-                                    var bitmap = new Microsoft.UI.Xaml.Media.Imaging.BitmapImage();
-                                    await bitmap.SetSourceAsync(winrtStream);
-                                    img.Source = bitmap;
-                                }
-                                catch { }
-                            });
+                                using var ms = new System.IO.MemoryStream();
+                                entry.Extract(ms);
+                                bytes = ms.ToArray();
+                            }
                         }
                     }
-                    catch { }
-                });
-                return new InlineUIContainer { Child = img };
-            }
+                    finally { _archiveLock.Release(); }
+                }
 
-            return null;
-        }
-
-        private InlineUIContainer CreateTableInline(List<List<string>> rows)
-        {
-            var grid = new Grid();
-            grid.HorizontalAlignment = HorizontalAlignment.Left;
-            // Use Border to wrap Grid for outer border
-            grid.BorderBrush = new SolidColorBrush(Colors.LightGray);
-            grid.BorderThickness = new Thickness(1, 1, 0, 0); // Top Left
-
-            if (rows.Count == 0) return new InlineUIContainer { Child = grid };
-
-            int maxCols = rows.Max(r => r.Count);
-
-            for (int c = 0; c < maxCols; c++)
-                grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-
-            for (int r = 0; r < rows.Count; r++)
-            {
-                grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-                var rowData = rows[r];
-                for (int c = 0; c < rowData.Count; c++)
+                if (bytes != null && AozoraTextCanvas != null)
                 {
-                    if (c >= maxCols) break;
-
-                    var cellText = rowData[c];
-                    bool isHeader = (r == 0);
-
-                    var border = new Border
+                    var winrtStream = new Windows.Storage.Streams.InMemoryRandomAccessStream();
+                    using (var writer = new Windows.Storage.Streams.DataWriter(winrtStream))
                     {
-                        BorderBrush = new SolidColorBrush(Colors.LightGray),
-                        BorderThickness = new Thickness(0, 0, 1, 1), // Right Bottom
-                        Padding = new Thickness(8, 4, 8, 4),
-                        Background = isHeader ? new SolidColorBrush(Microsoft.UI.ColorHelper.FromArgb(50, 200, 200, 200)) : null
-                    };
-
-                    // Parse inline formatting in cell
-                    var rtb = new RichTextBlock
-                    {
-                        TextWrapping = TextWrapping.Wrap,
-                        MaxWidth = 300
-                    };
-
-                    var para = new Paragraph();
-
-                    // Parse cell content for inline formatting
-                    string content = cellText;
-
-                    // 1. <br> -> {{BR}}
-                    content = Regex.Replace(content, @"<br\s*/?>", "{{BR}}", RegexOptions.IgnoreCase);
-
-                    // 2. Bold **...** or __...__
-                    content = Regex.Replace(content, @"(\*\*|__)(.*?)\1", "{{BOLD|$2}}");
-
-                    // Tokenize
-                    string pattern = @"(\{\{BOLD\|.*?\}\}|\{\{BR\}\})";
-                    var parts = Regex.Split(content, pattern);
-
-                    foreach (var part in parts)
-                    {
-                        if (string.IsNullOrEmpty(part)) continue;
-
-                        if (part == "{{BR}}")
-                        {
-                            para.Inlines.Add(new LineBreak());
-                        }
-                        else if (part.StartsWith("{{BOLD|"))
-                        {
-                            var inner = part.Substring(7, part.Length - 9);
-                            para.Inlines.Add(new Run { Text = inner, FontWeight = Microsoft.UI.Text.FontWeights.Bold });
-                        }
-                        else
-                        {
-                            para.Inlines.Add(new Run
-                            {
-                                Text = part,
-                                FontWeight = isHeader ? Microsoft.UI.Text.FontWeights.Bold : Microsoft.UI.Text.FontWeights.Normal
-                            });
-                        }
+                        writer.WriteBytes(bytes);
+                        await writer.StoreAsync();
+                        await writer.FlushAsync();
+                        writer.DetachStream();
                     }
+                    winrtStream.Seek(0);
 
-                    rtb.Blocks.Add(para);
-                    border.Child = rtb;
+                    var device = AozoraTextCanvas.Device ?? CanvasDevice.GetSharedDevice();
+                    var bitmap = await CanvasBitmap.LoadAsync(device, winrtStream);
 
-                    Grid.SetRow(border, r);
-                    Grid.SetColumn(border, c);
-                    grid.Children.Add(border);
+                    this.DispatcherQueue.TryEnqueue(() =>
+                    {
+                        _aozoraImageCache[relativePath] = bitmap;
+                        AozoraTextCanvas.Invalidate();
+                    });
                 }
             }
-
-            return new InlineUIContainer { Child = grid };
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"LoadAozoraImageAsync failed: {ex.Message}");
+            }
         }
-
     }
 }

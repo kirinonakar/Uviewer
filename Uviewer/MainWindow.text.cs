@@ -279,7 +279,7 @@ namespace Uviewer
 
             // Ensure visibility is mutually exclusive
             if (TextScrollViewer != null) TextScrollViewer.Visibility = Visibility.Collapsed;
-            if (AozoraPageContainer != null) AozoraPageContainer.Visibility = Visibility.Collapsed;
+            if (AozoraTextCanvas != null) AozoraTextCanvas.Visibility = Visibility.Collapsed;
             if (VerticalTextCanvas != null) VerticalTextCanvas.Visibility = Visibility.Collapsed;
 
             if (_isVerticalMode)
@@ -299,7 +299,7 @@ namespace Uviewer
                 // Use page-based container display with target line restoration
                 await PrepareAozoraDisplayAsync(content, targetLine, token);
                 if (token.IsCancellationRequested) return;
-                if (AozoraPageContainer != null) AozoraPageContainer.Visibility = Visibility.Visible;
+                if (AozoraTextCanvas != null) AozoraTextCanvas.Visibility = Visibility.Visible;
 
                 FileNameText.Text = GetFormattedDisplayName(name, _currentTextArchiveEntryKey != null);
             }
@@ -423,19 +423,19 @@ namespace Uviewer
             {
                 VerticalTextCanvas.Visibility = Visibility.Visible;
                 TextScrollViewer.Visibility = Visibility.Collapsed;
-                AozoraPageContainer.Visibility = Visibility.Collapsed;
+                AozoraTextCanvas.Visibility = Visibility.Collapsed;
             }
             else if (_isAozoraMode)
             {
                 VerticalTextCanvas.Visibility = Visibility.Collapsed;
                 TextScrollViewer.Visibility = Visibility.Collapsed;
-                AozoraPageContainer.Visibility = Visibility.Visible;
+                AozoraTextCanvas.Visibility = Visibility.Visible;
             }
             else
             {
                 VerticalTextCanvas.Visibility = Visibility.Collapsed;
                 TextScrollViewer.Visibility = Visibility.Visible;
-                AozoraPageContainer.Visibility = Visibility.Collapsed;
+                AozoraTextCanvas.Visibility = Visibility.Collapsed;
             }
 
             // Update Title
@@ -1764,10 +1764,8 @@ namespace Uviewer
         {
             if (_isAozoraMode)
             {
-                if (args.Element is RichTextBlock rtb)
-                {
-                    PrepareAozoraElement(rtb, args.Index);
-                }
+                // Aozora mode now uses Win2D CanvasControl (AozoraTextCanvas) for rendering.
+                // No XAML element preparation needed here.
                 return;
             }
 
@@ -1952,6 +1950,19 @@ namespace Uviewer
             if (_isTextMode && !_isAozoraMode)
             {
                 StartPageCalculationAsync();
+            }
+        }
+
+        private void TextArea_SizeChanged(object sender, SizeChangedEventArgs e)
+        {
+            // Handle TextArea resize for window drag resizing in Aozora mode.
+            // AozoraTextCanvas_SizeChanged handles the canvas itself;
+            // this covers the outer Grid container resize event wired in XAML.
+            if (!_isAozoraMode) return;
+            if (AozoraTextCanvas != null)
+            {
+                RenderAozoraDynamicPage(_currentAozoraStartBlockIndex);
+                StartAozoraPageCalculationAsync();
             }
         }
 

@@ -64,7 +64,7 @@ namespace Uviewer
                 }
                 if (VerticalTextCanvas != null) VerticalTextCanvas.Visibility = Visibility.Visible;
                 if (TextScrollViewer != null) TextScrollViewer.Visibility = Visibility.Collapsed;
-                if (AozoraPageContainer != null) AozoraPageContainer.Visibility = Visibility.Collapsed;
+                if (AozoraTextCanvas != null) AozoraTextCanvas.Visibility = Visibility.Collapsed;
                 if (EpubArea != null) EpubArea.Visibility = Visibility.Collapsed;
                 if (TextArea != null) TextArea.Visibility = Visibility.Visible;
                 
@@ -156,7 +156,7 @@ namespace Uviewer
                 }
                 else if (_isAozoraMode)
                 {
-                    if (AozoraPageContainer != null) AozoraPageContainer.Visibility = Visibility.Visible;
+                    if (AozoraTextCanvas != null) AozoraTextCanvas.Visibility = Visibility.Visible;
                     await PrepareAozoraDisplayAsync(_currentTextContent, currentLine, _globalTextCts?.Token ?? default);
                 }
                 else
