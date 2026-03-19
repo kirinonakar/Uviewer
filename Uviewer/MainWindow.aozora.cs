@@ -1545,10 +1545,24 @@ namespace Uviewer
 
                 // --- Inline Parsing (Ruby & Bold) ---
                 // 1. Aozora Ruby with pipe: ｜漢字《かんじ》
-                content = Regex.Replace(content, @"｜(.+?)《(.+?)》", "{{RUBY|$1|$2}}");
+                content = Regex.Replace(content, @"｜(.+?)《(.+?)》", (m) => {
+                    string b = m.Groups[1].Value;
+                    string r = m.Groups[2].Value;
+                    if (r == "'" || r == "’") r = "﹅";
+                    return $"{{{{RUBY|{b}|{r}}}}}";
+                });
                 
-                // 2. Aozora Ruby without pipe (Kanji + Ruby): 漢字《かんじ》
-                content = Regex.Replace(content, @"([\u4E00-\u9FFF\u3400-\u4DBF\uF900-\uFAFF々]+)《(.+?)》", "{{RUBY|$1|$2}}");
+                // 2. Aozora Ruby for emphasis dots (any character + 《'》): 한자가 아닌 경우에도 방점으로 인식
+                content = Regex.Replace(content, @"(.)《'》", "{{RUBY|$1|﹅}}");
+                content = Regex.Replace(content, @"(.)《’》", "{{RUBY|$1|﹅}}");
+
+                // 3. Aozora Ruby without pipe (Kanji + Ruby): 漢字《かんじ》
+                content = Regex.Replace(content, @"([\u4E00-\u9FFF\u3400-\u4DBF\uF900-\uFAFF々]+)《(.+?)》", (m) => {
+                    string b = m.Groups[1].Value;
+                    string r = m.Groups[2].Value;
+                    if (r == "'" || r == "’") r = "﹅";
+                    return $"{{{{RUBY|{b}|{r}}}}}";
+                });
                 
                 // Markdown Bold **...** 
                 content = Regex.Replace(content, @"(\*\*|__)(.*?)\1", "@@BOLD_START@@$2@@BOLD_END@@");
@@ -2104,7 +2118,7 @@ namespace Uviewer
             // 루비 텍스트 (윗첨자)
             var rt = new TextBlock
             {
-                Text = rubyText,
+                Text = (rubyText == "'" || rubyText == "’") ? "﹅" : rubyText,
                 FontSize = baseFontSize * 0.5,
                 HorizontalAlignment = HorizontalAlignment.Center,
                 Foreground = GetThemeForeground(),
