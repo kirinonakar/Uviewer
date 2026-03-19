@@ -37,7 +37,6 @@ namespace Uviewer
         private int _currentAozoraEndBlockIndex = 0;
         private Stack<int> _aozoraNavHistory = new();
         private Dictionary<string, CanvasBitmap> _aozoraImageCache = new();
-        private int? _pendingAozoraScrollLine = null;
 
         // Page Calculation
         private int _aozoraTotalPages = 0;
@@ -549,7 +548,6 @@ namespace Uviewer
 
                 float fontSizeBase = (float)(_textFontSize * block.FontSizeScale);
                 float blockHeight = MeasureHorizontalBlockHeight(device, block, availableWidth, fontSizeBase);
-                float safetyBuf = 0f;
 
                 // 일반 블록 보정값 추가
                 float bottomTolerance = fontSizeBase * 1.0f;
@@ -678,7 +676,6 @@ namespace Uviewer
             var page = _currentAozoraPageInfo;
 
             float marginTop = 40;
-            float marginBottom = 20;
             float marginLeft = 40;
 
             float currentY = marginTop;
