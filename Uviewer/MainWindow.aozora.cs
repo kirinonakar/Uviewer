@@ -362,7 +362,8 @@ namespace Uviewer
             startIdx = Math.Max(0, Math.Min(startIdx, _aozoraBlocks.Count - 1));
             _currentAozoraStartBlockIndex = startIdx;
 
-            float marginTop = 40, marginBottom = 20, marginRight = 40, marginLeft = 40;
+            // [수정] 아래쪽 마진(marginBottom)을 10으로 확 줄여 하단 끝까지 텍스트를 밀어 넣습니다.
+            float marginTop = 30, marginBottom = 10, marginRight = 40, marginLeft = 40;
             float availableHeight = (float)AozoraTextCanvas.ActualHeight;
             if (availableHeight < 100) availableHeight = (float)RootGrid.ActualHeight - 200;
             if (availableHeight < 100) availableHeight = 800;
@@ -406,8 +407,10 @@ namespace Uviewer
 
             if (AozoraTextCanvas == null || AozoraTextCanvas.ActualHeight <= 0 || AozoraTextCanvas.ActualWidth <= 0) return;
 
+            // [수정] 백그라운드 페이지 계산도 렌더링 마진(상하 40, 좌우 80)과 일치시킵니다.
             float availableWidth = (float)AozoraTextCanvas.ActualWidth - 80;
-            float availableHeight = (float)AozoraTextCanvas.ActualHeight - 60;
+            float availableHeight = (float)AozoraTextCanvas.ActualHeight - 40; 
+
             float maxWidth = _isMarkdownRenderMode ? availableWidth : Math.Min(availableWidth, (float)GetUrlMaxWidth());
             var device = AozoraTextCanvas.Device;
 
@@ -417,7 +420,6 @@ namespace Uviewer
                 {
                     int pageCount = 1;
                     float currentPageHeight = 0;
-                    float safetyBuffer = 5.0f;
                     var blockToPageMap = new Dictionary<int, int>();
 
                     for (int i = 0; i < _aozoraBlocks.Count; i++)
@@ -458,10 +460,10 @@ namespace Uviewer
                         float fontSize = (float)(_textFontSize * block.FontSizeScale);
                         float blockHeight = MeasureHorizontalBlockHeight(device, block, maxWidth, fontSize);
 
-                        // 빈 공간 보정값 추가 (폰트 크기 1배만큼 하단 오버플로우 허용)
-                        float bottomTolerance = fontSize * 1.0f;
+                        // [수정] Tolerance는 0.8배로 타협
+                        float bottomTolerance = fontSize * 0.8f;
 
-                        if (currentPageHeight > 0 && currentPageHeight + blockHeight > (availableHeight + bottomTolerance - safetyBuffer))
+                        if (currentPageHeight > 0 && currentPageHeight + blockHeight > (availableHeight + bottomTolerance))
                         {
                             pageCount++;
                             currentPageHeight = 0;
@@ -538,12 +540,11 @@ namespace Uviewer
                     float fontSize = (float)(_textFontSize * tempMerged.FontSizeScale);
                     float newHeight = MeasureHorizontalBlockHeight(device, tempMerged, availableWidth, fontSize);
                     float heightDiff = newHeight - currentMergedBlockHeight;
-                    float safetyBuffer = 0f;
 
-                    // 병합 블록 보정값 추가
-                    float bottomToleranceMerged = fontSize * 1.0f;
+                    // [수정] Tolerance를 0.8배로 타협
+                    float bottomToleranceMerged = fontSize * 0.8f;
 
-                    if (usedHeight + heightDiff > (availableHeight + bottomToleranceMerged - safetyBuffer) && pageBlocks.Count > 0)
+                    if (usedHeight + heightDiff > (availableHeight + bottomToleranceMerged) && pageBlocks.Count > 0)
                     {
                         break;
                     }
@@ -559,8 +560,8 @@ namespace Uviewer
                 float fontSizeBase = (float)(_textFontSize * block.FontSizeScale);
                 float blockHeight = MeasureHorizontalBlockHeight(device, block, availableWidth, fontSizeBase);
 
-                // 일반 블록 보정값 추가
-                float bottomTolerance = fontSizeBase * 1.0f;
+                // [수정] 일반 블록 보정값 타협
+                float bottomTolerance = fontSizeBase * 0.8f;
 
                 bool isKeigakomi = block.BorderColor != null || block.BorderThickness.Top > 0;
                 bool wasKeigakomi = pageBlocks.Count > 0 && (pageBlocks[pageBlocks.Count - 1].BorderColor != null || pageBlocks[pageBlocks.Count - 1].BorderThickness.Top > 0);
@@ -568,7 +569,7 @@ namespace Uviewer
                 if (isKeigakomi && !wasKeigakomi) blockHeight += 20f; // 박스 진입 마진
                 if (!isKeigakomi && wasKeigakomi) blockHeight += 20f + (fontSizeBase * 2.1f); // 박스 종료 마진
 
-                if (pageBlocks.Count > 0 && usedHeight + blockHeight > availableHeight + bottomTolerance)
+                if (pageBlocks.Count > 0 && usedHeight + blockHeight > (availableHeight + bottomTolerance))
                 {
                     break;
                 }
@@ -588,7 +589,8 @@ namespace Uviewer
                 }
 
                 index++;
-                if (usedHeight >= availableHeight) break;
+                // [수정] 완전히 꽉 찼을 때만 루프 종료
+                if (usedHeight >= availableHeight + bottomTolerance) break;
             }
             return pageBlocks;
         }
@@ -686,11 +688,12 @@ namespace Uviewer
 
             var page = _currentAozoraPageInfo;
 
-            float marginTop = 40;
+            // [수정] 그리기 시작점도 30으로 맞춥니다.
+            float marginTop = 30;
             float marginLeft = 40;
 
             float currentY = marginTop;
-            float availableWidth = (float)size.Width - 80; // Left & Right margin
+            float availableWidth = (float)size.Width - 80; // Left & Right margin (40+40)
             float maxWidth = _isMarkdownRenderMode ? availableWidth : Math.Min(availableWidth, (float)GetUrlMaxWidth());
 
             var imgBlocks = page.Blocks.Where(b => b.HasImage).ToList();

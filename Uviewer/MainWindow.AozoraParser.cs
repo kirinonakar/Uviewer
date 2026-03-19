@@ -358,120 +358,148 @@ namespace Uviewer
         }
 
         private List<AozoraBindingModel> SplitBlockBySentences(AozoraBindingModel originalBlock)
-{
-    // 💡 [유지] 박스(罫囲み) 여부 판별
-    bool isKeigakomi = originalBlock.BorderColor != null ||
-                       originalBlock.BorderThickness.Top > 0 ||
-                       originalBlock.BorderThickness.Left > 0 ||
-                       originalBlock.BorderThickness.Bottom > 0 ||
-                       originalBlock.BorderThickness.Right > 0;
-
-    if (originalBlock.HeadingLevel > 0 || originalBlock.HasImage || originalBlock.IsTable || originalBlock.IsPageBreak || originalBlock.IsBlankLine || isKeigakomi)
-    {
-        return new List<AozoraBindingModel> { originalBlock };
-    }
-
-    // ==========================================
-    // [버그 수정] 쉼표('、', ',') 분리 시 남은 길이(줄 길이) 보정 로직 추가
-    // ==========================================
-    char[] terminators = { '。', '！', '？', '.', '!', '?' }; // 문장 종료 기호
-    char[] commaTerminators = { '、', ',' };                  // 구 단위 종료 기호 (콤마)
-    char[] quotes = { '」', '』', '"', '\'', '”', '’', '〉', '》', '】', '］', ')' };
-
-    var result = new List<AozoraBindingModel>();
-    var currentBlock = CloneBlockProperties(originalBlock);
-    bool isFirst = true;
-
-    for (int i = 0; i < originalBlock.Inlines.Count; i++)
-    {
-        var inline = originalBlock.Inlines[i];
-
-        if (inline is string text)
         {
-            int start = 0;
-            for (int j = 0; j < text.Length; j++)
+            bool isKeigakomi = originalBlock.BorderColor != null ||
+                               originalBlock.BorderThickness.Top > 0 ||
+                               originalBlock.BorderThickness.Left > 0 ||
+                               originalBlock.BorderThickness.Bottom > 0 ||
+                               originalBlock.BorderThickness.Right > 0;
+
+            if (originalBlock.HeadingLevel > 0 || originalBlock.HasImage || originalBlock.IsTable || originalBlock.IsPageBreak || originalBlock.IsBlankLine || isKeigakomi)
             {
-                char c = text[j];
-                bool isTerminator = Array.IndexOf(terminators, c) >= 0;
-                bool isComma = Array.IndexOf(commaTerminators, c) >= 0;
+                return new List<AozoraBindingModel> { originalBlock };
+            }
 
-                if (isTerminator || isComma)
+            // [추가] 기호들을 여는 괄호, 닫는 괄호, 일반 종결자로 세분화
+            char[] openBrackets = { '「', '『', '(', '<', '《', '〈', '【', '［', '“', '‘' };
+            char[] closeBrackets = { '」', '』', ')', '>', '》', '〉', '】', '］', '”', '’' };
+            char[] terminators = { '。', '！', '？', '.', '!', '?', '、', ',', ' ', '　' };
+
+            var result = new List<AozoraBindingModel>();
+            var currentBlock = CloneBlockProperties(originalBlock);
+            bool isFirst = true;
+
+            for (int i = 0; i < originalBlock.Inlines.Count; i++)
+            {
+                var inline = originalBlock.Inlines[i];
+
+                if (inline is string text)
                 {
-                    if (c == '.' && j > 0 && j < text.Length - 1 && char.IsDigit(text[j - 1]) && char.IsDigit(text[j + 1])) continue;
-                    if (j < text.Length - 1 && (Array.IndexOf(terminators, text[j + 1]) >= 0 || Array.IndexOf(commaTerminators, text[j + 1]) >= 0)) continue;
-
-                    // 💡 [핵심 로직] 콤마인 경우, 다음 구분자까지 남은 글자 수를 미리(Lookahead) 확인합니다.
-                    if (isComma)
+                    int start = 0;
+                    for (int j = 0; j < text.Length; j++)
                     {
-                        int remainingLength = 0;
-                        bool foundEnd = false;
-                        for (int k = j + 1; k < text.Length; k++)
+                        char c = text[j];
+                        bool isOpen = Array.IndexOf(openBrackets, c) >= 0;
+                        bool isClose = Array.IndexOf(closeBrackets, c) >= 0;
+                        bool isTerminator = Array.IndexOf(terminators, c) >= 0;
+
+                        int splitPos = -1;
+
+                        // 1. 여는 괄호: 앞에 누적된 글자가 있다면 괄호 "직전"에서 자른다.
+                        if (isOpen && j > start)
                         {
-                            if (Array.IndexOf(terminators, text[k]) >= 0 || Array.IndexOf(commaTerminators, text[k]) >= 0)
+                            splitPos = j; 
+                        }
+                        // 2. 닫는 괄호: 닫는 괄호를 포함시키고 괄호 "직후"에서 자른다. (연속된 닫는 괄호도 모두 포함)
+                        else if (isClose)
+                        {
+                            while (j + 1 < text.Length && Array.IndexOf(closeBrackets, text[j + 1]) >= 0) j++;
+                            splitPos = j + 1;
+                        }
+                        // 3. 종결자 (마침표, 쉼표 등): 기호를 포함시키고 뒤에 닫는 괄호가 오면 같이 묶어서 자른다.
+                        else if (isTerminator)
+                        {
+                            if (c == '.' && j > 0 && j < text.Length - 1 && char.IsDigit(text[j - 1]) && char.IsDigit(text[j + 1]))
                             {
-                                remainingLength = k - j;
-                                foundEnd = true;
-                                break;
+                                // 소수점은 무시
+                            }
+                            else
+                            {
+                                while (j + 1 < text.Length && Array.IndexOf(closeBrackets, text[j + 1]) >= 0) j++;
+                                splitPos = j + 1;
                             }
                         }
-                        if (!foundEnd) remainingLength = text.Length - j;
-
-                        // 한 줄에 충분히 들어갈 수 있는 길이(약 40자 이하)라면 여기서 분리하지 않고 계속 이어붙입니다.
-                        if (remainingLength <= 40)
+                        // 4. 길이 초과 (15자 이상): 다음 문자가 닫는 괄호나 종결자면 자르기를 보류하고 같이 묶는다.
+                        else if (j - start + 1 >= 15)
                         {
-                            continue; 
+                            if (j + 1 < text.Length)
+                            {
+                                char nextC = text[j + 1];
+                                if (Array.IndexOf(closeBrackets, nextC) < 0 && Array.IndexOf(terminators, nextC) < 0)
+                                {
+                                    splitPos = j + 1;
+                                }
+                            }
+                            else
+                            {
+                                splitPos = j + 1;
+                            }
+                        }
+
+                        // 분리 지점이 정해졌을 때 조각을 저장
+                        if (splitPos != -1)
+                        {
+                            bool isLastInText = (splitPos == text.Length);
+                            bool isLastInline = (i == originalBlock.Inlines.Count - 1);
+
+                            // 마지막 조각은 루프 끝에서 처리하므로 패스
+                            if (!(isLastInText && isLastInline))
+                            {
+                                string part = text.Substring(start, splitPos - start);
+                                if (currentBlock.Inlines.Count == 0) part = part.TrimStart();
+                                if (!string.IsNullOrEmpty(part)) currentBlock.Inlines.Add(part);
+
+                                if (currentBlock.Inlines.Count > 0)
+                                {
+                                    if (!isFirst) currentBlock.IsParagraphContinuation = true;
+                                    result.Add(currentBlock);
+                                    isFirst = false;
+                                }
+
+                                currentBlock = CloneBlockProperties(originalBlock);
+                                currentBlock.BlockIndent = 0;
+                                currentBlock.Margin = new Thickness(0);
+
+                                start = splitPos;
+                                j = splitPos - 1; // for 루프에서 j++가 되므로 위치 보정
+                            }
                         }
                     }
 
-                    int splitPos = j + 1;
-                    while (splitPos < text.Length && Array.IndexOf(quotes, text[splitPos]) >= 0) splitPos++;
-
-                    bool isLastInText = (splitPos == text.Length);
-                    bool isLastInline = (i == originalBlock.Inlines.Count - 1);
-
-                    if (isLastInText && isLastInline) continue;
-
-                    string part = text.Substring(start, splitPos - start);
-                    if (currentBlock.Inlines.Count == 0) part = part.TrimStart();
-                    if (!string.IsNullOrEmpty(part)) currentBlock.Inlines.Add(part);
-
-                    if (currentBlock.Inlines.Count > 0)
+                    // 남은 텍스트 추가
+                    if (start < text.Length)
+                    {
+                        string left = text.Substring(start);
+                        if (currentBlock.Inlines.Count == 0) left = left.TrimStart();
+                        if (!string.IsNullOrEmpty(left)) currentBlock.Inlines.Add(left);
+                    }
+                }
+                else
+                {
+                    // 루비 등 특수 요소
+                    currentBlock.Inlines.Add(inline);
+                    
+                    if (currentBlock.Inlines.Count > 0 && i < originalBlock.Inlines.Count - 1)
                     {
                         if (!isFirst) currentBlock.IsParagraphContinuation = true;
                         result.Add(currentBlock);
                         isFirst = false;
+                        
+                        currentBlock = CloneBlockProperties(originalBlock);
+                        currentBlock.BlockIndent = 0;
+                        currentBlock.Margin = new Thickness(0);
                     }
-
-                    currentBlock = CloneBlockProperties(originalBlock);
-                    currentBlock.BlockIndent = 0;
-                    currentBlock.Margin = new Thickness(0);
-
-                    start = splitPos;
-                    j = splitPos - 1;
                 }
             }
 
-            if (start < text.Length)
+            if (currentBlock.Inlines.Count > 0)
             {
-                string left = text.Substring(start);
-                if (currentBlock.Inlines.Count == 0) left = left.TrimStart();
-                if (!string.IsNullOrEmpty(left)) currentBlock.Inlines.Add(left);
+                if (!isFirst) currentBlock.IsParagraphContinuation = true;
+                result.Add(currentBlock);
             }
-        }
-        else
-        {
-            currentBlock.Inlines.Add(inline);
-        }
-    }
 
-    if (currentBlock.Inlines.Count > 0)
-    {
-        if (!isFirst) currentBlock.IsParagraphContinuation = true;
-        result.Add(currentBlock);
-    }
-
-    return result;
-}
+            return result;
+        }
 
         private List<AozoraBindingModel> ParseMarkdownContent(string text)
         {

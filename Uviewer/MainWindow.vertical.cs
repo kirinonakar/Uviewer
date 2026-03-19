@@ -328,7 +328,8 @@ namespace Uviewer
             startIdx = Math.Max(0, Math.Min(startIdx, _aozoraBlocks.Count - 1));
             _currentVerticalStartBlockIndex = startIdx;
 
-            float marginTop = 40, marginBottom = 40, marginRight = 40, marginLeft = 40;
+            // [수정] 상하 20으로 줄여 글줄 길이를 확보하고, 왼쪽 마진(진행 방향)을 10으로 최소화.
+            float marginTop = 20, marginBottom = 20, marginRight = 30, marginLeft = 10;
             float availableHeight = (float)VerticalTextCanvas.ActualHeight;
             if (availableHeight < 100) availableHeight = (float)RootGrid.ActualHeight - 200;
             if (availableHeight < 100) availableHeight = 800;
@@ -374,8 +375,9 @@ namespace Uviewer
 
             if (VerticalTextCanvas == null || VerticalTextCanvas.ActualHeight <= 0 || VerticalTextCanvas.ActualWidth <= 0) return;
 
-            float availableHeight = (float)VerticalTextCanvas.ActualHeight - 80;
-            float availableWidth = (float)VerticalTextCanvas.ActualWidth - 80;
+            // [수정] 백그라운드 계산도 상하 40, 좌우 40 공간 차감으로 맞춥니다.
+            float availableHeight = (float)VerticalTextCanvas.ActualHeight - 40;
+            float availableWidth = (float)VerticalTextCanvas.ActualWidth - 40;
             var device = VerticalTextCanvas.Device;
 
             try
@@ -384,7 +386,6 @@ namespace Uviewer
                 {
                     int pageCount = 1;
                     float currentPageWidth = 0;
-                    float safetyBuffer = 5.0f;
                     var blockToPageMap = new Dictionary<int, int>();
 
                     for (int i = 0; i < _aozoraBlocks.Count; i++)
@@ -425,7 +426,9 @@ namespace Uviewer
                         float fontSize = (float)(_textFontSize * block.FontSizeScale);
                         float blockWidth = MeasureVerticalBlockWidth(device, block, availableHeight, fontSize);
                         
-                        if (currentPageWidth > 0 && currentPageWidth + blockWidth > (availableWidth - safetyBuffer))
+                        // [수정] 세로 모드는 Tolerance를 0.8배로 허용
+                        float leftTolerance = fontSize * 0.8f;
+                        if (currentPageWidth > 0 && currentPageWidth + blockWidth > (availableWidth + leftTolerance))
                         {
                             pageCount++;
                             currentPageWidth = 0;
@@ -533,10 +536,11 @@ namespace Uviewer
                     float fontSize = (float)(_textFontSize * tempMerged.FontSizeScale);
                     float newWidth = MeasureVerticalBlockWidth(device, tempMerged, availableHeight, fontSize);
                     float widthDiff = newWidth - currentMergedBlockWidth;
-                    float safetyBuffer = 5.0f;
+                    
+                    // [수정] Tolerance 0.8배 적용
+                    float leftToleranceMerged = fontSize * 0.8f;
 
-                    // 합친 넓이가 페이지를 초과하면 이번 문장은 병합 취소하고 다음 페이지로 이월
-                    if (usedWidth + widthDiff > (availableWidth - safetyBuffer) && pageBlocks.Count > 0)
+                    if (usedWidth + widthDiff > (availableWidth + leftToleranceMerged) && pageBlocks.Count > 0)
                     {
                         break; 
                     }
@@ -553,7 +557,8 @@ namespace Uviewer
                 // 2. 새 문단 또는 일반 블록
                 float fontSizeBase = (float)(_textFontSize * block.FontSizeScale);
                 float blockWidth = MeasureVerticalBlockWidth(device, block, availableHeight, fontSizeBase);
-                float safetyBuf = 5.0f;
+                // [수정]
+                float leftTolerance = fontSizeBase * 0.8f;
 
                 // [추가] 박스 진입/이탈 시 양옆 여백(Padding)을 페이지 너비에 반영
                 bool isKeigakomi = block.BorderColor != null || block.BorderThickness.Top > 0;
@@ -562,7 +567,7 @@ namespace Uviewer
                 if (isKeigakomi && !wasKeigakomi) blockWidth += 20f; // 박스 시작 우측 여백
                 if (!isKeigakomi && wasKeigakomi) blockWidth += 20f; // 박스 종료 좌측 여백
 
-                if (pageBlocks.Count > 0 && usedWidth + blockWidth > (availableWidth - safetyBuf))
+                if (pageBlocks.Count > 0 && usedWidth + blockWidth > (availableWidth + leftTolerance))
                 {
                     break; 
                 }
@@ -582,7 +587,7 @@ namespace Uviewer
                 }
 
                 index++;
-                if (usedWidth >= (availableWidth - safetyBuf)) break;
+                if (usedWidth >= (availableWidth + leftTolerance)) break;
             }
             return pageBlocks;
         }
@@ -685,11 +690,11 @@ namespace Uviewer
 
             var page = _currentVerticalPageInfo;
             
-            float marginTop = 40;
-            float marginBottom = 40;
-            float marginRight = 40;
+            // [수정] 렌더링 측정한 마진과 동일하게 적용
+            float marginTop = 20;
+            float marginBottom = 20;
+            float marginRight = 30;
 
-            // [좌표 기준] currentX: 현재 줄의 "가장 오른쪽 끝" 좌표
             float currentX = (float)size.Width - marginRight; 
             float startY = marginTop;
             float drawHeight = (float)size.Height - (marginTop + marginBottom);
