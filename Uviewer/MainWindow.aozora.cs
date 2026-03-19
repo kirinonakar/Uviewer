@@ -563,8 +563,12 @@ namespace Uviewer
                 // [수정] 일반 블록 보정값 타협
                 float bottomTolerance = fontSizeBase * 0.8f;
 
-                bool isKeigakomi = block.BorderColor != null || block.BorderThickness.Top > 0;
-                bool wasKeigakomi = pageBlocks.Count > 0 && (pageBlocks[pageBlocks.Count - 1].BorderColor != null || pageBlocks[pageBlocks.Count - 1].BorderThickness.Top > 0);
+                bool isKeigakomi = block.BorderThickness.Top > 0 && block.BorderThickness.Bottom > 0 && block.BorderThickness.Left > 0 && block.BorderThickness.Right > 0;
+                bool wasKeigakomi = pageBlocks.Count > 0 && 
+                                    pageBlocks[pageBlocks.Count - 1].BorderThickness.Top > 0 && 
+                                    pageBlocks[pageBlocks.Count - 1].BorderThickness.Bottom > 0 &&
+                                    pageBlocks[pageBlocks.Count - 1].BorderThickness.Left > 0 &&
+                                    pageBlocks[pageBlocks.Count - 1].BorderThickness.Right > 0;
 
                 if (isKeigakomi && !wasKeigakomi) blockHeight += 20f; // 박스 진입 마진
                 if (!isKeigakomi && wasKeigakomi) blockHeight += 20f + (fontSizeBase * 2.1f); // 박스 종료 마진
@@ -595,9 +599,73 @@ namespace Uviewer
             return pageBlocks;
         }
 
+// 테이블 내부의 **볼드체** 및 <br> 줄바꿈 파싱을 위한 헬퍼 함수
+private (string text, List<(int start, int length)> boldRanges) ParseTableInline(string rawText)
+{
+    if (string.IsNullOrEmpty(rawText)) return (" ", new List<(int, int)>());
+    var boldRanges = new List<(int, int)>();
+    string text = rawText;
+    
+    // ✅ 추가: <br>, <br/>, <br /> 태그를 모두 찾아 실제 줄바꿈 문자(\n)로 변환합니다.
+    text = Regex.Replace(text, @"<br\s*/?>", "\n", RegexOptions.IgnoreCase);
+
+    // **텍스트** 또는 __텍스트__ 패턴 매칭
+    var match = Regex.Match(text, @"(\*\*|__)(.*?)\1");
+    while (match.Success)
+    {
+        int start = match.Index;
+        string inner = match.Groups[2].Value; // ** 내부의 글씨
+        // 기호(**)를 제거하고 내부 글씨만 삽입
+        text = text.Remove(match.Index, match.Length).Insert(match.Index, inner);
+        boldRanges.Add((start, inner.Length));
+        // 변경된 문자열 기준으로 다음 기호 탐색
+        match = Regex.Match(text, @"(\*\*|__)(.*?)\1");
+    }
+    
+    return (text, boldRanges);
+}
+
         private float MeasureHorizontalBlockHeight(CanvasDevice? device, AozoraBindingModel block, float availableWidth, float fontSize)
         {
             if (device == null) return fontSize * 2.0f;
+
+            // ✅ 테이블 '행(Row) 단위' 전용 높이 측정 로직
+            if (block.IsTable && block.TableRows != null && block.TableRows.Count > 0)
+            {
+                var row = block.TableRows[0];
+                int colCount = row.Count;
+                if (colCount == 0) return fontSize * 2.0f;
+
+                float tableIndent = (float)(block.BlockIndent > 0 ? block.BlockIndent : block.Margin.Left);
+                float colWidth = (availableWidth - tableIndent) / colCount;
+
+                using var tableFormat = new CanvasTextFormat
+                {
+                    FontSize = fontSize,
+                    FontFamily = block.FontFamily ?? _textFontFamily,
+                    WordWrapping = CanvasWordWrapping.Wrap, 
+                    FontWeight = (block.TableRowIndex == 0) ? Microsoft.UI.Text.FontWeights.Bold : GetFontWeightForFamily(block.FontFamily ?? _textFontFamily)
+                };
+
+                float maxCellHeight = 0;
+                foreach (var cellText in row)
+                {
+                    var parsed = ParseTableInline(cellText);
+                    using var cellLayout = new CanvasTextLayout(device, parsed.text, tableFormat, Math.Max(10, colWidth - 20), 0.0f);
+                    foreach (var r in parsed.boldRanges) 
+                        cellLayout.SetFontWeight(r.start, r.length, Microsoft.UI.Text.FontWeights.Bold);
+
+                    float h = (float)cellLayout.LayoutBounds.Height;
+                    if (h > maxCellHeight) maxCellHeight = h;
+                }
+                
+                float rowHeight = maxCellHeight + 20f; // 해당 행의 높이 (상하 패딩 10씩)
+                
+                // 표의 마지막 줄인 경우에만 다음 텍스트와의 여백을 추가
+                if (block.TableRowIndex == block.TableRowCount - 1) rowHeight += 20f; 
+
+                return rowHeight; 
+            }
 
             StringBuilder sb = new StringBuilder();
             var boldRanges = new List<(int start, int length)>();
@@ -630,16 +698,13 @@ namespace Uviewer
                 }
                 else if (inline is AozoraLineBreak) sb.Append("\n");
             }
-            if (block.IsTable && block.TableRows.Count > 0)
-            {
-                foreach (var row in block.TableRows) sb.AppendLine(string.Join(" | ", row));
-            }
+
 
             string text = sb.ToString();
             if (string.IsNullOrEmpty(text)) text = " ";
 
-            // 드로우와 동일한 lineSpacing 사용 (루비 공간 포함 2.1배)
-            float lineSpacing = fontSize * 2.1f;
+            // 드로우와 동일한 lineSpacing 사용 (표/코드는 더 좁게)
+            float lineSpacing = block.IsTable ? fontSize * 1.3f : fontSize * 2.1f;
 
             using var format = new CanvasTextFormat
             {
@@ -647,7 +712,8 @@ namespace Uviewer
                    FontFamily = block.FontFamily ?? _textFontFamily,
                    FontWeight = GetFontWeightForFamily(block.FontFamily ?? _textFontFamily),
                    Direction = CanvasTextDirection.LeftToRightThenTopToBottom,
-                   WordWrapping = CanvasWordWrapping.Wrap,
+                   // 👉 표/코드는 줄바꿈을 꺼서 표 틀어짐 방지
+                   WordWrapping = block.IsTable ? CanvasWordWrapping.NoWrap : CanvasWordWrapping.Wrap,
                    LineSpacing = lineSpacing,
                    VerticalAlignment = CanvasVerticalAlignment.Top
             };
@@ -657,6 +723,7 @@ namespace Uviewer
             if (actualAvailableWidth < 100) actualAvailableWidth = 100;
 
             using var layout = new CanvasTextLayout(device, text, format, actualAvailableWidth, 0.0f);
+            layout.Options = Microsoft.Graphics.Canvas.Text.CanvasDrawTextOptions.EnableColorFont; // 이모지 컬러 활성화
 
             if (block.IsBold) layout.SetFontWeight(0, text.Length, Microsoft.UI.Text.FontWeights.Bold);
             foreach (var r in boldRanges) layout.SetFontWeight(r.start, r.length, Microsoft.UI.Text.FontWeights.Bold);
@@ -719,8 +786,83 @@ namespace Uviewer
                 float fontSize = (float)(_textFontSize * block.FontSizeScale);
                 float rubyFontSize = fontSize * 0.5f;
 
-                // lineSpacing 2.1: 루비(furigana) 공간을 충분히 확보하는 일본어 표준 행간
-                float lineSpacing = fontSize * 2.1f;
+                // ✅ 통합된 테이블 그래픽 그리기 로직 (행 단위)
+                if (block.IsTable && block.TableRows != null && block.TableRows.Count > 0)
+                {
+                    var row = block.TableRows[0];
+                    int colCount = row.Count;
+                    int r = block.TableRowIndex;
+                    bool isHeader = (r == 0);
+                    // 현재 페이지의 첫 블록이거나 이전 블록이 테이블이 아니면 상단 선을 닫아줌
+                    bool isFirstOnPage = (i == 0) || !page.Blocks[i - 1].IsTable;
+
+                    float tableIndent = (float)(block.BlockIndent > 0 ? block.BlockIndent : block.Margin.Left);
+                    float tableMaxWidth = maxWidth - tableIndent;
+                    float tableDrawX = marginLeft + tableIndent;
+                    float colWidth = tableMaxWidth / colCount;
+
+                    using var tableFormat = new CanvasTextFormat
+                    {
+                        FontSize = fontSize,
+                        FontFamily = block.FontFamily ?? _textFontFamily,
+                        WordWrapping = CanvasWordWrapping.Wrap,
+                        FontWeight = isHeader ? Microsoft.UI.Text.FontWeights.Bold : GetFontWeightForFamily(block.FontFamily ?? _textFontFamily)
+                    };
+
+                    // 표 맨 위쪽 가로선 (전체 표의 첫 줄이거나, 페이지가 넘어가서 새로 시작될 때)
+                    if (isHeader || isFirstOnPage)
+                        ds.DrawLine(tableDrawX, currentY, tableDrawX + tableMaxWidth, currentY, Colors.Gray, 1.5f);
+
+                    float maxCellHeight = 0;
+                    var cellLayouts = new List<CanvasTextLayout>();
+
+                    foreach (var cellText in row)
+                    {
+                        var parsed = ParseTableInline(cellText);
+                        var cellLayout = new CanvasTextLayout(ds, parsed.text, tableFormat, Math.Max(10, colWidth - 20), 0.0f);
+                        cellLayout.Options = Microsoft.Graphics.Canvas.Text.CanvasDrawTextOptions.EnableColorFont;
+                        foreach (var br in parsed.boldRanges)
+                            cellLayout.SetFontWeight(br.start, br.length, Microsoft.UI.Text.FontWeights.Bold);
+                            
+                        cellLayouts.Add(cellLayout);
+                        float h = (float)cellLayout.LayoutBounds.Height;
+                        if (h > maxCellHeight) maxCellHeight = h;
+                    }
+
+                    float rowHeight = maxCellHeight + 20f;
+
+                    // 배경색 칠하기
+                    if (isHeader)
+                        ds.FillRectangle(tableDrawX, currentY, tableMaxWidth, rowHeight, Microsoft.UI.ColorHelper.FromArgb(30, 128, 128, 128));
+                    else if (r % 2 == 1)
+                        ds.FillRectangle(tableDrawX, currentY, tableMaxWidth, rowHeight, Microsoft.UI.ColorHelper.FromArgb(10, 128, 128, 128));
+
+                    // 텍스트 및 좌우 세로선 그리기
+                    for (int c = 0; c < colCount; c++)
+                    {
+                        float cellX = tableDrawX + (c * colWidth);
+                        ds.DrawTextLayout(cellLayouts[c], cellX + 10, currentY + 10, textColor);
+                        cellLayouts[c].Dispose();
+                        ds.DrawLine(cellX, currentY, cellX, currentY + rowHeight, Colors.Gray, 1f); // 좌측 세로선
+                    }
+                    
+                    // 맨 우측 세로선 닫기
+                    ds.DrawLine(tableDrawX + tableMaxWidth, currentY, tableDrawX + tableMaxWidth, currentY + rowHeight, Colors.Gray, 1f);
+
+                    currentY += rowHeight;
+                    
+                    // 행 아래쪽 가로선
+                    ds.DrawLine(tableDrawX, currentY, tableDrawX + tableMaxWidth, currentY, Colors.Gray, isHeader ? 2f : 1f);
+
+                    // 표의 마지막 행일 경우 여백 띄우기
+                    if (r == block.TableRowCount - 1)
+                        currentY += 20f; 
+
+                    continue; 
+                }
+
+                // lineSpacing 2.1: 루비(furigana) 공간을 충분히 확보하는 일본어 표준 행간 (테이블은 좁게)
+                float lineSpacing = block.IsTable ? fontSize * 1.3f : fontSize * 2.1f;
 
                 StringBuilder sb = new StringBuilder();
                 var rubyRanges = new List<(int start, int length, string rubyText)>();
@@ -756,10 +898,7 @@ namespace Uviewer
                     else if (inline is AozoraLineBreak) sb.Append("\n");
                 }
 
-                if (block.IsTable && block.TableRows.Count > 0)
-                {
-                    foreach (var row in block.TableRows) sb.AppendLine(string.Join(" | ", row));
-                }
+
 
                 string blockText = sb.ToString();
                 float indent = (float)(block.BlockIndent > 0 ? block.BlockIndent : block.Margin.Left);
@@ -771,12 +910,14 @@ namespace Uviewer
                     FontFamily = block.FontFamily ?? _textFontFamily,
                     FontWeight = GetFontWeightForFamily(block.FontFamily ?? _textFontFamily),
                     Direction = CanvasTextDirection.LeftToRightThenTopToBottom,
-                    WordWrapping = CanvasWordWrapping.Wrap,
+                    // 👉 표/코드는 줄바꿈 끄기
+                    WordWrapping = block.IsTable ? CanvasWordWrapping.NoWrap : CanvasWordWrapping.Wrap, 
                     LineSpacing = lineSpacing,
                     VerticalAlignment = CanvasVerticalAlignment.Top
                 };
 
                 using var textLayout = new CanvasTextLayout(ds, blockText, format, actualMaxWidth, 0.0f);
+                textLayout.Options = Microsoft.Graphics.Canvas.Text.CanvasDrawTextOptions.EnableColorFont; // 이모지 컬러 활성화
                 if (block.IsBold) textLayout.SetFontWeight(0, blockText.Length, Microsoft.UI.Text.FontWeights.Bold);
                 foreach (var r in boldRanges) textLayout.SetFontWeight(r.start, r.length, Microsoft.UI.Text.FontWeights.Bold);
                 foreach (var r in italicRanges) textLayout.SetFontStyle(r.start, r.length, Windows.UI.Text.FontStyle.Italic);
@@ -793,7 +934,7 @@ namespace Uviewer
                 if (block.Alignment == TextAlignment.Center) drawX = (float)((size.Width - bounds.Width) / 2);
                 else if (block.Alignment == TextAlignment.Right) drawX = (float)(size.Width - bounds.Width - 40);
 
-                bool isKeigakomi = block.BorderColor != null || block.BorderThickness.Top > 0;
+                bool isKeigakomi = block.BorderThickness.Top > 0 && block.BorderThickness.Bottom > 0 && block.BorderThickness.Left > 0 && block.BorderThickness.Right > 0;
                 float currentW = (float)bounds.Width;
                 if (block.IsBlankLine && currentW < fontSize) currentW = fontSize;
 
@@ -824,8 +965,48 @@ namespace Uviewer
                     currentY += boxPad + lineSpacing;
                 }
 
+                // ✅ 잉크의 실제 위치(DrawBounds)를 기준으로 타이트하게 코드 블록 배경 그리기
+                if (block.BackgroundColor != null)
+                {
+                    var drawBounds = textLayout.DrawBounds;
+                    float dbTop = (float)drawBounds.Top;
+                    float dbHeight = (float)drawBounds.Height;
+
+                    // 텍스트가 비어있거나 소문자만 있어 높이가 비정상적으로 작을 때를 대비한 최소값 보정
+                    if (dbHeight < fontSize) dbHeight = fontSize;
+                    
+                    // 위아래로 딱 4px씩만 타이트한 여백을 줍니다
+                    float bgTop = currentY + dbTop - 4f;
+                    float bgHeight = dbHeight + 8f;
+
+                    ds.FillRectangle(drawX - 4, bgTop, currentW + 8, bgHeight, block.BackgroundColor.Value);
+                }
+
                 // 본문 그리기
                 ds.DrawTextLayout(textLayout, drawX, currentY, textColor);
+
+                // 밑줄(헤딩) 및 좌측 선(인용구) 별도 그리기 로직을 통째로 교체하세요!
+                if (!isKeigakomi && block.BorderColor != null)
+                {
+                    // ✅ DrawBounds: 눈에 보이는 실제 글자 잉크의 픽셀 경계 상자를 가져옵니다.
+                    var drawBounds = textLayout.DrawBounds; 
+                    float actualTextBottom = (float)Math.Max(drawBounds.Bottom, fontSize);
+                    
+                    // 글자 잉크 바로 아래에 정확히 밑줄 생성
+                    float borderBottomY = currentY + actualTextBottom - 20f; 
+
+                    if (block.BorderThickness.Bottom > 0)
+                    {
+                        ds.DrawLine(drawX, borderBottomY, drawX + currentW, borderBottomY, block.BorderColor.Value, (float)block.BorderThickness.Bottom);
+                    }
+                    if (block.BorderThickness.Left > 0)
+                    {
+                        float quoteLeft = drawX - 15;
+                        float actualTextTop = (float)Math.Min(drawBounds.Top, 0);
+                        // 인용구 선도 글자의 실제 잉크 높이에 맞춰 타이트하게 그립니다.
+                        ds.DrawLine(quoteLeft, currentY + actualTextTop, quoteLeft, borderBottomY, block.BorderColor.Value, (float)block.BorderThickness.Left);
+                    }
+                }
 
                 // 루비 그리기 (가로 모드: 글자 위쪽에 표시)
                 using var rubyFormat = new CanvasTextFormat
@@ -856,6 +1037,7 @@ namespace Uviewer
                         float charCenter = drawX + (float)charBounds.Left + (float)charBounds.Width / 2.0f;
 
                         var rubyLayout = new CanvasTextLayout(ds, ruby.rubyText, rubyFormat, 0.0f, 0.0f);
+                        rubyLayout.Options = Microsoft.Graphics.Canvas.Text.CanvasDrawTextOptions.EnableColorFont; // 루비 이모지 컬러 활성화
                         if (block.IsBold || boldRanges.Any(br => ruby.start >= br.start && ruby.start < br.start + br.length))
                         {
                             rubyLayout.SetFontWeight(0, ruby.rubyText.Length, Microsoft.UI.Text.FontWeights.Bold);

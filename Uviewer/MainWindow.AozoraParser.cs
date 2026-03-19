@@ -35,6 +35,8 @@ namespace Uviewer
             public double BlockIndent { get; set; } = 0;
             public bool IsBlankLine { get; set; } = false;
             public bool IsParagraphContinuation { get; set; } = false;
+            public int TableRowIndex { get; set; } = -1;
+            public int TableRowCount { get; set; } = 0;
         }
 
 
@@ -523,6 +525,7 @@ namespace Uviewer
                 if (inCodeBlock)
                 {
                     var model = new AozoraBindingModel();
+                    model.IsTable = true; // 👉 렌더러가 여백을 좁히도록 테이블로 취급
                     model.FontFamily = "Consolas, Courier New, Monospace";
                     model.Inlines.Add(content);
                     model.BackgroundColor = Microsoft.UI.ColorHelper.FromArgb(30, 128, 128, 128);
@@ -536,7 +539,6 @@ namespace Uviewer
                 // Table Parsing
                 if (content.Trim().StartsWith("|"))
                 {
-                    // Lookahead: consecutive lines starting with |
                     var tableLines = new List<string>();
                     int k = i;
                     while (k < lines.Length && lines[k].Trim().StartsWith("|"))
@@ -545,39 +547,42 @@ namespace Uviewer
                         k++;
                     }
 
-                    if (tableLines.Count >= 2) // Header + Separator at minimum
+                    if (tableLines.Count >= 2) 
                     {
-                        var tableModel = new AozoraBindingModel { IsTable = true };
-                        bool isValidTable = false;
+                        var allRows = new List<List<string>>();
 
                         foreach (var tLine in tableLines)
                         {
-                            // Check separator line |---|---|
                             var trimLine = tLine.Trim('|');
-                            // If it contains only -, :, | and whitespace, treat as separator
-                            if (Regex.IsMatch(trimLine, @"^[\-:\|\s]+$") && trimLine.Contains("-"))
-                            {
-                                isValidTable = true;
-                                continue; // Skip separator row
-                            }
+                            if (Regex.IsMatch(trimLine, @"^[\-:\|\s]+$") && trimLine.Contains("-")) continue; 
 
-                            // Parse cells
-                            // naive split by |
-                            // | A | B | -> ["", "A", "B", ""]
                             var cells = tLine.Split('|').Select(c => c.Trim()).ToList();
-
-                            // Remove empty first/last if empty
                             if (cells.Count > 0 && string.IsNullOrEmpty(cells[0])) cells.RemoveAt(0);
                             if (cells.Count > 0 && string.IsNullOrEmpty(cells[cells.Count - 1])) cells.RemoveAt(cells.Count - 1);
-
-                            tableModel.TableRows.Add(cells);
+                            allRows.Add(cells);
                         }
 
-                        if (isValidTable || tableLines.Count > 1)
+                        if (allRows.Count > 0)
                         {
-                            tableModel.SourceLineNumber = sourceLine;
-                            blocks.Add(tableModel);
-                            i = k - 1; // Advance loop
+                            int colCount = allRows.Max(r => r.Count);
+                            for (int r = 0; r < allRows.Count; r++) {
+                                while (allRows[r].Count < colCount) allRows[r].Add(""); // 빈 칸 채우기
+
+                                // ✅ 테이블을 한 줄(Row) 단위의 독립 블록으로 분리하여 페이징이 가능하게 함
+                                var tableModel = new AozoraBindingModel 
+                                { 
+                                    IsTable = true,
+                                    TableRows = new List<List<string>> { allRows[r] }, // 1행만 담음
+                                    TableRowIndex = r, // 현재 줄 번호
+                                    TableRowCount = allRows.Count, // 전체 줄 개수
+                                    Margin = new Thickness(0),
+                                    SourceLineNumber = sourceLine + r
+                                };
+
+                                tableModel.Inlines.Add(" "); 
+                                blocks.Add(tableModel);
+                            }
+                            i = k - 1; 
                             continue;
                         }
                     }
@@ -749,6 +754,8 @@ namespace Uviewer
                 IsBlankLine = source.IsBlankLine,
                 IsPageBreak = source.IsPageBreak,
                 IsParagraphContinuation = source.IsParagraphContinuation,
+                TableRowIndex = source.TableRowIndex,
+                TableRowCount = source.TableRowCount,
 
                 // [버그 수정 1] EPUB 챕터 인덱스 복사 누락 해결 (이것이 챕터 1로 순환되던 원인입니다)
                 EpubChapterIndex = source.EpubChapterIndex
