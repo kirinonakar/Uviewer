@@ -104,6 +104,11 @@
                                     <FontIcon Glyph="&#xE8A9;"/>
                                 </ToggleMenuFlyoutItem.Icon>
                             </ToggleMenuFlyoutItem>
+                            <ToggleMenuFlyoutItem x:Name="AutoDoublePageForArchiveMenuItem" Text="압축파일 자동 2장보기" Click="AutoDoublePageForArchiveMenuItem_Click">
+                                <ToggleMenuFlyoutItem.Icon>
+                                    <FontIcon Glyph="&#xE8B9;"/>
+                                </ToggleMenuFlyoutItem.Icon>
+                            </ToggleMenuFlyoutItem>
                         </MenuFlyout>
                     </Button.Flyout>
                 </Button>

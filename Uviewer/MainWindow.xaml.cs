@@ -58,6 +58,8 @@ namespace Uviewer
         // Side-by-side view settings
         private bool _isSideBySideMode = false;
         private bool _nextImageOnRight = true;
+        private bool _autoDoublePageForArchive = false;
+        private bool _isCurrentViewSideBySide = false;
         private ElementTheme _currentTheme = ElementTheme.Default;
         private CanvasBitmap? _leftBitmap;
         private CanvasBitmap? _rightBitmap;
@@ -725,6 +727,10 @@ namespace Uviewer
                 AllowMultipleInstancesMenuItem.Text = Strings.AllowMultipleInstances;
                 ToolTipService.SetToolTip(AllowMultipleInstancesMenuItem, Strings.AllowMultipleInstancesTooltip);
             }
+            if (AutoDoublePageForArchiveMenuItem != null)
+            {
+                AutoDoublePageForArchiveMenuItem.Text = Strings.AutoDoublePageForArchive;
+            }
             if (NotificationText != null) NotificationText.Text = Strings.AddedToFavoritesNotification;
 
             if (LanguageMenuItem != null) LanguageMenuItem.Text = Strings.LanguageSelection;
@@ -1270,7 +1276,7 @@ namespace Uviewer
 
                 if (isFast)
                 {
-                    if (_isSideBySideMode && _currentPdfDocument == null)
+                    if (_isCurrentViewSideBySide && _currentPdfDocument == null)
                         _currentIndex = Math.Max(0, _currentIndex - 2);
                     else
                         _currentIndex--;
@@ -1279,7 +1285,7 @@ namespace Uviewer
                     return;
                 }
 
-                if (_isSideBySideMode && _currentPdfDocument == null)
+                if (_isCurrentViewSideBySide && _currentPdfDocument == null)
                     _currentIndex = Math.Max(0, _currentIndex - 2);
                 else
                     _currentIndex--;
@@ -1311,7 +1317,7 @@ namespace Uviewer
 
                 if (isFast)
                 {
-                    if (_isSideBySideMode && _currentPdfDocument == null)
+                    if (_isCurrentViewSideBySide && _currentPdfDocument == null)
                         _currentIndex = Math.Min(_imageEntries.Count - 1, _currentIndex + 2);
                     else
                         _currentIndex++;
@@ -1320,7 +1326,7 @@ namespace Uviewer
                     return;
                 }
 
-                if (_isSideBySideMode && _currentPdfDocument == null)
+                if (_isCurrentViewSideBySide && _currentPdfDocument == null)
                     _currentIndex = Math.Min(_imageEntries.Count - 1, _currentIndex + 2);
                 else
                     _currentIndex++;

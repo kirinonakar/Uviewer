@@ -374,4 +374,7 @@
   <data name="AlwaysOnTopTooltip" xml:space="preserve">
     <value>항상 위 (T)</value>
   </data>
+  <data name="AutoDoublePageForArchive" xml:space="preserve">
+    <value>압축파일 자동 2장보기</value>
+  </data>
 </root>

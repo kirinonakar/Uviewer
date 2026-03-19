@@ -73,6 +73,33 @@ namespace Uviewer
                                      _currentPdfDocument == null &&
                                      _imageEntries.Count > 1;
 
+                // [추가] 압축파일 자동 2장보기 옵션
+                if (!canSideBySide && _autoDoublePageForArchive && 
+                    (_currentArchivePath != null || _current7zArchive != null) &&
+                    _currentPdfDocument == null && _imageEntries.Count > 1)
+                {
+                    // 현재 이미지를 미리 로드하여 가로세로 비율 확인
+                    var firstBitmap = await LoadImageBitmapAsync(entry, MainCanvas, token);
+                    if (firstBitmap != null)
+                    {
+                        // 캐시에 넣어두어 나중에 다시 로드되는 것을 방지
+                        lock (_preloadedImages)
+                        {
+                            if (!_preloadedImages.ContainsKey(_currentIndex))
+                            {
+                                _preloadedImages[_currentIndex] = firstBitmap;
+                            }
+                        }
+
+                        if (firstBitmap.Size.Height >= firstBitmap.Size.Width * 1.2)
+                        {
+                            canSideBySide = true;
+                        }
+                    }
+                }
+
+                _isCurrentViewSideBySide = canSideBySide;
+
                 if (canSideBySide)
                 {
                     await DisplaySideBySideImagesAsync(token); // <-- token 전달
@@ -198,7 +225,7 @@ namespace Uviewer
                     UpdateStatusBar(entry, _currentBitmap);
                     UpdateSharpenButtonState();
                     MainCanvas.Invalidate();
-
+ 
                     // Sync sidebar selection (using our new safe method)
                     SyncSidebarSelection(entry);
 
@@ -469,7 +496,7 @@ namespace Uviewer
             {
                 if (token.IsCancellationRequested) return null;
                 // 1. 캐시 확인 (압축 파일 프리로딩 등)
-                if (entry.IsArchiveEntry && _currentArchive != null)
+                if (entry.IsArchiveEntry && (_currentArchive != null || _current7zArchive != null))
                 {
                     var entryIndex = _imageEntries.IndexOf(entry);
                     CanvasBitmap? preloadedBitmap = null;
@@ -711,6 +738,13 @@ namespace Uviewer
             SaveWindowSettings();
         }
 
+        private void AutoDoublePageForArchiveMenuItem_Click(object sender, RoutedEventArgs e)
+        {
+            _autoDoublePageForArchive = AutoDoublePageForArchiveMenuItem.IsChecked;
+            SaveWindowSettings();
+            _ = DisplayCurrentImageAsync();
+        }
+
         private async Task<CanvasBitmap?> LoadImageFromPathAsync(string filePath, CanvasControl canvas)
         {
             try
@@ -825,7 +859,7 @@ namespace Uviewer
         {
             EmptyStatePanel.Visibility = Visibility.Collapsed;
 
-            bool shouldShowSideBySide = _isSideBySideMode && 
+            bool shouldShowSideBySide = _isCurrentViewSideBySide && 
                                         _currentPdfDocument == null && 
                                         _imageEntries.Count > 1;
 
@@ -883,7 +917,7 @@ namespace Uviewer
                 ImageInfoText.Text = "";
             TextProgressText.Text = ""; // Clear for image mode
 
-            if (_isSideBySideMode && _currentPdfDocument == null)
+            if (_isCurrentViewSideBySide && _currentPdfDocument == null)
             {
                 int displayIndex = (_currentIndex / 2) + 1;
                 int totalPairs = (_imageEntries.Count + 1) / 2;

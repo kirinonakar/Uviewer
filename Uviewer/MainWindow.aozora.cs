@@ -1434,9 +1434,11 @@ namespace Uviewer
                     inKeigakomi = true;
                     content = content.Replace("［＃ここから罫囲み］", "");
                 }
+                bool justExitedKeigakomi = false;
                 if (content.Contains("［＃ここで罫囲み終わり］"))
                 {
                     inKeigakomi = false;
+                    justExitedKeigakomi = true;
                     content = content.Replace("［＃ここで罫囲み終わり］", "");
                 }
 
@@ -1594,6 +1596,21 @@ namespace Uviewer
                 
                 currentBold = inlineBold;
                 blocks.Add(model);
+
+                // 💡 [추가] 罫囲み(박스)가 끝난 직후 여백을 위해 빈 줄을 하나 삽입
+                if (justExitedKeigakomi)
+                {
+                    blocks.Add(new AozoraBindingModel {
+                        Inlines = { "" },
+                        Margin = new Thickness(0),
+                        SourceLineNumber = startLineOffset + i,
+                        BlockIndent = 0,
+                        IsBlankLine = true
+                    });
+                    
+                    // 다음 줄이 원래 빈 줄이더라도 중복으로 너무 넓어지지 않도록 플래그 처리
+                    lastWasEmpty = true; 
+                }
             }
 
             // ===== [추가된 부분] 문단이 긴 경우 문장 단위로 블록 분리 =====

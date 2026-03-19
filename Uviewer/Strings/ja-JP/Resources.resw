@@ -374,4 +374,7 @@
   <data name="AlwaysOnTopTooltip" xml:space="preserve">
     <value>常に最前面に表示 (T)</value>
   </data>
+  <data name="AutoDoublePageForArchive" xml:space="preserve">
+    <value>圧縮ファイル内自動2枚表示</value>
+  </data>
 </root>

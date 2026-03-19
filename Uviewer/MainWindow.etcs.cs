@@ -127,7 +127,7 @@ namespace Uviewer
 
             // Update status bar with filename and index
             TextProgressText.Text = ""; // Clear for image mode
-            if (_isSideBySideMode)
+            if (_isCurrentViewSideBySide)
             {
                 int displayIndex = (_currentIndex / 2) + 1;
                 int totalPairs = (_imageEntries.Count + 1) / 2;
@@ -215,7 +215,7 @@ namespace Uviewer
             var containerHeight = ImageArea.ActualHeight;
 
             // Trigger canvas redraw for new zoom level
-            if (!_isSideBySideMode || _currentPdfDocument != null)
+            if (!_isCurrentViewSideBySide || _currentPdfDocument != null)
             {
                 MainCanvas?.Invalidate();
             }
@@ -367,9 +367,11 @@ namespace Uviewer
                         if (lines.Length >= 12 && lines[11].Trim() == "0") _isSidebarVisible = false;
                         if (lines.Length >= 13 && lines[12].Trim() == "0") _isPinned = false;
                         if (lines.Length >= 14 && lines[13].Trim() == "1") _isAlwaysOnTop = true;
+                        if (lines.Length >= 15 && lines[14].Trim() == "1") _autoDoublePageForArchive = true;
 
                         if (MatchControlDirectionMenuItem != null) MatchControlDirectionMenuItem.IsChecked = _matchControlDirection;
                         if (AllowMultipleInstancesMenuItem != null) AllowMultipleInstancesMenuItem.IsChecked = _allowMultipleInstances;
+                        if (AutoDoublePageForArchiveMenuItem != null) AutoDoublePageForArchiveMenuItem.IsChecked = _autoDoublePageForArchive;
                         if (AlwaysOnTopButton != null) AlwaysOnTopButton.IsChecked = _isAlwaysOnTop;
                         if (appWindow != null && appWindow.Presenter is OverlappedPresenter op)
                         {
@@ -471,7 +473,8 @@ namespace Uviewer
             _allowMultipleInstances ? "1" : "0",
             _isSidebarVisible ? "1" : "0",
             _isPinned ? "1" : "0",
-            _isAlwaysOnTop ? "1" : "0"
+            _isAlwaysOnTop ? "1" : "0",
+            _autoDoublePageForArchive ? "1" : "0"
                 };
 
                 File.WriteAllLines(_windowSettingsFile, settings);

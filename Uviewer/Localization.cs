@@ -121,6 +121,7 @@ namespace Uviewer
         public static string UIFontSelectionTitle => GetString("UIFontSelectionTitle");
         public static string PinTooltip => GetString("PinTooltip");
         public static string AlwaysOnTopTooltip => GetString("AlwaysOnTopTooltip");
+        public static string AutoDoublePageForArchive => GetString("AutoDoublePageForArchive");
 
         public static void Reload()
         {

@@ -374,4 +374,7 @@
   <data name="AlwaysOnTopTooltip" xml:space="preserve">
     <value>Always on Top (T)</value>
   </data>
+  <data name="AutoDoublePageForArchive" xml:space="preserve">
+    <value>Auto Side-by-Side in Archive</value>
+  </data>
 </root>
