@@ -556,7 +556,7 @@ namespace Uviewer
                 bool wasKeigakomi = pageBlocks.Count > 0 && (pageBlocks[pageBlocks.Count - 1].BorderColor != null || pageBlocks[pageBlocks.Count - 1].BorderThickness.Top > 0);
 
                 if (isKeigakomi && !wasKeigakomi) blockHeight += 20f; // 박스 진입 마진
-                if (!isKeigakomi && wasKeigakomi) blockHeight += 20f; // 박스 종료 마진
+                if (!isKeigakomi && wasKeigakomi) blockHeight += 20f + (fontSizeBase * 2.2f); // 박스 종료 마진
 
                 if (pageBlocks.Count > 0 && usedHeight + blockHeight > availableHeight + bottomTolerance)
                 {
@@ -653,7 +653,7 @@ namespace Uviewer
             // 이 값을 드로우의 currentY advance와 동일하게 맞춰야 일관된 레이아웃이 보장됨.
             int lineCount = layout.LineCount;
 
-            if (block.IsBlankLine) return lineSpacing * 0.5f;
+            if (block.IsBlankLine) return lineSpacing * 0.3f;
             return lineCount * lineSpacing;
         }
 
@@ -770,7 +770,7 @@ namespace Uviewer
                 // 블록 내 줄간격 = lineSpacing, 블록 간 간격 = lineSpacing → 모든 줄이 동일 간격.
                 int lineCount = textLayout.LineCount;
                 float currentBlockHeight = block.IsBlankLine
-                    ? lineSpacing * 0.5f
+                    ? lineSpacing * 0.3f
                     : lineCount * lineSpacing;
 
                 var bounds = textLayout.LayoutBounds;
@@ -806,7 +806,7 @@ namespace Uviewer
                 {
                     ds.DrawRectangle(boxLeft - boxPad, boxTop - boxPad, boxRight - boxLeft + boxPad * 2, boxBottom - boxTop + boxPad * 2, boxColor, 1.5f);
                     isBoxing = false;
-                    currentY += boxPad;
+                    currentY += boxPad + lineSpacing;
                 }
 
                 // 본문 그리기
