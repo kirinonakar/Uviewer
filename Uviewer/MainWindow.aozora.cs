@@ -703,8 +703,8 @@ private (string text, List<(int start, int length)> boldRanges) ParseTableInline
             string text = sb.ToString();
             if (string.IsNullOrEmpty(text)) text = " ";
 
-            // 드로우와 동일한 lineSpacing 사용 (표/코드는 더 좁게)
-            float lineSpacing = block.IsTable ? fontSize * 1.3f : fontSize * 2.1f;
+            // 표/코드는 줄바꿈을 꺼서 표 틀어짐 방지 (헤더도 줄간격 좁게)
+            float lineSpacing = (block.IsTable || block.HeadingLevel > 0) ? fontSize * 1.3f : fontSize * 2.1f;
 
             using var format = new CanvasTextFormat
             {
@@ -734,7 +734,7 @@ private (string text, List<(int start, int length)> boldRanges) ParseTableInline
             int lineCount = layout.LineCount;
 
             if (block.IsBlankLine) return lineSpacing * 0.3f;
-            return lineCount * lineSpacing;
+            return (lineCount * lineSpacing) + (float)block.Margin.Bottom;
         }
 
         private void AozoraTextCanvas_CreateResources(CanvasControl sender, Microsoft.Graphics.Canvas.UI.CanvasCreateResourcesEventArgs args)
@@ -861,8 +861,8 @@ private (string text, List<(int start, int length)> boldRanges) ParseTableInline
                     continue; 
                 }
 
-                // lineSpacing 2.1: 루비(furigana) 공간을 충분히 확보하는 일본어 표준 행간 (테이블은 좁게)
-                float lineSpacing = block.IsTable ? fontSize * 1.3f : fontSize * 2.1f;
+                // lineSpacing 2.1: 루비(furigana) 공간을 충분히 확보하는 일본어 표준 행간 (테이블/헤더는 좁게)
+                float lineSpacing = (block.IsTable || block.HeadingLevel > 0) ? fontSize * 1.3f : fontSize * 2.1f;
 
                 StringBuilder sb = new StringBuilder();
                 var rubyRanges = new List<(int start, int length, string rubyText)>();
@@ -975,35 +975,38 @@ private (string text, List<(int start, int length)> boldRanges) ParseTableInline
                     // 텍스트가 비어있거나 소문자만 있어 높이가 비정상적으로 작을 때를 대비한 최소값 보정
                     if (dbHeight < fontSize) dbHeight = fontSize;
                     
-                    // 위아래로 딱 4px씩만 타이트한 여백을 줍니다
-                    float bgTop = currentY + dbTop - 4f;
-                    float bgHeight = dbHeight + 8f;
+                    // 모델의 Padding 값을 반영하여 여백을 결정 (기존 하드코딩 4px에서 변경)
+                    float padTop = (float)block.Padding.Top;
+                    float padBottom = (float)block.Padding.Bottom;
+                    float padLeft = (float)block.Padding.Left;
+                    float padRight = (float)block.Padding.Right;
 
-                    ds.FillRectangle(drawX - 4, bgTop, currentW + 8, bgHeight, block.BackgroundColor.Value);
+                    float bgTop = currentY + dbTop - padTop;
+                    float bgHeight = dbHeight + padTop + padBottom;
+
+                    ds.FillRectangle(drawX - padLeft, bgTop, currentW + padLeft + padRight, bgHeight, block.BackgroundColor.Value);
                 }
 
                 // 본문 그리기
                 ds.DrawTextLayout(textLayout, drawX, currentY, textColor);
 
-                // 밑줄(헤딩) 및 좌측 선(인용구) 별도 그리기 로직을 통째로 교체하세요!
+                // 밑줄(헤딩) 및 좌측 선(인용구) 배경/경계 그리기
                 if (!isKeigakomi && block.BorderColor != null)
                 {
-                    // ✅ DrawBounds: 눈에 보이는 실제 글자 잉크의 픽셀 경계 상자를 가져옵니다.
-                    var drawBounds = textLayout.DrawBounds; 
-                    float actualTextBottom = (float)Math.Max(drawBounds.Bottom, fontSize);
+                    // ✅ 실제 글자 잉크가 끝나는 위치(drawBounds.Bottom)를 기준으로 선을 그어, 폰트 크기가 바뀌어도 텍스트 바로 아래에 위치하도록 합니다.
+                    var drawBounds = textLayout.DrawBounds;
+                    float borderBottomY = currentY + (float)drawBounds.Bottom + 4f;
                     
-                    // 글자 잉크 바로 아래에 정확히 밑줄 생성
-                    float borderBottomY = currentY + actualTextBottom - 20f; 
-
                     if (block.BorderThickness.Bottom > 0)
                     {
+                        // 헤더 하단 실선 그리기
                         ds.DrawLine(drawX, borderBottomY, drawX + currentW, borderBottomY, block.BorderColor.Value, (float)block.BorderThickness.Bottom);
                     }
                     if (block.BorderThickness.Left > 0)
                     {
                         float quoteLeft = drawX - 15;
                         float actualTextTop = (float)Math.Min(drawBounds.Top, 0);
-                        // 인용구 선도 글자의 실제 잉크 높이에 맞춰 타이트하게 그립니다.
+                        // 인용구 좌측 선도 안정적으로 그립니다.
                         ds.DrawLine(quoteLeft, currentY + actualTextTop, quoteLeft, borderBottomY, block.BorderColor.Value, (float)block.BorderThickness.Left);
                     }
                 }
@@ -1065,8 +1068,8 @@ private (string text, List<(int start, int length)> boldRanges) ParseTableInline
                     info.Layout.Dispose();
                 }
 
-                // spacing 별도 없이 lineCount×lineSpacing이 모든 줄 간격을 포함
-                currentY += currentBlockHeight;
+                // spacing 별도 없이 lineCount×lineSpacing이 모든 줄 간격을 포함 + Margin.Bottom 추가
+                currentY += currentBlockHeight + (float)block.Margin.Bottom;
 
                 if (i == page.Blocks.Count - 1 && isBoxing)
                 {

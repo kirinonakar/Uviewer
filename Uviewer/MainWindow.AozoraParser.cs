@@ -602,11 +602,25 @@ namespace Uviewer
 
                 // --- Markdown Block Parsing ---
 
+                // 들여쓰기(Indent) 자동 감지 (스페이스 및 탭 처리)
+                int leadingIndent = 0;
+                int spacesConsumed = 0;
+                while (spacesConsumed < content.Length && (content[spacesConsumed] == ' ' || content[spacesConsumed] == '\t'))
+                {
+                    if (content[spacesConsumed] == '\t') leadingIndent += 4; // 탭은 4칸으로 간주
+                    else leadingIndent += 1;
+                    spacesConsumed++;
+                }
+                
+                // 들여쓰기를 제외한 실제 콘텐츠 내용
+                string currentContent = content.TrimStart();
+                blockModel.Margin = new Thickness(leadingIndent * 8, 0, 0, 0); // 기본 텍스트 들여쓰기
+
                 // Headers
-                if (content.StartsWith("#"))
+                if (currentContent.StartsWith("#"))
                 {
                     int level = 0;
-                    while (level < content.Length && content[level] == '#') level++;
+                    while (level < currentContent.Length && currentContent[level] == '#') level++;
 
                     if (level > 0 && level <= 6)
                     {
@@ -615,41 +629,52 @@ namespace Uviewer
                         else if (level == 3) blockModel.FontSizeScale = 1.25;
                         else blockModel.FontSizeScale = 1.1;
 
-                        content = content.Substring(level).TrimStart();
+                        content = currentContent.Substring(level).TrimStart();
                         blockModel.HeadingLevel = level;
                         blockModel.HeadingText = Regex.Replace(content, @"[#\[\]]", "").Trim();
 
-                        if (level == 1 || level == 2)
+                        if (level == 1)
                         {
                             blockModel.BorderColor = Colors.LightGray;
-                            blockModel.BorderThickness = new Thickness(0, 0, 0, 1); // Bottom border for H1/H2
+                            blockModel.BorderThickness = new Thickness(0, 0, 0, 1);
+                            blockModel.Margin = new Thickness(blockModel.Margin.Left, 0, 0, 8); // H1 아래 공간 축소
+                        }
+                        else if (level == 2)
+                        {
+                            blockModel.BorderColor = Colors.LightGray;
+                            blockModel.BorderThickness = new Thickness(0, 0, 0, 1);
+                            blockModel.Margin = new Thickness(blockModel.Margin.Left, 0, 0, 10); // H2 아래 공간
+                        }
+                        else if (level >= 3)
+                        {
+                            blockModel.Margin = new Thickness(blockModel.Margin.Left, 0, 0, 10); // H3, H4 등 하위 헤더 여백 추가
                         }
                     }
                 }
                 // Quote
-                else if (content.StartsWith(">"))
+                else if (currentContent.StartsWith(">"))
                 {
-                    content = content.TrimStart('>', ' ');
-                    blockModel.Margin = new Thickness(20, 0, 0, 0);
+                    content = currentContent.TrimStart('>', ' ');
+                    blockModel.Margin = new Thickness(20 + leadingIndent * 8, 0, 0, 0);
                     blockModel.BorderColor = Colors.Gray;
                     blockModel.BorderThickness = new Thickness(4, 0, 0, 0); // Left border
                     blockModel.Padding = new Thickness(10, 0, 0, 0);
-                    blockModel.Inlines.Add(new AozoraItalic { Text = "" }); // Force italic style logic if we had it, but for now just indent
+                    blockModel.Inlines.Add(new AozoraItalic { Text = "" });
                 }
                 // List (Unordered)
-                else if (Regex.IsMatch(content, @"^[\*\-]\s"))
+                else if (Regex.IsMatch(currentContent, @"^[\*\-]\s"))
                 {
-                    content = "• " + content.Substring(2);
-                    blockModel.Margin = new Thickness(20, 0, 0, 0);
+                    content = "• " + currentContent.Substring(2);
+                    blockModel.Margin = new Thickness(20 + leadingIndent * 8, 0, 0, 0);
                 }
                 // List (Ordered)
-                else if (Regex.IsMatch(content, @"^\d+\.\s"))
+                else if (Regex.IsMatch(currentContent, @"^\d+\.\s"))
                 {
-                    // Keep number
-                    blockModel.Margin = new Thickness(20, 0, 0, 0);
+                    content = currentContent; // 원래 번호 유지
+                    blockModel.Margin = new Thickness(20 + leadingIndent * 8, 0, 0, 0);
                 }
                 // HR
-                else if (Regex.IsMatch(content, @"^(\*{3,}|-{3,})$"))
+                else if (Regex.IsMatch(currentContent, @"^(\*{3,}|-{3,})$"))
                 {
                     blockModel.Inlines.Add("");
                     blockModel.BorderColor = Colors.Gray;
@@ -657,6 +682,10 @@ namespace Uviewer
                     blockModel.Margin = new Thickness(0, 10, 0, 10);
                     blocks.Add(blockModel);
                     continue;
+                }
+                else
+                {
+                    content = currentContent;
                 }
 
                 // --- Inline Parsing ---
