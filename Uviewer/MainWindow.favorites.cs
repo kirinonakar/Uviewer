@@ -233,7 +233,7 @@ namespace Uviewer
             bool isImageFile = (favorite.Type == "File" || favorite.Type == "Archive") && !string.IsNullOrEmpty(favorite.Path) && 
                                (SupportedImageExtensions.Contains(Path.GetExtension(favorite.Path).ToLowerInvariant()) || favorite.Type == "Archive");
 
-            string vMark = (favorite.IsVertical && !isImageFile) ? "[V] " : "";
+            string vMark = "";
             string posString = "";
 
             if (!isImageFile)
@@ -614,24 +614,16 @@ namespace Uviewer
                             savedLine = _currentVerticalPageInfo.StartLine;
                             savedPage = 0; 
                         }
-                        else if (EpubSelectedItem is Grid g)
+                        else if (_epubWin2DPages != null && CurrentEpubPageIndex >= 0 && CurrentEpubPageIndex < _epubWin2DPages.Count)
                         {
-                            if (g.Tag is EpubPageInfoTag tag)
+                            var page = _epubWin2DPages[CurrentEpubPageIndex];
+                            if (!page.IsImagePage)
                             {
-                                var tempBlocks = await GetEpubChapterAsAozoraBlocksAsync(CurrentEpubChapterIndex);
-                                if (tempBlocks.Count > 0 && tag.TotalLinesInChapter > 0)
-                                {
-                                    int maxSourceLine = tempBlocks.Last().SourceLineNumber;
-                                    double ratio = (double)tag.StartLine / tag.TotalLinesInChapter;
-                                    savedLine = (int)(maxSourceLine * ratio);
-                                    if (savedLine < 1) savedLine = 1;
-                                }
-                                else savedLine = tag.StartLine;
+                                savedLine = page.StartLine;
                             }
-                            else if (g.Tag is EpubImageTag imgTag)
+                            else if (_aozoraBlocks != null)
                             {
-                                var tempBlocks = await GetEpubChapterAsAozoraBlocksAsync(CurrentEpubChapterIndex);
-                                var targetBlock = tempBlocks.FirstOrDefault(b => b.Inlines.OfType<AozoraImage>().Any(img => img.Source == imgTag.FullPath));
+                                var targetBlock = _aozoraBlocks.FirstOrDefault(b => b.Inlines.OfType<AozoraImage>().Any(img => img.Source == page.ImagePath));
                                 if (targetBlock != null) savedLine = targetBlock.SourceLineNumber;
                                 else savedLine = 1;
                             }
@@ -820,6 +812,8 @@ namespace Uviewer
                              {
                                   PendingEpubChapterIndex = favorite.ChapterIndex;
                                   PendingEpubPageIndex = favorite.SavedPage;
+                                  // [추가] EPUB 모드에서도 저장된 정확한 줄 번호를 복구하도록 변수에 할당합니다.
+                                  _aozoraPendingTargetLine = favorite.SavedLine > 1 ? favorite.SavedLine : 1;
                              }
                              else if (fileItem.IsText)
                              {
@@ -1160,7 +1154,7 @@ namespace Uviewer
                 bool isImageFile = (recent.Type == "File" || recent.Type == "Archive") && !string.IsNullOrEmpty(recent.Path) && 
                                    (SupportedImageExtensions.Contains(Path.GetExtension(recent.Path).ToLowerInvariant()) || recent.Type == "Archive");
 
-                string vMark = (recent.IsVertical && !isImageFile) ? "[V] " : "";
+                string vMark = "";
                 string posString = "";
 
                 if (!isImageFile)
@@ -1492,24 +1486,16 @@ namespace Uviewer
                                 targetLine = _currentVerticalPageInfo.StartLine;
                                 targetPage = 0; // Use line for restoration in vertical mode
                             }
-                            else if (EpubSelectedItem is Grid g)
+                            else if (_epubWin2DPages != null && targetPage >= 0 && targetPage < _epubWin2DPages.Count)
                             {
-                                if (g.Tag is EpubPageInfoTag tag)
+                                var page = _epubWin2DPages[targetPage];
+                                if (!page.IsImagePage)
                                 {
-                                    var tempBlocks = await GetEpubChapterAsAozoraBlocksAsync(targetChapter);
-                                    if (tempBlocks.Count > 0 && tag.TotalLinesInChapter > 0)
-                                    {
-                                        int maxSourceLine = tempBlocks.Last().SourceLineNumber;
-                                        double ratio = (double)tag.StartLine / tag.TotalLinesInChapter;
-                                        targetLine = (int)(maxSourceLine * ratio);
-                                        if (targetLine < 1) targetLine = 1;
-                                    }
-                                    else targetLine = tag.StartLine;
+                                    targetLine = page.StartLine;
                                 }
-                                else if (g.Tag is EpubImageTag imgTag)
+                                else if (_aozoraBlocks != null)
                                 {
-                                    var tempBlocks = await GetEpubChapterAsAozoraBlocksAsync(targetChapter);
-                                    var targetBlock = tempBlocks.FirstOrDefault(b => b.Inlines.OfType<AozoraImage>().Any(img => img.Source == imgTag.FullPath));
+                                    var targetBlock = _aozoraBlocks.FirstOrDefault(b => b.Inlines.OfType<AozoraImage>().Any(img => img.Source == page.ImagePath));
                                     if (targetBlock != null) targetLine = targetBlock.SourceLineNumber;
                                     else targetLine = 1;
                                 }
@@ -1523,11 +1509,17 @@ namespace Uviewer
                             targetLine = _currentVerticalPageInfo.StartLine;
                             targetOffset = 0;
                         }
+                        // [수정] 아오조라 모드를 가장 먼저 확인하여 정확한 최신 줄 번호를 즉시 가져옵니다.
+                        else if (_isAozoraMode && _aozoraBlocks.Count > 0 && _currentAozoraStartBlockIndex >= 0 && _currentAozoraStartBlockIndex < _aozoraBlocks.Count)
+                        {
+                            targetLine = _aozoraBlocks[_currentAozoraStartBlockIndex].SourceLineNumber;
+                            targetOffset = 0;
+                        }
+                        // 일반 텍스트 모드일 때만 스크롤바 방어 로직(세이프가드)을 실행합니다.
                         else if (TextScrollViewer != null)
                         {
                             double currentOffset = TextScrollViewer.VerticalOffset;
                             
-                            // 오프셋이 0인데 기존에 읽던 기록(>0)이 있다면, 기존 값 유지
                             if (currentOffset == 0 && existing != null && existing.ScrollOffset > 0)
                             {
                                 targetOffset = existing.ScrollOffset;
@@ -1538,10 +1530,6 @@ namespace Uviewer
                             {
                                 targetOffset = currentOffset;
                                 targetLine = GetTopVisibleLineIndex();
-                                
-                                // 아오조라 모드 보정
-                                if (_isAozoraMode && _aozoraBlocks.Count > 0 && _currentAozoraStartBlockIndex >= 0)
-                                    targetLine = _aozoraBlocks[_currentAozoraStartBlockIndex].SourceLineNumber;
                             }
                         }
                     }
@@ -1699,6 +1687,8 @@ namespace Uviewer
                             {
                                 PendingEpubChapterIndex = targetChapter;
                                 PendingEpubPageIndex = targetPage;
+                                // [추가] EPUB 모드에서도 저장된 정확한 줄 번호를 복구하도록 변수에 할당합니다.
+                                _aozoraPendingTargetLine = targetLine > 1 ? targetLine : 1;
                             }
                             else if (fileItem.IsText)
                             {

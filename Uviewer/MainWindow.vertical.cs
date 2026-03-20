@@ -76,38 +76,25 @@ namespace Uviewer
                 {
                     _aozoraBlocks = await GetEpubChapterAsAozoraBlocksAsync(_currentEpubChapterIndex);
 
-                    if (_epubPages != null && _currentEpubPageIndex >= 0 && _currentEpubPageIndex < _epubPages.Count)
+                    if (_epubWin2DPages != null && _currentEpubPageIndex >= 0 && _currentEpubPageIndex < _epubWin2DPages.Count)
                     {
-                        var page = _epubPages[_currentEpubPageIndex];
-                        if (page is Grid g)
+                        var page = _epubWin2DPages[_currentEpubPageIndex];
+                        if (!page.IsImagePage)
                         {
-                            if (g.Tag is EpubPageInfoTag tag)
+                            // 텍스트 페이지면 해당 페이지의 시작 줄 번호를 그대로 사용
+                            currentLine = page.StartLine;
+                        }
+                        else
+                        {
+                            // 이미지 페이지면 이미지 블록의 줄 번호를 사용
+                            if (_aozoraBlocks != null)
                             {
-                                if (tag.TotalLinesInChapter > 0 && _aozoraBlocks.Count > 0)
+                                var targetBlock = _aozoraBlocks.FirstOrDefault(b => 
+                                    b.Inlines.OfType<AozoraImage>().Any(img => img.Source == page.ImagePath));
+                                
+                                if (targetBlock != null)
                                 {
-                                    int maxSourceLine = _aozoraBlocks[_aozoraBlocks.Count - 1].SourceLineNumber;
-                                    double ratio = (double)tag.StartLine / tag.TotalLinesInChapter;
-                                    if (ratio > 1.0) ratio = 1.0;
-                                    
-                                    currentLine = (int)(maxSourceLine * ratio);
-                                    if (currentLine < 1) currentLine = 1;
-                                }
-                                else
-                                {
-                                    currentLine = tag.StartLine;
-                                }
-                            }
-                            else if (g.Tag is EpubImageTag imgTag)
-                            {
-                                if (_aozoraBlocks != null)
-                                {
-                                    var targetBlock = _aozoraBlocks.FirstOrDefault(b => 
-                                        b.Inlines.OfType<AozoraImage>().Any(img => img.Source == imgTag.FullPath));
-                                    
-                                    if (targetBlock != null)
-                                    {
-                                        currentLine = targetBlock.SourceLineNumber;
-                                    }
+                                    currentLine = targetBlock.SourceLineNumber;
                                 }
                             }
                         }

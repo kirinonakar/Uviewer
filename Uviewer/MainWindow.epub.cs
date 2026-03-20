@@ -1118,20 +1118,26 @@ namespace Uviewer
                      }
 
                      // Find page that contains this line
-                     for (int i = 0; i < _epubWin2DPages.Count; i++)
-                     {
-                         var p = _epubWin2DPages[i];
-                         if (targetLine >= p.StartLine && targetLine < p.StartLine + Math.Max(1, p.LineCount))
-                         {
-                             SetEpubPageIndex(i);
-                             return;
-                         }
-                         if (i == _epubWin2DPages.Count - 1 && targetLine >= p.StartLine)
-                         {
-                             SetEpubPageIndex(i);
-                             return;
-                         }
-                     }
+                    for (int i = 0; i < _epubWin2DPages.Count; i++)
+                    {
+                        var p = _epubWin2DPages[i];
+                        if (p.Blocks != null && p.Blocks.Count > 0)
+                        {
+                            int start = p.Blocks.First().SourceLineNumber;
+                            int end = p.Blocks.Last().SourceLineNumber;
+                            
+                            if (targetLine >= start && targetLine <= end)
+                            {
+                                SetEpubPageIndex(i);
+                                return;
+                            }
+                            if (i == _epubWin2DPages.Count - 1 && targetLine >= start)
+                            {
+                                SetEpubPageIndex(i);
+                                return;
+                            }
+                        }
+                    }
                      
                      // Fallback
                      int pageIndex = targetLine - 1;
@@ -1321,22 +1327,34 @@ namespace Uviewer
 
                 if (targetLine > 1)
                 {
-                    var tempBlocks = await GetEpubChapterAsAozoraBlocksAsync(index);
-                    int maxSourceLine = tempBlocks.Count > 0 ? tempBlocks.Last().SourceLineNumber : 1;
-                    double targetRatio = (double)targetLine / Math.Max(1, maxSourceLine);
-                    if (targetRatio > 1.0) targetRatio = 1.0;
-
                     for (int i = 0; i < pages.Count; i++)
                     {
                         var p = pages[i];
-                        if (!p.IsImagePage)
+                        if (!p.IsImagePage && p.Blocks != null && p.Blocks.Count > 0)
                         {
-                            double pageStartRatio = (double)p.StartLine / Math.Max(1, p.TotalLinesInChapter);
-                            double pageEndRatio = (double)(p.StartLine + p.LineCount) / Math.Max(1, p.TotalLinesInChapter);
-                            if (targetRatio >= pageStartRatio && targetRatio <= pageEndRatio)
-                            { finalTargetPage = i; break; }
-                            if (i == pages.Count - 1 && targetRatio >= pageStartRatio)
-                            { finalTargetPage = i; break; }
+                            int pageStartLine = p.Blocks.First().SourceLineNumber;
+                            int pageEndLine = p.Blocks.Last().SourceLineNumber;
+
+                            // 목표 라인이 이 페이지의 시작과 끝 사이에 있다면 이 페이지가 정답
+                            if (targetLine >= pageStartLine && targetLine <= pageEndLine)
+                            { 
+                                finalTargetPage = i; 
+                                break; 
+                            }
+                            // 마지막 페이지 처리 방어 로직
+                            if (i == pages.Count - 1 && targetLine >= pageStartLine)
+                            { 
+                                finalTargetPage = i; 
+                                break; 
+                            }
+                        }
+                        else if (p.IsImagePage && p.Blocks != null && p.Blocks.Count > 0)
+                        {
+                            if (targetLine == p.Blocks.First().SourceLineNumber)
+                            {
+                                finalTargetPage = i;
+                                break;
+                            }
                         }
                     }
                 }
