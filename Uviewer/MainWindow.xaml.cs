@@ -469,6 +469,7 @@ namespace Uviewer
                     PinButton.IsChecked = false;
                     PinIcon.Glyph = "\uE77A"; // Unpin icon
                     AppTitleBar.Visibility = Visibility.Collapsed;
+                    SetCaptionButtonsVisibility(false);
                     ToolbarGrid.Visibility = Visibility.Collapsed;
                     StatusBarGrid.Visibility = Visibility.Collapsed;
                     SidebarGrid.Visibility = Visibility.Collapsed;
@@ -607,6 +608,7 @@ namespace Uviewer
                 if (_isFullscreen || !_isPinned)
                 {
                     AppTitleBar.Visibility = Visibility.Collapsed;
+                    if (!_isFullscreen) SetCaptionButtonsVisibility(false);
                     ToolbarGrid.Visibility = Visibility.Collapsed;
                     if (!_isFullscreen) StatusBarGrid.Visibility = Visibility.Collapsed;
                     System.Diagnostics.Debug.WriteLine("✓ Titlebar and Toolbar hidden by timer");
@@ -928,6 +930,7 @@ namespace Uviewer
                 {
                     // 핀 고정 상태: UI 모두 복원
                     AppTitleBar.Visibility = Visibility.Visible;
+                    SetCaptionButtonsVisibility(true);
                     ToolbarGrid.Visibility = Visibility.Visible;
                     StatusBarGrid.Visibility = Visibility.Visible;
                     if (_isSidebarVisible)
@@ -945,6 +948,7 @@ namespace Uviewer
                 {
                     // 핀 해제 상태: UI 숨긴 채 유지
                     AppTitleBar.Visibility = Visibility.Collapsed;
+                    SetCaptionButtonsVisibility(false);
                     ToolbarGrid.Visibility = Visibility.Collapsed;
                     StatusBarGrid.Visibility = Visibility.Collapsed;
                     SidebarGrid.Visibility = Visibility.Collapsed;
@@ -1017,6 +1021,7 @@ namespace Uviewer
                 if (ToolbarGrid.Visibility != Visibility.Visible)
                 {
                     AppTitleBar.Visibility = Visibility.Visible;
+                    if (!_isFullscreen) SetCaptionButtonsVisibility(true);
                     ToolbarGrid.Visibility = Visibility.Visible;
                     if (!_isFullscreen) StatusBarGrid.Visibility = Visibility.Visible;
                     System.Diagnostics.Debug.WriteLine("Titlebar and Toolbar SHOWN (mouse in top zone)");
@@ -1199,6 +1204,7 @@ namespace Uviewer
                 _sidebarHideTimerRunning = false;
 
                 AppTitleBar.Visibility = Visibility.Visible;
+                SetCaptionButtonsVisibility(true);
                 ToolbarGrid.Visibility = Visibility.Visible;
                 StatusBarGrid.Visibility = Visibility.Visible;
                 if (_isSidebarVisible)
@@ -1217,6 +1223,7 @@ namespace Uviewer
                 }
 
                 AppTitleBar.Visibility = Visibility.Collapsed;
+                SetCaptionButtonsVisibility(false);
                 ToolbarGrid.Visibility = Visibility.Collapsed;
                 StatusBarGrid.Visibility = Visibility.Collapsed;
                 SidebarGrid.Visibility = Visibility.Collapsed;
@@ -1225,6 +1232,16 @@ namespace Uviewer
             }
 
             SaveWindowSettings();
+        }
+
+        private void SetCaptionButtonsVisibility(bool isVisible)
+        {
+            if (AppWindowTitleBar.IsCustomizationSupported())
+            {
+                this.AppWindow.TitleBar.PreferredHeightOption = isVisible
+                    ? Microsoft.UI.Windowing.TitleBarHeightOption.Standard
+                    : Microsoft.UI.Windowing.TitleBarHeightOption.Collapsed;
+            }
         }
 
         private void AlwaysOnTopButton_Click(object sender, RoutedEventArgs e)
