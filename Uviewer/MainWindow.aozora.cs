@@ -41,6 +41,32 @@ namespace Uviewer
         // --- 이전 페이지 역산 최적화 및 백그라운드 캐시 ---
         private System.Threading.CancellationTokenSource? _backwardCacheCts;
         private Dictionary<int, int> _backwardPageCache = new();
+        
+        // 👉 GC 부하가 없는 값 타입(Struct) 고유 키 생성
+        private struct BlockCacheKey : IEquatable<BlockCacheKey>
+        {
+            public int SourceLine;
+            public int InlineCount;
+            public int ContentHash; // 💡 한 줄이 여러 블록으로 쪼개졌을 때(문장 분리)를 위한 내용물 해시 추가
+
+            public BlockCacheKey(int line, int count, int contentHash)
+            {
+                SourceLine = line;
+                InlineCount = count;
+                ContentHash = contentHash;
+            }
+
+            public bool Equals(BlockCacheKey other) => 
+                SourceLine == other.SourceLine && 
+                InlineCount == other.InlineCount && 
+                ContentHash == other.ContentHash;
+
+            public override int GetHashCode() => HashCode.Combine(SourceLine, InlineCount, ContentHash);
+            public override bool Equals(object? obj) => obj is BlockCacheKey other && Equals(other);
+        }
+
+        // 👉 객체 참조가 아닌 구조체를 Key로 사용하여 복제된 객체도 캐시 적중 가능하게 함
+        private System.Collections.Concurrent.ConcurrentDictionary<BlockCacheKey, float> _blockMeasureCache = new();
 
         // 캐시 무효화를 위한 상태 저장 (완벽한 방어)
         private float _lastCacheWidth = 0;
@@ -87,6 +113,8 @@ namespace Uviewer
             {
                 _backwardPageCache.Clear();
             }
+            // 👉 렌더링 환경이 바뀌면 측정 캐시도 즉시 초기화
+            _blockMeasureCache.Clear();
         }
 
         // O(log K) 이진 탐색을 제거하고, 가장 정확한 역방향 순차 탐색으로 교체합니다.
@@ -818,6 +846,14 @@ private (string text, List<(int start, int length)> boldRanges) ParseTableInline
 
         private float MeasureHorizontalBlockHeight(CanvasDevice? device, AozoraBindingModel block, float availableWidth, float fontSize)
         {
+            // 👉 줄 번호와 내부 요소 개수, 그리고 첫 요소의 해시를 조합해 고유 키 생성
+            // 복제된 블록이라도 같은 내용을 담고 있다면 완벽히 캐시 적중됩니다.
+            int contentHash = block.Inlines.Count > 0 ? block.Inlines[0].GetHashCode() : 0;
+            var cacheKey = new BlockCacheKey(block.SourceLineNumber, block.Inlines.Count, contentHash);
+            
+            if (_blockMeasureCache.TryGetValue(cacheKey, out float cachedHeight))
+                return cachedHeight;
+
             if (device == null) return fontSize * 2.0f;
 
             // ✅ 테이블 '행(Row) 단위' 전용 높이 측정 로직
@@ -855,6 +891,8 @@ private (string text, List<(int start, int length)> boldRanges) ParseTableInline
                 // 표의 마지막 줄인 경우에만 다음 텍스트와의 여백을 추가
                 if (block.TableRowIndex == block.TableRowCount - 1) rowHeight += 20f; 
 
+                // 👉 절대 .Count 검사 없이 바로 저장 (ConcurrentDictionary.Count는 글로벌 락을 유발함)
+                _blockMeasureCache[cacheKey] = rowHeight;
                 return rowHeight; 
             }
 
@@ -924,8 +962,13 @@ private (string text, List<(int start, int length)> boldRanges) ParseTableInline
             // 이 값을 드로우의 currentY advance와 동일하게 맞춰야 일관된 레이아웃이 보장됨.
             int lineCount = layout.LineCount;
 
-            if (block.IsBlankLine) return lineSpacing * 0.3f;
-            return (lineCount * lineSpacing) + (float)block.Margin.Bottom;
+            float result = (lineCount * lineSpacing) + (float)block.Margin.Bottom;
+            if (block.IsBlankLine) result = lineSpacing * 0.3f;
+            
+            // 👉 절대 .Count 검사 없이 바로 저장
+            _blockMeasureCache[cacheKey] = result;
+
+            return result;
         }
 
         private void AozoraTextCanvas_CreateResources(CanvasControl sender, Microsoft.Graphics.Canvas.UI.CanvasCreateResourcesEventArgs args)

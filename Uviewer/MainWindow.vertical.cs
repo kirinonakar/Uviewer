@@ -565,6 +565,14 @@ namespace Uviewer
 
         private float MeasureVerticalBlockWidth(CanvasDevice? device, AozoraBindingModel block, float availableHeight, float fontSize)
         {
+            // 👉 줄 번호와 내부 요소 개수, 그리고 첫 요소의 해시를 조합해 고유 키 생성
+            // 복제된 블록이라도 같은 내용을 담고 있다면 완벽히 캐시 적중됩니다.
+            int contentHash = block.Inlines.Count > 0 ? block.Inlines[0].GetHashCode() : 0;
+            var cacheKey = new BlockCacheKey(block.SourceLineNumber, block.Inlines.Count, contentHash);
+            
+            if (_blockMeasureCache.TryGetValue(cacheKey, out float cachedWidth))
+                return cachedWidth;
+
             if (device == null) return fontSize * 2.0f;
 
             // Build text same as in Draw method
@@ -638,8 +646,13 @@ namespace Uviewer
             float boundsWidth = (float)layout.LayoutBounds.Width;
             float spacing = fontSize * (block.IsBlankLine ? 0.2f : 0.6f);
             
-            if (block.IsBlankLine) return (boundsWidth * 0.5f) + spacing;
-            return boundsWidth + spacing;
+            float result = boundsWidth + spacing;
+            if (block.IsBlankLine) result = (boundsWidth * 0.5f) + spacing;
+            
+            // 👉 절대 .Count 검사 없이 바로 저장
+            _blockMeasureCache[cacheKey] = result;
+
+            return result;
         }
 
         private void VerticalTextCanvas_CreateResources(CanvasControl sender, Microsoft.Graphics.Canvas.UI.CanvasCreateResourcesEventArgs args)
@@ -988,14 +1001,17 @@ namespace Uviewer
                 }
                 else if (_isEpubMode && _currentEpubChapterIndex > 0)
                 {
-                    int prevIndex = _currentEpubChapterIndex - 1;
+                    // 👉 버그 수정: 현재 페이지에 여러 챕터가 섞여 있을 경우 가장 앞선 챕터 기준
+                    int minChapterOnPage = _currentEpubChapterIndex;
                     var pageBlocks = _currentVerticalPageInfo.Blocks;
-                    if (pageBlocks != null && pageBlocks.Any(b => b.HasImage) && prevIndex > 0)
+                    if (pageBlocks != null && pageBlocks.Count > 0)
+                        minChapterOnPage = pageBlocks.Min(b => b.EpubChapterIndex);
+
+                    if (minChapterOnPage > 0)
                     {
-                         prevIndex--;
+                        _currentEpubChapterIndex = minChapterOnPage - 1;
+                        await LoadEpubChapterAsync(_currentEpubChapterIndex, fromEnd: true);
                     }
-                    _currentEpubChapterIndex = prevIndex;
-                    await LoadEpubChapterAsync(_currentEpubChapterIndex, fromEnd: true);
                 }
             }
         }
