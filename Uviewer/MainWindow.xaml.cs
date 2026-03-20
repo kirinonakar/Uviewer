@@ -162,40 +162,43 @@ namespace Uviewer
         private IEnumerable<string> SupportedFileExtensions =>
             SupportedImageExtensions.Concat(SupportedTextExtensions).Concat(SupportedArchiveExtensions).Concat(SupportedEpubExtensions).Concat(SupportedPdfExtensions);
 
+        private string? GetEntryExtension(ImageEntry entry)
+        {
+            if (entry == null) return null;
+            if (entry.FilePath != null) return Path.GetExtension(entry.FilePath);
+            if (entry.ArchiveEntryKey != null) return Path.GetExtension(entry.ArchiveEntryKey);
+            if (entry.WebDavPath != null) return Path.GetExtension(entry.WebDavPath);
+            return null;
+        }
+
         private bool IsTextEntry(ImageEntry entry)
         {
-            string? ext = null;
-            if (entry.FilePath != null) ext = Path.GetExtension(entry.FilePath);
-            else if (entry.ArchiveEntryKey != null) ext = Path.GetExtension(entry.ArchiveEntryKey);
-
+            var ext = GetEntryExtension(entry);
             return !string.IsNullOrEmpty(ext) && SupportedTextExtensions.Contains(ext.ToLowerInvariant());
         }
 
         private bool IsEpubEntry(ImageEntry entry)
         {
-            string? ext = null;
-            if (entry.FilePath != null) ext = Path.GetExtension(entry.FilePath);
-            else if (entry.ArchiveEntryKey != null) ext = Path.GetExtension(entry.ArchiveEntryKey);
-
+            var ext = GetEntryExtension(entry);
             return !string.IsNullOrEmpty(ext) && SupportedEpubExtensions.Contains(ext.ToLowerInvariant());
         }
 
         private bool IsPdfEntry(ImageEntry entry)
         {
-            string? ext = null;
-            if (entry.FilePath != null) ext = Path.GetExtension(entry.FilePath);
-            else if (entry.ArchiveEntryKey != null) ext = Path.GetExtension(entry.ArchiveEntryKey);
-
-            return !string.IsNullOrEmpty(ext) && SupportedPdfExtensions.Contains(ext.ToLowerInvariant()) || entry.IsPdfEntry;
+            var ext = GetEntryExtension(entry);
+            return (!string.IsNullOrEmpty(ext) && SupportedPdfExtensions.Contains(ext.ToLowerInvariant())) || entry.IsPdfEntry;
         }
 
         private bool IsImageEntry(ImageEntry entry)
         {
-            string? ext = null;
-            if (entry.FilePath != null) ext = Path.GetExtension(entry.FilePath);
-            else if (entry.ArchiveEntryKey != null) ext = Path.GetExtension(entry.ArchiveEntryKey);
-
+            var ext = GetEntryExtension(entry);
             return !string.IsNullOrEmpty(ext) && SupportedImageExtensions.Contains(ext.ToLowerInvariant());
+        }
+
+        private bool IsNavigableImage(ImageEntry entry)
+        {
+            if (entry == null) return false;
+            return entry.IsPdfEntry || IsImageEntry(entry);
         }
 
         // File item for ListView
@@ -1274,21 +1277,28 @@ namespace Uviewer
 
                 bool isFast = !isManualClick && DetectFastNavigation();
 
+                int step = (_isCurrentViewSideBySide && _currentPdfDocument == null) ? 2 : 1;
+                int newIndex = _currentIndex;
+                for (int i = 0; i < step; i++)
+                {
+                    int searchIdx = newIndex;
+                    while (searchIdx > 0)
+                    {
+                        searchIdx--;
+                        if (IsNavigableImage(_imageEntries[searchIdx]))
+                        {
+                            newIndex = searchIdx;
+                            break;
+                        }
+                    }
+                }
+                _currentIndex = newIndex;
+
                 if (isFast)
                 {
-                    if (_isCurrentViewSideBySide && _currentPdfDocument == null)
-                        _currentIndex = Math.Max(0, _currentIndex - 2);
-                    else
-                        _currentIndex--;
-
                     ShowFilenameOnly();
                     return;
                 }
-
-                if (_isCurrentViewSideBySide && _currentPdfDocument == null)
-                    _currentIndex = Math.Max(0, _currentIndex - 2);
-                else
-                    _currentIndex--;
 
                 await DisplayCurrentImageAsync();
                 await AddToRecentAsync(true);
@@ -1315,21 +1325,28 @@ namespace Uviewer
 
                 bool isFast = !isManualClick && DetectFastNavigation();
 
+                int step = (_isCurrentViewSideBySide && _currentPdfDocument == null) ? 2 : 1;
+                int newIndex = _currentIndex;
+                for (int i = 0; i < step; i++)
+                {
+                    int searchIdx = newIndex;
+                    while (searchIdx < _imageEntries.Count - 1)
+                    {
+                        searchIdx++;
+                        if (IsNavigableImage(_imageEntries[searchIdx]))
+                        {
+                            newIndex = searchIdx;
+                            break;
+                        }
+                    }
+                }
+                _currentIndex = newIndex;
+
                 if (isFast)
                 {
-                    if (_isCurrentViewSideBySide && _currentPdfDocument == null)
-                        _currentIndex = Math.Min(_imageEntries.Count - 1, _currentIndex + 2);
-                    else
-                        _currentIndex++;
-
                     ShowFilenameOnly();
                     return;
                 }
-
-                if (_isCurrentViewSideBySide && _currentPdfDocument == null)
-                    _currentIndex = Math.Min(_imageEntries.Count - 1, _currentIndex + 2);
-                else
-                    _currentIndex++;
 
                 await DisplayCurrentImageAsync();
                 await AddToRecentAsync(true);
@@ -1770,6 +1787,7 @@ namespace Uviewer
 
                     int index = i;
                     if (index == _currentIndex) continue;
+                    if (!IsNavigableImage(_imageEntries[index])) continue;
 
                     // 1. 이미 캐시에 있거나, 2. 현재 로딩 중이라면 스킵
                     bool shouldSkip = false;
@@ -1898,6 +1916,7 @@ namespace Uviewer
                     if (token.IsCancellationRequested) break;
 
                     int index = i;
+                    if (!IsNavigableImage(_imageEntries[index])) continue;
 
                     // 1. 이미 캐시에 있거나, 2. 현재 로딩 중이라면 스킵
                     bool shouldSkip = false;

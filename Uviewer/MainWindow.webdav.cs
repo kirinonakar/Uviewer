@@ -465,8 +465,8 @@ namespace Uviewer
                 }
                 else
                 {
-                    // Image or Text file - support sequential navigation
-                    var viewableItems = _fileItems.Where(f => (f.IsImage || f.IsText) && !f.IsDirectory).ToList();
+                    // Sequential navigation - include all supported files in folder
+                    var viewableItems = _fileItems.Where(f => !f.IsDirectory && !f.IsParentDirectory).ToList();
                     _imageEntries = viewableItems.Select(f => new ImageEntry 
                     { 
                         DisplayName = f.Name, 
