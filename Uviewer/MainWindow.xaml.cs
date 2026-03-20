@@ -765,14 +765,14 @@ namespace Uviewer
                 {
                     TriggerEpubResize();
 
-                    // [수정] 텍스트 모드일 때 창 크기가 800x800 밑으로 내려가지 않도록 방지
-                    if (_isTextMode && !_isFullscreen)
+                    // [수정] 텍스트 또는 EPUB 모드일 때 창 크기가 800x600 밑으로 내려가지 않도록 방지
+                    if ((_isTextMode || _isEpubMode) && !_isFullscreen)
                     {
-                        if (sender.Size.Width < 800 || sender.Size.Height < 800)
+                        if (sender.Size.Width < 800 || sender.Size.Height < 600)
                         {
                             sender.Resize(new Windows.Graphics.SizeInt32(
                                 Math.Max(sender.Size.Width, 800),
-                                Math.Max(sender.Size.Height, 800)
+                                Math.Max(sender.Size.Height, 600)
                             ));
                         }
                     }
@@ -816,9 +816,9 @@ namespace Uviewer
 
         private void RootGrid_SizeChanged(object sender, SizeChangedEventArgs e)
         {
-            if (_isTextMode && _isSidebarVisible)
+            if ((_isTextMode || _isEpubMode) && _isSidebarVisible)
             {
-                // 텍스트 영역에 최소 500픽셀은 절대적으로 보장 (오류 방지 및 사이드바 억제)
+                // 텍스트/EPUB 영역에 최소 500픽셀은 절대적으로 보장 (오류 방지 및 사이드바 억제)
                 double minTextContentWidth = 500;
                 double maxSidebarWidth = e.NewSize.Width - minTextContentWidth;
 
@@ -847,7 +847,7 @@ namespace Uviewer
             }
         }
 
-        // [추가] 텍스트를 열 때 창 크기가 작으면 800x800 크기 이상으로 강제로 늘리는 메서드
+        // [추가] 텍스트를 열 때 창 크기가 작으면 800x600 크기 이상으로 강제로 늘리는 메서드
         private void EnsureMinWindowSizeForText()
         {
             if (_isFullscreen) return;
@@ -857,15 +857,15 @@ namespace Uviewer
             int newWidth = currentSize.Width;
             int newHeight = currentSize.Height;
 
-            // 절대적인 최소 창 크기를 800x800으로 강제
+            // 절대적인 최소 창 크기를 800x600으로 강제
             if (currentSize.Width < 800)
             {
                 newWidth = 800;
                 needsResize = true;
             }
-            if (currentSize.Height < 800)
+            if (currentSize.Height < 600)
             {
-                newHeight = 800;
+                newHeight = 600;
                 needsResize = true;
             }
 

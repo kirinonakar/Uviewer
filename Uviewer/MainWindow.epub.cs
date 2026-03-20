@@ -288,6 +288,9 @@ namespace Uviewer
             _isAozoraMode = false;
             _aozoraBlocks.Clear(); // Clear text/aozora cache
             _currentTextContent = ""; // Clear raw text
+
+            // [추가] EPUB 모드 진입 시 창 크기 검사 및 조정
+            EnsureMinWindowSizeForText();
             
             ImageArea.Visibility = Visibility.Collapsed;
             TextArea.Visibility = Visibility.Collapsed;
