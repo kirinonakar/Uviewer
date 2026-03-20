@@ -43,22 +43,14 @@ namespace Uviewer
                 {
                     e.Handled = true;
                     if (_isVerticalMode) NavigateVerticalPage(1);
-                    else
-                    {
-                        if (ShouldInvertControls) _ = NavigateEpubAsync(1);
-                        else _ = NavigateEpubAsync(-1);
-                    }
+                    else _ = NavigateEpubAsync(-1);
                     return;
                 }
                 else if (e.Key == Windows.System.VirtualKey.Right)
                 {
                     e.Handled = true;
                     if (_isVerticalMode) NavigateVerticalPage(-1);
-                    else
-                    {
-                        if (ShouldInvertControls) _ = NavigateEpubAsync(-1);
-                        else _ = NavigateEpubAsync(1);
-                    }
+                    else _ = NavigateEpubAsync(1);
                     return;
                 }
                 else if (e.Key == Windows.System.VirtualKey.G)

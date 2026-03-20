@@ -52,7 +52,9 @@ namespace Uviewer
         {
             if (_isVerticalMode)
             {
-                NavigateVerticalPage(-1);
+                // In vertical mode, the left button (Prev) should go to the Next page for EPUB
+                if (_isEpubMode) NavigateVerticalPage(1);
+                else NavigateVerticalPage(-1); // Default behavior for other modes
             }
             else if (_isEpubMode)
             {
@@ -79,7 +81,9 @@ namespace Uviewer
         {
             if (_isVerticalMode)
             {
-                NavigateVerticalPage(1);
+                // In vertical mode, the right button (Next) should go to the Previous page for EPUB
+                if (_isEpubMode) NavigateVerticalPage(-1);
+                else NavigateVerticalPage(1); // Default behavior for other modes
             }
             else if (_isEpubMode)
             {
