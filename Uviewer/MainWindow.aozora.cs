@@ -948,7 +948,7 @@ private (string text, List<(int start, int length)> boldRanges) ParseTableInline
             };
 
             float indent = (float)(block.BlockIndent > 0 ? block.BlockIndent : block.Margin.Left);
-            float actualAvailableWidth = availableWidth - indent;
+            float actualAvailableWidth = availableWidth - indent - (float)block.Margin.Right;
             if (actualAvailableWidth < 100) actualAvailableWidth = 100;
 
             using var layout = new CanvasTextLayout(device, text, format, actualAvailableWidth, 0.0f);
@@ -1136,7 +1136,7 @@ private (string text, List<(int start, int length)> boldRanges) ParseTableInline
 
                 string blockText = sb.ToString();
                 float indent = (float)(block.BlockIndent > 0 ? block.BlockIndent : block.Margin.Left);
-                float actualMaxWidth = maxWidth - indent;
+                float actualMaxWidth = maxWidth - indent - (float)block.Margin.Right;
 
                 using var format = new CanvasTextFormat
                 {
@@ -1165,8 +1165,8 @@ private (string text, List<(int start, int length)> boldRanges) ParseTableInline
 
                 var bounds = textLayout.LayoutBounds;
                 float drawX = marginLeft + indent;
-                if (block.Alignment == TextAlignment.Center) drawX = (float)((size.Width - bounds.Width) / 2);
-                else if (block.Alignment == TextAlignment.Right) drawX = (float)(size.Width - bounds.Width - 40);
+                if (block.Alignment == TextAlignment.Center) drawX = marginLeft + (maxWidth - (float)bounds.Width) / 2;
+                else if (block.Alignment == TextAlignment.Right) drawX = marginLeft + maxWidth - (float)bounds.Width - (float)block.Margin.Right;
 
                 bool isKeigakomi = block.BorderThickness.Top > 0 && block.BorderThickness.Bottom > 0 && block.BorderThickness.Left > 0 && block.BorderThickness.Right > 0;
                 float currentW = (float)bounds.Width;

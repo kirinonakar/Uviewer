@@ -250,7 +250,7 @@ namespace Uviewer
                 else if (content.Contains("［＃地から３字上げ］"))
                 {
                     model.Alignment = TextAlignment.Right;
-                    model.Margin = new Thickness(0, 0, 60, 0);
+                    model.Margin = new Thickness(0, 0, 3 * _textFontSize, 0);
                     content = content.Replace("［＃地から３字上げ］", "");
                 }
 
