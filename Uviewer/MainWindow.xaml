@@ -707,7 +707,15 @@
                 <!-- Image host for EPUB image pages -->
                 <Grid x:Name="EpubImageHost" Visibility="Collapsed"
                       HorizontalAlignment="Stretch" VerticalAlignment="Stretch">
-                    <Image x:Name="EpubImageDisplay" Stretch="Uniform"
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition x:Name="EpubImageLeftColumn" Width="*"/>
+                        <ColumnDefinition x:Name="EpubImageRightColumn" Width="0"/>
+                    </Grid.ColumnDefinitions>
+                    <Image x:Name="EpubImageDisplay" Grid.Column="0" Grid.ColumnSpan="2" Stretch="Uniform"
+                           HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                    <Image x:Name="EpubImageDisplayLeft" Grid.Column="0" Stretch="Uniform" Visibility="Collapsed"
+                           HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                    <Image x:Name="EpubImageDisplayRight" Grid.Column="1" Stretch="Uniform" Visibility="Collapsed"
                            HorizontalAlignment="Center" VerticalAlignment="Center"/>
                 </Grid>
                 <!-- Touch Overlay for Page Navigation (left half = prev, right half = next) -->

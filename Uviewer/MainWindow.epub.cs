@@ -954,20 +954,50 @@ namespace Uviewer
             EpubTextCanvas.Visibility = Visibility.Collapsed;
             EpubImageHost.Visibility = Visibility.Visible;
 
-            if (_epubImageCache.TryGetValue(page.ImagePath, out var bitmap) && bitmap != null)
+            if (!_isSideBySideMode || !_isEpubShowingTwoPages)
             {
-                var bitmapImage = new BitmapImage();
-                // CanvasBitmap to BitmapImage: use stream
-                _ = LoadBitmapToImageDisplayAsync(page.ImagePath);
+                // Single image mode
+                EpubImageDisplay.Visibility = Visibility.Visible;
+                EpubImageDisplayLeft.Visibility = Visibility.Collapsed;
+                EpubImageDisplayRight.Visibility = Visibility.Collapsed;
+                EpubImageLeftColumn.Width = new GridLength(1, GridUnitType.Star);
+                EpubImageRightColumn.Width = new GridLength(0);
+
+                EpubImageDisplay.Source = null;
+                _ = LoadBitmapToImageDisplayAsync(page.ImagePath, EpubImageDisplay);
             }
             else
             {
-                EpubImageDisplay.Source = null;
-                _ = LoadEpubImageForWin2DAsync(page.ImagePath);
+                // Side-by-side mode
+                EpubImageDisplay.Visibility = Visibility.Collapsed;
+                EpubImageDisplayLeft.Visibility = Visibility.Visible;
+                EpubImageDisplayRight.Visibility = Visibility.Visible;
+                EpubImageLeftColumn.Width = new GridLength(1, GridUnitType.Star);
+                EpubImageRightColumn.Width = new GridLength(1, GridUnitType.Star);
+
+                int nextChapIndex = _currentEpubChapterIndex;
+                int nextPgIndex = _currentEpubPageIndex + 1;
+                if (nextPgIndex >= _epubWin2DPages.Count) { nextChapIndex++; nextPgIndex = 0; }
+                var pg2 = GetEpubWin2DPage(nextChapIndex, nextPgIndex);
+
+                bool actualNextImageOnRight = _nextImageOnRight;
+                // Note: EPUB often follows LTR, but we can respect user setting
+
+                Image targetLeft = actualNextImageOnRight ? EpubImageDisplayLeft : EpubImageDisplayRight;
+                Image targetRight = actualNextImageOnRight ? EpubImageDisplayRight : EpubImageDisplayLeft;
+
+                targetLeft.Source = null;
+                targetRight.Source = null;
+
+                _ = LoadBitmapToImageDisplayAsync(page.ImagePath, targetLeft);
+                if (pg2 != null && pg2.IsImagePage)
+                {
+                    _ = LoadBitmapToImageDisplayAsync(pg2.ImagePath, targetRight);
+                }
             }
         }
 
-        private async Task LoadBitmapToImageDisplayAsync(string imagePath)
+        private async Task LoadBitmapToImageDisplayAsync(string imagePath, Image targetImage)
         {
             try
             {
@@ -992,7 +1022,7 @@ namespace Uviewer
                 ras.Seek(0);
                 var bitmapImage = new BitmapImage();
                 await bitmapImage.SetSourceAsync(ras);
-                EpubImageDisplay.Source = bitmapImage;
+                targetImage.Source = bitmapImage;
             }
             catch { }
         }
@@ -1254,13 +1284,14 @@ namespace Uviewer
                 {
                     _currentEpubChapterIndex = index;
                     var blocks = await GetEpubChapterAsAozoraBlocksAsync(index);
-                    if (_isSideBySideMode && blocks.Count > 0 && blocks.All(b => b.HasImage))
+                    if (_isSideBySideMode && blocks.Count > 0 && blocks.Any(b => b.HasImage))
                     {
+                        // 이미지 챕터인 경우(혹은 이미지가 포함된 경우) 다음 챕터도 이미지면 가져옴
                         int nextIdx = index + 1;
                         if (nextIdx < _epubSpine.Count)
                         {
                             var nextBlocks = await GetEpubChapterAsAozoraBlocksAsync(nextIdx);
-                            if (nextBlocks.Count > 0 && nextBlocks[0].HasImage)
+                            if (nextBlocks.Count > 0 && nextBlocks.Any(b => b.HasImage))
                                 blocks.AddRange(nextBlocks);
                         }
                     }
@@ -1330,8 +1361,6 @@ namespace Uviewer
             {
                 _isEpubShowingTwoPages = false;
                 EpubTextCanvas.Visibility = Visibility.Collapsed;
-                ShowEpubImagePage(page);
-
                 // 연속 이미지 SBS 처리
                 if (_isSideBySideMode)
                 {
@@ -1342,9 +1371,9 @@ namespace Uviewer
                     if (pg2 != null && pg2.IsImagePage)
                     {
                         _isEpubShowingTwoPages = true;
-                        // 이미지는 EpubImageDisplay가 Grid에 있으면서 SBS는 모드지원 안함
                     }
                 }
+                ShowEpubImagePage(page);
             }
             else
             {
