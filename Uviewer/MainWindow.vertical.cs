@@ -242,8 +242,9 @@ namespace Uviewer
                     int bestStart = Math.Max(0, targetIdx - 1);
                     int currentTest = bestStart;
 
-                    float availWidth = (float)(VerticalTextCanvas?.ActualWidth ?? 1000) - 80;
-                    float availHeight = (float)(VerticalTextCanvas?.ActualHeight ?? 800) - 80;
+                    // 세로 모드 렌더링 마진인 좌우(-40), 상하(-40)와 완전히 동일하게 변경
+                    float availWidth = (float)(VerticalTextCanvas?.ActualWidth ?? 1000) - 40;
+                    float availHeight = (float)(VerticalTextCanvas?.ActualHeight ?? 800) - 40;
                     var device = VerticalTextCanvas?.Device ?? Microsoft.Graphics.Canvas.CanvasDevice.GetSharedDevice();
 
                     int safetyLimit = Math.Max(0, targetIdx - 1000);
@@ -281,7 +282,8 @@ namespace Uviewer
                         if (_aozoraBlocks[mid].SourceLineNumber == targetLine)
                         {
                             startIdx = mid;
-                            break;
+                            // [수정] 동일한 라인의 여러 조각 중 가장 첫 번째 조각을 찾기 위해 탐색을 멈추지 않고 계속 진행
+                            right = mid - 1; 
                         }
                         else if (_aozoraBlocks[mid].SourceLineNumber < targetLine)
                         {
@@ -1003,8 +1005,9 @@ namespace Uviewer
                     int bestStart = Math.Max(0, targetIdx - 1);
                     int currentTest = bestStart;
 
-                    float availWidth = (float)(VerticalTextCanvas?.ActualWidth ?? 1000) - 80;
-                    float availHeight = (float)(VerticalTextCanvas?.ActualHeight ?? 800) - 80;
+                    // 세로 모드 렌더링 마진인 좌우(-40), 상하(-40)와 완전히 동일하게 변경
+                    float availWidth = (float)(VerticalTextCanvas?.ActualWidth ?? 1000) - 40;
+                    float availHeight = (float)(VerticalTextCanvas?.ActualHeight ?? 800) - 40;
                     var device = VerticalTextCanvas?.Device ?? Microsoft.Graphics.Canvas.CanvasDevice.GetSharedDevice();
 
                     // 💡 [수정] 박스나 긴 단락 대비 탐색 한계치를 1000블록으로 넉넉하게 잡습니다.

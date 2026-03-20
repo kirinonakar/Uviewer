@@ -109,8 +109,13 @@ namespace Uviewer
 
             if (_isAozoraMode)
             {
+                // [추가] 수직 모드가 활성화되어 있다면 수직 모드의 현재 라인을 가장 먼저 우선시해야 함
+                if (_isVerticalMode && _currentVerticalPageInfo.Blocks != null && _currentVerticalPageInfo.Blocks.Count > 0)
+                {
+                    currentLine = _currentVerticalPageInfo.StartLine;
+                }
                 // [수정] 가로 렌더링 대기 라인을 우선 확인
-                if (_aozoraPendingTargetLine > 1)
+                else if (_aozoraPendingTargetLine > 1)
                 {
                     currentLine = _aozoraPendingTargetLine;
                 }
@@ -202,13 +207,6 @@ namespace Uviewer
 {
     try
     {
-        // 1. 상태 초기화 (UI 스레드)
-        _currentAozoraStartBlockIndex = 0;
-        _currentAozoraEndBlockIndex = 0;
-        _aozoraImageCache.Clear();
-        _currentAozoraPageInfo = new AozoraPageInfo { Blocks = new List<AozoraBindingModel>(), StartLine = 1 };
-        _aozoraNavHistory.Clear();
-
         if (_aozoraPendingTargetLine != 1)
         {
             targetLine = _aozoraPendingTargetLine;
@@ -234,6 +232,64 @@ namespace Uviewer
         }
 
         _isMarkdownRenderMode = isMarkdown;
+
+        // [핵심 추가] 이미 파싱된 블록이 존재한다면 불필요한 재파싱을 생략하여 첫 페이지로 튀는 현상 완벽 방지
+        if (_aozoraBlocks != null && _aozoraBlocks.Count > 0)
+        {
+            int startIdx = 0;
+            if (targetLine > 1)
+            {
+                // O(log N) 이진 탐색으로 즉시 탐색
+                int left = 0;
+                int right = _aozoraBlocks.Count - 1;
+                
+                while (left <= right)
+                {
+                    int mid = left + (right - left) / 2;
+                    if (_aozoraBlocks[mid].SourceLineNumber == targetLine)
+                    {
+                        startIdx = mid;
+                        right = mid - 1; // 동일한 라인 넘버 중 가장 첫 번째 블록을 찾기 위함
+                    }
+                    else if (_aozoraBlocks[mid].SourceLineNumber < targetLine)
+                    {
+                        startIdx = mid;
+                        left = mid + 1;
+                    }
+                    else
+                    {
+                        right = mid - 1;
+                    }
+                }
+            }
+            else if (targetLine < 0)
+            {
+                int targetPage = -targetLine;
+                startIdx = Math.Min((targetPage - 1) * 30, Math.Max(0, _aozoraBlocks.Count - 1));
+            }
+
+            _currentAozoraStartBlockIndex = startIdx;
+
+            if (AozoraTextCanvas != null)
+            {
+                AozoraTextCanvas.Visibility = Visibility.Visible;
+                if (AozoraTextCanvas.ActualHeight == 0 || AozoraTextCanvas.ActualWidth == 0)
+                {
+                    await Task.Delay(50);
+                }
+            }
+
+            RenderAozoraDynamicPage(_currentAozoraStartBlockIndex);
+            _aozoraPendingTargetLine = 1;
+            StartAozoraPageCalculationAsync();
+            UpdateAozoraStatusBar();
+            return; // 재파싱 없이 함수 즉시 종료
+        }
+
+        // 블록이 없다면 기존 파싱 로직 실행하기 위한 초기화
+        _currentAozoraStartBlockIndex = 0;
+        _currentAozoraEndBlockIndex = 0;
+        _currentAozoraPageInfo = new AozoraPageInfo { Blocks = new List<AozoraBindingModel>(), StartLine = 1 };
 
         // 2. 전체 데이터 백그라운드 파싱 (UI 프리징 방지)
         await Task.Run(() =>
@@ -1130,7 +1186,7 @@ private (string text, List<(int start, int length)> boldRanges) ParseTableInline
                     int currentTest = bestStart;
 
                     float availWidth = (float)(AozoraTextCanvas?.ActualWidth ?? 1000) - 80;
-                    float availHeight = (float)(AozoraTextCanvas?.ActualHeight ?? 800) - 80;
+                    float availHeight = (float)(AozoraTextCanvas?.ActualHeight ?? 800) - 40; // 렌더링 마진(-40)과 일치하도록 변경
                     float maxWidth = _isMarkdownRenderMode ? availWidth : Math.Min(availWidth, (float)GetUrlMaxWidth());
                     var device = AozoraTextCanvas?.Device ?? CanvasDevice.GetSharedDevice();
 
