@@ -193,6 +193,7 @@ namespace Uviewer
             _verticalImageCache.Clear();
             _verticalNavHistory.Clear();
             _pendingVerticalScrollLine = targetLine;
+            ClearBackwardCache(); // <-- 캐시 초기화 추가
 
             // [수정] 이전 챕터의 잔여 데이터로 인한 무한 루프 방지를 위해 상태 초기화
             _currentVerticalPageInfo = new VerticalPageInfo { Blocks = new List<AozoraBindingModel>(), StartLine = 1 };
@@ -226,32 +227,12 @@ namespace Uviewer
                 if (targetLine == 999999 && _aozoraBlocks.Count > 0)
                 {
                     int targetIdx = _aozoraBlocks.Count;
-                    int bestStart = Math.Max(0, targetIdx - 1);
-                    int currentTest = bestStart;
-
-                    // 세로 모드 렌더링 마진인 좌우(-40), 상하(-40)와 완전히 동일하게 변경
                     float availWidth = (float)(VerticalTextCanvas?.ActualWidth ?? 1000) - 40;
                     float availHeight = (float)(VerticalTextCanvas?.ActualHeight ?? 800) - 40;
                     var device = VerticalTextCanvas?.Device ?? Microsoft.Graphics.Canvas.CanvasDevice.GetSharedDevice();
 
-                    int safetyLimit = Math.Max(0, targetIdx - 1000);
-
-                    while (currentTest >= safetyLimit)
-                    {
-                        int tempIdx = currentTest;
-                        PaginateAozoraPage(ref tempIdx, _aozoraBlocks, availWidth, availHeight, device);
-                        
-                        // 화면을 꽉 채우고 남을 때까지 1줄씩 역추산
-                        if (tempIdx < targetIdx && currentTest < bestStart)
-                        {
-                            break;
-                        }
-
-                        bestStart = currentTest;
-                        if (currentTest == 0) break;
-                        currentTest--;
-                    }
-                    startIdx = bestStart;
+                    // 기존 while 루프를 지우고 단 한 줄로 교체
+                    startIdx = FindPreviousPageStart(targetIdx, _aozoraBlocks, availWidth, availHeight, device, true);
                 }
                 else if (targetLine < 0) 
                 {
@@ -348,6 +329,7 @@ namespace Uviewer
 
             VerticalTextCanvas.Invalidate();
             UpdateVerticalStatusBar();
+            StartBackwardPageCaching(_currentVerticalStartBlockIndex, true); // <-- 현재 페이지 렌더링 직후 백그라운드 캐싱 시작
         }
 
         private async void StartVerticalPageCalculationAsync()
@@ -989,34 +971,18 @@ namespace Uviewer
                 else if (blocks != null && _currentVerticalStartBlockIndex > 0)
                 {
                     int targetIdx = _currentVerticalStartBlockIndex;
-                    int bestStart = Math.Max(0, targetIdx - 1);
-                    int currentTest = bestStart;
+                    int bestStart = 0;
 
-                    // 세로 모드 렌더링 마진인 좌우(-40), 상하(-40)와 완전히 동일하게 변경
-                    float availWidth = (float)(VerticalTextCanvas?.ActualWidth ?? 1000) - 40;
-                    float availHeight = (float)(VerticalTextCanvas?.ActualHeight ?? 800) - 40;
-                    var device = VerticalTextCanvas?.Device ?? Microsoft.Graphics.Canvas.CanvasDevice.GetSharedDevice();
-
-                    // 💡 [수정] 박스나 긴 단락 대비 탐색 한계치를 1000블록으로 넉넉하게 잡습니다.
-                    int safetyLimit = Math.Max(0, targetIdx - 1000); 
-
-                    while (currentTest >= safetyLimit)
+                    lock (_backwardPageCache)
                     {
-                        int tempIdx = currentTest;
-                        PaginateAozoraPage(ref tempIdx, blocks, availWidth, availHeight, device);
-                        
-                        // tempIdx가 targetIdx에 도달하지 못했다면, 
-                        // currentTest부터 시작하여 채운 페이지가 targetIdx 직전에 꽉 차버렸음을 의미합니다.
-                        if (tempIdx < targetIdx && currentTest < bestStart)
+                        if (!_backwardPageCache.TryGetValue(targetIdx, out bestStart))
                         {
-                            break;
+                            float availWidth = (float)(VerticalTextCanvas?.ActualWidth ?? 1000) - 40;
+                            float availHeight = (float)(VerticalTextCanvas?.ActualHeight ?? 800) - 40;
+                            var device = VerticalTextCanvas?.Device ?? Microsoft.Graphics.Canvas.CanvasDevice.GetSharedDevice();
+                            
+                            bestStart = FindPreviousPageStart(targetIdx, blocks, availWidth, availHeight, device, true);
                         }
-
-                        bestStart = currentTest;
-                        if (currentTest == 0) break;
-                        
-                        // 💡 [핵심] 단락 처음으로 무조건 건너뛰는 코드를 삭제하고 1줄씩 뒤로 이동합니다.
-                        currentTest--;
                     }
 
                     RenderVerticalDynamicPage(bestStart);
@@ -1101,6 +1067,7 @@ namespace Uviewer
         {
             if (_isVerticalMode && (!string.IsNullOrEmpty(_currentTextContent) || _isEpubMode))
             {
+                ClearBackwardCache(); // <-- 화면 크기 변경 시 캐시 지우기
                 var blocks = _aozoraBlocks;
                 if (_isEpubMode && (blocks == null || blocks.Count == 0)) return;
 
