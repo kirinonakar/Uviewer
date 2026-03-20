@@ -377,4 +377,7 @@
   <data name="AutoDoublePageForArchive" xml:space="preserve">
     <value>圧縮ファイル内自動2枚表示</value>
   </data>
+  <data name="FolderEmpty" xml:space="preserve">
+    <value>フォルダが空です。</value>
+  </data>
 </root>

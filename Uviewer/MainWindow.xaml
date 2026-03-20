@@ -714,9 +714,9 @@
                     <Image x:Name="EpubImageDisplay" Grid.Column="0" Grid.ColumnSpan="2" Stretch="Uniform"
                            HorizontalAlignment="Center" VerticalAlignment="Center"/>
                     <Image x:Name="EpubImageDisplayLeft" Grid.Column="0" Stretch="Uniform" Visibility="Collapsed"
-                           HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                           HorizontalAlignment="Right" VerticalAlignment="Center"/>
                     <Image x:Name="EpubImageDisplayRight" Grid.Column="1" Stretch="Uniform" Visibility="Collapsed"
-                           HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                           HorizontalAlignment="Left" VerticalAlignment="Center"/>
                 </Grid>
                 <!-- Touch Overlay for Page Navigation (left half = prev, right half = next) -->
                 <Grid x:Name="EpubTouchOverlay" 

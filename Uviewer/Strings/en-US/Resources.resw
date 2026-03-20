@@ -377,4 +377,7 @@
   <data name="AutoDoublePageForArchive" xml:space="preserve">
     <value>Auto Side-by-Side in Archive</value>
   </data>
+  <data name="FolderEmpty" xml:space="preserve">
+    <value>Folder is empty.</value>
+  </data>
 </root>

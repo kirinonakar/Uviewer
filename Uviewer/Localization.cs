@@ -122,6 +122,7 @@ namespace Uviewer
         public static string PinTooltip => GetString("PinTooltip");
         public static string AlwaysOnTopTooltip => GetString("AlwaysOnTopTooltip");
         public static string AutoDoublePageForArchive => GetString("AutoDoublePageForArchive");
+        public static string FolderEmpty => GetString("FolderEmpty");
 
         public static void Reload()
         {

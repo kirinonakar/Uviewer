@@ -145,15 +145,28 @@ namespace Uviewer
             }
         }
 
-        private async Task LoadEpubEntryAsync(ImageEntry entry)
+        private async Task LoadEpubEntryAsync(ImageEntry entry, CancellationToken token = default)
         {
-            if (entry.FilePath == null) return;
-
             try
             {
-                var file = await StorageFile.GetFileFromPathAsync(entry.FilePath);
-                await LoadEpubFileAsync(file);
+                if (entry.FilePath != null)
+                {
+                    var file = await StorageFile.GetFileFromPathAsync(entry.FilePath);
+                    await LoadEpubFileAsync(file);
+                }
+                else if (entry.IsWebDavEntry && _isWebDavMode)
+                {
+                    FileNameText.Text = $"EPUB 다운로드 중: {entry.DisplayName}...";
+                    var tempPath = await _webDavService.DownloadToTempFileAsync(entry.WebDavPath!, token);
+                    if (!string.IsNullOrEmpty(tempPath) && !token.IsCancellationRequested)
+                    {
+                        entry.FilePath = tempPath;
+                        var file = await StorageFile.GetFileFromPathAsync(tempPath);
+                        await LoadEpubFileAsync(file);
+                    }
+                }
             }
+            catch (OperationCanceledException) { }
             catch (Exception ex)
             {
                 FileNameText.Text = Strings.EpubLoadError(ex.Message);

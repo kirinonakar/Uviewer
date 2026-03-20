@@ -60,7 +60,7 @@ namespace Uviewer
             }
             else if (IsEpubEntry(entry))
             {
-                await LoadEpubEntryAsync(entry);
+                await LoadEpubEntryAsync(entry, token);
                 await AddToRecentAsync(false);
             }
             else

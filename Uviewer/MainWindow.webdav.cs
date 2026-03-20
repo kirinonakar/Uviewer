@@ -351,6 +351,15 @@ namespace Uviewer
                 var items = await _webDavService.ListFolderAsync(remotePath, token);
                 if (token.IsCancellationRequested) return;
 
+                if (items.Count == 0 && remotePath != "/")
+                {
+                    ShowNotification(Strings.FolderEmpty);
+                }
+                else if (items.Count == 0 && remotePath == "/")
+                {
+                    FileNameText.Text = "WebDAV: 원격 서버에 파일이 없거나 경로가 잘못되었습니다.";
+                }
+
                 foreach (var item in items)
                 {
                     var name = item.Name;

@@ -377,4 +377,7 @@
   <data name="AutoDoublePageForArchive" xml:space="preserve">
     <value>압축파일 자동 2장보기</value>
   </data>
+  <data name="FolderEmpty" xml:space="preserve">
+    <value>폴더가 비어 있습니다.</value>
+  </data>
 </root>

@@ -141,6 +141,10 @@ namespace Uviewer
                 // 구 방식: UserName이 실제 ID임 (하위 호환 유지)
 
                 // URL에서 address와 port 추출
+                if (!resourceUrl.StartsWith("http", StringComparison.OrdinalIgnoreCase))
+                {
+                    resourceUrl = "https://" + resourceUrl;
+                }
                 var uri = new Uri(resourceUrl);
 
                 return new WebDavServerInfo
@@ -346,6 +350,9 @@ namespace Uviewer
                 if (!remotePath.EndsWith("/"))
                     remotePath += "/";
 
+                string baseUrl = _httpClient?.BaseAddress?.ToString() ?? "";
+                string baseUrlAlt = baseUrl.TrimEnd('/');
+
                 var result = await _webDavClient.Propfind(remotePath, new PropfindParameters
                 {
                     Headers = new List<KeyValuePair<string, string>>
@@ -363,14 +370,29 @@ namespace Uviewer
 
                 foreach (var resource in result.Resources)
                 {
-                    // Skip the directory itself
-                    var resourcePath = Uri.UnescapeDataString(resource.Uri ?? "");
-                    var normalizedRemotePath = Uri.UnescapeDataString(remotePath ?? "");
+                    var rawUri = resource.Uri ?? "";
+                    string resourcePath = Uri.UnescapeDataString(rawUri);
 
-                    if (resourcePath.TrimEnd('/') == normalizedRemotePath.TrimEnd('/'))
+                    // Remove full URL if present to get path only
+                    if (!string.IsNullOrEmpty(baseUrl) && resourcePath.StartsWith(baseUrl, StringComparison.OrdinalIgnoreCase))
+                    {
+                        resourcePath = resourcePath.Substring(baseUrl.Length);
+                    }
+                    else if (!string.IsNullOrEmpty(baseUrlAlt) && resourcePath.StartsWith(baseUrlAlt, StringComparison.OrdinalIgnoreCase))
+                    {
+                        resourcePath = resourcePath.Substring(baseUrlAlt.Length);
+                    }
+
+                    if (!resourcePath.StartsWith("/")) resourcePath = "/" + resourcePath;
+
+                    var normalizedRemotePath = Uri.UnescapeDataString(remotePath ?? "");
+                    if (!normalizedRemotePath.StartsWith("/")) normalizedRemotePath = "/" + normalizedRemotePath;
+
+                    // Skip the directory itself (case-insensitive for some servers)
+                    if (resourcePath.TrimEnd('/').Equals(normalizedRemotePath.TrimEnd('/'), StringComparison.OrdinalIgnoreCase))
                         continue;
 
-                    var name = resourcePath.TrimEnd('/').Split('/').LastOrDefault() ?? "";
+                    var name = resource.DisplayName ?? resourcePath.TrimEnd('/').Split('/').LastOrDefault() ?? "";
                     if (string.IsNullOrEmpty(name)) continue;
 
                     items.Add(new WebDavItem
