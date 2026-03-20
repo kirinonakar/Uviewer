@@ -42,6 +42,44 @@ namespace Uviewer
         private System.Threading.CancellationTokenSource? _backwardCacheCts;
         private Dictionary<int, int> _backwardPageCache = new();
 
+        // 캐시 무효화를 위한 상태 저장 (완벽한 방어)
+        private float _lastCacheWidth = 0;
+        private float _lastCacheHeight = 0;
+        private double _lastCacheFontSize = 0;
+        private bool _lastCacheIsVertical = false;
+        private List<AozoraBindingModel>? _lastCachedBlocksRef = null;
+        private int _lastCachedTargetIdx = -1;
+
+        private void ValidateBackwardCache(float width, float height, double fontSize, bool isVertical, int currentIdx)
+        {
+            // 1. 레이아웃 변경 (창 크기, 폰트, 모드)
+            bool layoutChanged = Math.Abs(_lastCacheWidth - width) > 1f ||
+                                 Math.Abs(_lastCacheHeight - height) > 1f ||
+                                 Math.Abs(_lastCacheFontSize - fontSize) > 0.01 ||
+                                 _lastCacheIsVertical != isVertical;
+                                 
+            // 2. 문서 또는 챕터 변경 (배열 참조값 자체가 달라짐 = EPUB 챕터 이동 등)
+            bool documentChanged = _lastCachedBlocksRef != _aozoraBlocks;
+            
+            // 3. 비정상적인 점프 (갑자기 300블록 이상 건너뜀 = 목차 이동, 북마크 등)
+            bool jumped = _lastCachedTargetIdx >= 0 && Math.Abs(currentIdx - _lastCachedTargetIdx) > 300; 
+
+            if (layoutChanged || documentChanged || jumped)
+            {
+                ClearBackwardCache();
+                _aozoraNavHistory?.Clear();   // 잔재하는 히스토리 완벽 파기
+                _verticalNavHistory?.Clear(); // 잔재하는 히스토리 완벽 파기
+
+                _lastCacheWidth = width;
+                _lastCacheHeight = height;
+                _lastCacheFontSize = fontSize;
+                _lastCacheIsVertical = isVertical;
+                _lastCachedBlocksRef = _aozoraBlocks;
+            }
+            
+            _lastCachedTargetIdx = currentIdx;
+        }
+
         private void ClearBackwardCache()
         {
             _backwardCacheCts?.Cancel();
@@ -51,39 +89,36 @@ namespace Uviewer
             }
         }
 
-        // O(log K) 이진 탐색을 통해 가장 정확한 이전 페이지 시작점을 즉시 찾아냅니다. (정방향 전체 인덱싱 안 함)
-        private int FindPreviousPageStart(int targetIdx, List<AozoraBindingModel> blocks, float availWidth, float availHeight, Microsoft.Graphics.Canvas.CanvasDevice device, bool isVertical)
+        // O(log K) 이진 탐색을 제거하고, 가장 정확한 역방향 순차 탐색으로 교체합니다.
+        // 1페이지 분량(약 30~50블록)만 탐색하고 즉시 종료되므로 매우 빠르며, 
+        // 백그라운드 캐시와 결합되어 딜레이가 전혀 발생하지 않습니다.
+        // O(log K) 이진 탐색을 제거하고, 가장 정확한 역방향 순차 스캔 방식으로 수정
+        private int FindPreviousPageStart(int targetIdx, List<AozoraBindingModel> blocks, float maxWidth, float availHeight, Microsoft.Graphics.Canvas.ICanvasResourceCreator device, bool isVertical)
         {
             if (targetIdx <= 0) return 0;
 
-            // 최대 200블록(절대 1페이지를 넘을 수 없는 넉넉한 수치) 내에서 이진 탐색
-            int safetyLimit = Math.Max(0, targetIdx - 200); 
-            int bestStart = targetIdx - 1;
+            int bestStart = Math.Max(0, targetIdx - 1);
+            int scanStart = Math.Max(0, targetIdx - 1);
+            int safetyLimit = 300; // 가독성/성능을 위한 스캔 범위 제한
 
-            int left = safetyLimit;
-            int right = targetIdx - 1;
-
-            while (left <= right)
+            // targetIdx 바로 직전 블록부터 거꾸로 올라가며 '한 페이지 분량'을 꽉 채우는 지점 찾기
+            for (int i = scanStart; i >= 0 && safetyLimit > 0; i--, safetyLimit--)
             {
-                int mid = left + (right - left) / 2;
-                int tempIdx = mid;
+                int tempIdx = i;
+                var pageBlocks = isVertical
+                    ? PaginateAozoraPage(ref tempIdx, blocks, maxWidth, availHeight, device as Microsoft.Graphics.Canvas.CanvasDevice)
+                    : PaginateHorizontalAozoraPage(ref tempIdx, blocks, maxWidth, availHeight, device as Microsoft.Graphics.Canvas.CanvasDevice);
 
-                if (isVertical)
-                    PaginateAozoraPage(ref tempIdx, blocks, availWidth, availHeight, device);
-                else
-                    PaginateHorizontalAozoraPage(ref tempIdx, blocks, availWidth, availHeight, device);
-
-                // mid에서 시작했을 때 타겟(targetIdx)에 도달하거나 덮었다면, 
-                // 시작점을 더 앞으로(작게) 당겨서 꽉 채울 수 있는지 확인합니다.
+                // 이 시작점(i)에서 나열했을 때, 끝나는 지점(tempIdx)이 targetIdx보다 뒤거나 같다면
+                // 즉, targetIdx를 포함하거나 넘어서는 한 페이지가 만들어진다면 이곳이 '이전 페이지'의 후보입니다.
                 if (tempIdx >= targetIdx)
                 {
-                    bestStart = mid;
-                    right = mid - 1; 
+                    bestStart = i;
                 }
                 else
                 {
-                    // 타겟에 미치지 못했다면(페이지가 중간에 꽉 차버림), 시작점이 너무 앞이므로 뒤로(크게) 밉니다.
-                    left = mid + 1;
+                    // 만약 끝나는 지점이 targetIdx보다 앞이라면, 더 이상 거꾸로 올라가도 targetIdx에 닿지 않으므로 중단
+                    break;
                 }
             }
             return bestStart;
@@ -98,7 +133,6 @@ namespace Uviewer
 
             if (currentStartIdx <= 0 || _aozoraBlocks == null || _aozoraBlocks.Count == 0) return;
 
-            // UI 스레드에서 파라미터 사전 확보
             float availWidth = isVertical ? (float)(VerticalTextCanvas?.ActualWidth ?? 1000) - 40 : (float)(AozoraTextCanvas?.ActualWidth ?? 1000) - 80;
             float availHeight = isVertical ? (float)(VerticalTextCanvas?.ActualHeight ?? 800) - 40 : (float)(AozoraTextCanvas?.ActualHeight ?? 800) - 40;
             var device = isVertical ? VerticalTextCanvas?.Device : AozoraTextCanvas?.Device;
@@ -107,6 +141,9 @@ namespace Uviewer
             float maxWidth = availWidth;
             if (!isVertical)
                 maxWidth = _isMarkdownRenderMode ? availWidth : Math.Min(availWidth, (float)GetUrlMaxWidth());
+
+            // 💡 백그라운드 캐싱 시작 전 무조건 유효성 검증
+            ValidateBackwardCache(maxWidth, availHeight, _textFontSize, isVertical, currentStartIdx);
 
             var blocks = _aozoraBlocks;
 
@@ -127,7 +164,7 @@ namespace Uviewer
                         _backwardPageCache[targetIdx] = prevStart;
                     }
 
-                    if (prevStart >= targetIdx) break; // 무한 루프 방지
+                    if (prevStart >= targetIdx) break; 
                     targetIdx = prevStart;
                 }
             }, token);
@@ -1264,34 +1301,32 @@ private (string text, List<(int start, int length)> boldRanges) ParseTableInline
             {
                 if (_currentAozoraEndBlockIndex < _aozoraBlocks.Count - 1)
                 {
-                    _aozoraNavHistory.Push(_currentAozoraStartBlockIndex);
+                    // 💡 History Push 완전히 제거됨
                     RenderAozoraDynamicPage(_currentAozoraEndBlockIndex + 1);
                     UpdateAozoraStatusBar();
                 }
             }
             else if (direction < 0)
             {
-                if (_aozoraNavHistory.Count > 0)
-                {
-                    int prevIdx = _aozoraNavHistory.Pop();
-                    RenderAozoraDynamicPage(prevIdx);
-                    UpdateAozoraStatusBar();
-                }
-                else if (_currentAozoraStartBlockIndex > 0)
+                if (_currentAozoraStartBlockIndex > 0)
                 {
                     int targetIdx = _currentAozoraStartBlockIndex;
                     int bestStart = 0;
-                    // 캐시를 먼저 확인하고, 없으면 이진 탐색 수행
+
+                    float availWidth = (float)(AozoraTextCanvas?.ActualWidth ?? 1000) - 80;
+                    float availHeight = (float)(AozoraTextCanvas?.ActualHeight ?? 800) - 40;
+                    float maxWidth = _isMarkdownRenderMode ? availWidth : Math.Min(availWidth, (float)GetUrlMaxWidth());
+                    var device = AozoraTextCanvas?.Device ?? Microsoft.Graphics.Canvas.CanvasDevice.GetSharedDevice();
+
+                    // 💡 이동 전 캐시 유효성 철저히 검증
+                    ValidateBackwardCache(maxWidth, availHeight, _textFontSize, false, targetIdx);
+
                     lock (_backwardPageCache)
                     {
                         if (!_backwardPageCache.TryGetValue(targetIdx, out bestStart))
                         {
-                            float availWidth = (float)(AozoraTextCanvas?.ActualWidth ?? 1000) - 80;
-                            float availHeight = (float)(AozoraTextCanvas?.ActualHeight ?? 800) - 40;
-                            float maxWidth = _isMarkdownRenderMode ? availWidth : Math.Min(availWidth, (float)GetUrlMaxWidth());
-                            var device = AozoraTextCanvas?.Device ?? Microsoft.Graphics.Canvas.CanvasDevice.GetSharedDevice();
-                            
                             bestStart = FindPreviousPageStart(targetIdx, _aozoraBlocks, maxWidth, availHeight, device, false);
+                            _backwardPageCache[targetIdx] = bestStart;
                         }
                     }
 
@@ -1359,7 +1394,6 @@ private (string text, List<(int start, int length)> boldRanges) ParseTableInline
                 }
             }
 
-            _aozoraNavHistory.Clear();
             RenderAozoraDynamicPage(startIdx);
         }
 

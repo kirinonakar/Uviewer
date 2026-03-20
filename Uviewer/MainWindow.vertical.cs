@@ -942,7 +942,7 @@ namespace Uviewer
             {
                 if (blocks != null && _currentVerticalEndBlockIndex < blocks.Count - 1)
                 {
-                    _verticalNavHistory.Push(_currentVerticalStartBlockIndex);
+                    // 💡 History Push 완전히 제거됨
                     RenderVerticalDynamicPage(_currentVerticalEndBlockIndex + 1);
                     if (_isVerticalPageCalcCompleted) { _verticalCalculatedCurrentPage++; UpdateVerticalStatusBar(); }
                 }
@@ -962,26 +962,24 @@ namespace Uviewer
             }
             else if (direction < 0) // 이전 페이지
             {
-                if (_verticalNavHistory.Count > 0)
-                {
-                    int prevIdx = _verticalNavHistory.Pop();
-                    RenderVerticalDynamicPage(prevIdx);
-                    if (_isVerticalPageCalcCompleted) { _verticalCalculatedCurrentPage = Math.Max(1, _verticalCalculatedCurrentPage - 1); UpdateVerticalStatusBar(); }
-                }
-                else if (blocks != null && _currentVerticalStartBlockIndex > 0)
+                if (blocks != null && _currentVerticalStartBlockIndex > 0)
                 {
                     int targetIdx = _currentVerticalStartBlockIndex;
                     int bestStart = 0;
+
+                    float availWidth = (float)(VerticalTextCanvas?.ActualWidth ?? 1000) - 40;
+                    float availHeight = (float)(VerticalTextCanvas?.ActualHeight ?? 800) - 40;
+                    var device = VerticalTextCanvas?.Device ?? Microsoft.Graphics.Canvas.CanvasDevice.GetSharedDevice();
+
+                    // 💡 이동 전 캐시 유효성 철저히 검증
+                    ValidateBackwardCache(availWidth, availHeight, _textFontSize, true, targetIdx);
 
                     lock (_backwardPageCache)
                     {
                         if (!_backwardPageCache.TryGetValue(targetIdx, out bestStart))
                         {
-                            float availWidth = (float)(VerticalTextCanvas?.ActualWidth ?? 1000) - 40;
-                            float availHeight = (float)(VerticalTextCanvas?.ActualHeight ?? 800) - 40;
-                            var device = VerticalTextCanvas?.Device ?? Microsoft.Graphics.Canvas.CanvasDevice.GetSharedDevice();
-                            
                             bestStart = FindPreviousPageStart(targetIdx, blocks, availWidth, availHeight, device, true);
+                            _backwardPageCache[targetIdx] = bestStart;
                         }
                     }
 
@@ -1120,7 +1118,6 @@ namespace Uviewer
                 // 일반 텍스트 모드일 때는 텍스트의 처음으로 이동
                 else if (_currentVerticalStartBlockIndex > 0)
                 {
-                    _verticalNavHistory.Clear();
                     RenderVerticalDynamicPage(0);
                     if (_isVerticalPageCalcCompleted) { _verticalCalculatedCurrentPage = 1; UpdateVerticalStatusBar(); }
                     e.Handled = true;
@@ -1142,7 +1139,6 @@ namespace Uviewer
                 // 일반 텍스트 모드일 때는 텍스트의 끝으로 이동
                 else if (blocks != null && _currentVerticalEndBlockIndex < blocks.Count - 1)
                 {
-                    _verticalNavHistory.Clear();
                     int lastIdx = Math.Max(0, blocks.Count - 15); // 끝부분 추정
                     RenderVerticalDynamicPage(lastIdx);
                     if (_isVerticalPageCalcCompleted) { _verticalCalculatedCurrentPage = _verticalTotalPages; UpdateVerticalStatusBar(); }
