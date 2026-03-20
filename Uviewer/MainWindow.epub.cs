@@ -856,7 +856,7 @@ namespace Uviewer
                     {
                         var charBounds = regions[0].LayoutBounds;
                         float lineBoxTop = currentY + (float)charBounds.Top;
-                        float rubyY = lineBoxTop - rubyFontSize - 20f;
+                        float rubyY = lineBoxTop - (rubyFontSize * 3f);
                         float charCenter = drawX + (float)charBounds.Left + (float)charBounds.Width / 2.0f;
                         var rubyLayout = new CanvasTextLayout(ds, ruby.rubyText, rubyFormat2, 0.0f, 0.0f);
                         rubyLayout.Options = Microsoft.Graphics.Canvas.Text.CanvasDrawTextOptions.EnableColorFont;

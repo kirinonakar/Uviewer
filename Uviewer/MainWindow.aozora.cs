@@ -1031,7 +1031,7 @@ private (string text, List<(int start, int length)> boldRanges) ParseTableInline
                         // lineSpacing 안의 여분 공간은 글자 아래에 쌓임(Win2D 기본 동작).
                         // 따라서 루비는 라인 박스 상단 바로 위 = charBounds.Top - rubyFontSize - gap
                         float lineBoxTop = currentY + (float)charBounds.Top;
-                        float rubyY = lineBoxTop - rubyFontSize - 20f;
+                        float rubyY = lineBoxTop - (rubyFontSize * 3f);
 
                         // 루비 X 중앙 정렬
                         float charCenter = drawX + (float)charBounds.Left + (float)charBounds.Width / 2.0f;
