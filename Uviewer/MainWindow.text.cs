@@ -405,6 +405,9 @@ namespace Uviewer
             _isTextMode = true;
             _isEpubMode = false; // Reset Epub mode
 
+            // [추가] 텍스트 모드 진입 시 창 크기 검사 및 조정
+            EnsureMinWindowSizeForText();
+
             // Toggle Visibility
             if (EmptyStatePanel != null) EmptyStatePanel.Visibility = Visibility.Collapsed;
             ImageArea.Visibility = Visibility.Collapsed;

@@ -397,6 +397,9 @@ namespace Uviewer
             InitializeComponent();
             LoadTextSettings();
 
+            // [추가] UI 크기 변경 이벤트 구독
+            RootGrid.SizeChanged += RootGrid_SizeChanged;
+
             try
             {
                 // Set window title
@@ -758,7 +761,22 @@ namespace Uviewer
         {
             if (args.DidPositionChange || args.DidSizeChange)
             {
-                if (args.DidSizeChange) TriggerEpubResize();
+                if (args.DidSizeChange)
+                {
+                    TriggerEpubResize();
+
+                    // [수정] 텍스트 모드일 때 창 크기가 800x800 밑으로 내려가지 않도록 방지
+                    if (_isTextMode && !_isFullscreen)
+                    {
+                        if (sender.Size.Width < 800 || sender.Size.Height < 800)
+                        {
+                            sender.Resize(new Windows.Graphics.SizeInt32(
+                                Math.Max(sender.Size.Width, 800),
+                                Math.Max(sender.Size.Height, 800)
+                            ));
+                        }
+                    }
+                }
 
                 if (sender.Presenter is OverlappedPresenter overlapped)
                 {
@@ -793,6 +811,86 @@ namespace Uviewer
                 // [Important] Re-focus RootGrid after window state changes (Maximize/Restore/Resize)
                 // This ensures keyboard shortcuts keep working without an extra click.
                 RootGrid?.Focus(FocusState.Programmatic);
+            }
+        }
+
+        private void RootGrid_SizeChanged(object sender, SizeChangedEventArgs e)
+        {
+            if (_isTextMode && _isSidebarVisible)
+            {
+                // 텍스트 영역에 최소 500픽셀은 절대적으로 보장 (오류 방지 및 사이드바 억제)
+                double minTextContentWidth = 500;
+                double maxSidebarWidth = e.NewSize.Width - minTextContentWidth;
+
+                if (maxSidebarWidth < 200)
+                {
+                    maxSidebarWidth = 200;
+                }
+
+                // LayoutCycleException 방지
+                if (Math.Abs(SidebarColumn.MaxWidth - maxSidebarWidth) > 1.0)
+                {
+                    SidebarColumn.MaxWidth = maxSidebarWidth;
+                }
+
+                if (SidebarColumn.Width.IsAbsolute && SidebarColumn.Width.Value > maxSidebarWidth)
+                {
+                    SidebarColumn.Width = new GridLength(maxSidebarWidth);
+                }
+            }
+            else
+            {
+                if (SidebarColumn.MaxWidth != double.PositiveInfinity)
+                {
+                    SidebarColumn.MaxWidth = double.PositiveInfinity;
+                }
+            }
+        }
+
+        // [추가] 텍스트를 열 때 창 크기가 작으면 800x800 크기 이상으로 강제로 늘리는 메서드
+        private void EnsureMinWindowSizeForText()
+        {
+            if (_isFullscreen) return;
+
+            var currentSize = this.AppWindow.Size;
+            bool needsResize = false;
+            int newWidth = currentSize.Width;
+            int newHeight = currentSize.Height;
+
+            // 절대적인 최소 창 크기를 800x800으로 강제
+            if (currentSize.Width < 800)
+            {
+                newWidth = 800;
+                needsResize = true;
+            }
+            if (currentSize.Height < 800)
+            {
+                newHeight = 800;
+                needsResize = true;
+            }
+
+            if (needsResize)
+            {
+                this.AppWindow.Resize(new Windows.Graphics.SizeInt32(newWidth, newHeight));
+            }
+
+            // 창이 800일 때 사이드바가 화면을 너무 많이 덮지 않도록 제한
+            if (_isSidebarVisible)
+            {
+                // Resize가 비동기적으로 먹힐 수 있으므로, 보더 여백(~16px)을 뺀 예상 클라이언트 너비 사용
+                double estimatedClientWidth = needsResize ? newWidth - 16 : RootGrid.ActualWidth;
+                if (estimatedClientWidth <= 0) estimatedClientWidth = newWidth;
+
+                double minTextWidth = 500; // 800 기준에 맞춰 텍스트 최소 너비 강력히 확보
+                double maxAllowedSidebar = estimatedClientWidth - minTextWidth;
+
+                if (maxAllowedSidebar < 200) maxAllowedSidebar = 200; // 사이드바 최소치
+
+                if (SidebarColumn.ActualWidth > maxAllowedSidebar || SidebarColumn.Width.Value > maxAllowedSidebar)
+                {
+                    SidebarColumn.Width = new GridLength(maxAllowedSidebar);
+                }
+                SidebarColumn.MaxWidth = maxAllowedSidebar;
             }
         }
 
