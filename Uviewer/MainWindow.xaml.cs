@@ -1689,7 +1689,7 @@ namespace Uviewer
 
                             CanvasBitmap? prev = null;
                             lock (_preloadedImages) { _preloadedImages.TryGetValue(prevIdx, out prev); }
-                            if (prev != null && prev.Device != null)
+                            if (prev != null && prev.Device != null && prev != _currentBitmap)
                             {
                                 var pFit = Math.Min(canvasSize.Width / prev.Size.Width, canvasSize.Height / prev.Size.Height);
                                 var pScaledSize = new Windows.Foundation.Size(prev.Size.Width * pFit * _zoomLevel, prev.Size.Height * pFit * _zoomLevel);
@@ -1700,6 +1700,7 @@ namespace Uviewer
                                 // Stop if even this page is way above screen
                                 if (currentY_top + pScaledSize.Height < -500) break;
                             }
+                            else if (prev == _currentBitmap) continue; // Skip duplicates
                             else break; // Missing preload, can't draw further
                         }
 
@@ -1712,7 +1713,7 @@ namespace Uviewer
 
                             CanvasBitmap? next = null;
                             lock (_preloadedImages) { _preloadedImages.TryGetValue(nextIdx, out next); }
-                            if (next != null && next.Device != null)
+                            if (next != null && next.Device != null && next != _currentBitmap)
                             {
                                 var nFit = Math.Min(canvasSize.Width / next.Size.Width, canvasSize.Height / next.Size.Height);
                                 var nScaledSize = new Windows.Foundation.Size(next.Size.Width * nFit * _zoomLevel, next.Size.Height * nFit * _zoomLevel);
@@ -1723,6 +1724,7 @@ namespace Uviewer
                                 // Stop if even this page is way below screen
                                 if (nPos.Y > canvasSize.Height + 500) break;
                             }
+                            else if (next == _currentBitmap) continue; // Skip duplicates
                             else break;
                         }
                     }

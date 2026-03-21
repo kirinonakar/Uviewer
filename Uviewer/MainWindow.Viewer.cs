@@ -31,6 +31,9 @@ namespace Uviewer
                 _currentIndex = Math.Clamp(_currentIndex, 0, _imageEntries.Count - 1);
             }
 
+            // [Important] Capture index before await to avoid race condition if _currentIndex changes during render
+            int capturedIndexAtStart = _currentIndex;
+
             // 이전 로딩 작업 취소
             _imageLoadingCts?.Cancel();
             _imageLoadingCts = new CancellationTokenSource();
@@ -92,18 +95,25 @@ namespace Uviewer
                     // 렌더링 시작 (토큰 전달로 페이지 이동 시 취소 가능하게 함)
                     nextBitmap = await LoadPdfPageBitmapAsync(entry.PdfPageIndex, MainCanvas, token);
 
+                    // [핵심] await 후 인덱스가 달라졌으면 버리기 (다른 페이지로 넘어간 것임)
                     if (nextBitmap != null)
                     {
+                        if (token.IsCancellationRequested || _currentIndex != capturedIndexAtStart)
+                        {
+                            SafeDisposeBitmap(nextBitmap);
+                            return;
+                        }
+
                         lock (_preloadedImages)
                         {
-                            _preloadedImages[_currentIndex] = nextBitmap;
-                            _pdfPreloadZoomLevels[_currentIndex] = _zoomLevel;
+                            _preloadedImages[capturedIndexAtStart] = nextBitmap;
+                            _pdfPreloadZoomLevels[capturedIndexAtStart] = _zoomLevel;
                         }
                     }
                 }
 
                 // 3. 확보된 고해상도 이미지를 화면에 표시
-                if (nextBitmap != null && !token.IsCancellationRequested)
+                if (nextBitmap != null && !token.IsCancellationRequested && _currentIndex == capturedIndexAtStart)
                 {
                     var oldBitmap = _currentBitmap;
                     _currentBitmap = nextBitmap;

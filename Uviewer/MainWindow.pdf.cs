@@ -372,6 +372,9 @@ namespace Uviewer
             _pdfZoomRerenderCts = new CancellationTokenSource();
             var token = _pdfZoomRerenderCts.Token;
 
+            // [Important] Capture index before await to avoid race condition if _currentIndex changes during render
+            int capturedIndex = _currentIndex;
+
             var canvas = MainCanvas;
             var newBitmap = await LoadPdfPageBitmapAsync(entry.PdfPageIndex, canvas, token);
 
@@ -381,12 +384,19 @@ namespace Uviewer
                 return;
             }
 
+            // [Important] If index changed while rendering, discard this result as it's no longer the "current" page
+            if (capturedIndex != _currentIndex)
+            {
+                SafeDisposeBitmap(newBitmap);
+                return;
+            }
+
             var oldBitmap = _currentBitmap;
             _currentBitmap = newBitmap;
 
             lock (_preloadedImages)
             {
-                _preloadedImages[_currentIndex] = newBitmap;
+                _preloadedImages[capturedIndex] = newBitmap;
             }
 
             MainCanvas.Invalidate();
