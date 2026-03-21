@@ -1265,6 +1265,13 @@ namespace Uviewer
 
         private void GlobalThemeToggleButton_Click(object sender, RoutedEventArgs e)
         {
+            // If in fullscreen, exit first, change theme, then re-enter
+            bool wasFullscreen = _isFullscreen;
+            if (wasFullscreen)
+            {
+                ToggleFullscreen();
+            }
+
             if (_currentTheme == ElementTheme.Dark)
             {
                 SetTheme(ElementTheme.Light);
@@ -1272,6 +1279,11 @@ namespace Uviewer
             else
             {
                 SetTheme(ElementTheme.Dark);
+            }
+
+            if (wasFullscreen)
+            {
+                ToggleFullscreen();
             }
         }
 
