@@ -110,6 +110,7 @@ namespace Uviewer
 
         // Image preloading for faster navigation
         private readonly Dictionary<int, CanvasBitmap> _preloadedImages = new();
+        private readonly Dictionary<int, double> _pdfPreloadZoomLevels = new(); // PDF 캐시의 줌 레벨 추적
         private readonly HashSet<int> _loadingIndices = new();
         private const int PreloadCount = 5; // Number of images to preload ahead
         private readonly SemaphoreSlim _thumbnailSemaphore = new(4); // Limit concurrent thumbnail loads (archives)
@@ -1904,9 +1905,35 @@ namespace Uviewer
                     if (index == _currentIndex) continue;
                     if (!IsNavigableImage(_imageEntries[index])) continue;
 
-                    // 1. 이미 캐시에 있거나, 2. 현재 로딩 중이라면 스킵
+                    bool isPdfEntry = _imageEntries[index].IsPdfEntry && _currentPdfDocument != null;
                     bool shouldSkip = false;
-                    lock (_preloadedImages) { if (_preloadedImages.ContainsKey(index)) shouldSkip = true; }
+
+                    // 1. 이미 캐시에 있거나, 2. 현재 로딩 중이라면 스킵 (단, PDF 줌 레벨이 다르면 다시 로드)
+                    lock (_preloadedImages)
+                    {
+                        if (_preloadedImages.TryGetValue(index, out var cachedBitmap))
+                        {
+                            if (isPdfEntry)
+                            {
+                                // PDF인 경우 기존 렌더링 줌 레벨과 현재 줌 레벨 비교
+                                _pdfPreloadZoomLevels.TryGetValue(index, out var cachedZoom);
+                                if (Math.Abs(cachedZoom - _zoomLevel) > 0.01)
+                                {
+                                    // [수정됨] 기존 캐시를 즉시 지우지 않습니다! (화면에 계속 걸쳐서 보이게 둠)
+                                    // 해상도가 다르므로 새로 그리도록 스킵만 하지 않습니다.
+                                    shouldSkip = false;
+                                }
+                                else
+                                {
+                                    shouldSkip = true;
+                                }
+                            }
+                            else
+                            {
+                                shouldSkip = true; // PDF가 아니면 캐시 유지
+                            }
+                        }
+                    }
 
                     if (!shouldSkip)
                     {
@@ -1977,17 +2004,42 @@ namespace Uviewer
 
                                 lock (_preloadedImages)
                                 {
-                                    // 로딩 끝낸 사이에 이미 누가 넣었는지 더블 체크
-                                    if (!_preloadedImages.ContainsKey(index))
+                                    // 새로 덮어씌우기 전에 예전 비트맵이 있다면 꺼내기 (이미 들어있는 것이 줌 레벨이 같다면 굳이 덮어쓰지 않음)
+                                    bool hasOld = _preloadedImages.TryGetValue(index, out var oldBitmap);
+                                    bool needUpdate = true;
+                                    
+                                    if (hasOld)
+                                    {
+                                        _pdfPreloadZoomLevels.TryGetValue(index, out var v);
+                                        if (isPdf && Math.Abs(v - _zoomLevel) < 0.01) needUpdate = false;
+                                    }
+
+                                    if (needUpdate)
                                     {
                                         _preloadedImages[index] = bitmap;
+                                        if (isPdf)
+                                        {
+                                            _pdfPreloadZoomLevels[index] = _zoomLevel;
+                                        }
+
+                                        // 이제 쓸모없어진 예전 저해상도 비트맵 삭제
+                                        if (oldBitmap != null && oldBitmap != bitmap)
+                                        {
+                                            SafeDisposeBitmap(oldBitmap);
+                                        }
                                     }
                                     else
                                     {
-                                        // 늦게 도착한 비트맵은 즉시 폐기
+                                        // 이미 최신 줌 레벨로 누가 넣었다면 현재 비트맵 폐기
                                         SafeDisposeBitmap(bitmap);
                                     }
                                 }
+
+                                // [추가됨] 백그라운드에서 인접 페이지 렌더링이 끝나면 즉시 화면을 다시 그려서 선명하게 만듦
+                                DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, () =>
+                                {
+                                    MainCanvas?.Invalidate();
+                                });
                             }
                         }
                         catch { }
@@ -2031,11 +2083,38 @@ namespace Uviewer
                     if (token.IsCancellationRequested) break;
 
                     int index = i;
+                    if (index == _currentIndex) continue;
                     if (!IsNavigableImage(_imageEntries[index])) continue;
 
-                    // 1. 이미 캐시에 있거나, 2. 현재 로딩 중이라면 스킵
+                    bool isPdfEntry = _imageEntries[index].IsPdfEntry && _currentPdfDocument != null;
                     bool shouldSkip = false;
-                    lock (_preloadedImages) { if (_preloadedImages.ContainsKey(index)) shouldSkip = true; }
+
+                    // 1. 이미 캐시에 있거나, 2. 현재 로딩 중이라면 스킵 (단, PDF 줌 레벨이 다르면 다시 로드)
+                    lock (_preloadedImages)
+                    {
+                        if (_preloadedImages.TryGetValue(index, out var cachedBitmap))
+                        {
+                            if (isPdfEntry)
+                            {
+                                // PDF인 경우 기존 렌더링 줌 레벨과 현재 줌 레벨 비교
+                                _pdfPreloadZoomLevels.TryGetValue(index, out var cachedZoom);
+                                if (Math.Abs(cachedZoom - _zoomLevel) > 0.01)
+                                {
+                                    // [수정됨] 기존 캐시를 즉시 지우지 않습니다! (화면에 계속 걸쳐서 보이게 둠)
+                                    // 해상도가 다르므로 새로 그리도록 스킵만 하지 않습니다.
+                                    shouldSkip = false;
+                                }
+                                else
+                                {
+                                    shouldSkip = true;
+                                }
+                            }
+                            else
+                            {
+                                shouldSkip = true; // PDF가 아니면 캐시 유지
+                            }
+                        }
+                    }
 
                     if (!shouldSkip)
                     {
@@ -2095,16 +2174,41 @@ namespace Uviewer
                             {
                                 lock (_preloadedImages)
                                 {
-                                    if (!_preloadedImages.ContainsKey(index))
+                                    // 새로 덮어씌우기 전에 예전 비트맵이 있다면 꺼내기
+                                    bool hasOld = _preloadedImages.TryGetValue(index, out var oldBitmap);
+                                    bool needUpdate = true;
+
+                                    if (hasOld)
+                                    {
+                                        _pdfPreloadZoomLevels.TryGetValue(index, out var v);
+                                        if (isPdf && Math.Abs(v - _zoomLevel) < 0.01) needUpdate = false;
+                                    }
+
+                                    if (needUpdate)
                                     {
                                         _preloadedImages[index] = bitmap;
+                                        if (isPdf)
+                                        {
+                                            _pdfPreloadZoomLevels[index] = _zoomLevel;
+                                        }
+
+                                        // 이제 쓸모없어진 예전 저해상도 비트맵 삭제
+                                        if (oldBitmap != null && oldBitmap != bitmap)
+                                        {
+                                            SafeDisposeBitmap(oldBitmap);
+                                        }
                                     }
                                     else
                                     {
-                                        // 늦게 도착한 것은 즉시 폐기
                                         SafeDisposeBitmap(bitmap);
                                     }
                                 }
+
+                                // [추가됨] 백그라운드에서 인접 페이지 렌더링이 끝나면 즉시 화면을 다시 그려서 선명하게 만듦
+                                DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, () =>
+                                {
+                                    MainCanvas?.Invalidate();
+                                });
                             }
                         }
                         catch { }
@@ -2152,6 +2256,7 @@ namespace Uviewer
                         }
                     }
                     _preloadedImages.Remove(key);
+                    _pdfPreloadZoomLevels.Remove(key); // 관련된 줌 레벨 기록도 함께 삭제
                 }
             }
         }

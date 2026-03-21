@@ -177,6 +177,7 @@ namespace Uviewer
                     SafeDisposeBitmap(bitmap);
                 }
                 _preloadedImages.Clear();
+                _pdfPreloadZoomLevels.Clear();
             }
 
             lock (_sharpenedImageCache)
@@ -395,6 +396,13 @@ namespace Uviewer
             {
                 SafeDisposeBitmap(oldBitmap);
             }
+
+            // [추가] 현재 페이지 렌더링이 끝난 직후, 변경된 줌 레벨로 다음/이전 페이지들을 백그라운드에서 다시 그리도록 지시합니다.
+            _preloadCts?.Cancel();
+            _preloadCts?.Dispose();
+            _preloadCts = new CancellationTokenSource();
+            var preloadToken = _preloadCts.Token;
+            _ = Task.Run(() => PreloadNextImagesAsync(preloadToken));
         }
     }
 }

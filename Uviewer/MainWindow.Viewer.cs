@@ -53,6 +53,81 @@ namespace Uviewer
             StopAnimatedWebp();
 
             var entry = _imageEntries[_currentIndex];
+
+            // PDF 전용 처리 블록: 잔상 제거 및 줌 레벨 맞춤 캐시 적용
+            if (entry.IsPdfEntry && _currentPdfDocument != null)
+            {
+                SwitchToImageMode();
+                CanvasBitmap? nextBitmap = null;
+
+                // 1. 프리로드 캐시에 현재 줌 레벨과 일치하는 이미지가 있는지 확인
+                lock (_preloadedImages)
+                {
+                    if (_preloadedImages.TryGetValue(_currentIndex, out var cachedBitmap))
+                    {
+                        _pdfPreloadZoomLevels.TryGetValue(_currentIndex, out var cachedZoom);
+
+                        // 캐시된 줌 레벨이 현재 줌 레벨과 일치할 때만 캐시 사용 (0.01 오차 허용)
+                        if (Math.Abs(cachedZoom - _zoomLevel) < 0.01)
+                        {
+                            nextBitmap = cachedBitmap;
+                        }
+                    }
+                }
+
+                // 2. 캐시에 없어서 새로 렌더링해야 하는 경우 (잔상 제거 로직 포함)
+                if (nextBitmap == null)
+                {
+                    // 새 페이지를 그리는 동안 예전 페이지가 멈춰 있는 현상을 막기 위해
+                    // 현재 비트맵을 즉시 비우고 화면을 갱신합니다.
+                    var tempOldBitmap = _currentBitmap;
+                    _currentBitmap = null;
+                    MainCanvas.Invalidate();
+
+                    if (tempOldBitmap != null && !IsBitmapInCache(tempOldBitmap))
+                    {
+                        SafeDisposeBitmap(tempOldBitmap);
+                    }
+
+                    // 렌더링 시작 (토큰 전달로 페이지 이동 시 취소 가능하게 함)
+                    nextBitmap = await LoadPdfPageBitmapAsync(entry.PdfPageIndex, MainCanvas, token);
+
+                    if (nextBitmap != null)
+                    {
+                        lock (_preloadedImages)
+                        {
+                            _preloadedImages[_currentIndex] = nextBitmap;
+                            _pdfPreloadZoomLevels[_currentIndex] = _zoomLevel;
+                        }
+                    }
+                }
+
+                // 3. 확보된 고해상도 이미지를 화면에 표시
+                if (nextBitmap != null && !token.IsCancellationRequested)
+                {
+                    var oldBitmap = _currentBitmap;
+                    _currentBitmap = nextBitmap;
+
+                    // PDF 단일 페이지 모드이므로 사이드 바이 사이드용 비트맵 초기화
+                    _leftBitmap = null;
+                    _rightBitmap = null;
+
+                    MainCanvas.Invalidate();
+                    ShowImageUI();
+                    UpdateStatusBar(entry, _currentBitmap);
+
+                    if (oldBitmap != null && oldBitmap != nextBitmap && !IsBitmapInCache(oldBitmap))
+                    {
+                        SafeDisposeBitmap(oldBitmap);
+                    }
+                }
+                
+                // 페이지 이동 정보 기록
+                await AddToRecentAsync(false);
+                RootGrid.Focus(FocusState.Programmatic);
+                return;
+            }
+
             if (IsTextEntry(entry))
             {
                 await LoadTextEntryAsync(entry);
