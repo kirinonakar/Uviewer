@@ -86,6 +86,7 @@
 | **Backspace** | Global | Go to Parent Folder |
 | **Esc** | Global | Close Window / Exit Fullscreen |
 | **F11** | Global | Toggle Fullscreen |
+| **D** | Global | Toggle Dark/Light Mode |
 | **`** | Global | Toggle Pin (Auto-Hide UI) |
 | **T** | Global | Toggle Always on Top |
 | **Ctrl + O** | Global | Open File |
@@ -97,7 +98,7 @@
 | **+ / -**  | Global | Zoom In/Out / Font Size Up/Down (-/= also works) |
 | **0** | Image | Reset Zoom to 100% |
 | **S** | Image | Toggle Sharpening |
-| **A** | Text | Toggle Simple text / Advanved rendering (Aozora, Markdown) mode |
+| **A** | Text | Toggle Simple text / Advanced rendering (Aozora, Markdown) mode |
 | **B** | Text | Change Background Theme |
 | **F** | Text | Change Font |
 
