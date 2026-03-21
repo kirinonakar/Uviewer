@@ -952,10 +952,11 @@ namespace Uviewer
             {
                 if (_currentPdfDocument != null && _currentBitmap != null)
                 {
-                    double zoomDelta = (wheelDelta / 120.0) * 0.1;
-                    _zoomLevel += zoomDelta;
-                    _zoomLevel = Math.Clamp(_zoomLevel, MinZoom, MaxZoom);
-                    ApplyZoom();
+                    // 마우스 휠이나 터치패드 핀치의 불연속적인 델타값을 스무스하게 보간하기 위해 애니메이션 사용
+                    double zoomMultiplier = Math.Exp(wheelDelta * 0.001); 
+                    var pt = e.GetCurrentPoint(ImageArea).Position;
+                    StartSmoothZoom(zoomMultiplier, pt);
+
                     e.Handled = true;
                     return;
                 }
@@ -995,8 +996,7 @@ namespace Uviewer
             // 1. 핀치 줌 처리
             if (e.Delta.Scale != 1.0f)
             {
-                _zoomLevel *= e.Delta.Scale;
-                _zoomLevel = Math.Clamp(_zoomLevel, MinZoom, MaxZoom);
+                ZoomPdfAtPosition(e.Delta.Scale, e.Position);
             }
 
             // 2. 드래그/스와이프 스크롤 처리
@@ -1008,6 +1008,94 @@ namespace Uviewer
         private void ImageArea_ManipulationCompleted(object sender, Microsoft.UI.Xaml.Input.ManipulationCompletedRoutedEventArgs e)
         {
             _isPdfTransitioning = false;
+        }
+
+        private void ZoomPdfAtPosition(double zoomMultiplier, Windows.Foundation.Point position)
+        {
+            if (_currentPdfDocument == null || _currentBitmap == null) return;
+            var canvasSize = MainCanvas.Size;
+            var imageSize = _currentBitmap.Size;
+            if (canvasSize.Width <= 0 || canvasSize.Height <= 0) return;
+
+            var fitRatio = Math.Min(canvasSize.Width / imageSize.Width, canvasSize.Height / imageSize.Height);
+
+            var oldScaledW = imageSize.Width * fitRatio * _zoomLevel;
+            var oldScaledH = imageSize.Height * fitRatio * _zoomLevel;
+
+            double oldVisualLeft = (canvasSize.Width - oldScaledW) / 2 + _pdfPanX;
+            double oldVisualTop = (canvasSize.Height - oldScaledH) / 2 + _pdfPanY;
+
+            double normX = (position.X - oldVisualLeft) / _zoomLevel;
+            double normY = (position.Y - oldVisualTop) / _zoomLevel;
+
+            double newZoom = Math.Clamp(_zoomLevel * zoomMultiplier, MinZoom, MaxZoom);
+            if (newZoom == _zoomLevel) return;
+            _zoomLevel = newZoom;
+
+            var newScaledW = imageSize.Width * fitRatio * _zoomLevel;
+            var newScaledH = imageSize.Height * fitRatio * _zoomLevel;
+
+            double newVisualLeft = position.X - (normX * _zoomLevel);
+            double newVisualTop = position.Y - (normY * _zoomLevel);
+
+            _pdfPanX = newVisualLeft - (canvasSize.Width - newScaledW) / 2;
+            _pdfPanY = newVisualTop - (canvasSize.Height - newScaledH) / 2;
+
+            double maxPanX = Math.Max(0, (newScaledW - canvasSize.Width) / 2);
+            double maxPanY = Math.Max(0, (newScaledH - canvasSize.Height) / 2);
+
+            _pdfPanX = Math.Clamp(_pdfPanX, -maxPanX, maxPanX);
+            _pdfPanY = Math.Clamp(_pdfPanY, -maxPanY, maxPanY);
+
+            ApplyZoom();
+        }
+
+        private DispatcherQueueTimer? _smoothZoomTimer;
+        private double _targetZoomLevel = 1.0;
+        private Windows.Foundation.Point _zoomPivot;
+
+        private void StartSmoothZoom(double targetMultiplier, Windows.Foundation.Point pivot)
+        {
+            if (_smoothZoomTimer == null)
+            {
+                _smoothZoomTimer = DispatcherQueue.CreateTimer();
+                _smoothZoomTimer.Interval = TimeSpan.FromMilliseconds(16); // ~60fps
+                _smoothZoomTimer.Tick += SmoothZoomTimer_Tick;
+            }
+
+            // 첫 줌 시작이거나 타이머가 멈춰있으면 목표값을 현재 줌부터 시작
+            if (!_smoothZoomTimer.IsRunning || Math.Abs(_zoomLevel - _targetZoomLevel) < 0.001)
+            {
+                _targetZoomLevel = _zoomLevel;
+            }
+
+            _targetZoomLevel = Math.Clamp(_targetZoomLevel * targetMultiplier, MinZoom, MaxZoom);
+            _zoomPivot = pivot;
+
+            if (!_smoothZoomTimer.IsRunning)
+            {
+                _smoothZoomTimer.Start();
+            }
+        }
+
+        private void SmoothZoomTimer_Tick(object? sender, object e)
+        {
+            if (_currentPdfDocument == null || _currentBitmap == null)
+            {
+                _smoothZoomTimer?.Stop();
+                return;
+            }
+
+            if (Math.Abs(_zoomLevel - _targetZoomLevel) < 0.005)
+            {
+                ZoomPdfAtPosition(_targetZoomLevel / _zoomLevel, _zoomPivot);
+                _smoothZoomTimer?.Stop();
+                return;
+            }
+
+            // Lerp (목표 줌의 30%씩 부드럽게 접근)
+            double nextZoom = _zoomLevel + (_targetZoomLevel - _zoomLevel) * 0.3;
+            ZoomPdfAtPosition(nextZoom / _zoomLevel, _zoomPivot);
         }
 
         private async Task HandlePdfScrollAsync(double deltaX, double deltaY)
