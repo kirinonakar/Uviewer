@@ -185,18 +185,18 @@ namespace Uviewer
         {
             if (string.IsNullOrEmpty(_currentTextContent) && !_isEpubMode) return;
 
-            // 로딩 오버레이 켬
-            if (TextFastNavOverlay != null) TextFastNavOverlay.Visibility = Visibility.Visible;
-            if (ImageInfoText != null) ImageInfoText.Text = Strings.Paginating;
+            // 로딩 오버레이 켬 (EPUB 모드에서는 즉각적인 반응을 위해 오버레이를 표시하지 않습니다)
+            if (!_isEpubMode && TextFastNavOverlay != null) TextFastNavOverlay.Visibility = Visibility.Visible;
+            if (!_isEpubMode && ImageInfoText != null) ImageInfoText.Text = Strings.Paginating;
 
             _verticalPageCalcCts?.Cancel();
-            _verticalImageCache.Clear();
+            // _verticalImageCache.Clear(); // <-- 깜박임 방지를 위해 즉시 지우지 않고 새 페이지 준비 시 덮어씀
             _verticalNavHistory.Clear();
             _pendingVerticalScrollLine = targetLine;
             ClearBackwardCache(); // <-- 캐시 초기화 추가
 
-            // [수정] 이전 챕터의 잔여 데이터로 인한 무한 루프 방지를 위해 상태 초기화
-            _currentVerticalPageInfo = new VerticalPageInfo { Blocks = new List<AozoraBindingModel>(), StartLine = 1 };
+            // [수정] 이전 챕터의 잔여 데이터로 인한 무한 루프 방지를 위해 시작/끝 인덱스만 초기화하고,
+            // _currentVerticalPageInfo는 실제 새 페이지 렌더링 직전에 교체하여 깜박임을 방지합니다.
             _currentVerticalStartBlockIndex = 0;
             _currentVerticalEndBlockIndex = 0;
 
@@ -268,7 +268,7 @@ namespace Uviewer
                 if (VerticalTextCanvas != null) VerticalTextCanvas.Visibility = Visibility.Visible;
                 
                 // [핵심] 수천 페이지를 기다리지 않고, 현재 화면에 그릴 '단 1페이지'만 즉시 렌더링
-                RenderVerticalDynamicPage(startIdx);
+                await RenderVerticalDynamicPageAsync(startIdx);
                 
                 if (TextFastNavOverlay != null) TextFastNavOverlay.Visibility = Visibility.Collapsed;
                 _pendingVerticalScrollLine = null;
@@ -282,7 +282,7 @@ namespace Uviewer
             }
         }
 
-        private void RenderVerticalDynamicPage(int startIdx)
+        private async Task RenderVerticalDynamicPageAsync(int startIdx)
         {
             // [수정] 블록이 없더라도 화면을 갱신(Invalidate)해야 이전 페이지의 잔상이 지워지고 스턱된 느낌이 사라집니다.
             if (_aozoraBlocks == null || _aozoraBlocks.Count == 0)
@@ -320,6 +320,21 @@ namespace Uviewer
             var pageBlocks = PaginateAozoraPage(ref index, _aozoraBlocks, availableWidth, availableHeight, device);
             
             _currentVerticalEndBlockIndex = index > startIdx ? index - 1 : startIdx;
+
+            // [이미지 프리로딩] EPUB 등에서 이미지 교체 시 깜박임을 방지하기 위해 렌더링 전 이미지를 미리 로드합니다.
+            if (pageBlocks.Any(b => b.HasImage))
+            {
+                var loadTasks = pageBlocks.Where(b => b.HasImage)
+                    .Select(async b => 
+                    {
+                        var src = b.Inlines.OfType<AozoraImage>().FirstOrDefault()?.Source;
+                        if (!string.IsNullOrEmpty(src) && !_verticalImageCache.ContainsKey(src))
+                        {
+                            await LoadVerticalImageAsync(src);
+                        }
+                    }).ToList();
+                await Task.WhenAll(loadTasks);
+            }
             
             _currentVerticalPageInfo = new VerticalPageInfo 
             { 
@@ -667,8 +682,13 @@ namespace Uviewer
             var size = sender.Size;
             Color textColor = GetVerticalTextColor();
             
-            // [수정] 블록 존재 여부와 무관하게 무조건 캔버스를 먼저 비워서 이전 화면의 잔상을 제거합니다.
-            ds.Clear(GetVerticalBackgroundColor());
+            // [수정] EPUB 이미지 페이지에서는 읽기 테마(베이지 등) 대신 앱 표준 배경(투명하게 비움)을 사용합니다.
+            // 또한 페이지 전환 중(데이터 로딩)에도 EPUB 모드라면 미리 투명하게 비워서 베이지색 깜박임을 방지합니다.
+            bool isImgPage = _currentVerticalPageInfo.Blocks != null && _currentVerticalPageInfo.Blocks.Any(b => b.HasImage);
+            bool isEmptyPage = _currentVerticalPageInfo.Blocks == null || _currentVerticalPageInfo.Blocks.Count == 0;
+
+            if (_isEpubMode && (isImgPage || isEmptyPage)) ds.Clear(Colors.Transparent);
+            else ds.Clear(GetVerticalBackgroundColor());
 
             if (_currentVerticalPageInfo.Blocks == null || _currentVerticalPageInfo.Blocks.Count == 0) return;
 
@@ -956,7 +976,7 @@ namespace Uviewer
                 if (blocks != null && _currentVerticalEndBlockIndex < blocks.Count - 1)
                 {
                     // 💡 History Push 완전히 제거됨
-                    RenderVerticalDynamicPage(_currentVerticalEndBlockIndex + 1);
+                    await RenderVerticalDynamicPageAsync(_currentVerticalEndBlockIndex + 1);
                     if (_isVerticalPageCalcCompleted) { _verticalCalculatedCurrentPage++; UpdateVerticalStatusBar(); }
                 }
                 else if (_isEpubMode)
@@ -996,7 +1016,7 @@ namespace Uviewer
                         }
                     }
 
-                    RenderVerticalDynamicPage(bestStart);
+                    await RenderVerticalDynamicPageAsync(bestStart);
                     if (_isVerticalPageCalcCompleted) { _verticalCalculatedCurrentPage = Math.Max(1, _verticalCalculatedCurrentPage - 1); UpdateVerticalStatusBar(); }
                 }
                 else if (_isEpubMode && _currentEpubChapterIndex > 0)
@@ -1098,7 +1118,7 @@ namespace Uviewer
             }
         }
 
-        private void RootGrid_Vertical_PreviewKeyDown(object sender, Microsoft.UI.Xaml.Input.KeyRoutedEventArgs e)
+        private async void RootGrid_Vertical_PreviewKeyDown(object sender, Microsoft.UI.Xaml.Input.KeyRoutedEventArgs e)
         {
             if (e.Handled) return;
             if (!_isVerticalMode) return;
@@ -1134,7 +1154,7 @@ namespace Uviewer
                 // 일반 텍스트 모드일 때는 텍스트의 처음으로 이동
                 else if (_currentVerticalStartBlockIndex > 0)
                 {
-                    RenderVerticalDynamicPage(0);
+                    await RenderVerticalDynamicPageAsync(0);
                     if (_isVerticalPageCalcCompleted) { _verticalCalculatedCurrentPage = 1; UpdateVerticalStatusBar(); }
                     e.Handled = true;
                 }
@@ -1156,7 +1176,7 @@ namespace Uviewer
                 else if (blocks != null && _currentVerticalEndBlockIndex < blocks.Count - 1)
                 {
                     int lastIdx = Math.Max(0, blocks.Count - 15); // 끝부분 추정
-                    RenderVerticalDynamicPage(lastIdx);
+                    await RenderVerticalDynamicPageAsync(lastIdx);
                     if (_isVerticalPageCalcCompleted) { _verticalCalculatedCurrentPage = _verticalTotalPages; UpdateVerticalStatusBar(); }
                     e.Handled = true;
                 }

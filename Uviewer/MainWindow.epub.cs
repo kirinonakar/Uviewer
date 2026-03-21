@@ -979,7 +979,6 @@ namespace Uviewer
                 EpubImageLeftColumn.Width = new GridLength(1, GridUnitType.Star);
                 EpubImageRightColumn.Width = new GridLength(0);
 
-                EpubImageDisplay.Source = null;
                 _ = LoadBitmapToImageDisplayAsync(page.ImagePath, EpubImageDisplay);
             }
             else
@@ -1001,9 +1000,6 @@ namespace Uviewer
 
                 Image targetLeft = actualNextImageOnRight ? EpubImageDisplayLeft : EpubImageDisplayRight;
                 Image targetRight = actualNextImageOnRight ? EpubImageDisplayRight : EpubImageDisplayLeft;
-
-                targetLeft.Source = null;
-                targetRight.Source = null;
 
                 _ = LoadBitmapToImageDisplayAsync(page.ImagePath, targetLeft);
                 if (pg2 != null && pg2.IsImagePage)

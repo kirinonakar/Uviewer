@@ -1513,7 +1513,7 @@ namespace Uviewer
             _ = ShowGoToLineDialog();
         }
 
-        private void RootGrid_Text_PreviewKeyDown(object sender, KeyRoutedEventArgs e)
+        private async void RootGrid_Text_PreviewKeyDown(object sender, KeyRoutedEventArgs e)
         {
             if (e.Handled) return;
             if (!_isTextMode) return;
@@ -1526,7 +1526,7 @@ namespace Uviewer
                 if (_isVerticalMode)
                 {
                     _verticalNavHistory.Clear();
-                    RenderVerticalDynamicPage(0);
+                    await RenderVerticalDynamicPageAsync(0);
                     UpdateTextStatusBar();
                 }
                 else if (_isAozoraMode && _aozoraBlocks.Count > 0)
@@ -1546,7 +1546,7 @@ namespace Uviewer
                 if (_isVerticalMode)
                 {
                     _verticalNavHistory.Clear();
-                    RenderVerticalDynamicPage(999999);
+                    await RenderVerticalDynamicPageAsync(999999);
                     UpdateTextStatusBar();
                 }
                 else if (_isAozoraMode && _aozoraBlocks.Count > 0)
