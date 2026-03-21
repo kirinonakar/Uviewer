@@ -59,19 +59,19 @@
     <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
   </resheader>
   <data name="ToggleSidebarTooltip" xml:space="preserve">
-    <value>サイドバーの切り替え (Ctrl+B)</value>
+    <value>サイドバーの切り替え(Ctrl+B)</value>
   </data>
   <data name="OpenFileTooltip" xml:space="preserve">
-    <value>ファイルを開く (Ctrl+O)</value>
+    <value>ファイルを開く(Ctrl+O)</value>
   </data>
   <data name="OpenFolderTooltip" xml:space="preserve">
     <value>フォルダを開く</value>
   </data>
   <data name="ZoomOutTooltip" xml:space="preserve">
-    <value>縮小 (-)</value>
+    <value>縮小(-)</value>
   </data>
   <data name="ZoomInTooltip" xml:space="preserve">
-    <value>拡大 (+)</value>
+    <value>拡大(+)</value>
   </data>
   <data name="ZoomFitTooltip" xml:space="preserve">
     <value>ウィンドウに合わせる</value>
@@ -80,10 +80,10 @@
     <value>実サイズ</value>
   </data>
   <data name="SharpenTooltip" xml:space="preserve">
-    <value>シャープネス (S)</value>
+    <value>シャープネス(S)</value>
   </data>
   <data name="SideBySideTooltip" xml:space="preserve">
-    <value>見開き表示 (Space)</value>
+    <value>見開き表示(Space)</value>
   </data>
   <data name="NextImageSideTooltip" xml:space="preserve">
     <value>次ページの配置</value>
@@ -104,34 +104,34 @@
     <value>青空文庫/md (A)</value>
   </data>
   <data name="FontTooltip" xml:space="preserve">
-    <value>フォント変更 (F)</value>
+    <value>フォント変更(F)</value>
   </data>
   <data name="GoToPageTooltip" xml:space="preserve">
-    <value>行移動 (G)</value>
+    <value>行移動(G)</value>
   </data>
   <data name="PdfGoToPageTooltip" xml:space="preserve">
-    <value>ページ移動 (G)</value>
+    <value>ページ移動(G)</value>
   </data>
   <data name="GoToPageTitle" xml:space="preserve">
     <value>ページ移動</value>
   </data>
   <data name="TextSizeDownTooltip" xml:space="preserve">
-    <value>文字を小さく (-)</value>
+    <value>文字を小さく(-)</value>
   </data>
   <data name="TextSizeUpTooltip" xml:space="preserve">
-    <value>文字を大きく (+)</value>
+    <value>文字を大きく(+)</value>
   </data>
   <data name="VerticalTooltip" xml:space="preserve">
-    <value>縦書き (V)</value>
+    <value>縦書き(V)</value>
   </data>
   <data name="ThemeTooltip" xml:space="preserve">
-    <value>背景色変更 (B)</value>
+    <value>背景色変更(B)</value>
   </data>
   <data name="FullscreenTooltip" xml:space="preserve">
-    <value>フルスクリーン (F11)</value>
+    <value>フルスクリーン(F11)</value>
   </data>
   <data name="CloseWindowTooltip" xml:space="preserve">
-    <value>閉じる (Esc)</value>
+    <value>閉じる(Esc)</value>
   </data>
   <data name="ToggleViewTooltip" xml:space="preserve">
     <value>サムネイル表示</value>
@@ -140,7 +140,7 @@
     <value>リスト表示</value>
   </data>
   <data name="ParentFolderTooltip" xml:space="preserve">
-    <value>上のフォルダへ (Backspace)</value>
+    <value>上のフォルダへ(Backspace)</value>
   </data>
   <data name="RecentTooltip" xml:space="preserve">
     <value>最近使ったファイル</value>
@@ -149,7 +149,7 @@
     <value>履歴なし</value>
   </data>
   <data name="FavoritesTooltip" xml:space="preserve">
-    <value>お気に入り (Ctrl+S)</value>
+    <value>お気に入り(Ctrl+S)</value>
   </data>
   <data name="NoFavorites" xml:space="preserve">
     <value>お気に入りなし</value>
@@ -272,7 +272,7 @@
     <value> (読み込み中...)</value>
   </data>
   <data name="AddToFavorites" xml:space="preserve">
-    <value>➕ お気に入りに追加 (Ctrl+S)</value>
+    <value>➕ お気に入りに追加(Ctrl+S)</value>
   </data>
   <data name="DialogTitle" xml:space="preserve">
     <value>行移動</value>
@@ -287,19 +287,19 @@
     <value>エンコーディング</value>
   </data>
   <data name="EncAuto" xml:space="preserve">
-    <value>自動 (Detect)</value>
+    <value>自動(Detect)</value>
   </data>
   <data name="EncUtf8" xml:space="preserve">
     <value>UTF-8</value>
   </data>
   <data name="EncEucKr" xml:space="preserve">
-    <value>韓国語 (EUC-KR)</value>
+    <value>韓国語(EUC-KR)</value>
   </data>
   <data name="EncSjis" xml:space="preserve">
-    <value>日本語 (Shift-JIS)</value>
+    <value>日本語(Shift-JIS)</value>
   </data>
   <data name="EncJohab" xml:space="preserve">
-    <value>韓国語 (Johab)</value>
+    <value>韓国語(Johab)</value>
   </data>
   <data name="WebDavTooltip" xml:space="preserve">
     <value>WebDAV接続</value>
@@ -351,7 +351,7 @@
     <value>言語設定</value>
   </data>
   <data name="LanguageAuto" xml:space="preserve">
-    <value>自動 (デフォルト)</value>
+    <value>自動(デフォルト)</value>
   </data>
   <data name="LanguageKorean" xml:space="preserve">
     <value>韓国語</value>
@@ -369,10 +369,10 @@
     <value>UIフォント選択</value>
   </data>
   <data name="PinTooltip" xml:space="preserve">
-    <value>UI固定/自動非表示 (`)</value>
+    <value>UI固定/自動非表示(`)</value>
   </data>
   <data name="AlwaysOnTopTooltip" xml:space="preserve">
-    <value>常に最前面に表示 (T)</value>
+    <value>常に最前面に表示(T)</value>
   </data>
   <data name="AutoDoublePageForArchive" xml:space="preserve">
     <value>圧縮ファイル内自動2枚表示</value>

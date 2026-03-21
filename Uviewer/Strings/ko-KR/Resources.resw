@@ -101,7 +101,7 @@
     <value>다음 이미지/페이지</value>
   </data>
   <data name="AozoraTooltip" xml:space="preserve">
-    <value>Aozora/md(A)</value>
+    <value>Aozora/md (A)</value>
   </data>
   <data name="FontTooltip" xml:space="preserve">
     <value>폰트 변경(F)</value>
@@ -284,22 +284,22 @@
     <value>취소</value>
   </data>
   <data name="EncodingMenu" xml:space="preserve">
-    <value>인코딩 (Encoding)</value>
+    <value>인코딩(Encoding)</value>
   </data>
   <data name="EncAuto" xml:space="preserve">
-    <value>자동 (Detect)</value>
+    <value>자동(Detect)</value>
   </data>
   <data name="EncUtf8" xml:space="preserve">
     <value>UTF-8</value>
   </data>
   <data name="EncEucKr" xml:space="preserve">
-    <value>한국어 (EUC-KR)</value>
+    <value>한국어(EUC-KR)</value>
   </data>
   <data name="EncSjis" xml:space="preserve">
-    <value>일본어 (Shift-JIS)</value>
+    <value>일본어(Shift-JIS)</value>
   </data>
   <data name="EncJohab" xml:space="preserve">
-    <value>한국어 (Johab)</value>
+    <value>한국어(Johab)</value>
   </data>
   <data name="WebDavTooltip" xml:space="preserve">
     <value>webdav 연결</value>
@@ -351,7 +351,7 @@
     <value>언어 설정</value>
   </data>
   <data name="LanguageAuto" xml:space="preserve">
-    <value>자동 (기본)</value>
+    <value>자동(기본)</value>
   </data>
   <data name="LanguageKorean" xml:space="preserve">
     <value>한국어</value>
@@ -369,10 +369,10 @@
     <value>UI 폰트 선택</value>
   </data>
   <data name="PinTooltip" xml:space="preserve">
-    <value>UI 고정/자동숨김 (`)</value>
+    <value>UI 고정/자동숨김(`)</value>
   </data>
   <data name="AlwaysOnTopTooltip" xml:space="preserve">
-    <value>항상 위 (T)</value>
+    <value>항상 위(T)</value>
   </data>
   <data name="AutoDoublePageForArchive" xml:space="preserve">
     <value>압축파일 자동 2장보기</value>

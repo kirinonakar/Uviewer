@@ -101,7 +101,7 @@
     <value>Next Image/Page</value>
   </data>
   <data name="AozoraTooltip" xml:space="preserve">
-    <value>Aozora/md(A)</value>
+    <value>Aozora/md (A)</value>
   </data>
   <data name="FontTooltip" xml:space="preserve">
     <value>Change Font (F)</value>
