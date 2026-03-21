@@ -188,10 +188,10 @@
     <value>설정</value>
   </data>
   <data name="LightModeTooltip" xml:space="preserve">
-    <value>라이트 모드</value>
+    <value>라이트 모드(D)</value>
   </data>
   <data name="DarkModeTooltip" xml:space="preserve">
-    <value>다크 모드</value>
+    <value>다크 모드(D)</value>
   </data>
   <data name="ChangeFont" xml:space="preserve">
     <value>폰트 변경</value>

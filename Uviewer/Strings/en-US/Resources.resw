@@ -188,10 +188,10 @@
     <value>Settings</value>
   </data>
   <data name="LightModeTooltip" xml:space="preserve">
-    <value>Light Mode</value>
+    <value>Light Mode (D)</value>
   </data>
   <data name="DarkModeTooltip" xml:space="preserve">
-    <value>Dark Mode</value>
+    <value>Dark Mode (D)</value>
   </data>
   <data name="ChangeFont" xml:space="preserve">
     <value>Change Font</value>

@@ -119,6 +119,7 @@ namespace Uviewer
             if (e.Key == Windows.System.VirtualKey.Space)
             {
                 e.Handled = true;
+                if (_isTextMode) return; // Block and ignore in text mode
                 SideBySideButton_Click(sender, new RoutedEventArgs());
                 return;
             }
@@ -198,7 +199,7 @@ namespace Uviewer
             {
                 case Windows.System.VirtualKey.S:
                     if (ctrlPressed) _ = AddToFavoritesAsync();
-                    else
+                    else if (!_isTextMode && !_isEpubMode) // Disable in text/epub mode
                     {
                         SharpenButton.IsChecked = !(SharpenButton.IsChecked ?? false);
                         SharpenButton_Click(SharpenButton, new RoutedEventArgs());
@@ -253,6 +254,10 @@ namespace Uviewer
 
                 case Windows.System.VirtualKey.T when !ctrlPressed:
                     ToggleAlwaysOnTop();
+                    e.Handled = true;
+                    break;
+                case Windows.System.VirtualKey.D when !ctrlPressed:
+                    GlobalThemeToggleButton_Click(sender, new RoutedEventArgs());
                     e.Handled = true;
                     break;
                 case (Windows.System.VirtualKey)192: // ` (backtick / OEM_3)

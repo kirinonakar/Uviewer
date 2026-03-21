@@ -1520,14 +1520,7 @@ namespace Uviewer
 
             // Prevent file navigation with arrows/space in text mode
             // Using PreviewKeyDown allows us to intercept before ListView gets it
-            if (e.Key == Windows.System.VirtualKey.Left ||
-                e.Key == Windows.System.VirtualKey.Right ||
-                e.Key == Windows.System.VirtualKey.Space)
-            {
-                // Handle Logic Here to avoid bubbling
-                // We will set Handled=true after processing
-            }
-
+ 
             if (e.Key == Windows.System.VirtualKey.Home)
             {
                 if (_isVerticalMode)
@@ -1658,6 +1651,17 @@ namespace Uviewer
                     ToggleTheme();
                 }
                 e.Handled = true;
+            }
+            else if (e.Key == Windows.System.VirtualKey.D)
+            {
+                var ctrlPressed = Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(
+                    Windows.System.VirtualKey.Control).HasFlag(Windows.UI.Core.CoreVirtualKeyStates.Down);
+
+                if (!ctrlPressed)
+                {
+                    GlobalThemeToggleButton_Click(sender, new RoutedEventArgs());
+                    e.Handled = true;
+                }
             }
         }
 
