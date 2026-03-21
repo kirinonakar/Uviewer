@@ -402,6 +402,14 @@ namespace Uviewer
                                 continue; // Skip the page break block itself
                             }
 
+                            // 이미지 존재 여부를 확인하여 없는 경우 페이지로 계산하지 않음
+                            var aozoraImg = block.Inlines.OfType<AozoraImage>().FirstOrDefault();
+                            if (aozoraImg != null && !DoesVerticalImageExist(aozoraImg.Source))
+                            {
+                                blockToPageMap[i] = pageCount;
+                                continue;
+                            }
+
                             // If it's an image (and not a page break)
                             pageCount++;
                             currentPageWidth = 0;

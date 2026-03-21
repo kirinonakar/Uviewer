@@ -670,6 +670,14 @@ namespace Uviewer
                                 continue;
                             }
 
+                            // 이미지 존재 여부를 확인하여 없는 경우 페이지로 계산하지 않음
+                            var aozoraImg = block.Inlines.OfType<AozoraImage>().FirstOrDefault();
+                            if (aozoraImg != null && !DoesAozoraImageExist(aozoraImg.Source))
+                            {
+                                blockToPageMap[i] = pageCount;
+                                continue;
+                            }
+
                             // 이미지는 한 페이지 전체 차지
                             pageCount++;
                             currentPageHeight = 0;
@@ -740,6 +748,14 @@ namespace Uviewer
                     if (block.IsPageBreak)
                     {
                         // 페이지 분리 기호 그 자체로는 빈 페이지를 만들지 않고 건너뜀
+                        index++;
+                        continue;
+                    }
+
+                    // 이미지 존재 여부를 확인하여 없는 경우 무시
+                    var aozoraImg = block.Inlines.OfType<AozoraImage>().FirstOrDefault();
+                    if (aozoraImg != null && !DoesAozoraImageExist(aozoraImg.Source))
+                    {
                         index++;
                         continue;
                     }
@@ -1522,6 +1538,13 @@ private (string text, List<(int start, int length)> boldRanges) ParseTableInline
                     // For WebDAV, we assume it exists to avoid synchronous network calls.
                     // The actual loading will handle failures.
                     return true;
+                }
+                if (_isEpubMode && _currentEpubArchive != null)
+                {
+                    string normPath = relativePath.Replace('\\', '/');
+                    return _currentEpubArchive.Entries.Any(e =>
+                        e.FullName.Replace('\\', '/') == normPath ||
+                        string.Equals(e.FullName.Replace('\\', '/'), normPath, StringComparison.OrdinalIgnoreCase));
                 }
                 if (!string.IsNullOrEmpty(_currentTextFilePath) && _currentTextArchiveEntryKey == null)
                 {
