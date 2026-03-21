@@ -227,6 +227,11 @@ namespace Uviewer
 
             // Update zoom level display (relative to fit size)
             ZoomLevelText.Text = $"{(int)(_zoomLevel * 100)}%";
+
+            if (_currentPdfDocument != null && !(_smoothZoomTimer?.IsRunning ?? false))
+            {
+                _ = RerenderPdfCurrentPageAsync();
+            }
         }
 
         #endregion

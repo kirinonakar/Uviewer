@@ -22,6 +22,7 @@ namespace Uviewer
         private string? _currentPdfPath;
         private readonly SemaphoreSlim _pdfLock = new(1, 1);
         private readonly SemaphoreSlim _pdfRenderSemaphore = new(1); // Limit concurrent rendering to avoid UI freeze
+        private CancellationTokenSource? _pdfZoomRerenderCts;
 
         private async Task LoadImagesFromPdfAsync(string pdfPath)
         {
@@ -210,15 +211,19 @@ namespace Uviewer
                 using var pdfPage = pdfDoc.GetPage(pageIndex);
                 using var stream = new Windows.Storage.Streams.InMemoryRandomAccessStream();
                 
-                double scale = 1.0;
-                double canvasWidth = DispatcherQueue.HasThreadAccess ? canvas.ActualWidth : _lastCanvasWidth;
+                // 사용자 요청: "렌더링 해상도는 100% 때 가로 2000으로 하고 200% 때 가로 3000을 최대치로 해서 그 사이로 변하게 해줘"
+                double targetWidth = 2000.0 * _zoomLevel;
+                targetWidth = Math.Clamp(targetWidth, 2000.0, 3000.0);
 
-                if (canvasWidth > 0 && pdfPage.Size.Width > 0)
+                // HiDPI 환경에서 PdfPageRenderOptions.DestinationWidth가 화면 DPI만큼 더 확대되는 것을 방지하기 위해 보정
+                float dpiScale = canvas.Dpi / 96.0f;
+                if (dpiScale <= 0) dpiScale = 1.0f;
+
+                double scale = 1.0;
+                if (pdfPage.Size.Width > 0)
                 {
-                    scale = canvasWidth / pdfPage.Size.Width;
+                    scale = (targetWidth / dpiScale) / pdfPage.Size.Width;
                 }
-                
-                scale = Math.Max(1.0, Math.Min(scale * 1.5, 2.0));
 
                 var options = new PdfPageRenderOptions
                 {
@@ -246,7 +251,8 @@ namespace Uviewer
                 
                 // 스레드 민첩성을 위해 CanvasDevice 직접 가져오기 (Background Thread Crash 방지)
                 var device = canvas.Device ?? Microsoft.Graphics.Canvas.CanvasDevice.GetSharedDevice();
-                var bitmap = await CanvasBitmap.LoadAsync(device, stream);
+                // 스트림에 담긴 픽셀을 HiDPI 보정 없이 1:1로 읽기 위해 96 DPI 옵션 명시
+                var bitmap = await CanvasBitmap.LoadAsync(device, stream, 96.0f);
                 return bitmap;
             }
             catch (OperationCanceledException)
@@ -350,6 +356,44 @@ namespace Uviewer
                     _currentIndex = item.SourceLineNumber;
                     _ = DisplayCurrentImageAsync();
                 }
+            }
+        }
+
+        private async Task RerenderPdfCurrentPageAsync()
+        {
+            if (_currentPdfDocument == null || _currentBitmap == null) return;
+            if (_currentIndex < 0 || _currentIndex >= _imageEntries.Count) return;
+
+            var entry = _imageEntries[_currentIndex];
+            if (!entry.IsPdfEntry) return;
+
+            _pdfZoomRerenderCts?.Cancel();
+            _pdfZoomRerenderCts = new CancellationTokenSource();
+            var token = _pdfZoomRerenderCts.Token;
+
+            var canvas = MainCanvas;
+            var newBitmap = await LoadPdfPageBitmapAsync(entry.PdfPageIndex, canvas, token);
+
+            if (token.IsCancellationRequested || newBitmap == null)
+            {
+                if (newBitmap != null) SafeDisposeBitmap(newBitmap);
+                return;
+            }
+
+            var oldBitmap = _currentBitmap;
+            _currentBitmap = newBitmap;
+
+            lock (_preloadedImages)
+            {
+                _preloadedImages[_currentIndex] = newBitmap;
+            }
+
+            MainCanvas.Invalidate();
+            UpdateStatusBar(entry, _currentBitmap);
+
+            if (oldBitmap != null && oldBitmap != newBitmap && !IsBitmapInCache(oldBitmap))
+            {
+                SafeDisposeBitmap(oldBitmap);
             }
         }
     }

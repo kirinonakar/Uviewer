@@ -1008,6 +1008,10 @@ namespace Uviewer
         private void ImageArea_ManipulationCompleted(object sender, Microsoft.UI.Xaml.Input.ManipulationCompletedRoutedEventArgs e)
         {
             _isPdfTransitioning = false;
+            if (_currentPdfDocument != null)
+            {
+                _ = RerenderPdfCurrentPageAsync();
+            }
         }
 
         private void ZoomPdfAtPosition(double zoomMultiplier, Windows.Foundation.Point position)
@@ -1090,6 +1094,7 @@ namespace Uviewer
             {
                 ZoomPdfAtPosition(_targetZoomLevel / _zoomLevel, _zoomPivot);
                 _smoothZoomTimer?.Stop();
+                _ = RerenderPdfCurrentPageAsync();
                 return;
             }
 
