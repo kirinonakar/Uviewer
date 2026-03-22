@@ -81,22 +81,20 @@
 | **Home / End** | Image / Archive | First / Last Image |
 | | Text / PDF | First / Last Page |
 | | EPUB | Previous / Next Chapter |
-| **Space** | Image | Toggle 2-Page View (Side-by-Side) |
-| **V** | Text / EPUB | Toggle Vertical Mode (Tategaki) |
 | **Backspace** | Global | Go to Parent Folder |
 | **Esc** | Global | Close Window / Exit Fullscreen |
 | **F11** | Global | Toggle Fullscreen |
-| **D** | Global | Toggle Dark/Light Mode |
 | **`** | Global | Toggle Pin (Auto-Hide UI) |
+| **D** | Global | Toggle Dark/Light Mode |
 | **T** | Global | Toggle Always on Top |
 | **Ctrl + O** | Global | Open File |
 | **Ctrl + B** | Global | Toggle Sidebar |
-| **Ctrl + F** | Global | Toggle Favorites |
 | **Ctrl + S** | Global | Add to Favorites |
+| **+ / -**  | Global | Zoom In/Out / Font Size Up/Down (-/= also works) |
 | **G** | Text/EPUB | Go to Line |
 | | PDF | Go to Page |
-| **+ / -**  | Global | Zoom In/Out / Font Size Up/Down (-/= also works) |
-| **0** | Image | Reset Zoom to 100% |
+| **Space** | Image / EPUB | Toggle 2-Page View (Side-by-Side) |
+| **V** | Text / EPUB | Toggle Vertical Mode (Tategaki) |
 | **S** | Image | Toggle Sharpening |
 | **A** | Text | Toggle Simple text / Advanced rendering (Aozora, Markdown) mode |
 | **B** | Text | Change Background Theme |
