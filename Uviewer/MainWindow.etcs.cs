@@ -271,7 +271,7 @@ namespace Uviewer
                         }
                         else if (SupportedEpubExtensions.Contains(ext))
                         {
-                            await LoadEpubFileAsync(file);
+                            await LoadImageFromFileAsync(file);
                         }
                         else if (SupportedPdfExtensions.Contains(ext))
                         {

@@ -206,6 +206,17 @@ namespace Uviewer
                  if (_epubSpine.Count == 0) throw new Exception("No content found in EPUB");
                  
                  SwitchToEpubMode();
+                 // Ensure the EPUB file we are loading is in the current image entries (album)
+                 // to prevent sidebar sync logic from reverting to previous files.
+                 if (_imageEntries == null || _imageEntries.Count == 0 || !_imageEntries.Any(e => e.FilePath != null && e.FilePath.Equals(file.Path, StringComparison.OrdinalIgnoreCase)))
+                 {
+                     _imageEntries = new List<ImageEntry>
+                     {
+                         new ImageEntry { DisplayName = file.Name, FilePath = file.Path }
+                     };
+                     _currentIndex = 0;
+                 }
+
                  LoadEpubSettings();
                 // If the app is currently in vertical mode, ensure UI reflects that
                 if (_isVerticalMode)

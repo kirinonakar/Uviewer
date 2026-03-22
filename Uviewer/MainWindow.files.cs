@@ -155,7 +155,7 @@ namespace Uviewer
                 }
                 else if (SupportedEpubExtensions.Contains(extension))
                 {
-                    await LoadEpubFileAsync(file);
+                    await LoadImageFromFileAsync(file);
                 }
                 else
                 {

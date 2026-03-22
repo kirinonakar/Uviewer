@@ -469,6 +469,17 @@ namespace Uviewer
                 }
                 else if (SupportedEpubExtensions.Contains(ext))
                 {
+                    // Sequential navigation - include all supported files in folder
+                    var viewableItems = _fileItems.Where(f => !f.IsDirectory && !f.IsParentDirectory).ToList();
+                    _imageEntries = viewableItems.Select(f => new ImageEntry 
+                    { 
+                        DisplayName = f.Name, 
+                        WebDavPath = f.WebDavPath 
+                    }).ToList();
+                    
+                    _currentIndex = _imageEntries.FindIndex(e => e.WebDavPath == item.WebDavPath);
+                    if (_currentIndex >= 0) _imageEntries[_currentIndex].FilePath = tempPath;
+
                     var file = await StorageFile.GetFileFromPathAsync(tempPath);
                     await LoadEpubFileAsync(file);
                 }

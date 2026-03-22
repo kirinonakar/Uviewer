@@ -367,7 +367,7 @@ namespace Uviewer
                         else if (SupportedEpubExtensions.Contains(extension))
                         {
                             var file = await StorageFile.GetFileFromPathAsync(launchFilePath);
-                            await LoadEpubFileAsync(file);
+                            await LoadImageFromFileAsync(file, true); // Use fast initial load
                         }
                         else
                         {
