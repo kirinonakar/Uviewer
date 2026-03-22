@@ -900,8 +900,16 @@ namespace Uviewer
             DispatcherQueue.TryEnqueue(() => EpubTextCanvas?.Focus(Microsoft.UI.Xaml.FocusState.Programmatic));
             var pt = e.GetCurrentPoint(EpubTouchOverlay);
             double half = EpubTouchOverlay.ActualWidth / 2;
-            if (pt.Position.X < half) _ = NavigateEpubAsync(-1);
-            else _ = NavigateEpubAsync(1);
+            if (pt.Position.X < half) 
+            {
+                if (_isVerticalMode) NavigateVerticalPage(-1); 
+                else _ = NavigateEpubAsync(-1);
+            }
+            else 
+            {
+                if (_isVerticalMode) NavigateVerticalPage(1);
+                else _ = NavigateEpubAsync(1);
+            }
         }
 
         private void EpubTouchOverlay_PointerWheelChanged(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
@@ -909,8 +917,16 @@ namespace Uviewer
             if (!_isEpubMode) return;
             DispatcherQueue.TryEnqueue(() => EpubTextCanvas?.Focus(Microsoft.UI.Xaml.FocusState.Programmatic));
             var delta = e.GetCurrentPoint(EpubTouchOverlay).Properties.MouseWheelDelta;
-            if (delta > 0) _ = NavigateEpubAsync(-1);
-            else _ = NavigateEpubAsync(1);
+            if (delta > 0) 
+            {
+                if (_isVerticalMode) NavigateVerticalPage(-1);
+                else _ = NavigateEpubAsync(-1);
+            }
+            else 
+            {
+                if (_isVerticalMode) NavigateVerticalPage(1);
+                else _ = NavigateEpubAsync(1);
+            }
         }
 
         private void EpubPage_PointerPressed(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
@@ -1168,7 +1184,7 @@ namespace Uviewer
             if (!_isEpubMode) return;
 
             int step = direction;
-            if (_isSideBySideMode && _isEpubShowingTwoPages) step = direction * 2;
+            if (_isSideBySideMode) step = direction * 2;
 
             int targetChapter = _currentEpubChapterIndex;
             int targetPage = _currentEpubPageIndex + step;

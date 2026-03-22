@@ -690,12 +690,12 @@ namespace Uviewer
             var size = sender.Size;
             Color textColor = GetVerticalTextColor();
             
-            // [수정] EPUB 이미지 페이지에서는 읽기 테마(베이지 등) 대신 앱 표준 배경(투명하게 비움)을 사용합니다.
-            // 또한 페이지 전환 중(데이터 로딩)에도 EPUB 모드라면 미리 투명하게 비워서 베이지색 깜박임을 방지합니다.
+            // [수정] EPUB 이미지 페이지에서는 읽기 테마(베이지 등) 대신 앱 표준 배경색을 사용합니다.
+            // 또한 페이지 전환 중(데이터 로딩)에도 EPUB 모드라면 미리 해당 배경색으로 비워서 베이지색 깜박임을 방지합니다.
             bool isImgPage = _currentVerticalPageInfo.Blocks != null && _currentVerticalPageInfo.Blocks.Any(b => b.HasImage);
             bool isEmptyPage = _currentVerticalPageInfo.Blocks == null || _currentVerticalPageInfo.Blocks.Count == 0;
 
-            if (_isEpubMode && (isImgPage || isEmptyPage)) ds.Clear(Colors.Transparent);
+            if (_isEpubMode && (isImgPage || isEmptyPage)) ds.Clear(GetVerticalAppBackgroundColor());
             else ds.Clear(GetVerticalBackgroundColor());
 
             if (_currentVerticalPageInfo.Blocks == null || _currentVerticalPageInfo.Blocks.Count == 0) return;
@@ -944,6 +944,16 @@ namespace Uviewer
             return Microsoft.UI.ColorHelper.FromArgb(255, 30, 30, 30); // Dark
         }
 
+        private Color GetVerticalAppBackgroundColor()
+        {
+            // 사용자의 요청에 따라 다크 모드 시 완전한 검은색 대신 일반 이미지 보기 배경색(#202020)을 사용합니다.
+            if (RootGrid?.ActualTheme == Microsoft.UI.Xaml.ElementTheme.Dark) 
+                return Microsoft.UI.ColorHelper.FromArgb(255, 32, 32, 32); // #202020 (SolidBackgroundFillColorBase)
+
+            // 라이트 모드인 경우 텍스트 읽기용 베이지 대신 앱 표준 배경색(#F3F3F3)을 적용합니다.
+            return Microsoft.UI.ColorHelper.FromArgb(255, 243, 243, 243); // #F3F3F3
+        }
+
         private void VerticalTextCanvas_PointerPressed(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
         {
             if (VerticalTextCanvas == null) return;
@@ -1037,7 +1047,8 @@ namespace Uviewer
 
                     if (minChapterOnPage > 0)
                     {
-                        _currentEpubChapterIndex = minChapterOnPage - 1;
+                        // SideBySide 모드인 경우 2챕터 이전으로 이동하여 겹침 방지
+                        _currentEpubChapterIndex = _isSideBySideMode ? Math.Max(0, minChapterOnPage - 2) : minChapterOnPage - 1;
                         await LoadEpubChapterAsync(_currentEpubChapterIndex, fromEnd: true);
                     }
                 }
@@ -1138,10 +1149,18 @@ namespace Uviewer
             {
                 _isSideBySideMode = !_isSideBySideMode;
                 UpdateSideBySideButtonState();
-                // [수정]
+                // [수정] EPUB 모드일 때는 챕터 통합 로직을 위해 다시 로드 (SideBySide 모드 반영)
                 var pageBlocks = _currentVerticalPageInfo.Blocks;
                 int currentLine = pageBlocks != null ? _currentVerticalPageInfo.StartLine : 1;
-                _ = PrepareVerticalTextAsync(currentLine);
+                
+                if (_isEpubMode)
+                {
+                    _ = LoadEpubChapterAsync(_currentEpubChapterIndex, targetLine: currentLine);
+                }
+                else
+                {
+                    _ = PrepareVerticalTextAsync(currentLine);
+                }
                 e.Handled = true;
                 return;
             }

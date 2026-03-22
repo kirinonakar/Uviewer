@@ -750,8 +750,15 @@ namespace Uviewer
 
             if (_isVerticalMode)
             {
-                int currentLine = _currentVerticalPageInfo.StartLine;
-                _ = PrepareVerticalTextAsync(currentLine);
+                if (_isEpubMode)
+                {
+                    _ = LoadEpubChapterAsync(_currentEpubChapterIndex, targetLine: _currentVerticalPageInfo.StartLine);
+                }
+                else
+                {
+                    int currentLine = _currentVerticalPageInfo.StartLine;
+                    _ = PrepareVerticalTextAsync(currentLine);
+                }
             }
             else if (_isEpubMode)
             {

@@ -1319,6 +1319,12 @@ namespace Uviewer
 
             UpdateThemeToggleButtonTooltip();
             UpdateTitleBarColors();
+
+            // [추가] 테마 변경 시 Win2D 기반 캔버스들을 즉시 다시 그려 배경색 등을 반영합니다.
+            if (_isVerticalMode && VerticalTextCanvas != null) VerticalTextCanvas.Invalidate();
+            if (_isEpubMode && EpubTextCanvas != null) EpubTextCanvas.Invalidate();
+            if (_isAozoraMode && AozoraTextCanvas != null) AozoraTextCanvas.Invalidate();
+            if (MainCanvas != null) MainCanvas.Invalidate();
         }
 
         private void UpdateTitleBarColors()
