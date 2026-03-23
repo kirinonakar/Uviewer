@@ -74,7 +74,20 @@ namespace Uviewer
                 // 무조건 EPUB 챕터 파싱과 페이지 위치 비율 계산을 최우선으로 가져오도록 합니다.
                 if (_isEpubMode)
                 {
-                    _aozoraBlocks = await GetEpubChapterAsAozoraBlocksAsync(_currentEpubChapterIndex);
+                    var blocks = await GetEpubChapterAsAozoraBlocksAsync(_currentEpubChapterIndex);
+
+                    // [추가] 가로 모드와 동일하게 SideBySide 모드인 경우 다음 챕터의 이미지도 함께 가져옴
+                    if (_isSideBySideMode && blocks.Count > 0 && blocks.Any(b => b.HasImage))
+                    {
+                        int nextIdx = _currentEpubChapterIndex + 1;
+                        if (nextIdx < _epubSpine.Count)
+                        {
+                            var nextBlocks = await GetEpubChapterAsAozoraBlocksAsync(nextIdx);
+                            if (nextBlocks.Count > 0 && nextBlocks.Any(b => b.HasImage))
+                                blocks.AddRange(nextBlocks);
+                        }
+                    }
+                    _aozoraBlocks = blocks;
 
                     if (_epubWin2DPages != null && _currentEpubPageIndex >= 0 && _currentEpubPageIndex < _epubWin2DPages.Count)
                     {

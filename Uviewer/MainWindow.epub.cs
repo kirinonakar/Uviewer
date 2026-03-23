@@ -1345,6 +1345,30 @@ namespace Uviewer
                     return;
                 }
 
+                // [추가] 가로 모드에서도 SideBySide인 경우 다음 챕터가 연달아 이미지면 미리 렌더링해서 캐시에 넣음
+                // 이렇게 해야 SetEpubPageIndex에서 다음 페이지(이미지)를 즉시 찾아 2페이지 모드를 유지할 수 있음
+                if (_isSideBySideMode && pages.Count > 0 && pages.Any(p => p.IsImagePage))
+                {
+                    int nextIdx = index + 1;
+                    if (nextIdx < _epubSpine.Count && !_epubPreloadCache.ContainsKey(nextIdx))
+                    {
+                        var entry = _currentEpubArchive?.GetEntry(_epubSpine[nextIdx]);
+                        if (entry != null)
+                        {
+                            string nextHtml;
+                            await _epubArchiveLock.WaitAsync();
+                            try {
+                                using var s = entry.Open();
+                                using var r = new StreamReader(s);
+                                nextHtml = await r.ReadToEndAsync();
+                            } finally { _epubArchiveLock.Release(); }
+                            
+                            var nextPages = await RenderEpubPagesAsync(nextHtml, _epubSpine[nextIdx]);
+                            _epubPreloadCache[nextIdx] = nextPages;
+                        }
+                    }
+                }
+
                 // 가로 모드: Win2D 캔버스 활성화
                 EpubTextCanvas.Visibility = Visibility.Visible;
                 EpubImageHost.Visibility = Visibility.Collapsed;
@@ -1416,19 +1440,23 @@ namespace Uviewer
             // 이미지 페이지 처리
             if (page.IsImagePage)
             {
-                _isEpubShowingTwoPages = false;
-                EpubTextCanvas.Visibility = Visibility.Collapsed;
-                // 연속 이미지 SBS 처리
+                // [수정] 무조건 false로 리셋하지 않고, SBS 모드가 아니거나 다음 장이 이미지가 아닐 때만 결과적으로 false가 되도록 함
+                bool nextIsImage = false;
                 if (_isSideBySideMode)
                 {
                     int nextChapIndex = _currentEpubChapterIndex;
                     int nextPgIndex = index + 1;
                     if (nextPgIndex >= _epubWin2DPages.Count) { nextChapIndex++; nextPgIndex = 0; }
                     var pg2 = GetEpubWin2DPage(nextChapIndex, nextPgIndex);
-                    if (pg2 != null && pg2.IsImagePage)
-                    {
-                        _isEpubShowingTwoPages = true;
-                    }
+                    if (pg2 != null && pg2.IsImagePage) nextIsImage = true;
+                }
+
+                _isEpubShowingTwoPages = nextIsImage;
+                EpubTextCanvas.Visibility = Visibility.Collapsed;
+                // 연속 이미지 SBS 처리
+                if (_isSideBySideMode)
+                {
+                    // 위에서 이미 검사했으므로 _isEpubShowingTwoPages 값을 그대로 따름
                 }
                 ShowEpubImagePage(page);
             }
