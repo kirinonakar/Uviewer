@@ -122,6 +122,19 @@ namespace Uviewer
                     _leftBitmap = null;
                     _rightBitmap = null;
 
+                    // PDF: Set initial pan position to top or bottom of page depending on direction
+                    if (!_isSeamlessScroll)
+                    {
+                        var canvasSize = MainCanvas.Size;
+                        var imageSize = nextBitmap.Size;
+                        var fitRatio = Math.Min(canvasSize.Width / imageSize.Width, canvasSize.Height / imageSize.Height);
+                        var scaledH = imageSize.Height * fitRatio * _zoomLevel;
+                        double maxPan = (scaledH > canvasSize.Height) ? (scaledH - canvasSize.Height) / 2 : 0;
+                        _pdfPanY = (_pdfScrollDirection == 1) ? maxPan : -maxPan;
+                        _pdfPanX = 0;
+                        _isPdfTransitioning = false;
+                    }
+
                     MainCanvas.Invalidate();
                     ShowImageUI();
                     UpdateStatusBar(entry, _currentBitmap);
@@ -293,18 +306,10 @@ namespace Uviewer
                     }
                     else
                     {
-                        // PDF: Set initial pan to top or bottom of page depending on direction
-                        if (!_isSeamlessScroll)
-                        {
-                            var canvasSize = MainCanvas.Size;
-                            var imageSize = bitmap.Size;
-                            var fitRatio = Math.Min(canvasSize.Width / imageSize.Width, canvasSize.Height / imageSize.Height);
-                            var scaledH = imageSize.Height * fitRatio * _zoomLevel;
-                            double maxPan = (scaledH > canvasSize.Height) ? (scaledH - canvasSize.Height) / 2 : 0;
-                            _pdfPanY = (_pdfScrollDirection == 1) ? maxPan : -maxPan;
-                            _pdfPanX = 0;
-                            _isPdfTransitioning = false;
-                        }
+                        // PDF: Handle initial pan state (handled in DisplayCurrentImageAsync now)
+                        _pdfPanX = 0;
+                        _pdfPanY = 0;
+                        _isPdfTransitioning = false;
                     }
                     ShowImageUI();
                     UpdateStatusBar(entry, _currentBitmap);
