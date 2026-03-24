@@ -1410,16 +1410,16 @@ namespace Uviewer
 
             try
             {
-                if (_isWebDavMode && !string.IsNullOrEmpty(_currentWebDavItemPath))
-                {
-                    return true;
-                }
                 if (_isEpubMode && _currentEpubArchive != null)
                 {
                     string normPath = relativePath.Replace('\\', '/');
                     return _currentEpubArchive.Entries.Any(e =>
                         e.FullName.Replace('\\', '/') == normPath ||
                         string.Equals(e.FullName.Replace('\\', '/'), normPath, StringComparison.OrdinalIgnoreCase));
+                }
+                if (_isWebDavMode && !string.IsNullOrEmpty(_currentWebDavItemPath))
+                {
+                    return true;
                 }
                 if (!string.IsNullOrEmpty(_currentTextFilePath) && _currentTextArchiveEntryKey == null)
                 {
@@ -1463,19 +1463,7 @@ namespace Uviewer
             {
                 byte[]? bytes = null;
 
-                if (_isWebDavMode && !string.IsNullOrEmpty(_currentWebDavItemPath))
-                {
-                    string? fullRemotePath = ResolveWebDavImagePath(relativePath);
-                    if (fullRemotePath != null)
-                    {
-                        var tempPath = await _webDavService.DownloadToTempFileAsync(fullRemotePath);
-                        if (!string.IsNullOrEmpty(tempPath) && System.IO.File.Exists(tempPath))
-                        {
-                            bytes = await System.IO.File.ReadAllBytesAsync(tempPath);
-                        }
-                    }
-                }
-                else if (_isEpubMode && _currentEpubArchive != null)
+                if (_isEpubMode && _currentEpubArchive != null)
                 {
                     string normPath = relativePath.Replace('\\', '/');
                     var entry = _currentEpubArchive.Entries.FirstOrDefault(e => e.FullName.Replace('\\', '/') == normPath)
@@ -1492,6 +1480,18 @@ namespace Uviewer
                             bytes = ms.ToArray();
                         }
                         finally { _epubArchiveLock.Release(); }
+                    }
+                }
+                else if (_isWebDavMode && !string.IsNullOrEmpty(_currentWebDavItemPath))
+                {
+                    string? fullRemotePath = ResolveWebDavImagePath(relativePath);
+                    if (fullRemotePath != null)
+                    {
+                        var tempPath = await _webDavService.DownloadToTempFileAsync(fullRemotePath);
+                        if (!string.IsNullOrEmpty(tempPath) && System.IO.File.Exists(tempPath))
+                        {
+                            bytes = await System.IO.File.ReadAllBytesAsync(tempPath);
+                        }
                     }
                 }
                 else if (!string.IsNullOrEmpty(_currentTextFilePath) && _currentTextArchiveEntryKey == null)

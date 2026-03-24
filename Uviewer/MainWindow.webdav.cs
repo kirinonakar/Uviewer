@@ -439,8 +439,6 @@ namespace Uviewer
             await CloseCurrentPdfAsync();
             CloseCurrentEpub();
             CloseCurrentArchive();
-            SwitchToImageMode();
-
             _currentWebDavItemPath = item.WebDavPath;
             ClearImageResources();
             FileNameText.Text = $"다운로드 중: {item.Name}...";
@@ -481,7 +479,8 @@ namespace Uviewer
                     if (_currentIndex >= 0) _imageEntries[_currentIndex].FilePath = tempPath;
 
                     var file = await StorageFile.GetFileFromPathAsync(tempPath);
-                    await LoadEpubFileAsync(file);
+                    var entry = _currentIndex >= 0 ? _imageEntries[_currentIndex] : null;
+                    await LoadEpubFileAsync(file, entry, _webDavCts.Token);
                 }
                 else
                 {
@@ -528,7 +527,6 @@ namespace Uviewer
             // Close other formats first
             await CloseCurrentPdfAsync();
             CloseCurrentEpub();
-            SwitchToImageMode();
 
             _currentWebDavItemPath = item.WebDavPath;
             ClearImageResources();

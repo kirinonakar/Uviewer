@@ -29,6 +29,7 @@ namespace Uviewer
         private List<string> _epubSpine = new();
         private int _currentEpubChapterIndex = 0;
         private string? _currentEpubFilePath;
+        private string? _currentEpubDisplayName;
         private string? _epubTocPath;
         private object _epubLock = new object();
         private SemaphoreSlim _epubArchiveLock = new SemaphoreSlim(1, 1);
@@ -149,10 +150,11 @@ namespace Uviewer
         {
             try
             {
+                CloseCurrentEpub();
                 if (entry.FilePath != null)
                 {
                     var file = await StorageFile.GetFileFromPathAsync(entry.FilePath);
-                    await LoadEpubFileAsync(file, token);
+                    await LoadEpubFileAsync(file, entry, token);
                 }
                 else if (entry.IsWebDavEntry && _isWebDavMode)
                 {
@@ -162,7 +164,7 @@ namespace Uviewer
                     {
                         entry.FilePath = tempPath;
                         var file = await StorageFile.GetFileFromPathAsync(tempPath);
-                        await LoadEpubFileAsync(file, token);
+                        await LoadEpubFileAsync(file, entry, token);
                     }
                 }
             }
@@ -178,18 +180,22 @@ namespace Uviewer
             // Now handled in MainWindow.keys.cs via RootGrid_PreviewKeyDown
         }
 
-        private async Task LoadEpubFileAsync(StorageFile file, CancellationToken token = default)
+        private async Task LoadEpubFileAsync(StorageFile file, ImageEntry? entry = null, CancellationToken token = default)
         {
              await AddToRecentAsync(true);
              InitializeEpub();
              StopAnimatedWebp();
 
+             // Ensure navigation token is fresh for vertical mode
+             CancelAndResetGlobalTextCts();
+             
              // Close other formats first
              CloseCurrentArchive();
              await CloseCurrentPdfAsync();
              CloseCurrentEpub();
 
              _currentEpubFilePath = file.Path;
+             _currentEpubDisplayName = entry?.DisplayName ?? file.Name;
              
               try
               {
@@ -264,8 +270,8 @@ namespace Uviewer
                  // 4. Load TOC (Background)
                  _ = ParseEpubTocAsync();
 
-                 FileNameText.Text = GetFormattedDisplayName(file.Name, false);
-                 SyncSidebarSelection(new ImageEntry { FilePath = file.Path, DisplayName = file.Name });
+                 FileNameText.Text = GetFormattedDisplayName(entry?.DisplayName ?? file.Name, false);
+                 SyncSidebarSelection(entry ?? new ImageEntry { FilePath = file.Path, DisplayName = file.Name });
              }
              catch (Exception ex)
              {
@@ -1447,7 +1453,7 @@ namespace Uviewer
             }
             finally
             {
-                FileNameText.Text = Path.GetFileName(_currentEpubFilePath) ?? "";
+                FileNameText.Text = GetFormattedDisplayName(_currentEpubDisplayName ?? Path.GetFileName(_currentEpubFilePath) ?? "", false);
             }
         }
 
