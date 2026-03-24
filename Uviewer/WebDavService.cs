@@ -86,20 +86,10 @@ namespace Uviewer
             var vault = new PasswordVault();
             string resource = GetVaultResourceKey(info.ResourceUrl);
 
-            // 기존 항목 삭제 (있으면)
-            try
-            {
-                var existing = vault.FindAllByResource(resource);
-                foreach (var cred in existing)
-                {
-                    vault.Remove(cred);
-                }
-            }
-            catch { /* 없으면 무시 */ }
-
-            // userId와 password를 합쳐서 '비밀번호' 필드에 저장. 사용자 이름은 고정값으로 숨김.
+            // userId와 password를 합쳐서 '비밀번호' 필드에 저장.
+            // 서버 이름을 UserName으로 사용하여 동일 주소(URL)에서 다른 이름의 서버 설정을 가능하게 함.
             string combinedSecret = $"{info.UserId}{CredentialSeparator}{info.Password}";
-            vault.Add(new PasswordCredential(resource, ObfuscatedUserName, combinedSecret));
+            vault.Add(new PasswordCredential(resource, info.ServerName, combinedSecret));
 
             // 서버 이름 → URL 매핑은 DPAPI 암호화 JSON에 저장
             SaveServerNameMapping(info.ServerName, info.ResourceUrl);
@@ -122,23 +112,30 @@ namespace Uviewer
                 var credentials = vault.FindAllByResource(resource);
                 if (credentials.Count == 0) return null;
 
-                var cred = credentials[0];
+                // 1. 해당 서버 이름(UserName)을 가진 자격 증명 우선 검색
+                // 2. 없으면 구버전 호환용(ObfuscatedUserName) 검색
+                var cred = credentials.FirstOrDefault(c => c.UserName == serverName)
+                           ?? credentials.FirstOrDefault(c => c.UserName == ObfuscatedUserName);
+
+                if (cred == null) return null;
                 cred.RetrievePassword();
 
-                string userId = cred.UserName;
+                string userName = cred.UserName;
                 string password = cred.Password;
 
-                // 새 방식: UserName이 고정값이면 Password 필드를 파싱
-                if (userId == ObfuscatedUserName)
+                string realUserId = userName;
+                string realPassword = password;
+
+                // 새 방식(서버 이름이 UserName) 또는 구 방식(ObfuscatedUserName이 UserName) 모두 Password 필드 파싱 시도
+                if (password.Contains(CredentialSeparator))
                 {
                     var parts = password.Split(new[] { CredentialSeparator }, StringSplitOptions.None);
                     if (parts.Length >= 2)
                     {
-                        userId = parts[0];
-                        password = string.Join(CredentialSeparator, parts.Skip(1)); // 혹시 비밀번호에 구분자가 들어가는 극히 드문 경우 대비
+                        realUserId = parts[0];
+                        realPassword = string.Join(CredentialSeparator, parts.Skip(1));
                     }
                 }
-                // 구 방식: UserName이 실제 ID임 (하위 호환 유지)
 
                 // URL에서 address와 port 추출
                 if (!resourceUrl.StartsWith("http", StringComparison.OrdinalIgnoreCase))
@@ -152,8 +149,8 @@ namespace Uviewer
                     ServerName = serverName,
                     Address = uri.Host,
                     Port = uri.Port,
-                    UserId = userId,
-                    Password = password
+                    UserId = realUserId,
+                    Password = realPassword
                 };
             }
             catch
@@ -177,9 +174,24 @@ namespace Uviewer
             try
             {
                 var credentials = vault.FindAllByResource(resource);
-                foreach (var cred in credentials)
+                
+                // 1. 해당 서버 이름을 가진 자격 증명만 삭제
+                var specificCred = credentials.FirstOrDefault(c => c.UserName == serverName);
+                if (specificCred != null)
                 {
-                    vault.Remove(cred);
+                    vault.Remove(specificCred);
+                }
+
+                // 2. 구버전 마이그레이션용(ObfuscatedUserName) 삭제 여부 결정
+                // 해당 주소를 사용하는 다른 서버가 없는 경우에만 삭제하여 다른 서버 간섭 방지
+                bool otherUsesSameUrl = mapping.Any(kvp => kvp.Key != serverName && kvp.Value == resourceUrl);
+                if (!otherUsesSameUrl)
+                {
+                    var oldCred = credentials.FirstOrDefault(c => c.UserName == ObfuscatedUserName);
+                    if (oldCred != null)
+                    {
+                        vault.Remove(oldCred);
+                    }
                 }
             }
             catch { }
