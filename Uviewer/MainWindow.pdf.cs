@@ -21,7 +21,17 @@ namespace Uviewer
         private List<TocItem> _pdfToc = new();
         private string? _currentPdfPath;
         private readonly SemaphoreSlim _pdfLock = new(1, 1);
-        private readonly SemaphoreSlim _pdfRenderSemaphore = new(2); // Limit concurrent rendering to avoid UI freeze, but allow 2 for smoother transitions
+
+        // [최적화] 세마포어를 두 개로 분리
+        // - _pdfRenderSemaphore: 백그라운드 프리로드 전용 (동시 3개)
+        // - _pdfCurrentPageSemaphore: 현재 페이지 렌더링 전용 (동시 2개, 프리로드와 독립)
+        // 이전: 모든 렌더링이 하나의 세마포어(2)를 공유 → 프리로드가 현재 페이지 렌더를 블록
+        private readonly SemaphoreSlim _pdfRenderSemaphore = new(3);
+        private readonly SemaphoreSlim _pdfCurrentPageSemaphore = new(2, 2);
+
+        // [최적화] 낮은 해상도로 프리로드된 페이지 추적 (빠른 스크롤 시 캐시 히트율 향상)
+        private readonly HashSet<int> _pdfLowResPageIndices = new();
+
         private CancellationTokenSource? _pdfZoomRerenderCts;
 
         private async Task LoadImagesFromPdfAsync(string pdfPath)
@@ -195,6 +205,12 @@ namespace Uviewer
                 _sharpenedImageCache.Clear();
             }
 
+            // [최적화] 저해상도 페이지 인덱스 초기화
+            lock (_pdfLowResPageIndices)
+            {
+                _pdfLowResPageIndices.Clear();
+            }
+
             _fastNavigationResetCts?.Cancel();
             _fastNavigationResetCts?.Dispose();
             _fastNavigationResetCts = null;
@@ -204,7 +220,23 @@ namespace Uviewer
             _rightBitmap = null;
         }
 
-        private async Task<CanvasBitmap?> LoadPdfPageBitmapAsync(uint pageIndex, CanvasControl canvas, CancellationToken token = default)
+        /// <summary>
+        /// PDF 페이지를 비트맵으로 렌더링합니다.
+        /// </summary>
+        /// <param name="pageIndex">렌더링할 페이지 인덱스</param>
+        /// <param name="canvas">Win2D 캔버스</param>
+        /// <param name="token">취소 토큰</param>
+        /// <param name="isPreload">true이면 백그라운드 프리로드용 세마포어(_pdfRenderSemaphore)를 사용.
+        ///   false(기본값)이면 현재 페이지 우선 세마포어(_pdfCurrentPageSemaphore)를 사용하여
+        ///   프리로드에 의해 블록되지 않음.</param>
+        /// <param name="isPreview">true이면 저해상도(최대 1200px)로 렌더링. 빠른 프리로드용.
+        ///   현재 페이지로 이동 시 자동으로 풀 해상도로 업그레이드됨.</param>
+        private async Task<CanvasBitmap?> LoadPdfPageBitmapAsync(
+            uint pageIndex,
+            CanvasControl canvas,
+            CancellationToken token = default,
+            bool isPreload = false,
+            bool isPreview = false)
         {
             // 로컬 변수에 캡처하여 도중 _currentPdfDocument가 null이 되어도 크래시 방지
             var pdfDoc = _currentPdfDocument;
@@ -212,15 +244,24 @@ namespace Uviewer
 
             try
             {
-                // 취소 요청이 들어왔다면 세마포어 대기 전에 빠른 반환
                 if (token.IsCancellationRequested) return null;
 
                 using var pdfPage = pdfDoc.GetPage(pageIndex);
                 using var stream = new Windows.Storage.Streams.InMemoryRandomAccessStream();
-                
-                // 사용자 요청: "렌더링 해상도는 100% 때 가로 2000으로 하고 200% 때 가로 3000을 최대치로 해서 그 사이로 변하게 해줘"
-                double targetWidth = 2000.0 * _zoomLevel;
-                targetWidth = Math.Clamp(targetWidth, 2000.0, 3000.0);
+
+                // [최적화] 해상도 분기
+                // - isPreview(먼 프리로드): 최대 1200px → 렌더 속도 ~3배 향상, 빠른 캐시 채움
+                // - 일반(가까운 프리로드 / 현재 페이지): 2000~3000px 풀 해상도
+                double targetWidth;
+                if (isPreview)
+                {
+                    targetWidth = 1200.0;
+                }
+                else
+                {
+                    targetWidth = 2000.0 * _zoomLevel;
+                    targetWidth = Math.Clamp(targetWidth, 2000.0, 3000.0);
+                }
 
                 // HiDPI 환경에서 PdfPageRenderOptions.DestinationWidth가 화면 DPI만큼 더 확대되는 것을 방지하기 위해 보정
                 float dpiScale = canvas.Dpi / 96.0f;
@@ -237,25 +278,26 @@ namespace Uviewer
                     DestinationWidth = (uint)(pdfPage.Size.Width * scale),
                     DestinationHeight = (uint)(pdfPage.Size.Height * scale)
                 };
-                
-                // 세마포어 대기 중 취소될 수 있으므로 token 전달
-                await _pdfRenderSemaphore.WaitAsync(token);
+
+                // [최적화] 세마포어 분리:
+                // - isPreload=true → _pdfRenderSemaphore (백그라운드, 동시 3개)
+                // - isPreload=false → _pdfCurrentPageSemaphore (우선 처리, 동시 2개, 프리로드 블록 없음)
+                var semaphore = isPreload ? _pdfRenderSemaphore : _pdfCurrentPageSemaphore;
+                await semaphore.WaitAsync(token);
                 try
                 {
                     if (token.IsCancellationRequested) return null;
-
-                    // 핵심 수정: AsTask(token)을 사용하여 네이티브 렌더링 중에도 취소 신호에 반응하도록 함
                     await pdfPage.RenderToStreamAsync(stream, options).AsTask(token);
                 }
                 finally
                 {
-                    _pdfRenderSemaphore.Release();
+                    semaphore.Release();
                 }
-                
+
                 if (token.IsCancellationRequested) return null;
 
                 stream.Seek(0);
-                
+
                 // 스레드 민첩성을 위해 CanvasDevice 직접 가져오기 (Background Thread Crash 방지)
                 var device = canvas.Device ?? Microsoft.Graphics.Canvas.CanvasDevice.GetSharedDevice();
                 // 스트림에 담긴 픽셀을 HiDPI 보정 없이 1:1로 읽기 위해 96 DPI 옵션 명시
@@ -382,7 +424,8 @@ namespace Uviewer
             int capturedIndex = _currentIndex;
 
             var canvas = MainCanvas;
-            var newBitmap = await LoadPdfPageBitmapAsync(entry.PdfPageIndex, canvas, token);
+            // [최적화] isPreload=false → _pdfCurrentPageSemaphore 사용으로 프리로드에 의해 블록되지 않음
+            var newBitmap = await LoadPdfPageBitmapAsync(entry.PdfPageIndex, canvas, token, isPreload: false, isPreview: false);
 
             if (token.IsCancellationRequested || newBitmap == null)
             {
@@ -403,6 +446,13 @@ namespace Uviewer
             lock (_preloadedImages)
             {
                 _preloadedImages[capturedIndex] = newBitmap;
+                _pdfPreloadZoomLevels[capturedIndex] = _zoomLevel;
+            }
+
+            // [최적화] 풀 해상도로 업데이트됐으므로 저해상도 플래그 제거
+            lock (_pdfLowResPageIndices)
+            {
+                _pdfLowResPageIndices.Remove(capturedIndex);
             }
 
             MainCanvas.Invalidate();
