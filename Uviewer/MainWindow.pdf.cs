@@ -21,7 +21,7 @@ namespace Uviewer
         private List<TocItem> _pdfToc = new();
         private string? _currentPdfPath;
         private readonly SemaphoreSlim _pdfLock = new(1, 1);
-        private readonly SemaphoreSlim _pdfRenderSemaphore = new(1); // Limit concurrent rendering to avoid UI freeze
+        private readonly SemaphoreSlim _pdfRenderSemaphore = new(2); // Limit concurrent rendering to avoid UI freeze, but allow 2 for smoother transitions
         private CancellationTokenSource? _pdfZoomRerenderCts;
 
         private async Task LoadImagesFromPdfAsync(string pdfPath)

@@ -1912,170 +1912,147 @@ namespace Uviewer
                 if (_imageEntries.Count == 0) return;
                 if (token.IsCancellationRequested) return;
 
-                var startIndex = _currentPdfDocument != null ? Math.Max(0, _currentIndex - 5) : Math.Max(0, _currentIndex - 1);
-                var endIndex = _currentPdfDocument != null ? Math.Min(_imageEntries.Count - 1, _currentIndex + 5) : Math.Min(_imageEntries.Count - 1, _currentIndex + PreloadCount);
-
+                int preloadDist = _currentPdfDocument != null ? 10 : PreloadCount;
                 var tasks = new List<Task>();
 
-                for (int i = startIndex; i <= endIndex; i++)
+                // 현재 방향(Next) 우선으로 하여 주변 페이지들을 큐에 넣음
+                for (int d = 1; d <= preloadDist; d++)
                 {
                     if (token.IsCancellationRequested) break;
 
-                    int index = i;
-                    if (index == _currentIndex) continue;
-                    if (!IsNavigableImage(_imageEntries[index])) continue;
-
-                    bool isPdfEntry = _imageEntries[index].IsPdfEntry && _currentPdfDocument != null;
-                    bool shouldSkip = false;
-
-                    // 1. 이미 캐시에 있거나, 2. 현재 로딩 중이라면 스킵 (단, PDF 줌 레벨이 다르면 다시 로드)
-                    lock (_preloadedImages)
+                    int[] targets = { _currentIndex + d, _currentIndex - d };
+                    foreach (int index in targets)
                     {
-                        if (_preloadedImages.TryGetValue(index, out var cachedBitmap))
+                        if (index < 0 || index >= _imageEntries.Count) continue;
+                        if (index == _currentIndex) continue;
+                        if (!IsNavigableImage(_imageEntries[index])) continue;
+
+                        bool isPdfEntry = _imageEntries[index].IsPdfEntry && _currentPdfDocument != null;
+                        bool shouldSkip = false;
+
+                        lock (_preloadedImages)
                         {
-                            if (isPdfEntry)
+                            if (_preloadedImages.TryGetValue(index, out var cachedBitmap))
                             {
-                                // PDF인 경우 기존 렌더링 줌 레벨과 현재 줌 레벨 비교
-                                _pdfPreloadZoomLevels.TryGetValue(index, out var cachedZoom);
-                                if (Math.Abs(cachedZoom - _zoomLevel) > 0.01)
+                                if (isPdfEntry)
                                 {
-                                    // [수정됨] 기존 캐시를 즉시 지우지 않습니다! (화면에 계속 걸쳐서 보이게 둠)
-                                    // 해상도가 다르므로 새로 그리도록 스킵만 하지 않습니다.
-                                    shouldSkip = false;
+                                    _pdfPreloadZoomLevels.TryGetValue(index, out var cachedZoom);
+                                    if (Math.Abs(cachedZoom - _zoomLevel) > 0.01) shouldSkip = false;
+                                    else shouldSkip = true;
                                 }
                                 else
                                 {
                                     shouldSkip = true;
                                 }
                             }
-                            else
+                        }
+
+                        if (!shouldSkip)
+                        {
+                            lock (_loadingIndices)
                             {
-                                shouldSkip = true; // PDF가 아니면 캐시 유지
+                                if (_loadingIndices.Contains(index)) shouldSkip = true;
+                                else _loadingIndices.Add(index);
                             }
                         }
-                    }
 
-                    if (!shouldSkip)
-                    {
-                        lock (_loadingIndices)
+                        if (shouldSkip) continue;
+
+                        var entry = _imageEntries[index];
+                        tasks.Add(Task.Run(async () =>
                         {
-                            if (_loadingIndices.Contains(index)) shouldSkip = true;
-                            else _loadingIndices.Add(index); // 로딩 시작 표시
-                        }
-                    }
-
-                    if (shouldSkip) continue;
-
-                    var entry = _imageEntries[index];
-                    tasks.Add(Task.Run(async () =>
-                    {
-                        try
-                        {
-                            if (token.IsCancellationRequested) return;
-
-                            CanvasBitmap? bitmap = null;
-                            bool isPdf = entry.IsPdfEntry && _currentPdfDocument != null;
-
-                            if (isPdf)
+                            try
                             {
-                                bitmap = await LoadPdfPageBitmapAsync(entry.PdfPageIndex, MainCanvas, token);
-                            }
-                            else if (entry.FilePath != null)
-                            {
-                                bitmap = await LoadImageFromPathAsync(entry.FilePath, MainCanvas);
-                            }
-                            else if (entry.IsArchiveEntry && (_currentArchive != null || _current7zArchive != null))
-                            {
-                                bitmap = await LoadImageFromArchiveEntryAsync(entry.ArchiveEntryKey!, MainCanvas, token);
-                            }
-                            else if (entry.IsWebDavEntry && _isWebDavMode && !token.IsCancellationRequested)
-                            {
-                                try
+                                if (token.IsCancellationRequested) return;
+
+                                CanvasBitmap? bitmap = null;
+                                bool isPdf = entry.IsPdfEntry && _currentPdfDocument != null;
+
+                                if (isPdf)
                                 {
-                                    var tempPath = await _webDavService.DownloadToTempFileAsync(entry.WebDavPath!, token);
-                                    if (!string.IsNullOrEmpty(tempPath) && !token.IsCancellationRequested)
-                                    {
-                                        entry.FilePath = tempPath;
-                                        bitmap = await LoadImageFromPathAsync(tempPath, MainCanvas);
-                                    }
+                                    bitmap = await LoadPdfPageBitmapAsync(entry.PdfPageIndex, MainCanvas, token);
                                 }
-                                catch { }
-                            }
-
-                            if (token.IsCancellationRequested)
-                            {
-                                // 만들었는데 취소됐다면 즉시 폐기
-                                SafeDisposeBitmap(bitmap);
-                                return;
-                            }
-
-                            if (bitmap != null)
-                            {
-                                // 2. 샤픈 효과 적용 (PDF 제외)
-                                if (_sharpenEnabled && !entry.IsPdfEntry)
+                                else if (entry.FilePath != null)
                                 {
-                                    var sharpened = await ApplySharpenToBitmapAsync(bitmap, MainCanvas, skipUpscale: false);
-                                    if (sharpened != null)
-                                    {
-                                    SafeDisposeBitmap(bitmap); // 원본은 버리고 샤픈된 것 사용
-                                        bitmap = sharpened;
-                                    }
+                                    bitmap = await LoadImageFromPathAsync(entry.FilePath, MainCanvas);
                                 }
-
-                                lock (_preloadedImages)
+                                else if (entry.IsArchiveEntry && (_currentArchive != null || _current7zArchive != null))
                                 {
-                                    // 새로 덮어씌우기 전에 예전 비트맵이 있다면 꺼내기 (이미 들어있는 것이 줌 레벨이 같다면 굳이 덮어쓰지 않음)
-                                    bool hasOld = _preloadedImages.TryGetValue(index, out var oldBitmap);
-                                    bool needUpdate = true;
-                                    
-                                    if (hasOld)
+                                    bitmap = await LoadImageFromArchiveEntryAsync(entry.ArchiveEntryKey!, MainCanvas, token);
+                                }
+                                else if (entry.IsWebDavEntry && _isWebDavMode && !token.IsCancellationRequested)
+                                {
+                                    try
                                     {
-                                        _pdfPreloadZoomLevels.TryGetValue(index, out var v);
-                                        if (isPdf && Math.Abs(v - _zoomLevel) < 0.01) needUpdate = false;
-                                    }
-
-                                    if (needUpdate)
-                                    {
-                                        _preloadedImages[index] = bitmap;
-                                        if (isPdf)
+                                        var tempPath = await _webDavService.DownloadToTempFileAsync(entry.WebDavPath!, token);
+                                        if (!string.IsNullOrEmpty(tempPath) && !token.IsCancellationRequested)
                                         {
-                                            _pdfPreloadZoomLevels[index] = _zoomLevel;
-                                        }
-
-                                        // 이제 쓸모없어진 예전 저해상도 비트맵 삭제
-                                        if (oldBitmap != null && oldBitmap != bitmap)
-                                        {
-                                            SafeDisposeBitmap(oldBitmap);
+                                            entry.FilePath = tempPath;
+                                            bitmap = await LoadImageFromPathAsync(tempPath, MainCanvas);
                                         }
                                     }
-                                    else
-                                    {
-                                        // 이미 최신 줌 레벨로 누가 넣었다면 현재 비트맵 폐기
-                                        SafeDisposeBitmap(bitmap);
-                                    }
+                                    catch { }
                                 }
 
-                                // [추가됨] 백그라운드에서 인접 페이지 렌더링이 끝나면 즉시 화면을 다시 그려서 선명하게 만듦
-                                DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, () =>
+                                if (token.IsCancellationRequested)
                                 {
-                                    MainCanvas?.Invalidate();
-                                });
+                                    SafeDisposeBitmap(bitmap);
+                                    return;
+                                }
+
+                                if (bitmap != null)
+                                {
+                                    if (_sharpenEnabled && !entry.IsPdfEntry)
+                                    {
+                                        var sharpened = await ApplySharpenToBitmapAsync(bitmap, MainCanvas, skipUpscale: false);
+                                        if (sharpened != null)
+                                        {
+                                            SafeDisposeBitmap(bitmap);
+                                            bitmap = sharpened;
+                                        }
+                                    }
+
+                                    lock (_preloadedImages)
+                                    {
+                                        bool hasOld = _preloadedImages.TryGetValue(index, out var oldBitmap);
+                                        bool needUpdate = true;
+                                        if (hasOld)
+                                        {
+                                            _pdfPreloadZoomLevels.TryGetValue(index, out var v);
+                                            if (isPdf && Math.Abs(v - _zoomLevel) < 0.01) needUpdate = false;
+                                        }
+
+                                        if (needUpdate)
+                                        {
+                                            _preloadedImages[index] = bitmap;
+                                            if (isPdf) _pdfPreloadZoomLevels[index] = _zoomLevel;
+                                            if (oldBitmap != null && oldBitmap != bitmap) SafeDisposeBitmap(oldBitmap);
+                                        }
+                                        else
+                                        {
+                                            SafeDisposeBitmap(bitmap);
+                                        }
+                                    }
+
+                                    DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, () =>
+                                    {
+                                        MainCanvas?.Invalidate();
+                                    });
+                                }
                             }
-                        }
-                        catch { }
-                        finally
-                        {
-                            // 로딩 상태 해제
-                            lock (_loadingIndices) { _loadingIndices.Remove(index); }
-                        }
-                    }, token));
+                            catch { }
+                            finally
+                            {
+                                lock (_loadingIndices) { _loadingIndices.Remove(index); }
+                            }
+                        }, token));
+                    }
                 }
 
                 await Task.WhenAll(tasks);
 
                 if (!token.IsCancellationRequested)
                 {
-                    // Clean up old preloaded images to save memory
                     CleanupOldPreloadedImages();
                     CleanupOldSharpenedImages();
                 }
@@ -2093,158 +2070,137 @@ namespace Uviewer
                 if (_imageEntries.Count == 0) return;
                 if (token.IsCancellationRequested) return;
 
-                var startIndex = _currentPdfDocument != null ? Math.Max(0, _currentIndex - 5) : Math.Max(0, _currentIndex - PreloadCount);
-                var endIndex = _currentPdfDocument != null ? Math.Min(_imageEntries.Count - 1, _currentIndex + 5) : _currentIndex - 1;
-
+                int preloadDist = _currentPdfDocument != null ? 10 : PreloadCount;
                 var tasks = new List<Task>();
 
-                for (int i = startIndex; i <= endIndex; i++)
+                // 현재 방향(Previous) 우선으로 하여 주변 페이지들을 큐에 넣음
+                for (int d = 1; d <= preloadDist; d++)
                 {
                     if (token.IsCancellationRequested) break;
 
-                    int index = i;
-                    if (index == _currentIndex) continue;
-                    if (!IsNavigableImage(_imageEntries[index])) continue;
-
-                    bool isPdfEntry = _imageEntries[index].IsPdfEntry && _currentPdfDocument != null;
-                    bool shouldSkip = false;
-
-                    // 1. 이미 캐시에 있거나, 2. 현재 로딩 중이라면 스킵 (단, PDF 줌 레벨이 다르면 다시 로드)
-                    lock (_preloadedImages)
+                    int[] targets = { _currentIndex - d, _currentIndex + d };
+                    foreach (int index in targets)
                     {
-                        if (_preloadedImages.TryGetValue(index, out var cachedBitmap))
+                        if (index < 0 || index >= _imageEntries.Count) continue;
+                        if (index == _currentIndex) continue;
+                        if (!IsNavigableImage(_imageEntries[index])) continue;
+
+                        bool isPdfEntry = _imageEntries[index].IsPdfEntry && _currentPdfDocument != null;
+                        bool shouldSkip = false;
+
+                        lock (_preloadedImages)
                         {
-                            if (isPdfEntry)
+                            if (_preloadedImages.TryGetValue(index, out var cachedBitmap))
                             {
-                                // PDF인 경우 기존 렌더링 줌 레벨과 현재 줌 레벨 비교
-                                _pdfPreloadZoomLevels.TryGetValue(index, out var cachedZoom);
-                                if (Math.Abs(cachedZoom - _zoomLevel) > 0.01)
+                                if (isPdfEntry)
                                 {
-                                    // [수정됨] 기존 캐시를 즉시 지우지 않습니다! (화면에 계속 걸쳐서 보이게 둠)
-                                    // 해상도가 다르므로 새로 그리도록 스킵만 하지 않습니다.
-                                    shouldSkip = false;
+                                    _pdfPreloadZoomLevels.TryGetValue(index, out var cachedZoom);
+                                    if (Math.Abs(cachedZoom - _zoomLevel) > 0.01) shouldSkip = false;
+                                    else shouldSkip = true;
                                 }
                                 else
                                 {
                                     shouldSkip = true;
                                 }
                             }
-                            else
+                        }
+
+                        if (!shouldSkip)
+                        {
+                            lock (_loadingIndices)
                             {
-                                shouldSkip = true; // PDF가 아니면 캐시 유지
+                                if (_loadingIndices.Contains(index)) shouldSkip = true;
+                                else _loadingIndices.Add(index);
                             }
                         }
-                    }
 
-                    if (!shouldSkip)
-                    {
-                        lock (_loadingIndices)
+                        if (shouldSkip) continue;
+
+                        var entry = _imageEntries[index];
+                        tasks.Add(Task.Run(async () =>
                         {
-                            if (_loadingIndices.Contains(index)) shouldSkip = true;
-                            else _loadingIndices.Add(index); // 로딩 시작 표시
-                        }
-                    }
-
-                    if (shouldSkip) continue;
-
-                    var entry = _imageEntries[index];
-                    tasks.Add(Task.Run(async () =>
-                    {
-                        try
-                        {
-                            if (token.IsCancellationRequested) return;
-
-                            CanvasBitmap? bitmap = null;
-                            bool isPdf = entry.IsPdfEntry && _currentPdfDocument != null;
-
-                            if (isPdf)
+                            try
                             {
-                                bitmap = await LoadPdfPageBitmapAsync(entry.PdfPageIndex, MainCanvas, token);
-                            }
-                            else if (entry.FilePath != null)
-                            {
-                                bitmap = await LoadImageFromPathAsync(entry.FilePath, MainCanvas);
-                            }
-                            else if (entry.IsArchiveEntry && (_currentArchive != null || _current7zArchive != null))
-                            {
-                                bitmap = await LoadImageFromArchiveEntryAsync(entry.ArchiveEntryKey!, MainCanvas, token);
-                            }
-                            else if (entry.IsWebDavEntry && _isWebDavMode && !token.IsCancellationRequested)
-                            {
-                                try
+                                if (token.IsCancellationRequested) return;
+
+                                CanvasBitmap? bitmap = null;
+                                bool isPdf = entry.IsPdfEntry && _currentPdfDocument != null;
+
+                                if (isPdf)
                                 {
-                                    var tempPath = await _webDavService.DownloadToTempFileAsync(entry.WebDavPath!, token);
-                                    if (!string.IsNullOrEmpty(tempPath) && !token.IsCancellationRequested)
-                                    {
-                                        entry.FilePath = tempPath;
-                                        bitmap = await LoadImageFromPathAsync(tempPath, MainCanvas);
-                                    }
+                                    bitmap = await LoadPdfPageBitmapAsync(entry.PdfPageIndex, MainCanvas, token);
                                 }
-                                catch { }
-                            }
-
-                            if (token.IsCancellationRequested)
-                            {
-                                // 만들었는데 취소됐다면 즉시 폐기
-                                SafeDisposeBitmap(bitmap);
-                                return;
-                            }
-
-                            if (bitmap != null)
-                            {
-                                lock (_preloadedImages)
+                                else if (entry.FilePath != null)
                                 {
-                                    // 새로 덮어씌우기 전에 예전 비트맵이 있다면 꺼내기
-                                    bool hasOld = _preloadedImages.TryGetValue(index, out var oldBitmap);
-                                    bool needUpdate = true;
-
-                                    if (hasOld)
+                                    bitmap = await LoadImageFromPathAsync(entry.FilePath, MainCanvas);
+                                }
+                                else if (entry.IsArchiveEntry && (_currentArchive != null || _current7zArchive != null))
+                                {
+                                    bitmap = await LoadImageFromArchiveEntryAsync(entry.ArchiveEntryKey!, MainCanvas, token);
+                                }
+                                else if (entry.IsWebDavEntry && _isWebDavMode && !token.IsCancellationRequested)
+                                {
+                                    try
                                     {
-                                        _pdfPreloadZoomLevels.TryGetValue(index, out var v);
-                                        if (isPdf && Math.Abs(v - _zoomLevel) < 0.01) needUpdate = false;
-                                    }
-
-                                    if (needUpdate)
-                                    {
-                                        _preloadedImages[index] = bitmap;
-                                        if (isPdf)
+                                        var tempPath = await _webDavService.DownloadToTempFileAsync(entry.WebDavPath!, token);
+                                        if (!string.IsNullOrEmpty(tempPath) && !token.IsCancellationRequested)
                                         {
-                                            _pdfPreloadZoomLevels[index] = _zoomLevel;
-                                        }
-
-                                        // 이제 쓸모없어진 예전 저해상도 비트맵 삭제
-                                        if (oldBitmap != null && oldBitmap != bitmap)
-                                        {
-                                            SafeDisposeBitmap(oldBitmap);
+                                            entry.FilePath = tempPath;
+                                            bitmap = await LoadImageFromPathAsync(tempPath, MainCanvas);
                                         }
                                     }
-                                    else
-                                    {
-                                        SafeDisposeBitmap(bitmap);
-                                    }
+                                    catch { }
                                 }
 
-                                // [추가됨] 백그라운드에서 인접 페이지 렌더링이 끝나면 즉시 화면을 다시 그려서 선명하게 만듦
-                                DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, () =>
+                                if (token.IsCancellationRequested)
                                 {
-                                    MainCanvas?.Invalidate();
-                                });
+                                    SafeDisposeBitmap(bitmap);
+                                    return;
+                                }
+
+                                if (bitmap != null)
+                                {
+                                    lock (_preloadedImages)
+                                    {
+                                        bool hasOld = _preloadedImages.TryGetValue(index, out var oldBitmap);
+                                        bool needUpdate = true;
+                                        if (hasOld)
+                                        {
+                                            _pdfPreloadZoomLevels.TryGetValue(index, out var v);
+                                            if (isPdf && Math.Abs(v - _zoomLevel) < 0.01) needUpdate = false;
+                                        }
+
+                                        if (needUpdate)
+                                        {
+                                            _preloadedImages[index] = bitmap;
+                                            if (isPdf) _pdfPreloadZoomLevels[index] = _zoomLevel;
+                                            if (oldBitmap != null && oldBitmap != bitmap) SafeDisposeBitmap(oldBitmap);
+                                        }
+                                        else
+                                        {
+                                            SafeDisposeBitmap(bitmap);
+                                        }
+                                    }
+
+                                    DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, () =>
+                                    {
+                                        MainCanvas?.Invalidate();
+                                    });
+                                }
                             }
-                        }
-                        catch { }
-                        finally
-                        {
-                            // 로딩 상태 해제
-                            lock (_loadingIndices) { _loadingIndices.Remove(index); }
-                        }
-                    }, token));
+                            catch { }
+                            finally
+                            {
+                                lock (_loadingIndices) { _loadingIndices.Remove(index); }
+                            }
+                        }, token));
+                    }
                 }
 
                 await Task.WhenAll(tasks);
 
                 if (!token.IsCancellationRequested)
                 {
-                    // Clean up old preloaded images to save memory
                     CleanupOldPreloadedImages();
                     CleanupOldSharpenedImages();
                 }
@@ -2260,7 +2216,8 @@ namespace Uviewer
             lock (_preloadedImages)
             {
                 // Keep only images within a reasonable range of current index
-                var keepRange = _currentPdfDocument != null ? 8 : PreloadCount * 2;
+                // PDF는 연속 스크롤을 고려해 캐시 범위를 15개로 넓게 유지
+                var keepRange = _currentPdfDocument != null ? 15 : PreloadCount * 2;
                 var keysToRemove = _preloadedImages.Keys
                     .Where(index => Math.Abs(index - _currentIndex) > keepRange)
                     .ToList();
