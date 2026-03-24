@@ -198,6 +198,7 @@ namespace Uviewer
             _imageLoadingCts?.Cancel();
             _thumbnailLoadingCts?.Cancel();
             _preloadCts?.Cancel();
+            _globalTextCts?.Cancel();
 
             CloseCurrentArchive();
             await CloseCurrentPdfAsync();
@@ -312,6 +313,7 @@ namespace Uviewer
             _imageLoadingCts?.Cancel();
             _thumbnailLoadingCts?.Cancel();
             _preloadCts?.Cancel();
+            _globalTextCts?.Cancel();
 
             CloseCurrentArchive();
             await CloseCurrentPdfAsync();
@@ -368,6 +370,7 @@ namespace Uviewer
             _preloadCts?.Cancel();
             _imageLoadingCts?.Cancel();
             _thumbnailLoadingCts?.Cancel();
+            _globalTextCts?.Cancel();
 
             // Close other formats first
             await CloseCurrentPdfAsync();

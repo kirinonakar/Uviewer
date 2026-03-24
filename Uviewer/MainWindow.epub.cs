@@ -132,10 +132,10 @@ namespace Uviewer
             if (chapterIndex >= 0 && chapterIndex < _epubSpine.Count)
             {
                  _currentEpubChapterIndex = chapterIndex;
-                 await LoadEpubChapterAsync(_currentEpubChapterIndex);
+                 await LoadEpubChapterAsync(_currentEpubChapterIndex, token: CancellationToken.None);
                  
                      // Wait for rendering
-                 await Task.Delay(100);
+                 await Task.Delay(100, CancellationToken.None);
                  
                  if (pageIndex >= 0 && pageIndex < _epubWin2DPages.Count)
                  {
@@ -152,7 +152,7 @@ namespace Uviewer
                 if (entry.FilePath != null)
                 {
                     var file = await StorageFile.GetFileFromPathAsync(entry.FilePath);
-                    await LoadEpubFileAsync(file);
+                    await LoadEpubFileAsync(file, token);
                 }
                 else if (entry.IsWebDavEntry && _isWebDavMode)
                 {
@@ -162,7 +162,7 @@ namespace Uviewer
                     {
                         entry.FilePath = tempPath;
                         var file = await StorageFile.GetFileFromPathAsync(tempPath);
-                        await LoadEpubFileAsync(file);
+                        await LoadEpubFileAsync(file, token);
                     }
                 }
             }
@@ -178,7 +178,7 @@ namespace Uviewer
             // Now handled in MainWindow.keys.cs via RootGrid_PreviewKeyDown
         }
 
-        private async Task LoadEpubFileAsync(StorageFile file)
+        private async Task LoadEpubFileAsync(StorageFile file, CancellationToken token = default)
         {
              await AddToRecentAsync(true);
              InitializeEpub();
@@ -187,6 +187,7 @@ namespace Uviewer
              // Close other formats first
              CloseCurrentArchive();
              await CloseCurrentPdfAsync();
+             CloseCurrentEpub();
 
              _currentEpubFilePath = file.Path;
              
@@ -222,20 +223,26 @@ namespace Uviewer
                 if (_isVerticalMode)
                 {
                     if (VerticalToggleButton != null) VerticalToggleButton.IsChecked = true;
-                    // Ensure the vertical UI is activated
-                    ToggleVerticalMode();
+                    if (VerticalTextCanvas != null) VerticalTextCanvas.Visibility = Visibility.Visible;
+                    if (TextScrollViewer != null) TextScrollViewer.Visibility = Visibility.Collapsed;
+                    if (AozoraTextCanvas != null) AozoraTextCanvas.Visibility = Visibility.Collapsed;
+                    if (!_verticalKeyAttached && RootGrid != null)
+                    {
+                        RootGrid.PreviewKeyDown += RootGrid_Vertical_PreviewKeyDown;
+                        _verticalKeyAttached = true;
+                    }
                 }
                  
                  // 3. Load Chapter (Updated to handle pending positions)
                  if (PendingEpubChapterIndex >= 0 && PendingEpubChapterIndex < _epubSpine.Count)
                  {
                      _currentEpubChapterIndex = PendingEpubChapterIndex;
-                     await LoadEpubChapterAsync(_currentEpubChapterIndex, targetLine: _aozoraPendingTargetLine, targetPage: PendingEpubPageIndex);
+                     await LoadEpubChapterAsync(_currentEpubChapterIndex, targetLine: _aozoraPendingTargetLine, targetPage: PendingEpubPageIndex, token: token);
 
                      // Page navigation (wait for items to be populated)
                      if (!_isVerticalMode && PendingEpubPageIndex > 0)
                      {
-                         await Task.Delay(100);
+                         await Task.Delay(100, token);
                          if (PendingEpubPageIndex < _epubWin2DPages.Count)
                          {
                              SetEpubPageIndex(PendingEpubPageIndex);
@@ -245,7 +252,7 @@ namespace Uviewer
                  else
                  {
                      _currentEpubChapterIndex = 0;
-                     await LoadEpubChapterAsync(_currentEpubChapterIndex);
+                     await LoadEpubChapterAsync(_currentEpubChapterIndex, token: token);
                  }
                  
                  // Reset pending values
@@ -280,10 +287,14 @@ namespace Uviewer
                     _currentEpubArchive?.Dispose();
                     _currentEpubArchive = null;
                     _currentEpubFilePath = null;
+                    _currentEpubChapterIndex = 0;
+                    _currentEpubPageIndex = 0;
                     _epubSpine.Clear();
                     _epubWin2DPages.Clear();
                     _epubPreloadCache.Clear();
                     _epubImageCache.Clear();
+                    _aozoraBlocks.Clear();
+                    ClearVerticalDisplayState();
                 }
                 finally
                 {
@@ -304,8 +315,16 @@ namespace Uviewer
             EnsureMinWindowSizeForText();
             
             ImageArea.Visibility = Visibility.Collapsed;
-            TextArea.Visibility = Visibility.Collapsed;
-            EpubArea.Visibility = Visibility.Visible; // Defined in MainWindow.xaml
+            if (_isVerticalMode)
+            {
+                EpubArea.Visibility = Visibility.Collapsed;
+                TextArea.Visibility = Visibility.Visible;
+            }
+            else
+            {
+                EpubArea.Visibility = Visibility.Visible;
+                TextArea.Visibility = Visibility.Collapsed;
+            }
             
             ImageToolbarPanel.Visibility = Visibility.Collapsed;
             TextToolbarPanel.Visibility = Visibility.Visible; // Reuse text toolbar for now
@@ -1287,14 +1306,16 @@ namespace Uviewer
             return null;
         }
 
-        private async Task LoadEpubChapterAsync(int index, bool fromEnd = false, int targetLine = -1, int targetPage = -1, double? progress = null)
+        private async Task LoadEpubChapterAsync(int index, bool fromEnd = false, int targetLine = -1, int targetPage = -1, double? progress = null, CancellationToken token = default)
         {
             if (index < 0 || index >= _epubSpine.Count) return;
 
             try
             {
+                if (token.IsCancellationRequested) return;
                 FileNameText.Text = (Path.GetFileName(_currentEpubFilePath) ?? "") + Strings.Loading;
-                await Task.Delay(1);
+                await Task.Delay(1, token);
+                if (token.IsCancellationRequested) return;
 
                 List<EpubWin2DPage> pages;
                 if (_epubPreloadCache.TryGetValue(index, out var cachedPages))
@@ -1341,7 +1362,7 @@ namespace Uviewer
                         }
                     }
                     _aozoraBlocks = blocks;
-                    await PrepareVerticalTextAsync(fromEnd ? 999999 : (targetLine > 0 ? targetLine : 1));
+                    await PrepareVerticalTextAsync(fromEnd ? 999999 : (targetLine > 0 ? targetLine : 1), token);
                     return;
                 }
 

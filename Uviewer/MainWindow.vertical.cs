@@ -40,6 +40,24 @@ namespace Uviewer
         private bool _isVerticalPageCalcCompleted = false;
         private System.Threading.CancellationTokenSource? _verticalPageCalcCts;
         private int _verticalCalculatedCurrentPage = 1;
+        private CancellationTokenSource? _currentVerticalRenderCts;
+        
+        private void ClearVerticalDisplayState()
+        {
+            _currentVerticalRenderCts?.Cancel();
+            _verticalPageCalcCts?.Cancel();
+            _currentVerticalPageInfo = new VerticalPageInfo { Blocks = new List<AozoraBindingModel>(), StartLine = 1 };
+            _currentVerticalStartBlockIndex = 0;
+            _currentVerticalEndBlockIndex = 0;
+            _verticalNavHistory.Clear();
+            _verticalImageCache.Clear();
+            _verticalTotalPages = 0;
+            _isVerticalPageCalcCompleted = false;
+            _verticalCalculatedCurrentPage = 1;
+            ClearBackwardCache();
+            VerticalTextCanvas?.Invalidate();
+            UpdateVerticalStatusBar();
+        }
 
         private async void VerticalToggleButton_Click(object sender, RoutedEventArgs e)
         {
@@ -203,6 +221,11 @@ namespace Uviewer
             if (!_isEpubMode && ImageInfoText != null) ImageInfoText.Text = Strings.Paginating;
 
             _verticalPageCalcCts?.Cancel();
+            
+            _currentVerticalRenderCts?.Cancel();
+            _currentVerticalRenderCts = CancellationTokenSource.CreateLinkedTokenSource(externalToken);
+            var token = _currentVerticalRenderCts.Token;
+
             // _verticalImageCache.Clear(); // <-- 깜박임 방지를 위해 즉시 지우지 않고 새 페이지 준비 시 덮어씀
             _verticalNavHistory.Clear();
             _pendingVerticalScrollLine = targetLine;
@@ -215,6 +238,7 @@ namespace Uviewer
 
             try
             {
+                if (token.IsCancellationRequested) return;
                 // [수정] EPUB 모드일 때는 텍스트 모드용 파싱을 건너뜁니다.
                 if (!_isEpubMode && (_aozoraBlocks == null || _aozoraBlocks.Count == 0))
                 {
@@ -281,7 +305,7 @@ namespace Uviewer
                 if (VerticalTextCanvas != null) VerticalTextCanvas.Visibility = Visibility.Visible;
                 
                 // [핵심] 수천 페이지를 기다리지 않고, 현재 화면에 그릴 '단 1페이지'만 즉시 렌더링
-                await RenderVerticalDynamicPageAsync(startIdx);
+                await RenderVerticalDynamicPageAsync(startIdx, token);
                 
                 if (TextFastNavOverlay != null) TextFastNavOverlay.Visibility = Visibility.Collapsed;
                 _pendingVerticalScrollLine = null;
@@ -295,12 +319,15 @@ namespace Uviewer
             }
         }
 
-        private async Task RenderVerticalDynamicPageAsync(int startIdx)
+        private async Task RenderVerticalDynamicPageAsync(int startIdx, CancellationToken token = default)
         {
+            if (token.IsCancellationRequested) return;
+
             // [수정] 블록이 없더라도 화면을 갱신(Invalidate)해야 이전 페이지의 잔상이 지워지고 스턱된 느낌이 사라집니다.
             if (_aozoraBlocks == null || _aozoraBlocks.Count == 0)
             {
                 _currentVerticalPageInfo = new VerticalPageInfo { Blocks = new List<AozoraBindingModel>(), StartLine = 1 };
+                if (token.IsCancellationRequested) return;
                 if (VerticalTextCanvas != null) VerticalTextCanvas.Invalidate();
                 UpdateVerticalStatusBar();
                 return;
@@ -331,7 +358,8 @@ namespace Uviewer
             
             // 디바이스를 정확히 넘겨주어 페이지를 측정합니다.
             var pageBlocks = PaginateAozoraPage(ref index, _aozoraBlocks, availableWidth, availableHeight, device);
-            
+            if (token.IsCancellationRequested) return;
+
             _currentVerticalEndBlockIndex = index > startIdx ? index - 1 : startIdx;
 
             // [이미지 프리로딩] EPUB 등에서 이미지 교체 시 깜박임을 방지하기 위해 렌더링 전 이미지를 미리 로드합니다.
@@ -348,6 +376,7 @@ namespace Uviewer
                     }).ToList();
                 await Task.WhenAll(loadTasks);
             }
+            if (token.IsCancellationRequested) return;
             
             _currentVerticalPageInfo = new VerticalPageInfo 
             { 
