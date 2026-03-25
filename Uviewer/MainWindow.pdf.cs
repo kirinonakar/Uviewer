@@ -250,33 +250,57 @@ namespace Uviewer
                 using var stream = new Windows.Storage.Streams.InMemoryRandomAccessStream();
 
                 // [최적화] 해상도 분기
-                // - isPreview(먼 프리로드): 최대 1200px → 렌더 속도 ~3배 향상, 빠른 캐시 채움
-                // - 일반(가까운 프리로드 / 현재 페이지): 2000~3000px 풀 해상도
+                // - isPreview(먼 프리로드): 물리 픽셀 약 1200px 타겟 (DIP로 변환)
+                // - 일반(가까운 프리로드 / 현재 페이지): 실제 모니터 표시 영역(DIP)에 맞춘 동적 해상도
                 double targetWidth;
+                float currentDpiScale = canvas.Dpi / 96.0f;
+                if (currentDpiScale <= 0) currentDpiScale = 1.0f;
+
                 if (isPreview)
                 {
-                    targetWidth = 1200.0;
+                    targetWidth = 1200.0 / currentDpiScale;
                 }
                 else
                 {
-                    targetWidth = 2000.0 * _zoomLevel;
-                    targetWidth = Math.Clamp(targetWidth, 2000.0, 3000.0);
-                }
+                    // 실제 캔버스 크기와 줌 배율을 고려하여 렌더링 해상도(DIP) 결정
+                    // [수정] WinUI 3 환경에서는 PdfPageRenderOptions 설정 시 시스템 DPI 배율이 자동으로 적용될 수 있으므로,
+                    // 타겟 해상도를 물리 픽셀이 아닌 DIP 단위로 계산하여 중복 확대를 방지합니다.
+                    double canvasWidth = canvas.Size.Width;
+                    double canvasHeight = canvas.Size.Height;
 
-                // HiDPI 환경에서 PdfPageRenderOptions.DestinationWidth가 화면 DPI만큼 더 확대되는 것을 방지하기 위해 보정
-                float dpiScale = canvas.Dpi / 96.0f;
-                if (dpiScale <= 0) dpiScale = 1.0f;
+                    // 캔버스 크기가 유효하지 않을 경우 기본값 사용
+                    if (canvasWidth <= 0) canvasWidth = 1000;
+                    if (canvasHeight <= 0) canvasHeight = 1000;
+
+                    double pageAR = pdfPage.Size.Width / pdfPage.Size.Height;
+                    double canvasAR = canvasWidth / canvasHeight;
+
+                    double visibleWidthInDips;
+                    if (pageAR > canvasAR)
+                        visibleWidthInDips = canvasWidth;
+                    else
+                        visibleWidthInDips = canvasHeight * pageAR;
+
+                    // 화면에 표시되는 영역(DIP)만큼 렌더링 (줌 배율 반영)
+                    targetWidth = visibleWidthInDips * _zoomLevel;
+
+                    // 품질과 메모리 사용량의 균형을 위해 임계값 적용 (물리 픽셀 기준 1920px~3840px을 DIP로 변환)
+                    double minDip = 1920.0 / currentDpiScale;
+                    double maxDip = 3840.0 / currentDpiScale;
+                    targetWidth = Math.Clamp(targetWidth, minDip, maxDip);
+                }
 
                 double scale = 1.0;
                 if (pdfPage.Size.Width > 0)
                 {
-                    scale = (targetWidth / dpiScale) / pdfPage.Size.Width;
+                    // DestinationWidth에 DIP 단위를 전달하면 시스템이 현재 DPI에 맞춰 물리 픽셀로 변환하여 렌더링합니다.
+                    scale = targetWidth / pdfPage.Size.Width;
                 }
 
                 var options = new PdfPageRenderOptions
                 {
-                    DestinationWidth = (uint)(pdfPage.Size.Width * scale),
-                    DestinationHeight = (uint)(pdfPage.Size.Height * scale)
+                    DestinationWidth = (uint)Math.Round(pdfPage.Size.Width * scale),
+                    DestinationHeight = (uint)Math.Round(pdfPage.Size.Height * scale)
                 };
 
                 // [최적화] 세마포어 분리:
