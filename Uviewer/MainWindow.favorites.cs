@@ -230,8 +230,8 @@ namespace Uviewer
             itemGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
             itemGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
 
-            bool isImageFile = (favorite.Type == "File" || favorite.Type == "Archive") && !string.IsNullOrEmpty(favorite.Path) && 
-                               (SupportedImageExtensions.Contains(Path.GetExtension(favorite.Path).ToLowerInvariant()) || favorite.Type == "Archive");
+            bool isImageFile = favorite.Type == "File" && !string.IsNullOrEmpty(favorite.Path) && 
+                               SupportedImageExtensions.Contains(Path.GetExtension(favorite.Path).ToLowerInvariant());
 
             string vMark = "";
             string posString = "";
@@ -242,12 +242,12 @@ namespace Uviewer
                 {
                     posString = $" (Ch.{favorite.ChapterIndex + 1} P.{favorite.SavedPage + 1} L.{favorite.SavedLine})";
                 }
-                else if (favorite.Type == "File")
+                else if (favorite.Type == "File" && !favorite.Path.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase))
                 {
                     posString = $" (Line {favorite.SavedLine})";
                 }
                 else if (favorite.SavedPage > 0 || favorite.ChapterIndex > 0) 
-                    posString = $" ({(favorite.ChapterIndex > 0 ? $"Ch.{favorite.ChapterIndex + 1} " : "")}Line {favorite.SavedPage + 1})";
+                    posString = $" ({(favorite.ChapterIndex > 0 ? $"Ch.{favorite.ChapterIndex + 1} " : "")}P.{favorite.SavedPage + 1})";
             }
 
             // Create vertical container for text content + progress bar
@@ -644,7 +644,7 @@ namespace Uviewer
                             savedLine = GetTopVisibleLineIndex();
                         }
                     }
-                    else if (_currentPdfDocument != null)
+                    else if (_currentPdfDocument != null || _currentArchive != null || _current7zArchive != null)
                     {
                         savedPage = _currentIndex;
                     }
@@ -1151,8 +1151,8 @@ namespace Uviewer
                 itemGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
                 itemGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
 
-                bool isImageFile = (recent.Type == "File" || recent.Type == "Archive") && !string.IsNullOrEmpty(recent.Path) && 
-                                   (SupportedImageExtensions.Contains(Path.GetExtension(recent.Path).ToLowerInvariant()) || recent.Type == "Archive");
+                bool isImageFile = recent.Type == "File" && !string.IsNullOrEmpty(recent.Path) && 
+                                   SupportedImageExtensions.Contains(Path.GetExtension(recent.Path).ToLowerInvariant());
 
                 string vMark = "";
                 string posString = "";
@@ -1163,12 +1163,12 @@ namespace Uviewer
                     {
                         posString = $" (Ch.{recent.ChapterIndex + 1} P.{recent.SavedPage + 1} L.{recent.SavedLine})";
                     }
-                    else if (recent.Type == "File")
+                    else if (recent.Type == "File" && !recent.Path.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase))
                     {
                         posString = $" (Line {recent.SavedLine})";
                     }
                     else if (recent.SavedPage > 0 || recent.ChapterIndex > 0) 
-                        posString = $" ({(recent.ChapterIndex > 0 ? $"Ch.{recent.ChapterIndex + 1} " : "")}Line {recent.SavedPage + 1})";
+                        posString = $" ({(recent.ChapterIndex > 0 ? $"Ch.{recent.ChapterIndex + 1} " : "")}P.{recent.SavedPage + 1})";
                 }
                 
                 // Create vertical container for name + progress bar
@@ -1542,6 +1542,7 @@ namespace Uviewer
                         // 아카이브의 경우 인덱스가 명확하므로 업데이트 (단, 0번 인덱스일 때 기존 키가 있다면 고민해볼 수 있으나 보통 의도된 이동임)
                         targetArchiveKey = _imageEntries[_currentIndex].ArchiveEntryKey;
                         name = $"{Path.GetFileName(_currentArchivePath)} - {_imageEntries[_currentIndex].DisplayName}";
+                        targetPage = _currentIndex;
                     }
                 }
 
