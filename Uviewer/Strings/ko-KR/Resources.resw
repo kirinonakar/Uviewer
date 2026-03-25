@@ -74,10 +74,10 @@
     <value>확대(+)</value>
   </data>
   <data name="ZoomFitTooltip" xml:space="preserve">
-    <value>맞춤</value>
+    <value>맞춤(0)</value>
   </data>
   <data name="ZoomActualTooltip" xml:space="preserve">
-    <value>원본 크기</value>
+    <value>원본 크기(1)</value>
   </data>
   <data name="SharpenTooltip" xml:space="preserve">
     <value>샤프닝(S)</value>

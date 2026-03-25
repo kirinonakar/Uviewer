@@ -74,10 +74,10 @@
     <value>Zoom In (+)</value>
   </data>
   <data name="ZoomFitTooltip" xml:space="preserve">
-    <value>Fit to Window</value>
+    <value>Fit to Window (0)</value>
   </data>
   <data name="ZoomActualTooltip" xml:space="preserve">
-    <value>Actual Size</value>
+    <value>Actual Size (1)</value>
   </data>
   <data name="SharpenTooltip" xml:space="preserve">
     <value>Sharpen (S)</value>

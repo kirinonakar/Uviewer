@@ -74,10 +74,10 @@
     <value>拡大(+)</value>
   </data>
   <data name="ZoomFitTooltip" xml:space="preserve">
-    <value>ウィンドウに合わせる</value>
+    <value>ウィンドウに合わせる(0)</value>
   </data>
   <data name="ZoomActualTooltip" xml:space="preserve">
-    <value>実サイズ</value>
+    <value>実サイズ(1)</value>
   </data>
   <data name="SharpenTooltip" xml:space="preserve">
     <value>シャープネス(S)</value>
