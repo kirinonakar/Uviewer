@@ -420,7 +420,7 @@ namespace Uviewer
                 // Sort: directories first, then by name
                 items = items
                     .OrderByDescending(i => i.IsDirectory)
-                    .ThenBy(i => i.Name, StringComparer.CurrentCulture)
+                    .ThenBy(i => i.Name, NaturalSortComparer.Default)
                     .ToList();
             }
             catch (Exception ex)

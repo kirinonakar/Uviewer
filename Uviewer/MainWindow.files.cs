@@ -247,7 +247,7 @@ namespace Uviewer
                         var files = await folder.GetFilesAsync();
                         var allEntries = files
                             .Where(f => SupportedFileExtensions.Contains(Path.GetExtension(f.Name).ToLowerInvariant()))
-                            .OrderBy(f => f.Name, StringComparer.CurrentCulture)
+                            .OrderBy(f => f.Name, NaturalSortComparer.Default)
                             .Select(f => new ImageEntry
                             {
                                 DisplayName = f.Name,
@@ -283,7 +283,7 @@ namespace Uviewer
                     var files = await folder.GetFilesAsync();
                     _imageEntries = files
                         .Where(f => SupportedFileExtensions.Contains(Path.GetExtension(f.Name).ToLowerInvariant()))
-                        .OrderBy(f => f.Name, StringComparer.CurrentCulture)
+                        .OrderBy(f => f.Name, NaturalSortComparer.Default)
                         .Select(f => new ImageEntry
                         {
                             DisplayName = f.Name,
@@ -344,7 +344,7 @@ namespace Uviewer
             var files = await folder.GetFilesAsync();
             _imageEntries = files
                 .Where(f => SupportedFileExtensions.Contains(Path.GetExtension(f.Name).ToLowerInvariant()))
-                .OrderBy(f => f.Name, StringComparer.CurrentCulture)
+                .OrderBy(f => f.Name, NaturalSortComparer.Default)
                 .Select(f => new ImageEntry
                 {
                     DisplayName = f.Name,
@@ -395,7 +395,7 @@ namespace Uviewer
                         _imageEntries = _current7zArchive.Entries
                             .Where(e => !e.IsFolder &&
                                 SupportedImageExtensions.Contains(Path.GetExtension(e.FileName ?? "").ToLowerInvariant()))
-                            .OrderBy(e => e.FileName, StringComparer.CurrentCulture)
+                            .OrderBy(e => e.FileName, NaturalSortComparer.Default)
                             .Select(e => new ImageEntry
                             {
                                 DisplayName = Path.GetFileName(e.FileName ?? "Unknown"),
@@ -410,7 +410,7 @@ namespace Uviewer
                         _imageEntries = _currentArchive.Entries
                             .Where(e => !e.IsDirectory &&
                                 SupportedImageExtensions.Contains(Path.GetExtension(e.Key ?? "").ToLowerInvariant()))
-                            .OrderBy(e => e.Key, StringComparer.CurrentCulture)
+                            .OrderBy(e => e.Key, NaturalSortComparer.Default)
                             .Select(e => new ImageEntry
                             {
                                 DisplayName = Path.GetFileName(e.Key ?? "Unknown"),
@@ -864,7 +864,7 @@ namespace Uviewer
 
                     // Add directories (Smart sort)
                     var directories = Directory.GetDirectories(path)
-                        .OrderBy(d => Path.GetFileName(d), StringComparer.CurrentCulture);
+                        .OrderBy(d => Path.GetFileName(d), NaturalSortComparer.Default);
 
                     foreach (var dir in directories)
                     {
@@ -882,7 +882,7 @@ namespace Uviewer
 
                     // Add files (images and archives)
                     var files = Directory.GetFiles(path)
-                        .OrderBy(f => Path.GetFileName(f), StringComparer.CurrentCulture);
+                        .OrderBy(f => Path.GetFileName(f), NaturalSortComparer.Default);
 
                     foreach (var file in files)
                     {
@@ -977,7 +977,7 @@ namespace Uviewer
                                 var entry = archive.Entries
                                     .Where(e => !e.IsFolder &&
                                            SupportedImageExtensions.Contains(Path.GetExtension(e.FileName)?.ToLowerInvariant() ?? ""))
-                                    .OrderBy(e => e.FileName)
+                                    .OrderBy(e => e.FileName, NaturalSortComparer.Default)
                                     .FirstOrDefault();
 
                                 if (entry != null)
@@ -1014,7 +1014,7 @@ namespace Uviewer
                                 var entry = archive.Entries
                                     .Where(e => !e.IsDirectory &&
                                            SupportedImageExtensions.Contains(Path.GetExtension(e.Key)?.ToLowerInvariant() ?? ""))
-                                    .OrderBy(e => e.Key)
+                                    .OrderBy(e => e.Key, NaturalSortComparer.Default)
                                     .FirstOrDefault();
 
                                 if (entry != null)
