@@ -242,14 +242,22 @@ namespace Uviewer
                     e.Handled = true;
                     break;
 
-                case Windows.System.VirtualKey.Number0 when ctrlPressed:
-                    FitToWindow();
-                    e.Handled = true;
+                case Windows.System.VirtualKey.Number0:
+                case Windows.System.VirtualKey.NumberPad0:
+                    if (!ctrlPressed)
+                    {
+                        FitToWindow();
+                        e.Handled = true;
+                    }
                     break;
 
-                case Windows.System.VirtualKey.Number1 when ctrlPressed:
-                    ZoomActualButton_Click(sender, new RoutedEventArgs());
-                    e.Handled = true;
+                case Windows.System.VirtualKey.Number1:
+                case Windows.System.VirtualKey.NumberPad1:
+                    if (!ctrlPressed)
+                    {
+                        ZoomActualButton_Click(sender, new RoutedEventArgs());
+                        e.Handled = true;
+                    }
                     break;
 
                 case Windows.System.VirtualKey.T when !ctrlPressed:

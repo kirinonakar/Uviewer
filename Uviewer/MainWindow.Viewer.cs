@@ -848,7 +848,7 @@ namespace Uviewer
             {
                 var file = await StorageFile.GetFileFromPathAsync(filePath);
                 using var stream = await file.OpenAsync(FileAccessMode.Read);
-                return await CanvasBitmap.LoadAsync(canvas, stream);
+                return await CanvasBitmap.LoadAsync(canvas, stream, 96.0f);
             }
             catch (Exception ex)
             {
@@ -903,7 +903,7 @@ namespace Uviewer
             // 2. [Lock 해제 후] 디코딩 수행 (여기가 CPU를 많이 쓰므로 락 밖에서 해야 함)
             try
             {
-                return await CanvasBitmap.LoadAsync(canvas, memoryStream.AsRandomAccessStream());
+                return await CanvasBitmap.LoadAsync(canvas, memoryStream.AsRandomAccessStream(), 96.0f);
             }
             catch (Exception ex)
             {

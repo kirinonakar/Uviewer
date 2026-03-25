@@ -176,12 +176,17 @@ namespace Uviewer
                     
                     if (_currentPdfDocument != null)
                     {
-                        // Fit to width
+                        // PDF의 경우 가로 너비 맞춤을 '원본 크기'의 기본 동작으로 유지
                         _zoomLevel = containerWidth / (_currentBitmap.Size.Width * fitRatio);
                     }
                     else
                     {
-                        _zoomLevel = 1.0 / fitRatio; // Actual size
+                        // [수정] 일반 이미지의 경우 HiDPI(DPI 배율)를 고려하여 실제 1:1 픽셀 매칭 수준으로 확대/축소
+                        // Win2D 이미지는 DIP 단위이므로, 물리 픽셀 1:1을 위해 DPI 배율만큼 역산이 필요함
+                        float dpiScale = MainCanvas.Dpi / 96.0f;
+                        if (dpiScale <= 0) dpiScale = 1.0f;
+
+                        _zoomLevel = 1.0 / (fitRatio * dpiScale);
                     }
                     ApplyZoom();
                 }
