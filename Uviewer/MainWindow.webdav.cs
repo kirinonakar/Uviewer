@@ -441,7 +441,7 @@ namespace Uviewer
             CloseCurrentArchive();
             _currentWebDavItemPath = item.WebDavPath;
             ClearImageResources();
-            FileNameText.Text = $"다운로드 중: {item.Name}...";
+            FileNameText.Text = item.Name + Strings.Loading;
 
             _webDavCts?.Cancel();
             _webDavCts = new CancellationTokenSource();
@@ -530,7 +530,7 @@ namespace Uviewer
 
             _currentWebDavItemPath = item.WebDavPath;
             ClearImageResources();
-            FileNameText.Text = $"스트리밍 다운로드 중: {item.Name}...";
+            FileNameText.Text = item.Name + Strings.Loading;
 
             _webDavCts?.Cancel();
             _webDavCts = new CancellationTokenSource();

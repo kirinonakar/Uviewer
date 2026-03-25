@@ -158,7 +158,7 @@ namespace Uviewer
                 }
                 else if (entry.IsWebDavEntry && _isWebDavMode)
                 {
-                    FileNameText.Text = $"EPUB 다운로드 중: {entry.DisplayName}...";
+                    FileNameText.Text = entry.DisplayName + Strings.Loading;
                     var tempPath = await _webDavService.DownloadToTempFileAsync(entry.WebDavPath!, token);
                     if (!string.IsNullOrEmpty(tempPath) && !token.IsCancellationRequested)
                     {
@@ -1319,7 +1319,7 @@ namespace Uviewer
             try
             {
                 if (token.IsCancellationRequested) return;
-                FileNameText.Text = (Path.GetFileName(_currentEpubFilePath) ?? "") + Strings.Loading;
+                FileNameText.Text = (_currentEpubDisplayName ?? Path.GetFileName(_currentEpubFilePath) ?? "") + Strings.Loading;
                 await Task.Delay(1, token);
                 if (token.IsCancellationRequested) return;
 
