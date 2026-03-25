@@ -36,6 +36,14 @@ namespace Uviewer
         private string? _currentExplorerPath;
         private ObservableCollection<FileItem> _fileItems = new();
         private bool _isExplorerGrid = false;
+        private ExplorerSortMode _explorerSortMode = ExplorerSortMode.Name;
+
+        private enum ExplorerSortMode
+        {
+            Name,
+            DateDesc,
+            DateAsc
+        }
 
         // Fullscreen
         private bool _isFullscreen = false;
@@ -760,6 +768,12 @@ namespace Uviewer
 
             // Clear and re-populate favorites to refresh tooltips
             UpdateFavoritesMenu();
+
+            // Sort Menu & Tooltip
+            UpdateSortIcon();
+            if (SortByNameMenu != null) SortByNameMenu.Text = Strings.SortByNameTooltip;
+            if (SortByDateDescMenu != null) SortByDateDescMenu.Text = Strings.SortByDateDescTooltip;
+            if (SortByDateAscMenu != null) SortByDateAscMenu.Text = Strings.SortByDateAscTooltip;
 
             UpdateLanguageMenuCheckmark();
         }

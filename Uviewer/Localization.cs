@@ -123,6 +123,9 @@ namespace Uviewer
         public static string AlwaysOnTopTooltip => GetString("AlwaysOnTopTooltip");
         public static string AutoDoublePageForArchive => GetString("AutoDoublePageForArchive");
         public static string FolderEmpty => GetString("FolderEmpty");
+        public static string SortByNameTooltip => GetString("SortByNameTooltip");
+        public static string SortByDateDescTooltip => GetString("SortByDateDescTooltip");
+        public static string SortByDateAscTooltip => GetString("SortByDateAscTooltip");
 
         public static void Reload()
         {

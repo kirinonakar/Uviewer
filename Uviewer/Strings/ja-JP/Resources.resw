@@ -380,4 +380,13 @@
   <data name="FolderEmpty" xml:space="preserve">
     <value>フォルダが空です。</value>
   </data>
+  <data name="SortByNameTooltip" xml:space="preserve">
+    <value>名前順でソート</value>
+  </data>
+  <data name="SortByDateDescTooltip" xml:space="preserve">
+    <value>更新日時(新しい順)</value>
+  </data>
+  <data name="SortByDateAscTooltip" xml:space="preserve">
+    <value>更新日時(古い順)</value>
+  </data>
 </root>

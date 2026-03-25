@@ -380,4 +380,13 @@
   <data name="FolderEmpty" xml:space="preserve">
     <value>Folder is empty.</value>
   </data>
+  <data name="SortByNameTooltip" xml:space="preserve">
+    <value>Sort by Name</value>
+  </data>
+  <data name="SortByDateDescTooltip" xml:space="preserve">
+    <value>Date Modified (Newest)</value>
+  </data>
+  <data name="SortByDateAscTooltip" xml:space="preserve">
+    <value>Date Modified (Oldest)</value>
+  </data>
 </root>

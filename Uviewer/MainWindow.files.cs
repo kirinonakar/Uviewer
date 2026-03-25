@@ -862,31 +862,49 @@ namespace Uviewer
                         });
                     }
 
-                    // Add directories (Smart sort)
-                    var directories = Directory.GetDirectories(path)
-                        .OrderBy(d => Path.GetFileName(d), NaturalSortComparer.Default);
+                    // Get directory and file infos for sorting
+                    var di = new DirectoryInfo(path);
+                    var allDirs = di.GetDirectories();
+                    var allFiles = di.GetFiles();
 
-                    foreach (var dir in directories)
+                    IEnumerable<DirectoryInfo> sortedDirs;
+                    IEnumerable<FileInfo> sortedFiles;
+
+                    switch (_explorerSortMode)
                     {
-                        var name = Path.GetFileName(dir);
+                        case ExplorerSortMode.DateDesc:
+                            sortedDirs = allDirs.OrderByDescending(d => d.LastWriteTime);
+                            sortedFiles = allFiles.OrderByDescending(f => f.LastWriteTime);
+                            break;
+                        case ExplorerSortMode.DateAsc:
+                            sortedDirs = allDirs.OrderBy(d => d.LastWriteTime);
+                            sortedFiles = allFiles.OrderBy(f => f.LastWriteTime);
+                            break;
+                        default: // Name (Natural Sort)
+                            sortedDirs = allDirs.OrderBy(d => d.Name, NaturalSortComparer.Default);
+                            sortedFiles = allFiles.OrderBy(f => f.Name, NaturalSortComparer.Default);
+                            break;
+                    }
+
+                    // Add directories
+                    foreach (var dir in sortedDirs)
+                    {
+                        var name = dir.Name;
                         if (!name.StartsWith(".")) // Hide hidden folders
                         {
                             newItems.Add(new FileItem
                             {
                                 Name = name,
-                                FullPath = dir,
+                                FullPath = dir.FullName,
                                 IsDirectory = true
                             });
                         }
                     }
 
                     // Add files (images and archives)
-                    var files = Directory.GetFiles(path)
-                        .OrderBy(f => Path.GetFileName(f), NaturalSortComparer.Default);
-
-                    foreach (var file in files)
+                    foreach (var file in sortedFiles)
                     {
-                        var ext = Path.GetExtension(file).ToLowerInvariant();
+                        var ext = file.Extension.ToLowerInvariant();
                         var isImage = SupportedImageExtensions.Contains(ext);
                         var isArchive = SupportedArchiveExtensions.Contains(ext);
                         var isText = SupportedTextExtensions.Contains(ext);
@@ -897,8 +915,8 @@ namespace Uviewer
                         {
                             newItems.Add(new FileItem
                             {
-                                Name = Path.GetFileName(file),
-                                FullPath = file,
+                                Name = file.Name,
+                                FullPath = file.FullName,
                                 IsDirectory = false,
                                 IsImage = isImage,
                                 IsArchive = isArchive,
@@ -1346,6 +1364,63 @@ namespace Uviewer
         private void BrowseFolderButton_Click(object sender, RoutedEventArgs e)
         {
             _ = BrowseAndLoadFolderAsync();
+        }
+
+        private void SortByName_Click(object sender, RoutedEventArgs e)
+        {
+            _explorerSortMode = ExplorerSortMode.Name;
+            UpdateSortIcon();
+            RefreshExplorer();
+        }
+
+        private void SortByDateDesc_Click(object sender, RoutedEventArgs e)
+        {
+            _explorerSortMode = ExplorerSortMode.DateDesc;
+            UpdateSortIcon();
+            RefreshExplorer();
+        }
+
+        private void SortByDateAsc_Click(object sender, RoutedEventArgs e)
+        {
+            _explorerSortMode = ExplorerSortMode.DateAsc;
+            UpdateSortIcon();
+            RefreshExplorer();
+        }
+
+        private void RefreshExplorer()
+        {
+            if (_isWebDavMode && !string.IsNullOrEmpty(_currentWebDavPath))
+            {
+                _ = LoadWebDavFolderAsync(_currentWebDavPath);
+            }
+            else if (!string.IsNullOrEmpty(_currentExplorerPath))
+            {
+                LoadExplorerFolder(_currentExplorerPath);
+            }
+        }
+
+        private void UpdateSortIcon()
+        {
+            if (SortIcon == null) return;
+
+            switch (_explorerSortMode)
+            {
+                case ExplorerSortMode.DateDesc:
+                    SortIcon.Glyph = "\uE1FD"; // Down arrow
+                    ToolTipService.SetToolTip(SortByDateButton, Strings.SortByDateDescTooltip);
+                    if (SortByDateDescMenu != null) SortByDateDescMenu.IsChecked = true;
+                    break;
+                case ExplorerSortMode.DateAsc:
+                    SortIcon.Glyph = "\uE110"; // Up arrow
+                    ToolTipService.SetToolTip(SortByDateButton, Strings.SortByDateAscTooltip);
+                    if (SortByDateAscMenu != null) SortByDateAscMenu.IsChecked = true;
+                    break;
+                default:
+                    SortIcon.Glyph = "\uE174"; // Default Sort (Name)
+                    ToolTipService.SetToolTip(SortByDateButton, Strings.SortByNameTooltip);
+                    if (SortByNameMenu != null) SortByNameMenu.IsChecked = true;
+                    break;
+            }
         }
 
         private void ParentFolderButton_Click(object sender, RoutedEventArgs e)

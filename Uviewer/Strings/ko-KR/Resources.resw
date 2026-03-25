@@ -380,4 +380,13 @@
   <data name="FolderEmpty" xml:space="preserve">
     <value>폴더가 비어 있습니다.</value>
   </data>
+  <data name="SortByNameTooltip" xml:space="preserve">
+    <value>이름순 정렬</value>
+  </data>
+  <data name="SortByDateDescTooltip" xml:space="preserve">
+    <value>수정한 날짜(최신순)</value>
+  </data>
+  <data name="SortByDateAscTooltip" xml:space="preserve">
+    <value>수정한 날짜(오래된순)</value>
+  </data>
 </root>

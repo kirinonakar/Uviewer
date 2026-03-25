@@ -351,6 +351,26 @@ namespace Uviewer
                 var items = await _webDavService.ListFolderAsync(remotePath, token);
                 if (token.IsCancellationRequested) return;
 
+                // [Sort] Apply current explorer sort mode while keeping directories at top
+                IEnumerable<WebDavItem> sortedItems;
+                switch (_explorerSortMode)
+                {
+                    case ExplorerSortMode.DateDesc:
+                        sortedItems = items
+                            .OrderByDescending(i => i.IsDirectory)
+                            .ThenByDescending(i => i.LastModified);
+                        break;
+                    case ExplorerSortMode.DateAsc:
+                        sortedItems = items
+                            .OrderByDescending(i => i.IsDirectory)
+                            .ThenBy(i => i.LastModified);
+                        break;
+                    default:
+                        // ListFolderAsync already sorts properly for Name mode
+                        sortedItems = items;
+                        break;
+                }
+
                 if (items.Count == 0 && remotePath != "/")
                 {
                     ShowNotification(Strings.FolderEmpty);
@@ -360,7 +380,7 @@ namespace Uviewer
                     FileNameText.Text = "WebDAV: 원격 서버에 파일이 없거나 경로가 잘못되었습니다.";
                 }
 
-                foreach (var item in items)
+                foreach (var item in sortedItems)
                 {
                     var name = item.Name;
                     var ext = Path.GetExtension(name).ToLowerInvariant();

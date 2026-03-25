@@ -388,6 +388,7 @@
                         <ColumnDefinition Width="Auto"/>
                         <ColumnDefinition Width="Auto"/>
                         <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="Auto"/>
                         <ColumnDefinition Width="*"/>
                         <ColumnDefinition Width="Auto"/>
                     </Grid.ColumnDefinitions>
@@ -399,7 +400,7 @@
 
                     <Button Grid.Column="1" x:Name="ParentFolderButton" Click="ParentFolderButton_Click"
                             ToolTipService.ToolTip="상위 폴더로 가기(Backspace)" Padding="6" Margin="0,0,8,0">
-                        <FontIcon Glyph="&#xE110;" FontSize="16"/>
+                        <FontIcon Glyph="&#xE72B;" FontSize="16"/>
                     </Button>
 
                     <Button Grid.Column="2" x:Name="SidebarFavoritesButton" Click="SidebarFavoritesButton_Click" 
@@ -459,11 +460,25 @@
                     </Button>
 
                     <Button Grid.Column="4" x:Name="BrowseFolderButton" Click="BrowseFolderButton_Click" 
-                            ToolTipService.ToolTip="폴더 찾아보기" Padding="6">
+                            ToolTipService.ToolTip="폴더 찾아보기" Padding="6" Margin="0,0,8,0">
                         <FontIcon Glyph="&#xED25;" FontSize="16"/>
                     </Button>
 
-                    <Button Grid.Column="6" x:Name="WebDavButton"
+                    <Button Grid.Column="5" x:Name="SortByDateButton" Padding="6">
+                        <FontIcon x:Name="SortIcon" Glyph="&#xE174;" FontSize="16"/>
+                        <Button.Flyout>
+                            <MenuFlyout Placement="Bottom">
+                                <RadioMenuFlyoutItem x:Name="SortByNameMenu" 
+                                                   Click="SortByName_Click" GroupName="SortGroup" IsChecked="True" />
+                                <RadioMenuFlyoutItem x:Name="SortByDateDescMenu" 
+                                                   Click="SortByDateDesc_Click" GroupName="SortGroup" />
+                                <RadioMenuFlyoutItem x:Name="SortByDateAscMenu" 
+                                                   Click="SortByDateAsc_Click" GroupName="SortGroup" />
+                            </MenuFlyout>
+                        </Button.Flyout>
+                    </Button>
+
+                    <Button Grid.Column="7" x:Name="WebDavButton"
                             ToolTipService.ToolTip="webdav 연결" Padding="6"
                             HorizontalAlignment="Right">
                         <FontIcon Glyph="&#xE774;" FontSize="16"/>
