@@ -89,7 +89,9 @@ namespace Uviewer
             {
                 var line = lines[i];
                 // Basic clean
-                var content = line.Replace('\u3000', ' ').TrimEnd();
+                // Tabs are converted to 4 spaces to ensure they are rendered correctly.
+                // Full-width space (\u3000) is preserved for proper CJK indentation.
+                var content = line.Replace("\t", "    ").TrimEnd();
 
                 if (string.IsNullOrEmpty(content))
                 {
@@ -448,7 +450,7 @@ namespace Uviewer
                             if (!(isLastInText && isLastInline))
                             {
                                 string part = text.Substring(start, splitPos - start);
-                                if (currentBlock.Inlines.Count == 0) part = part.TrimStart();
+                                if (currentBlock.Inlines.Count == 0 && !isFirst) part = part.TrimStart();
                                 if (!string.IsNullOrEmpty(part)) currentBlock.Inlines.Add(part);
 
                                 if (currentBlock.Inlines.Count > 0)
@@ -472,7 +474,7 @@ namespace Uviewer
                     if (start < text.Length)
                     {
                         string left = text.Substring(start);
-                        if (currentBlock.Inlines.Count == 0) left = left.TrimStart();
+                        if (currentBlock.Inlines.Count == 0 && !isFirst) left = left.TrimStart();
                         if (!string.IsNullOrEmpty(left)) currentBlock.Inlines.Add(left);
                     }
                 }
