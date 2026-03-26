@@ -735,6 +735,7 @@ namespace Uviewer
             // Simple Parsing for Aozora Bunko Tags
             // ［＃大見出し］ -> Heading 1
             // ［＃中見出し］ -> Heading 2
+            // ［＃小見出し］ -> Heading 3
             // ［＃センター］ -> Center Align
             // ［＃地から３字上げ］ -> Margin Bottom/Indent? Actually 'Ji kara 3 ji age' means indent from bottom, effectively right align or specific margin. For simplicity, we treat complex indents as margin.
             // ［＃ここから２字下げ］ -> Indent
@@ -752,6 +753,11 @@ namespace Uviewer
             {
                 line.FontSize = _textFontSize * 1.25;
                 content = content.Replace("［＃中見出し］", "");
+            }
+            if (content.Contains("［＃小見出し］"))
+            {
+                line.FontSize = _textFontSize * 1.1;
+                content = content.Replace("［＃小見出し］", "");
             }
             if (content.Contains("［＃センター］"))
             {

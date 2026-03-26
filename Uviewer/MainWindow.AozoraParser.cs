@@ -242,6 +242,13 @@ namespace Uviewer
                     model.HeadingLevel = 2;
                     model.HeadingText = Regex.Replace(content, @"［＃[^］]+］|\[.*?\]", "").Trim();
                 }
+                else if (content.Contains("［＃小見出し］") || content.StartsWith("### "))
+                {
+                    model.FontSizeScale = 1.1;
+                    content = content.Replace("［＃小見出し］", "").TrimStart('#', ' ');
+                    model.HeadingLevel = 3;
+                    model.HeadingText = Regex.Replace(content, @"［＃[^］]+］|\[.*?\]", "").Trim();
+                }
 
                 // Alignments
                 if (content.Contains("［＃センター］"))
@@ -882,6 +889,7 @@ namespace Uviewer
                         // Check Aozora
                         if (line.Contains("［＃大見出し］") || line.StartsWith("# ")) { level = 1; text = line.Replace("［＃大見出し］", "").TrimStart('#', ' '); }
                         else if (line.Contains("［＃中見出し］") || line.StartsWith("## ")) { level = 2; text = line.Replace("［＃中見出し］", "").TrimStart('#', ' '); }
+                        else if (line.Contains("［＃小見出し］") || line.StartsWith("### ")) { level = 3; text = line.Replace("［＃小見出し］", "").TrimStart('#', ' '); }
 
                         if (level > 0)
                         {
