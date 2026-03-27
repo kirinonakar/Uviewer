@@ -214,7 +214,8 @@ namespace Uviewer
                  
                  if (_epubSpine.Count == 0) throw new Exception("No content found in EPUB");
                  
-                 SwitchToEpubMode();
+                                 LoadEpubSettings();
+                SwitchToEpubMode();
                  // Ensure the EPUB file we are loading is in the current image entries (album)
                  // to prevent sidebar sync logic from reverting to previous files.
                  if (_imageEntries == null || _imageEntries.Count == 0 || !_imageEntries.Any(e => e.FilePath != null && e.FilePath.Equals(file.Path, StringComparison.OrdinalIgnoreCase)))
@@ -226,19 +227,27 @@ namespace Uviewer
                      _currentIndex = 0;
                  }
 
-                 LoadEpubSettings();
-                // If the app is currently in vertical mode, ensure UI reflects that
+                 
                 if (_isVerticalMode)
                 {
                     if (VerticalToggleButton != null) VerticalToggleButton.IsChecked = true;
                     if (VerticalTextCanvas != null) VerticalTextCanvas.Visibility = Visibility.Visible;
                     if (TextScrollViewer != null) TextScrollViewer.Visibility = Visibility.Collapsed;
                     if (AozoraTextCanvas != null) AozoraTextCanvas.Visibility = Visibility.Collapsed;
+                    
+                    if (TextArea != null) TextArea.Visibility = Visibility.Visible;
+                    if (EpubArea != null) EpubArea.Visibility = Visibility.Collapsed;
+
                     if (!_verticalKeyAttached && RootGrid != null)
                     {
                         RootGrid.PreviewKeyDown += RootGrid_Vertical_PreviewKeyDown;
                         _verticalKeyAttached = true;
                     }
+                }
+                else
+                {
+                    if (TextArea != null) TextArea.Visibility = Visibility.Collapsed;
+                    if (EpubArea != null) EpubArea.Visibility = Visibility.Visible;
                 }
                  
                  // 3. Load Chapter (Updated to handle pending positions)
@@ -286,9 +295,8 @@ namespace Uviewer
 
         private void CloseCurrentEpub()
         {
-            if (_currentEpubArchive == null && _currentEpubFilePath == null) return;
-
-            if (_epubArchiveLock.Wait(TimeSpan.FromSeconds(5)))
+            // [수정] 아카이브가 이미 닫혀있더라도 잔상이나 캐시가 남아있을 수 있으므로 UI 상태 초기화는 항상 수행하도록 변경
+            if (_epubArchiveLock.Wait(TimeSpan.FromSeconds(2)))
             {
                 try
                 {
@@ -308,6 +316,15 @@ namespace Uviewer
                 {
                     _epubArchiveLock.Release();
                 }
+            }
+            else
+            {
+                // 타임아웃 발생 시 강제 정리 시도
+                _currentEpubArchive = null;
+                _currentEpubFilePath = null;
+                _epubWin2DPages.Clear();
+                _aozoraBlocks.Clear();
+                ClearVerticalDisplayState();
             }
         }
 
