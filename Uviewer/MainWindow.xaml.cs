@@ -117,9 +117,7 @@ namespace Uviewer
         }
 
         // Image preloading for faster navigation
-        private readonly Dictionary<int, CanvasBitmap> _preloadedImages = new();
-        private readonly Dictionary<int, double> _pdfPreloadZoomLevels = new(); // PDF 캐시의 줌 레벨 추적
-        private readonly HashSet<int> _loadingIndices = new();
+        private Services.ImageCacheManager _imageCache = null!;
         private const int PreloadCount = 5; // Number of images to preload ahead
         private readonly SemaphoreSlim _thumbnailSemaphore = new(4); // Limit concurrent thumbnail loads (archives)
         private CancellationTokenSource? _preloadCts;
@@ -501,6 +499,8 @@ namespace Uviewer
                 FileListView.ItemsSource = _fileItems;
                 FileGridView.ItemsSource = _fileItems;
 
+                _imageCache = new Services.ImageCacheManager(DispatcherQueue);
+
                 // Apply Localization
                 ApplyLocalization();
             }
@@ -559,17 +559,7 @@ namespace Uviewer
                     _leftBitmap = null;
                     _rightBitmap = null;
 
-                    lock (_preloadedImages)
-                    {
-                        foreach (var img in _preloadedImages.Values) SafeDisposeBitmap(img);
-                        _preloadedImages.Clear();
-                    }
-
-                    lock (_sharpenedImageCache)
-                    {
-                        foreach (var img in _sharpenedImageCache.Values) SafeDisposeBitmap(img);
-                        _sharpenedImageCache.Clear();
-                    }
+                    _imageCache?.Dispose();
 
                     // 이미지 엔트리의 파일 경로 참조 해제
                     if (_imageEntries != null)
@@ -1764,8 +1754,7 @@ namespace Uviewer
                             int prevIdx = _currentIndex - i;
                             if (prevIdx < 0) break;
 
-                            CanvasBitmap? prev = null;
-                            lock (_preloadedImages) { _preloadedImages.TryGetValue(prevIdx, out prev); }
+                            CanvasBitmap? prev = _imageCache.GetPreloadedImage(prevIdx);
                             if (prev != null && prev.Device != null && prev != _currentBitmap)
                             {
                                 var pFit = Math.Min(canvasSize.Width / prev.Size.Width, canvasSize.Height / prev.Size.Height);
@@ -1788,8 +1777,7 @@ namespace Uviewer
                             int nextIdx = _currentIndex + i;
                             if (nextIdx >= _imageEntries.Count) break;
 
-                            CanvasBitmap? next = null;
-                            lock (_preloadedImages) { _preloadedImages.TryGetValue(nextIdx, out next); }
+                            CanvasBitmap? next = _imageCache.GetPreloadedImage(nextIdx);
                             if (next != null && next.Device != null && next != _currentBitmap)
                             {
                                 var nFit = Math.Min(canvasSize.Width / next.Size.Width, canvasSize.Height / next.Size.Height);
@@ -1857,8 +1845,7 @@ namespace Uviewer
                         double gap = 20 * _zoomLevel;
                         if (position.Y > 0 && _currentIndex >= 2)
                         {
-                            CanvasBitmap? prevLeft = null;
-                            lock (_preloadedImages) { _preloadedImages.TryGetValue(_currentIndex - 2, out prevLeft); }
+                            CanvasBitmap? prevLeft = _imageCache.GetPreloadedImage(_currentIndex - 2);
                             if (prevLeft != null)
                             {
                                 var pFit = Math.Min(canvasSize.Width / prevLeft.Size.Width, canvasSize.Height / prevLeft.Size.Height);
@@ -1869,8 +1856,7 @@ namespace Uviewer
                         }
                         if (position.Y + scaledSize.Height < canvasSize.Height && _currentIndex + 2 < _imageEntries.Count)
                         {
-                            CanvasBitmap? nextLeft = null;
-                            lock (_preloadedImages) { _preloadedImages.TryGetValue(_currentIndex + 2, out nextLeft); }
+                            CanvasBitmap? nextLeft = _imageCache.GetPreloadedImage(_currentIndex + 2);
                             if (nextLeft != null)
                             {
                                 var nFit = Math.Min(canvasSize.Width / nextLeft.Size.Width, canvasSize.Height / nextLeft.Size.Height);
@@ -1927,8 +1913,7 @@ namespace Uviewer
 
                         if (position.Y > 0 && prevRightIndex >= 0)
                         {
-                            CanvasBitmap? prevRight = null;
-                            lock (_preloadedImages) { _preloadedImages.TryGetValue(prevRightIndex, out prevRight); }
+                            CanvasBitmap? prevRight = _imageCache.GetPreloadedImage(prevRightIndex);
                             if (prevRight != null)
                             {
                                 var pFit = Math.Min(canvasSize.Width / prevRight.Size.Width, canvasSize.Height / prevRight.Size.Height);
@@ -1941,8 +1926,7 @@ namespace Uviewer
                         int nextRightIndex = _currentIndex + 3;
                         if (position.Y + scaledSize.Height < canvasSize.Height && nextRightIndex < _imageEntries.Count)
                         {
-                            CanvasBitmap? nextRight = null;
-                            lock (_preloadedImages) { _preloadedImages.TryGetValue(nextRightIndex, out nextRight); }
+                            CanvasBitmap? nextRight = _imageCache.GetPreloadedImage(nextRightIndex);
                             if (nextRight != null)
                             {
                                 var nFit = Math.Min(canvasSize.Width / nextRight.Size.Width, canvasSize.Height / nextRight.Size.Height);
@@ -1974,7 +1958,6 @@ namespace Uviewer
                 int preloadDist = _currentPdfDocument != null ? 10 : PreloadCount;
                 var tasks = new List<Task>();
 
-                // 현재 방향(Next) 우선으로 하여 주변 페이지들을 큐에 넣음
                 for (int d = 1; d <= preloadDist; d++)
                 {
                     if (token.IsCancellationRequested) break;
@@ -1987,52 +1970,10 @@ namespace Uviewer
                         if (!IsNavigableImage(_imageEntries[index])) continue;
 
                         bool isPdfEntry = _imageEntries[index].IsPdfEntry && _currentPdfDocument != null;
-
-                        // [최적화] PDF 프리로드 해상도 분기:
-                        // - 근거리(d<=2): 풀 해상도 (곧 보게 될 가능성 높음)
-                        // - 원거리(d>=3): 저해상도 1200px (빠른 캐시 채움, ~3배 빠른 렌더)
-                        //   현재 페이지가 되면 자동으로 풀 해상도로 업그레이드됨
                         bool isPreviewQuality = isPdfEntry && d >= 3;
 
-                        bool shouldSkip = false;
-
-                        lock (_preloadedImages)
-                        {
-                            if (_preloadedImages.TryGetValue(index, out _))
-                            {
-                                if (isPdfEntry)
-                                {
-                                    _pdfPreloadZoomLevels.TryGetValue(index, out var cachedZoom);
-                                    bool zoomMatches = Math.Abs(cachedZoom - _zoomLevel) <= 0.01;
-                                    if (zoomMatches)
-                                    {
-                                        // [최적화] 이미 풀 해상도 캐시가 있으면 저해상도 재렌더 불필요
-                                        bool isLowRes;
-                                        lock (_pdfLowResPageIndices) { isLowRes = _pdfLowResPageIndices.Contains(index); }
-
-                                        // 풀 해상도 캐시 있음 → 스킵
-                                        // 저해상도 캐시 있고, 이번에도 저해상도 요청 → 스킵
-                                        // 저해상도 캐시 있고, 이번엔 풀 해상도 요청(근거리) → 재렌더 (shouldSkip=false)
-                                        if (!isLowRes || isPreviewQuality) shouldSkip = true;
-                                    }
-                                }
-                                else
-                                {
-                                    shouldSkip = true;
-                                }
-                            }
-                        }
-
-                        if (!shouldSkip)
-                        {
-                            lock (_loadingIndices)
-                            {
-                                if (_loadingIndices.Contains(index)) shouldSkip = true;
-                                else _loadingIndices.Add(index);
-                            }
-                        }
-
-                        if (shouldSkip) continue;
+                        if (_imageCache.ShouldSkipPreload(index, isPdfEntry, _zoomLevel, isPreviewQuality)) continue;
+                        if (!_imageCache.TryMarkForLoading(index)) continue;
 
                         var entry = _imageEntries[index];
                         var capturedIsPreview = isPreviewQuality;
@@ -2048,7 +1989,6 @@ namespace Uviewer
 
                                 if (isPdf)
                                 {
-                                    // [최적화] isPreload=true → _pdfRenderSemaphore (현재 페이지 렌더와 세마포어 공유 안 함)
                                     bitmap = await LoadPdfPageBitmapAsync(
                                         entry.PdfPageIndex, MainCanvas, token,
                                         isPreload: true, isPreview: capturedIsPreview);
@@ -2077,66 +2017,13 @@ namespace Uviewer
 
                                 if (token.IsCancellationRequested)
                                 {
-                                    SafeDisposeBitmap(bitmap);
+                                    _imageCache.SafeDisposeBitmap(bitmap);
                                     return;
                                 }
 
                                 if (bitmap != null)
                                 {
-                                    if (_sharpenEnabled && !entry.IsPdfEntry)
-                                    {
-                                        var sharpened = await ApplySharpenToBitmapAsync(bitmap, MainCanvas, skipUpscale: false);
-                                        if (sharpened != null)
-                                        {
-                                            SafeDisposeBitmap(bitmap);
-                                            bitmap = sharpened;
-                                        }
-                                    }
-
-                                    lock (_preloadedImages)
-                                    {
-                                        bool hasOld = _preloadedImages.TryGetValue(capturedIndex, out var oldBitmap);
-                                        bool needUpdate = true;
-                                        if (hasOld)
-                                        {
-                                            _pdfPreloadZoomLevels.TryGetValue(capturedIndex, out var v);
-                                            if (isPdf && Math.Abs(v - _zoomLevel) < 0.01)
-                                            {
-                                                // 이미 같은 줌 레벨의 캐시 존재
-                                                bool existingIsLowRes;
-                                                lock (_pdfLowResPageIndices) { existingIsLowRes = _pdfLowResPageIndices.Contains(capturedIndex); }
-
-                                                // 기존 캐시가 풀 해상도인데 새 렌더가 저해상도면 업데이트 불필요
-                                                if (!existingIsLowRes && capturedIsPreview) needUpdate = false;
-                                                // 기존도 저해상도, 새것도 저해상도 → 업데이트 불필요
-                                                else if (existingIsLowRes && capturedIsPreview) needUpdate = false;
-                                                // 기존 저해상도, 새것 풀 해상도 → 업그레이드 필요
-                                                else if (existingIsLowRes && !capturedIsPreview) needUpdate = true;
-                                                else needUpdate = false;
-                                            }
-                                        }
-
-                                        if (needUpdate)
-                                        {
-                                            _preloadedImages[capturedIndex] = bitmap;
-                                            if (isPdf) _pdfPreloadZoomLevels[capturedIndex] = _zoomLevel;
-                                            if (oldBitmap != null && oldBitmap != bitmap) SafeDisposeBitmap(oldBitmap);
-
-                                            // [최적화] 저해상도 여부 플래그 갱신
-                                            if (isPdf)
-                                            {
-                                                lock (_pdfLowResPageIndices)
-                                                {
-                                                    if (capturedIsPreview) _pdfLowResPageIndices.Add(capturedIndex);
-                                                    else _pdfLowResPageIndices.Remove(capturedIndex);
-                                                }
-                                            }
-                                        }
-                                        else
-                                        {
-                                            SafeDisposeBitmap(bitmap);
-                                        }
-                                    }
+                                    _imageCache.UpdateCache(capturedIndex, bitmap, isPdf, _zoomLevel, capturedIsPreview, _currentBitmap);
 
                                     DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, () =>
                                     {
@@ -2147,7 +2034,7 @@ namespace Uviewer
                             catch { }
                             finally
                             {
-                                lock (_loadingIndices) { _loadingIndices.Remove(capturedIndex); }
+                                _imageCache.UnmarkLoading(capturedIndex);
                             }
                         }, token));
                     }
@@ -2157,8 +2044,7 @@ namespace Uviewer
 
                 if (!token.IsCancellationRequested)
                 {
-                    CleanupOldPreloadedImages();
-                    CleanupOldSharpenedImages();
+                    _imageCache.CleanupOldPreloadedImages(_currentIndex, _currentPdfDocument != null, PreloadCount, _currentBitmap, _leftBitmap, _rightBitmap);
                 }
             }
             catch (Exception ex)
@@ -2177,7 +2063,6 @@ namespace Uviewer
                 int preloadDist = _currentPdfDocument != null ? 10 : PreloadCount;
                 var tasks = new List<Task>();
 
-                // 현재 방향(Previous) 우선으로 하여 주변 페이지들을 큐에 넣음
                 for (int d = 1; d <= preloadDist; d++)
                 {
                     if (token.IsCancellationRequested) break;
@@ -2192,40 +2077,8 @@ namespace Uviewer
                         bool isPdfEntry = _imageEntries[index].IsPdfEntry && _currentPdfDocument != null;
                         bool isPreviewQuality = isPdfEntry && d >= 3;
 
-                        bool shouldSkip = false;
-
-                        lock (_preloadedImages)
-                        {
-                            if (_preloadedImages.TryGetValue(index, out _))
-                            {
-                                if (isPdfEntry)
-                                {
-                                    _pdfPreloadZoomLevels.TryGetValue(index, out var cachedZoom);
-                                    bool zoomMatches = Math.Abs(cachedZoom - _zoomLevel) <= 0.01;
-                                    if (zoomMatches)
-                                    {
-                                        bool isLowRes;
-                                        lock (_pdfLowResPageIndices) { isLowRes = _pdfLowResPageIndices.Contains(index); }
-                                        if (!isLowRes || isPreviewQuality) shouldSkip = true;
-                                    }
-                                }
-                                else
-                                {
-                                    shouldSkip = true;
-                                }
-                            }
-                        }
-
-                        if (!shouldSkip)
-                        {
-                            lock (_loadingIndices)
-                            {
-                                if (_loadingIndices.Contains(index)) shouldSkip = true;
-                                else _loadingIndices.Add(index);
-                            }
-                        }
-
-                        if (shouldSkip) continue;
+                        if (_imageCache.ShouldSkipPreload(index, isPdfEntry, _zoomLevel, isPreviewQuality)) continue;
+                        if (!_imageCache.TryMarkForLoading(index)) continue;
 
                         var entry = _imageEntries[index];
                         var capturedIsPreview = isPreviewQuality;
@@ -2269,50 +2122,13 @@ namespace Uviewer
 
                                 if (token.IsCancellationRequested)
                                 {
-                                    SafeDisposeBitmap(bitmap);
+                                    _imageCache.SafeDisposeBitmap(bitmap);
                                     return;
                                 }
 
                                 if (bitmap != null)
                                 {
-                                    lock (_preloadedImages)
-                                    {
-                                        bool hasOld = _preloadedImages.TryGetValue(capturedIndex, out var oldBitmap);
-                                        bool needUpdate = true;
-                                        if (hasOld)
-                                        {
-                                            _pdfPreloadZoomLevels.TryGetValue(capturedIndex, out var v);
-                                            if (isPdf && Math.Abs(v - _zoomLevel) < 0.01)
-                                            {
-                                                bool existingIsLowRes;
-                                                lock (_pdfLowResPageIndices) { existingIsLowRes = _pdfLowResPageIndices.Contains(capturedIndex); }
-                                                if (!existingIsLowRes && capturedIsPreview) needUpdate = false;
-                                                else if (existingIsLowRes && capturedIsPreview) needUpdate = false;
-                                                else if (existingIsLowRes && !capturedIsPreview) needUpdate = true;
-                                                else needUpdate = false;
-                                            }
-                                        }
-
-                                        if (needUpdate)
-                                        {
-                                            _preloadedImages[capturedIndex] = bitmap;
-                                            if (isPdf) _pdfPreloadZoomLevels[capturedIndex] = _zoomLevel;
-                                            if (oldBitmap != null && oldBitmap != bitmap) SafeDisposeBitmap(oldBitmap);
-
-                                            if (isPdf)
-                                            {
-                                                lock (_pdfLowResPageIndices)
-                                                {
-                                                    if (capturedIsPreview) _pdfLowResPageIndices.Add(capturedIndex);
-                                                    else _pdfLowResPageIndices.Remove(capturedIndex);
-                                                }
-                                            }
-                                        }
-                                        else
-                                        {
-                                            SafeDisposeBitmap(bitmap);
-                                        }
-                                    }
+                                    _imageCache.UpdateCache(capturedIndex, bitmap, isPdf, _zoomLevel, capturedIsPreview, _currentBitmap);
 
                                     DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, () =>
                                     {
@@ -2323,7 +2139,7 @@ namespace Uviewer
                             catch { }
                             finally
                             {
-                                lock (_loadingIndices) { _loadingIndices.Remove(capturedIndex); }
+                                _imageCache.UnmarkLoading(capturedIndex);
                             }
                         }, token));
                     }
@@ -2333,69 +2149,12 @@ namespace Uviewer
 
                 if (!token.IsCancellationRequested)
                 {
-                    CleanupOldPreloadedImages();
-                    CleanupOldSharpenedImages();
+                    _imageCache.CleanupOldPreloadedImages(_currentIndex, _currentPdfDocument != null, PreloadCount, _currentBitmap, _leftBitmap, _rightBitmap);
                 }
             }
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"Error preloading previous images: {ex.Message}");
-            }
-        }
-
-        private void CleanupOldPreloadedImages()
-        {
-            lock (_preloadedImages)
-            {
-                // [최적화] PDF 캐시 유지 범위 15 → 20으로 확장
-                // 앞뒤로 빠르게 스크롤해도 캐시 미스가 줄어듦
-                var keepRange = _currentPdfDocument != null ? 20 : PreloadCount * 2;
-                var keysToRemove = _preloadedImages.Keys
-                    .Where(index => Math.Abs(index - _currentIndex) > keepRange)
-                    .ToList();
-
-                foreach (var key in keysToRemove)
-                {
-                    if (_preloadedImages.TryGetValue(key, out var bitmap))
-                    {
-                        // Don't dispose if it's currently being displayed
-                        if (bitmap != _currentBitmap && bitmap != _leftBitmap && bitmap != _rightBitmap)
-                        {
-                            SafeDisposeBitmap(bitmap);
-                        }
-                    }
-                    _preloadedImages.Remove(key);
-                    _pdfPreloadZoomLevels.Remove(key);
-
-                    // [최적화] 제거된 페이지의 저해상도 플래그도 함께 정리
-                    lock (_pdfLowResPageIndices)
-                    {
-                        _pdfLowResPageIndices.Remove(key);
-                    }
-                }
-            }
-        }
-
-        private void CleanupOldSharpenedImages()
-        {
-            lock (_sharpenedImageCache)
-            {
-                var keepRange = PreloadCount * 2;
-                var keysToRemove = _sharpenedImageCache.Keys
-                    .Where(index => Math.Abs(index - _currentIndex) > keepRange)
-                    .ToList();
-
-                foreach (var key in keysToRemove)
-                {
-                    if (_sharpenedImageCache.TryGetValue(key, out var bitmap))
-                    {
-                        if (bitmap != _currentBitmap && bitmap != _leftBitmap && bitmap != _rightBitmap)
-                        {
-                            SafeDisposeBitmap(bitmap);
-                        }
-                    }
-                    _sharpenedImageCache.Remove(key);
-                }
             }
         }
 
@@ -2409,12 +2168,7 @@ namespace Uviewer
             if (_currentPdfDocument == null) return;
             if (pageListIndex < 0 || pageListIndex >= _imageEntries.Count) return;
 
-            bool needsUpgrade;
-            lock (_pdfLowResPageIndices)
-            {
-                needsUpgrade = _pdfLowResPageIndices.Contains(pageListIndex);
-            }
-            if (!needsUpgrade) return;
+            if (!_imageCache.NeedsHighResUpgrade(pageListIndex)) return;
 
             var entry = _imageEntries[pageListIndex];
             if (!entry.IsPdfEntry) return;
@@ -2437,31 +2191,18 @@ namespace Uviewer
 
                     if (bitmap == null || token.IsCancellationRequested)
                     {
-                        bitmap?.Dispose();
+                        _imageCache.SafeDisposeBitmap(bitmap);
                         return;
                     }
 
                     // 이미 다른 페이지로 이동했으면 버림
                     if (_currentIndex != pageListIndex)
                     {
-                        SafeDisposeBitmap(bitmap);
+                        _imageCache.SafeDisposeBitmap(bitmap);
                         return;
                     }
 
-                    lock (_preloadedImages)
-                    {
-                        _preloadedImages.TryGetValue(pageListIndex, out var oldBitmap);
-                        _preloadedImages[pageListIndex] = bitmap;
-                        _pdfPreloadZoomLevels[pageListIndex] = _zoomLevel;
-
-                        if (oldBitmap != null && oldBitmap != bitmap && oldBitmap != _currentBitmap)
-                            SafeDisposeBitmap(oldBitmap);
-                    }
-
-                    lock (_pdfLowResPageIndices)
-                    {
-                        _pdfLowResPageIndices.Remove(pageListIndex);
-                    }
+                    _imageCache.UpdateCache(pageListIndex, bitmap, true, _zoomLevel, false, _currentBitmap);
 
                     System.Diagnostics.Debug.WriteLine($"[PdfUpgrade] 페이지 {pageListIndex} 풀 해상도 업그레이드 완료");
 
@@ -2478,26 +2219,6 @@ namespace Uviewer
             });
         }
 
-        private void SafeDisposeBitmap(CanvasBitmap? bitmap)
-        {
-            if (bitmap == null) return;
-
-            // 현재 화면에 렌더링 중일 수 있으므로 UI 스레드에서 안전하게 해제
-            DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, () =>
-            {
-                try
-                {
-                    if (bitmap.Device != null) // 이미 Dispose 되지 않은 경우만
-                    {
-                        bitmap.Dispose();
-                    }
-                }
-                catch (Exception ex)
-                {
-                    System.Diagnostics.Debug.WriteLine($"Bitmap Dispose Error: {ex.Message}");
-                }
-            });
-        }
 
         #endregion
 

@@ -29,8 +29,6 @@ namespace Uviewer
         private readonly SemaphoreSlim _pdfRenderSemaphore = new(3);
         private readonly SemaphoreSlim _pdfCurrentPageSemaphore = new(2, 2);
 
-        // [최적화] 낮은 해상도로 프리로드된 페이지 추적 (빠른 스크롤 시 캐시 히트율 향상)
-        private readonly HashSet<int> _pdfLowResPageIndices = new();
 
         private CancellationTokenSource? _pdfZoomRerenderCts;
 
@@ -185,31 +183,7 @@ namespace Uviewer
                 Title = "Uviewer - Image & Text Viewer";
             });
 
-            // 딕셔너리 안전한 초기화 (크래시 방지)
-            lock (_preloadedImages)
-            {
-                foreach (var bitmap in _preloadedImages.Values)
-                {
-                    SafeDisposeBitmap(bitmap);
-                }
-                _preloadedImages.Clear();
-                _pdfPreloadZoomLevels.Clear();
-            }
-
-            lock (_sharpenedImageCache)
-            {
-                foreach (var bitmap in _sharpenedImageCache.Values)
-                {
-                    SafeDisposeBitmap(bitmap);
-                }
-                _sharpenedImageCache.Clear();
-            }
-
-            // [최적화] 저해상도 페이지 인덱스 초기화
-            lock (_pdfLowResPageIndices)
-            {
-                _pdfLowResPageIndices.Clear();
-            }
+            _imageCache?.ClearAll();
 
             _fastNavigationResetCts?.Cancel();
             _fastNavigationResetCts?.Dispose();
@@ -453,39 +427,23 @@ namespace Uviewer
 
             if (token.IsCancellationRequested || newBitmap == null)
             {
-                if (newBitmap != null) SafeDisposeBitmap(newBitmap);
+                if (newBitmap != null) _imageCache.SafeDisposeBitmap(newBitmap);
                 return;
             }
 
             // [Important] If index changed while rendering, discard this result as it's no longer the "current" page
             if (capturedIndex != _currentIndex)
             {
-                SafeDisposeBitmap(newBitmap);
+                _imageCache.SafeDisposeBitmap(newBitmap);
                 return;
             }
 
             var oldBitmap = _currentBitmap;
             _currentBitmap = newBitmap;
-
-            lock (_preloadedImages)
-            {
-                _preloadedImages[capturedIndex] = newBitmap;
-                _pdfPreloadZoomLevels[capturedIndex] = _zoomLevel;
-            }
-
-            // [최적화] 풀 해상도로 업데이트됐으므로 저해상도 플래그 제거
-            lock (_pdfLowResPageIndices)
-            {
-                _pdfLowResPageIndices.Remove(capturedIndex);
-            }
+            _imageCache.UpdateCache(capturedIndex, newBitmap, true, _zoomLevel, false, oldBitmap);
 
             MainCanvas.Invalidate();
             UpdateStatusBar(entry, _currentBitmap);
-
-            if (oldBitmap != null && oldBitmap != newBitmap && !IsBitmapInCache(oldBitmap))
-            {
-                SafeDisposeBitmap(oldBitmap);
-            }
 
             // [추가] 현재 페이지 렌더링이 끝난 직후, 변경된 줌 레벨로 다음/이전 페이지들을 백그라운드에서 다시 그리도록 지시합니다.
             _preloadCts?.Cancel();

@@ -208,23 +208,7 @@ namespace Uviewer
             _preloadCts?.Dispose();
             _preloadCts = null;
             
-            lock (_preloadedImages)
-            {
-                foreach (var bitmap in _preloadedImages.Values)
-                {
-                    SafeDisposeBitmap(bitmap);
-                }
-                _preloadedImages.Clear();
-            }
-
-            lock (_sharpenedImageCache)
-            {
-                foreach (var bitmap in _sharpenedImageCache.Values)
-                {
-                    SafeDisposeBitmap(bitmap);
-                }
-                _sharpenedImageCache.Clear();
-            }
+            _imageCache?.ClearAll();
 
             if (isInitial)
             {
@@ -323,23 +307,7 @@ namespace Uviewer
             _preloadCts?.Dispose();
             _preloadCts = null;
             
-            lock (_preloadedImages)
-            {
-                foreach (var bitmap in _preloadedImages.Values)
-                {
-                    SafeDisposeBitmap(bitmap);
-                }
-                _preloadedImages.Clear();
-            }
-
-            lock (_sharpenedImageCache)
-            {
-                foreach (var bitmap in _sharpenedImageCache.Values)
-                {
-                    SafeDisposeBitmap(bitmap);
-                }
-                _sharpenedImageCache.Clear();
-            }
+            _imageCache?.ClearAll();
 
             var files = await folder.GetFilesAsync();
             _imageEntries = files
@@ -551,25 +519,7 @@ namespace Uviewer
                 Title = "Uviewer - Image & Text Viewer";
             });
 
-            // Clear preloaded images
-            lock (_preloadedImages)
-            {
-                foreach (var bitmap in _preloadedImages.Values)
-                {
-                    SafeDisposeBitmap(bitmap);
-                }
-                _preloadedImages.Clear();
-            }
-
-            // Clear sharpened image cache
-            lock (_sharpenedImageCache)
-            {
-                foreach (var bitmap in _sharpenedImageCache.Values)
-                {
-                    SafeDisposeBitmap(bitmap);
-                }
-                _sharpenedImageCache.Clear();
-            }
+            _imageCache?.ClearAll();
 
             // Clean up fast navigation
             _fastNavigationResetCts?.Cancel();

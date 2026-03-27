@@ -31,9 +31,6 @@ namespace Uviewer
         private const float SharpenAmount = 5.0f;      // Very strong sharpening (increased from 1.5)
         private const float SharpenThreshold = 0.0f;   // Apply to all details
 
-        // Sharpened image caching
-        private readonly Dictionary<int, CanvasBitmap> _sharpenedImageCache = new();
-        private const int MaxSharpenedCacheSize = 20; // Limit cache size to prevent memory issues
         private readonly Dictionary<int, CanvasBitmap> _animatedWebpSharpenedCache = new();
 
         #region Sharpened Image Caching
@@ -119,7 +116,7 @@ namespace Uviewer
                 // 6. 메모리 해제
                 if (shouldUpscale)
                 {
-                    SafeDisposeBitmap(processedSource);
+                    _imageCache.SafeDisposeBitmap(processedSource);
                 }
 
                 return finalTarget;
@@ -133,32 +130,7 @@ namespace Uviewer
 
         private void CacheSharpenedImage(int index, CanvasBitmap sharpenedBitmap)
         {
-            lock (_sharpenedImageCache)
-            {
-                // Remove oldest entries if cache is full
-                if (_sharpenedImageCache.Count >= MaxSharpenedCacheSize)
-                {
-                    // Remove items furthest from current index that are not currently displayed
-                    var keysToRemove = _sharpenedImageCache.Keys
-                        .OrderByDescending(k => Math.Abs(k - _currentIndex))
-                        .Take(_sharpenedImageCache.Count - MaxSharpenedCacheSize + 1)
-                        .ToList();
-
-                    foreach (var key in keysToRemove)
-                    {
-                        if (_sharpenedImageCache.TryGetValue(key, out var bitmap))
-                        {
-                            if (!IsBitmapInCache(bitmap))
-                            {
-                                SafeDisposeBitmap(bitmap);
-                                _sharpenedImageCache.Remove(key);
-                            }
-                        }
-                    }
-                }
-
-                _sharpenedImageCache[index] = sharpenedBitmap;
-            }
+            _imageCache.CacheSharpenedImage(index, sharpenedBitmap, _currentIndex);
         }
 
         #endregion
@@ -200,7 +172,7 @@ namespace Uviewer
                 {
                     if (bmp != _currentBitmap && bmp != _leftBitmap && bmp != _rightBitmap)
                     {
-                        SafeDisposeBitmap(bmp);
+                        _imageCache.SafeDisposeBitmap(bmp);
                     }
                 }
                 _animatedWebpSharpenedCache.Clear();
@@ -278,7 +250,7 @@ namespace Uviewer
 
                         if (_animatedWebpFramePixels == null || MainCanvas.Device == null)
                         {
-                            SafeDisposeBitmap(newBitmap);
+                            _imageCache.SafeDisposeBitmap(newBitmap);
                             return;
                         }
 
@@ -314,7 +286,7 @@ namespace Uviewer
                     }
                     if (!isInAnimationCache)
                     {
-                        SafeDisposeBitmap(oldBitmap);
+                        _imageCache.SafeDisposeBitmap(oldBitmap);
                     }
                 }
 
