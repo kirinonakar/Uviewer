@@ -464,30 +464,15 @@ namespace Uviewer
 
             if (isMarkdown)
             {
-                parsedBlocks = ParseMarkdownContent(rawContent);
+                parsedBlocks = AozoraParserService.ParseMarkdownContent(rawContent);
                 sourceLineCount = parsedBlocks.Count;
             }
             else
             {
-                // 🔥 중요: 무거운 정규식 작업과 Split을 UI 스레드에서 백그라운드로 이동
-                string boldStartTag = @"［＃(?:ここから太字)］";
-                string boldEndTag = @"［＃(?:ここで太字終わり)］";
-                string processedContent = Regex.Replace(rawContent, $"{boldStartTag}(.*?){boldEndTag}", (m) =>
-                {
-                    string inner = m.Groups[1].Value;
-                    var startRegex = new Regex(boldStartTag);
-                    var parts = startRegex.Split(inner);
-                    if (parts.Length <= 1) return $"@@BOLD_START@@{inner}@@BOLD_END@@";
-                    string prefix = string.Join("", parts.Take(parts.Length - 1));
-                    string boldContent = parts.Last();
-                    return $"{prefix}@@BOLD_START@@{boldContent}@@BOLD_END@@";
-                }, RegexOptions.Singleline);
-
-                var lines = processedContent.Replace("\r\n", "\n").Replace("\r", "\n").Split('\n');
-                sourceLineCount = lines.Length;
-
-                // 제한 없이 전체 라인 파싱
-                parsedBlocks = ParseAozoraLines(lines, 1);
+// 서비스 클래스에서 Preprocess와 파싱, 그리고 TotalLineCount 반환을 한 번에 처리합니다.
+        var result = AozoraParserService.ParseAozoraContent(rawContent, _textFontSize);
+        parsedBlocks = result.Blocks;
+        sourceLineCount = result.SourceLineCount;
             }
 
             if (token.IsCancellationRequested) return;
@@ -771,7 +756,7 @@ namespace Uviewer
 
                 if (block.IsParagraphContinuation && currentMergedBlock != null && !block.IsTable && block.HeadingLevel == 0)
                 {
-                    var tempMerged = CloneBlockProperties(currentMergedBlock, true);
+                    var tempMerged = AozoraParserService.CloneBlockProperties(currentMergedBlock, true);
                     tempMerged.Inlines.AddRange(block.Inlines);
 
                     float fontSize = (float)(_textFontSize * tempMerged.FontSizeScale);
@@ -815,7 +800,7 @@ namespace Uviewer
                     break;
                 }
 
-                var blockCopy = CloneBlockProperties(block, true);
+                var blockCopy = AozoraParserService.CloneBlockProperties(block, true);
                 pageBlocks.Add(blockCopy);
                 usedHeight += blockHeight;
 
@@ -1711,6 +1696,225 @@ private (string text, List<(int start, int length)> boldRanges) ParseTableInline
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"LoadAozoraImageAsync failed: {ex.Message}");
+            }
+        }
+		
+		 // TOC Handlers
+
+        public class TocItem
+        {
+            public string HeadingText { get; set; } = "";
+            public int SourceLineNumber { get; set; }
+            public Thickness Margin => new Thickness((HeadingLevel - 1) * 16, 0, 0, 0);
+            public int HeadingLevel { get; set; }
+            public object? Tag { get; set; }
+        }
+
+        private async void TocButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (!_isTextMode && !_isEpubMode) return;
+
+            // Ensure TOC Title
+            if (TocFlyout.Content is Grid g && g.Children.Count > 0 && g.Children[0] is TextBlock tb)
+            {
+                tb.Text = Strings.TocTitle;
+            }
+
+            List<TocItem> items = new();
+
+            if (_currentPdfDocument != null && _pdfToc.Count > 0)
+            {
+                items = _pdfToc.ToList();
+            }
+            else if ((_isAozoraMode || _isVerticalMode) && _aozoraBlocks.Count > 0)
+            {
+                items = _aozoraBlocks
+                    .Where(b => b.HeadingLevel > 0)
+                    .Select(b => new TocItem
+                    {
+                        HeadingText = b.HeadingText,
+                        SourceLineNumber = b.SourceLineNumber,
+                        HeadingLevel = b.HeadingLevel
+                    })
+                    .ToList();
+            }
+
+            else if (_isEpubMode)
+            {
+                // EPUB Mode
+                if (_epubToc != null && _epubToc.Count > 0)
+                {
+                    items = _epubToc.Select(t => new TocItem
+                    {
+                        HeadingText = t.Title,
+                        HeadingLevel = 1, // Simplify level for now
+                        SourceLineNumber = -1,
+                        Tag = t
+                    }).ToList();
+                }
+            }
+            else if (!string.IsNullOrEmpty(_currentTextContent))
+            {
+                // Scan raw text on demand for Normal Mode or if blocks are empty
+                items = await Task.Run(() =>
+                {
+                    var list = new List<TocItem>();
+                    var lines = _textLines.Count > 0 ? _textLines : SplitTextToLines(_currentTextContent); // Prefer split lines if available
+
+                    // In standard mode, finding exact source line number might be tricky if _textLines is wrapped.
+                    // But _textLines usually stores 1:1 if no wrap? No, MainWindow.text.cs implementation of SplitTextToLines:
+                    // Wait, SplitTextToLines splits by wrapping width? 
+                    // Let's check SplitTextToLines implementation in MainWindow.text.cs.
+                    // If SplitTextToLines wraps connected lines, SourceLineNumber logic is complex.
+                    // A safe bet is scanning the raw source lines.
+                    var rawLines = _currentTextContent.Replace("\r\n", "\n").Replace("\r", "\n").Split('\n');
+
+                    for (int i = 0; i < rawLines.Length; i++)
+                    {
+                        var line = rawLines[i].Trim();
+                        int level = 0;
+                        string text = "";
+
+                        // Check Aozora
+                        if (line.Contains("［＃大見出し］") || line.StartsWith("# ")) { level = 1; text = line.Replace("［＃大見出し］", "").TrimStart('#', ' '); }
+                        else if (line.Contains("［＃中見出し］") || line.StartsWith("## ")) { level = 2; text = line.Replace("［＃中見出し］", "").TrimStart('#', ' '); }
+                        else if (line.Contains("［＃小見出し］") || line.StartsWith("### ")) { level = 3; text = line.Replace("［＃小見出し］", "").TrimStart('#', ' '); }
+
+                        if (level > 0)
+                        {
+                            // Clean tags
+                            text = Regex.Replace(text, @"［＃[^］]+］|\[.*?\]|[#]", "").Trim();
+                            list.Add(new TocItem { HeadingText = text, SourceLineNumber = i + 1, HeadingLevel = level });
+                        }
+                    }
+                    return list;
+                });
+            }
+
+            // Highlight current item and scroll
+            int currentIndex = -1;
+
+            if (_isEpubMode)
+            {
+                if (_currentEpubChapterIndex >= 0 && _currentEpubChapterIndex < _epubSpine.Count)
+                {
+                    string currentSpinePath = _epubSpine[_currentEpubChapterIndex];
+                    for (int i = 0; i < items.Count; i++)
+                    {
+                        if (items[i].Tag is EpubTocItem epi)
+                        {
+                            string linkPath = epi.Link;
+                            int hashIndex = linkPath.IndexOf('#');
+                            if (hashIndex >= 0) linkPath = linkPath.Substring(0, hashIndex);
+
+                            if (string.Equals(linkPath, currentSpinePath, StringComparison.OrdinalIgnoreCase))
+                            {
+                                currentIndex = i;
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+            else if (_currentPdfDocument != null && items.Count > 0)
+            {
+                for (int i = 0; i < items.Count; i++)
+                {
+                    if (items[i].SourceLineNumber <= _currentIndex)
+                        currentIndex = i;
+                    else
+                        break;
+                }
+            }
+            else
+            {
+                // Text / Aozora Mode
+                int currentLine = 1;
+                if (_isVerticalMode)
+                {
+                    currentLine = _currentVerticalPageInfo.StartLine;
+                }
+                else if (_isAozoraMode)
+                {
+                    if (_currentAozoraStartBlockIndex >= 0 && _currentAozoraStartBlockIndex < _aozoraBlocks.Count)
+                        currentLine = _aozoraBlocks[_currentAozoraStartBlockIndex].SourceLineNumber;
+                }
+                else
+                {
+                    currentLine = GetTopVisibleLineIndex();
+                }
+
+                for (int i = 0; i < items.Count; i++)
+                {
+                    if (items[i].SourceLineNumber <= currentLine)
+                        currentIndex = i;
+                    else
+                        break;
+                }
+            }
+
+            if (currentIndex >= 0 && currentIndex < items.Count)
+            {
+                items[currentIndex].HeadingText = "⮕ " + items[currentIndex].HeadingText;
+            }
+
+            if (items.Count == 0)
+            {
+                items.Add(new TocItem { HeadingText = Strings.NoTocContent, SourceLineNumber = -1 });
+            }
+
+            TocListView.ItemsSource = items;
+
+            if (currentIndex >= 0)
+            {
+                // Ensure layout updated before scrolling
+                this.DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, () =>
+                {
+                    try
+                    {
+                        TocListView.ScrollIntoView(items[currentIndex], ScrollIntoViewAlignment.Leading);
+                    }
+                    catch { }
+                });
+            }
+        }
+
+        private void TocListView_ItemClick(object sender, ItemClickEventArgs e)
+        {
+            if (e.ClickedItem is TocItem item)
+            {
+                TocFlyout.Hide();
+
+                if (_isEpubMode)
+                {
+                    if (item.Tag is EpubTocItem epubItem)
+                    {
+                        JumpToEpubTocItem(epubItem);
+                    }
+                }
+                else if (item.Tag?.ToString() == "PDF")
+                {
+                    if (item.SourceLineNumber >= 0 && item.SourceLineNumber < _imageEntries.Count)
+                    {
+                        _currentIndex = item.SourceLineNumber;
+                        _ = DisplayCurrentImageAsync();
+                    }
+                }
+                else if (item.SourceLineNumber > 0)
+                {
+                    if (_isVerticalMode)
+                    {
+                        _ = PrepareVerticalTextAsync(item.SourceLineNumber);
+                    }
+                    else if (_isAozoraMode)
+                    {
+                        JumpToAozoraLine(item.SourceLineNumber);
+                    }
+                    else
+                    {
+                        ScrollToLine(item.SourceLineNumber);
+                    }
+                }
             }
         }
     }

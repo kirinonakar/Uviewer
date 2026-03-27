@@ -1787,7 +1787,7 @@ namespace Uviewer
             var splitBlocks = new List<AozoraBindingModel>();
             foreach (var block in blocks)
             {
-                splitBlocks.AddRange(SplitBlockBySentences(block));
+                splitBlocks.AddRange(AozoraParserService.SplitBlockBySentences(block));
             }
             return splitBlocks;
         }

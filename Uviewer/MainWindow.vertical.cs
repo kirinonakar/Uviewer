@@ -13,6 +13,8 @@ using System.Threading;
 using System.Threading.Tasks;
 using Windows.Foundation;
 using Windows.UI;
+using Uviewer.Models;
+using Uviewer.Services;
 
 namespace Uviewer
 {
@@ -244,13 +246,10 @@ namespace Uviewer
                 {
                     _aozoraBlocks = await Task.Run(() => 
                     {
-                        var blocks = ParseAozoraContent(_currentTextContent);
+                        var result = AozoraParserService.ParseAozoraContent(_currentTextContent, _textFontSize);
+                        var blocks = result.Blocks;
                         
-                        int lineCount = 1;
-                        for (int i = 0; i < _currentTextContent.Length; i++)
-                        {
-                            if (_currentTextContent[i] == '\n') lineCount++;
-                        }
+                        int lineCount = result.SourceLineCount;
                         
                         DispatcherQueue.TryEnqueue(() => { _textTotalLineCountInSource = lineCount; });
                         return blocks;
@@ -566,7 +565,7 @@ namespace Uviewer
                 // 1. 이어지는 문장 합치기 시도
                 if (block.IsParagraphContinuation && currentMergedBlock != null && !block.IsTable && block.HeadingLevel == 0)
                 {
-                    var tempMerged = CloneBlockProperties(currentMergedBlock, true);
+                    var tempMerged = AozoraParserService.CloneBlockProperties(currentMergedBlock, true);
                     tempMerged.Inlines.AddRange(block.Inlines); // 기존 문단에 텍스트 이어붙이기
 
                     float fontSize = (float)(_textFontSize * tempMerged.FontSizeScale);
@@ -608,7 +607,7 @@ namespace Uviewer
                     break; 
                 }
 
-                var blockCopy = CloneBlockProperties(block, true);
+                var blockCopy = AozoraParserService.CloneBlockProperties(block, true);
                 pageBlocks.Add(blockCopy);
                 usedWidth += blockWidth;
 
@@ -701,13 +700,7 @@ namespace Uviewer
             
             if (block.IsBold) layout.SetFontWeight(0, text.Length, Microsoft.UI.Text.FontWeights.Bold);
             foreach (var r in boldRanges) layout.SetFontWeight(r.start, r.length, Microsoft.UI.Text.FontWeights.Bold);
-            foreach (var r in italicRanges) layout.SetFontStyle(r.start, r.length, Windows.UI.Text.FontStyle.Italic);
-            
-            // [롤백]
-            // using var typography = new CanvasTypography();
-            // typography.AddFeature(CanvasTypographyFeatureName.ProportionalAlternateWidths, 1);
-            // layout.SetTypography(0, text.Length, typography);
-            
+            foreach (var r in italicRanges) layout.SetFontStyle(r.start, r.length, Windows.UI.Text.FontStyle.Italic);           
             float boundsWidth = (float)layout.LayoutBounds.Width;
             float spacing = fontSize * (block.IsBlankLine ? 0.2f : 0.6f);
             
