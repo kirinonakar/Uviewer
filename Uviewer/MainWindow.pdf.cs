@@ -36,7 +36,7 @@ namespace Uviewer
 
         private async Task LoadImagesFromPdfAsync(string pdfPath)
         {
-            _preloadCts?.Cancel();
+            _preloadManager.CancelAll();
             _imageLoadingCts?.Cancel(); // Cancel any ongoing image load
             _thumbnailLoadingCts?.Cancel(); // Cancel thumbnail loading
             
@@ -133,11 +133,12 @@ namespace Uviewer
                     }
                     await DisplayCurrentImageAsync();
 
-                    _preloadCts?.Cancel();
-                    _preloadCts?.Dispose();
-                    _preloadCts = new CancellationTokenSource();
-                    var token = _preloadCts.Token;
-                    _ = Task.Run(() => PreloadNextImagesAsync(token));
+                    _ = _preloadManager.StartPreloadAsync(
+                        _currentIndex, _imageEntries, _currentPdfDocument != null, _zoomLevel,
+                        _currentBitmap, _leftBitmap, _rightBitmap,
+                        LoadBitmapForPreloadAsync,
+                        () => MainCanvas?.Invalidate(),
+                        prioritizeNext: true);
 
                     Title = "Uviewer - Image & Text Viewer";
                 }
@@ -448,11 +449,12 @@ namespace Uviewer
             UpdateStatusBar(entry, _currentBitmap);
 
             // [추가] 현재 페이지 렌더링이 끝난 직후, 변경된 줌 레벨로 다음/이전 페이지들을 백그라운드에서 다시 그리도록 지시합니다.
-            _preloadCts?.Cancel();
-            _preloadCts?.Dispose();
-            _preloadCts = new CancellationTokenSource();
-            var preloadToken = _preloadCts.Token;
-            _ = Task.Run(() => PreloadNextImagesAsync(preloadToken));
+            _ = _preloadManager.StartPreloadAsync(
+                _currentIndex, _imageEntries, _currentPdfDocument != null, _zoomLevel,
+                _currentBitmap, _leftBitmap, _rightBitmap,
+                LoadBitmapForPreloadAsync,
+                () => MainCanvas?.Invalidate(),
+                prioritizeNext: true);
         }
     }
 }

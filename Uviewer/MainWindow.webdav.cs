@@ -524,11 +524,12 @@ namespace Uviewer
                     await DisplayCurrentImageAsync();
                     
                     // Trigger preloading for WebDAV
-                    _preloadCts?.Cancel();
-                    _preloadCts?.Dispose();
-                    _preloadCts = new CancellationTokenSource();
-                    var token = _preloadCts.Token;
-                    _ = Task.Run(() => PreloadNextImagesAsync(token));
+                    _ = _preloadManager.StartPreloadAsync(
+                        _currentIndex, _imageEntries, _currentPdfDocument != null, _zoomLevel,
+                        _currentBitmap, _leftBitmap, _rightBitmap,
+                        LoadBitmapForPreloadAsync,
+                        () => MainCanvas?.Invalidate(),
+                        prioritizeNext: true);
                 }
             }
             catch (OperationCanceledException) { }
@@ -597,11 +598,12 @@ namespace Uviewer
                     _currentIndex = 0;
                     await DisplayCurrentImageAsync();
 
-                    _preloadCts?.Cancel();
-                    _preloadCts?.Dispose();
-                    _preloadCts = new CancellationTokenSource();
-                    var token = _preloadCts.Token;
-                    _ = Task.Run(() => PreloadNextImagesAsync(token));
+                    _ = _preloadManager.StartPreloadAsync(
+                        _currentIndex, _imageEntries, _currentPdfDocument != null, _zoomLevel,
+                        _currentBitmap, _leftBitmap, _rightBitmap,
+                        LoadBitmapForPreloadAsync,
+                        () => MainCanvas?.Invalidate(),
+                        prioritizeNext: true);
                 }
                 else
                 {

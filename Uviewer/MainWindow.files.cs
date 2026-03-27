@@ -199,7 +199,7 @@ namespace Uviewer
             _7zExtractCts?.Cancel();
             _imageLoadingCts?.Cancel();
             _thumbnailLoadingCts?.Cancel();
-            _preloadCts?.Cancel();
+            _preloadManager.CancelAll();
             _globalTextCts?.Cancel();
 
             CloseCurrentArchive();
@@ -207,8 +207,7 @@ namespace Uviewer
             CloseCurrentEpub();
 
             // Cancel any ongoing preloading and clear cache
-            _preloadCts?.Dispose();
-            _preloadCts = null;
+            _preloadManager.CancelAll();
             
             _imageCache?.ClearAll();
 
@@ -298,7 +297,7 @@ namespace Uviewer
             _7zExtractCts?.Cancel();
             _imageLoadingCts?.Cancel();
             _thumbnailLoadingCts?.Cancel();
-            _preloadCts?.Cancel();
+            _preloadManager.CancelAll();
             _globalTextCts?.Cancel();
 
             CloseCurrentArchive();
@@ -306,8 +305,7 @@ namespace Uviewer
             CloseCurrentEpub();
 
             // Cancel any ongoing preloading and clear cache
-            _preloadCts?.Dispose();
-            _preloadCts = null;
+            _preloadManager.CancelAll();
             
             _imageCache?.ClearAll();
 
@@ -337,7 +335,7 @@ namespace Uviewer
         {
             // 이전 작업 즉시 중단
             _7zExtractCts?.Cancel();
-            _preloadCts?.Cancel();
+            _preloadManager.CancelAll();
             _imageLoadingCts?.Cancel();
             _thumbnailLoadingCts?.Cancel();
             _globalTextCts?.Cancel();
@@ -410,11 +408,12 @@ namespace Uviewer
                     }
 
                     // Start preloading images after displaying the first one
-                    _preloadCts?.Cancel();
-                    _preloadCts?.Dispose();
-                    _preloadCts = new CancellationTokenSource();
-                    var token = _preloadCts.Token;
-                    _ = Task.Run(() => PreloadNextImagesAsync(token));
+                    _ = _preloadManager.StartPreloadAsync(
+                        _currentIndex, _imageEntries, _currentPdfDocument != null, _zoomLevel,
+                        _currentBitmap, _leftBitmap, _rightBitmap,
+                        LoadBitmapForPreloadAsync,
+                        () => MainCanvas?.Invalidate(),
+                        prioritizeNext: true);
 
                     // Update title to show archive name
                     Title = "Uviewer - Image & Text Viewer";
@@ -437,7 +436,7 @@ namespace Uviewer
 
             // [Immediate Stop] 락을 기다리기 전에 추출 작업 즉시 취소
             _7zExtractCts?.Cancel();
-            _preloadCts?.Cancel();
+            _preloadManager.CancelAll();
             _thumbnailLoadingCts?.Cancel();
 
             // 외부에서 호출될 때 Lock 대기 (타임아웃 설정으로 데드락 방지)

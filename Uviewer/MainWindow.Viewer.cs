@@ -1167,12 +1167,12 @@ namespace Uviewer
                                 UpdateStatusBar(prevEntry, _currentBitmap);
                                 MainCanvas.Invalidate();
 
-                                _preloadCts?.Cancel();
-                                _preloadCts?.Dispose();
-                                _preloadCts = new CancellationTokenSource();
-                                _ = Task.Run(() => PreloadPreviousImagesAsync(_preloadCts.Token));
-
-                                _imageCache.CleanupOldPreloadedImages(_currentIndex, true, PreloadCount, _currentBitmap, _leftBitmap, _rightBitmap);
+                                _ = _preloadManager.StartPreloadAsync(
+                                    _currentIndex, _imageEntries, _currentPdfDocument != null, _zoomLevel,
+                                    _currentBitmap, _leftBitmap, _rightBitmap,
+                                    LoadBitmapForPreloadAsync,
+                                    () => MainCanvas?.Invalidate(),
+                                    prioritizeNext: false);
                             }
                             catch
                             {
@@ -1199,11 +1199,12 @@ namespace Uviewer
                                     UpdateStatusBar(prevEntry, _currentBitmap);
                                     MainCanvas.Invalidate();
 
-                                    _preloadCts?.Cancel();
-                                    _preloadCts = new CancellationTokenSource();
-                                    _ = Task.Run(() => PreloadPreviousImagesAsync(_preloadCts.Token));
-
-                                    _imageCache.CleanupOldPreloadedImages(_currentIndex, true, PreloadCount, _currentBitmap, _leftBitmap, _rightBitmap);
+                                    _ = _preloadManager.StartPreloadAsync(
+                                        _currentIndex, _imageEntries, _currentPdfDocument != null, _zoomLevel,
+                                        _currentBitmap, _leftBitmap, _rightBitmap,
+                                        LoadBitmapForPreloadAsync,
+                                        () => MainCanvas?.Invalidate(),
+                                        prioritizeNext: false);
                                 }
                             }
                             catch { }
@@ -1244,12 +1245,12 @@ namespace Uviewer
                                 UpdateStatusBar(nextEntry, _currentBitmap);
                                 MainCanvas.Invalidate();
 
-                                _preloadCts?.Cancel();
-                                _preloadCts?.Dispose();
-                                _preloadCts = new CancellationTokenSource();
-                                _ = Task.Run(() => PreloadNextImagesAsync(_preloadCts.Token));
-
-                                _imageCache.CleanupOldPreloadedImages(_currentIndex, true, PreloadCount, _currentBitmap, _leftBitmap, _rightBitmap);
+                                _ = _preloadManager.StartPreloadAsync(
+                                    _currentIndex, _imageEntries, _currentPdfDocument != null, _zoomLevel,
+                                    _currentBitmap, _leftBitmap, _rightBitmap,
+                                    LoadBitmapForPreloadAsync,
+                                    () => MainCanvas?.Invalidate(),
+                                    prioritizeNext: true);
                             }
                             catch
                             {
@@ -1276,11 +1277,12 @@ namespace Uviewer
                                     UpdateStatusBar(nextEntry, _currentBitmap);
                                     MainCanvas.Invalidate();
 
-                                    _preloadCts?.Cancel();
-                                    _preloadCts = new CancellationTokenSource();
-                                    _ = Task.Run(() => PreloadNextImagesAsync(_preloadCts.Token));
-
-                                    _imageCache.CleanupOldPreloadedImages(_currentIndex, true, PreloadCount, _currentBitmap, _leftBitmap, _rightBitmap);
+                                    _ = _preloadManager.StartPreloadAsync(
+                                        _currentIndex, _imageEntries, _currentPdfDocument != null, _zoomLevel,
+                                        _currentBitmap, _leftBitmap, _rightBitmap,
+                                        LoadBitmapForPreloadAsync,
+                                        () => MainCanvas?.Invalidate(),
+                                        prioritizeNext: true);
                                 }
                             }
                             catch { }
@@ -1330,7 +1332,7 @@ namespace Uviewer
         private void ClearImageResources()
         {
             _imageLoadingCts?.Cancel();
-            _preloadCts?.Cancel();
+            _preloadManager.CancelAll();
 
             _imageCache?.ClearAll();
 
