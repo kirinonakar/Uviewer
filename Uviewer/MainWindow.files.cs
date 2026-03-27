@@ -1471,21 +1471,21 @@ namespace Uviewer
 
         private void ToggleSidebar()
         {
-            if (_isSidebarVisible && !_isFullscreen)
+            if (_windowState.IsSidebarVisible && !_windowState.IsFullscreen)
             {
-                _SidebarWidth = (int)SidebarColumn.Width.Value > 200 ? (int)SidebarColumn.Width.Value : 320;
+                _windowState.SidebarWidth = (int)SidebarColumn.Width.Value > 200 ? (int)SidebarColumn.Width.Value : 320;
             }
             if ((int)SidebarColumn.Width.Value > 200)
             {
-                _isSidebarVisible = true;
+                _windowState.IsSidebarVisible = true;
             }
-            _isSidebarVisible = !_isSidebarVisible;
-            SidebarGrid.Visibility = _isSidebarVisible ? Visibility.Visible : Visibility.Collapsed;
+            _windowState.IsSidebarVisible = !_windowState.IsSidebarVisible;
+            SidebarGrid.Visibility = _windowState.IsSidebarVisible ? Visibility.Visible : Visibility.Collapsed;
             if (SplitterGrid != null)
             {
-                SplitterGrid.Visibility = _isSidebarVisible ? Visibility.Visible : Visibility.Collapsed;
+                SplitterGrid.Visibility = _windowState.IsSidebarVisible ? Visibility.Visible : Visibility.Collapsed;
             }
-            SidebarColumn.Width = _isSidebarVisible ? new GridLength(_SidebarWidth) : new GridLength(0);
+            SidebarColumn.Width = _windowState.IsSidebarVisible ? new GridLength(_windowState.SidebarWidth) : new GridLength(0);
             SaveWindowSettings();
         }
 

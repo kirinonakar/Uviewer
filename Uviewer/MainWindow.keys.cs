@@ -24,7 +24,7 @@ namespace Uviewer
             if (e.Key == Windows.System.VirtualKey.Escape)
             {
                 e.Handled = true;
-                if (_isFullscreen) ToggleFullscreen();
+                if (_windowState.IsFullscreen) ToggleFullscreen();
                 else CloseWindowButton_Click(sender, new RoutedEventArgs());
                 return;
             }

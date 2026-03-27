@@ -48,9 +48,6 @@ namespace Uviewer
         }
 
         // Fullscreen
-        private bool _isFullscreen = false;
-        private bool _wasMaximizedBeforeFullscreen = false;
-        private bool _isSidebarVisible = true;
         private const double FullscreenTopHoverZone = 80;
         private const double FullscreenLeftHoverZone = 60;
         private const double FullscreenSidebarKeepZoneRight = 300;
@@ -59,11 +56,8 @@ namespace Uviewer
         private DispatcherQueueTimer? _fullscreenSidebarHideTimer;
         private bool _toolbarHideTimerRunning = false;
         private bool _sidebarHideTimerRunning = false;
-        private int _SidebarWidth = 320;
 
         private DispatcherQueueTimer? _notificationTimer;
-
-        private Windows.Graphics.RectInt32 _lastNonMaximizedRect = new(100, 100, 1200, 800);
 
         // Side-by-side view settings
         private bool _isSideBySideMode = false;
@@ -82,8 +76,6 @@ namespace Uviewer
         private int _pdfScrollDirection = 1; // 1 for next (start top), -1 for prev (start bottom)
         private bool _isSeamlessScroll = false;
         private bool _allowMultipleInstances = true;
-        private bool _isPinned = true; // Pin toggle: true = UI fixed, false = auto-hide
-        private bool _isAlwaysOnTop = false;
 
         // 컨트롤 반전 로직 수정:
         // - Match Control Direction이 켜져 있고 Next Image가 왼쪽인 경우
@@ -120,6 +112,7 @@ namespace Uviewer
 
         // Image preloading for faster navigation
         private Services.ImageCacheManager _imageCache = null!;
+        private WindowStateManager _windowState = null!;
         private const int PreloadCount = 5; // Number of images to preload ahead
         private readonly SemaphoreSlim _thumbnailSemaphore = new(4); // Limit concurrent thumbnail loads (archives)
         private CancellationTokenSource? _preloadCts;
@@ -311,6 +304,8 @@ namespace Uviewer
                     System.Diagnostics.Debug.WriteLine($"Error setting window icon: {ex.Message}");
                 }
 
+                _windowState = new WindowStateManager(this);
+
                 // Load saved window position, size and maximized state
                 var appWindow2 = this.AppWindow;
                 appWindow2.Changed += AppWindow_Changed;
@@ -329,7 +324,7 @@ namespace Uviewer
                     appWindow2.Move(new Windows.Graphics.PointInt32(centerX, centerY));
 
                     // 현재 위치와 크기를 초기값으로 저장
-                    _lastNonMaximizedRect = new Windows.Graphics.RectInt32(centerX, centerY, defaultSize.Width, defaultSize.Height);
+                    _windowState.LastNonMaximizedRect = new Windows.Graphics.RectInt32(centerX, centerY, defaultSize.Width, defaultSize.Height);
                 }
 
                 // Initialize button states
@@ -338,7 +333,7 @@ namespace Uviewer
                 UpdateSharpenButtonState();
 
                 // Apply saved sidebar visibility state
-                if (!_isSidebarVisible)
+                if (!_windowState.IsSidebarVisible)
                 {
                     SidebarGrid.Visibility = Visibility.Collapsed;
                     if (SplitterGrid != null) SplitterGrid.Visibility = Visibility.Collapsed;
@@ -346,7 +341,7 @@ namespace Uviewer
                 }
 
                 // Apply saved pin state
-                if (!_isPinned)
+                if (!_windowState.IsPinned)
                 {
                     PinButton.IsChecked = false;
                     PinIcon.Glyph = "\uE77A"; // Unpin icon
@@ -479,12 +474,12 @@ namespace Uviewer
             _fullscreenToolbarHideTimer.Tick += (s, e) =>
             {
                 _toolbarHideTimerRunning = false;
-                if (_isFullscreen || !_isPinned)
+                if (_windowState.IsFullscreen || !_windowState.IsPinned)
                 {
                     AppTitleBar.Visibility = Visibility.Collapsed;
-                    if (!_isFullscreen) SetCaptionButtonsVisibility(false);
+                    if (!_windowState.IsFullscreen) _windowState.SetCaptionButtonsVisibility(false);
                     ToolbarGrid.Visibility = Visibility.Collapsed;
-                    if (!_isFullscreen) StatusBarGrid.Visibility = Visibility.Collapsed;
+                    if (!_windowState.IsFullscreen) StatusBarGrid.Visibility = Visibility.Collapsed;
                     System.Diagnostics.Debug.WriteLine("✓ Titlebar and Toolbar hidden by timer");
                 }
             };
@@ -495,7 +490,7 @@ namespace Uviewer
             _fullscreenSidebarHideTimer.Tick += (s, e) =>
             {
                 _sidebarHideTimerRunning = false;
-                if (_isFullscreen || !_isPinned)
+                if (_windowState.IsFullscreen || !_windowState.IsPinned)
                 {
                     SidebarGrid.Visibility = Visibility.Collapsed;
                     SidebarColumn.Width = new GridLength(0);
@@ -641,6 +636,9 @@ namespace Uviewer
 
         private void AppWindow_Changed(AppWindow sender, AppWindowChangedEventArgs args)
         {
+            // 복잡한 위치/크기 추적은 매니저에게 위임합니다.
+            _windowState.HandleAppWindowChanged(args);
+
             if (args.DidPositionChange || args.DidSizeChange)
             {
                 if (args.DidSizeChange)
@@ -648,7 +646,7 @@ namespace Uviewer
                     TriggerEpubResize();
 
                     // [수정] 텍스트 또는 EPUB 모드일 때 창 크기가 800x600 밑으로 내려가지 않도록 방지
-                    if ((_isTextMode || _isEpubMode) && !_isFullscreen)
+                    if ((_isTextMode || _isEpubMode) && !_windowState.IsFullscreen)
                     {
                         if (sender.Size.Width < 800 || sender.Size.Height < 600)
                         {
@@ -656,36 +654,6 @@ namespace Uviewer
                                 Math.Max(sender.Size.Width, 800),
                                 Math.Max(sender.Size.Height, 600)
                             ));
-                        }
-                    }
-                }
-
-                if (sender.Presenter is OverlappedPresenter overlapped)
-                {
-                    // [수정] Restored 상태여야 함은 물론, 시스템 좌표(-8, -8 등)가 튀는 것을 방지
-                    if (overlapped.State == OverlappedPresenterState.Restored)
-                    {
-                        var pos = sender.Position;
-                        var size = sender.Size;
-
-                        // 비정상적인 크기나 위치는 무시 (최소 크기 가드)
-                        if (size.Width >= 100 && size.Height >= 100)
-                        {
-                            // 최대화 시 발생하는 시스템 좌표(-8, -8)가 Restored 상태로 보고되는 경우가 있으므로 
-                            // 해당 좌표가 실제 화면 영역 내에 유효하게 걸쳐있는지 최종 확인
-                            var currentRect = new Windows.Graphics.RectInt32(pos.X, pos.Y, size.Width, size.Height);
-                            var area = Microsoft.UI.Windowing.DisplayArea.GetFromRect(currentRect, Microsoft.UI.Windowing.DisplayAreaFallback.None);
-                            
-                            if (area != null)
-                            {
-                                // [수정] 현재 모니터의 WorkArea보다 살짝이라도 벗어나는(음수 좌표 등) 경우는 
-                                // 시스템이 최대화/전환을 위해 일시적으로 설정한 좌표일 확률이 높으므로 저장하지 않습니다.
-                                if (pos.X >= area.WorkArea.X && pos.Y >= area.WorkArea.Y &&
-                                    size.Width <= area.WorkArea.Width && size.Height <= area.WorkArea.Height)
-                                {
-                                    _lastNonMaximizedRect = currentRect;
-                                }
-                            }
                         }
                     }
                 }
@@ -698,7 +666,7 @@ namespace Uviewer
 
         private void RootGrid_SizeChanged(object sender, SizeChangedEventArgs e)
         {
-            if ((_isTextMode || _isEpubMode) && _isSidebarVisible)
+            if ((_isTextMode || _isEpubMode) && _windowState.IsSidebarVisible)
             {
                 // 텍스트/EPUB 영역에 최소 500픽셀은 절대적으로 보장 (오류 방지 및 사이드바 억제)
                 double minTextContentWidth = 500;
@@ -732,7 +700,7 @@ namespace Uviewer
         // [추가] 텍스트를 열 때 창 크기가 작으면 800x600 크기 이상으로 강제로 늘리는 메서드
         private void EnsureMinWindowSizeForText()
         {
-            if (_isFullscreen) return;
+            if (_windowState.IsFullscreen) return;
 
             var currentSize = this.AppWindow.Size;
             bool needsResize = false;
@@ -757,7 +725,7 @@ namespace Uviewer
             }
 
             // 창이 800일 때 사이드바가 화면을 너무 많이 덮지 않도록 제한
-            if (_isSidebarVisible)
+            if (_windowState.IsSidebarVisible)
             {
                 // Resize가 비동기적으로 먹힐 수 있으므로, 보더 여백(~16px)을 뺀 예상 클라이언트 너비 사용
                 double estimatedClientWidth = needsResize ? newWidth - 16 : RootGrid.ActualWidth;
@@ -792,32 +760,25 @@ namespace Uviewer
 
         private void ToggleFullscreen()
         {
-            var appWindow = this.AppWindow;
+            // 1. 매니저에게 창 상태 전환 지시
+            _windowState.ToggleFullscreen();
 
-            if (_isFullscreen)
+            // 2. 바뀐 상태에 따라 UI 컨트롤(Grid 등) 표시/숨김 처리
+            if (!_windowState.IsFullscreen)
             {
                 // Exit fullscreen
-                appWindow.SetPresenter(AppWindowPresenterKind.Default);
-                _isFullscreen = false;
-
-                // Restore Always on Top state
-                if (appWindow.Presenter is OverlappedPresenter op)
-                {
-                    op.IsAlwaysOnTop = _isAlwaysOnTop;
-                }
-
-                if (_isPinned)
+                if (_windowState.IsPinned)
                 {
                     // 핀 고정 상태: UI 모두 복원
                     AppTitleBar.Visibility = Visibility.Visible;
-                    SetCaptionButtonsVisibility(true);
+                    _windowState.SetCaptionButtonsVisibility(true);
                     ToolbarGrid.Visibility = Visibility.Visible;
                     StatusBarGrid.Visibility = Visibility.Visible;
-                    if (_isSidebarVisible)
+                    if (_windowState.IsSidebarVisible)
                     {
                         SidebarGrid.Visibility = Visibility.Visible;
                         SplitterGrid.Visibility = Visibility.Visible;
-                        SidebarColumn.Width = new GridLength(_SidebarWidth);
+                        SidebarColumn.Width = new GridLength(_windowState.SidebarWidth);
                     }
                     else
                     {
@@ -828,7 +789,7 @@ namespace Uviewer
                 {
                     // 핀 해제 상태: UI 숨긴 채 유지
                     AppTitleBar.Visibility = Visibility.Collapsed;
-                    SetCaptionButtonsVisibility(false);
+                    _windowState.SetCaptionButtonsVisibility(false);
                     ToolbarGrid.Visibility = Visibility.Collapsed;
                     StatusBarGrid.Visibility = Visibility.Collapsed;
                     SidebarGrid.Visibility = Visibility.Collapsed;
@@ -840,23 +801,17 @@ namespace Uviewer
             else
             {
                 // Enter fullscreen
-                if (appWindow.Presenter is OverlappedPresenter overlapped)
-                {
-                    _wasMaximizedBeforeFullscreen = overlapped.State == OverlappedPresenterState.Maximized;
-                }
-                appWindow.SetPresenter(AppWindowPresenterKind.FullScreen);
                 AppTitleBar.Visibility = Visibility.Collapsed;
                 ToolbarGrid.Visibility = Visibility.Collapsed;
                 StatusBarGrid.Visibility = Visibility.Collapsed;
                 SidebarGrid.Visibility = Visibility.Collapsed;
-                if (_isSidebarVisible && (int)SidebarColumn.Width.Value > 200)
+                if (_windowState.IsSidebarVisible && (int)SidebarColumn.Width.Value > 200)
                 {
-                    _SidebarWidth = (int)SidebarColumn.Width.Value; // Save current width
+                    _windowState.SidebarWidth = (int)SidebarColumn.Width.Value; // Save current width
                 }
                 SidebarColumn.Width = new GridLength(0);
                 SplitterGrid.Visibility = Visibility.Collapsed;  // Hide splitter in fullscreen
                 FullscreenIcon.Glyph = "\uE73F"; // Exit fullscreen icon
-                _isFullscreen = true;
                 StopFullscreenHoverTimers();
             }
 
@@ -883,7 +838,7 @@ namespace Uviewer
 
         private void RootGrid_PointerMoved(object sender, PointerRoutedEventArgs e)
         {
-            if (!_isFullscreen && _isPinned) return;
+            if (!_windowState.IsFullscreen && _windowState.IsPinned) return;
 
             var pt = e.GetCurrentPoint(RootGrid);
             double x = pt.Position.X;
@@ -901,9 +856,9 @@ namespace Uviewer
                 if (ToolbarGrid.Visibility != Visibility.Visible)
                 {
                     AppTitleBar.Visibility = Visibility.Visible;
-                    if (!_isFullscreen) SetCaptionButtonsVisibility(true);
+                    if (!_windowState.IsFullscreen) _windowState.SetCaptionButtonsVisibility(true);
                     ToolbarGrid.Visibility = Visibility.Visible;
-                    if (!_isFullscreen) StatusBarGrid.Visibility = Visibility.Visible;
+                    if (!_windowState.IsFullscreen) StatusBarGrid.Visibility = Visibility.Visible;
                     System.Diagnostics.Debug.WriteLine("Titlebar and Toolbar SHOWN (mouse in top zone)");
                 }
                 if (_toolbarHideTimerRunning)
@@ -923,18 +878,18 @@ namespace Uviewer
                 }
             }
 
-            bool inLeftZone = _isSidebarVisible && x < FullscreenLeftHoverZone;
-            if (SidebarGrid.Visibility == Visibility.Visible && x < _SidebarWidth)
+            bool inLeftZone = _windowState.IsSidebarVisible && x < FullscreenLeftHoverZone;
+            if (SidebarGrid.Visibility == Visibility.Visible && x < _windowState.SidebarWidth)
             {
                 inLeftZone = true;
             }
 
-            if (_isSidebarVisible && inLeftZone)
+            if (_windowState.IsSidebarVisible && inLeftZone)
             {
                 // Show sidebar and stop hide timer while in hover zone
                 if (SidebarGrid.Visibility != Visibility.Visible)
                 {
-                    SidebarColumn.Width = new GridLength(_SidebarWidth);
+                    SidebarColumn.Width = new GridLength(_windowState.SidebarWidth);
                     SidebarGrid.Visibility = Visibility.Visible;
                     System.Diagnostics.Debug.WriteLine("Sidebar SHOWN (mouse in left zone)");
                 }
@@ -964,7 +919,7 @@ namespace Uviewer
 
         private void RootGrid_PointerExited(object sender, PointerRoutedEventArgs e)
         {
-            if (!_isFullscreen && _isPinned) return;
+            if (!_windowState.IsFullscreen && _windowState.IsPinned) return;
 
             if (ToolbarGrid.Visibility == Visibility.Visible && !_toolbarHideTimerRunning)
             {
@@ -1011,7 +966,7 @@ namespace Uviewer
             double y = pt.Position.Y;
 
             // 1. Edge Detection (Fullscreen only)
-            if (_isFullscreen)
+            if (_windowState.IsFullscreen)
             {
                 // Top Edge -> Show Toolbar
                 if (y < FullscreenTopHoverZone)
@@ -1029,7 +984,7 @@ namespace Uviewer
                 {
                     if (SidebarGrid.Visibility != Visibility.Visible)
                     {
-                        SidebarColumn.Width = new GridLength(_SidebarWidth);
+                        SidebarColumn.Width = new GridLength(_windowState.SidebarWidth);
                         SidebarGrid.Visibility = Visibility.Visible;
                     }
                     StartOrRestartFullscreenSidebarHideTimer();
@@ -1069,13 +1024,13 @@ namespace Uviewer
 
         private void TogglePin()
         {
-            if (_isFullscreen) return; // 전체화면에서는 핀 모드 불필요
+            if (_windowState.IsFullscreen) return; // 전체화면에서는 핀 모드 불필요
 
-            _isPinned = !_isPinned;
-            PinButton.IsChecked = _isPinned;
-            PinIcon.Glyph = _isPinned ? "\uE890" : "\uE890"; // Eye / EyeOff icon
+            _windowState.TogglePin();
+            PinButton.IsChecked = _windowState.IsPinned;
+            PinIcon.Glyph = _windowState.IsPinned ? "\uE890" : "\uE890"; // Eye / EyeOff icon
 
-            if (_isPinned)
+            if (_windowState.IsPinned)
             {
                 // 핀 고정: UI 모두 표시
                 _fullscreenToolbarHideTimer?.Stop();
@@ -1084,26 +1039,26 @@ namespace Uviewer
                 _sidebarHideTimerRunning = false;
 
                 AppTitleBar.Visibility = Visibility.Visible;
-                SetCaptionButtonsVisibility(true);
+                _windowState.SetCaptionButtonsVisibility(true);
                 ToolbarGrid.Visibility = Visibility.Visible;
                 StatusBarGrid.Visibility = Visibility.Visible;
-                if (_isSidebarVisible)
+                if (_windowState.IsSidebarVisible)
                 {
                     SidebarGrid.Visibility = Visibility.Visible;
                     if (SplitterGrid != null) SplitterGrid.Visibility = Visibility.Visible;
-                    SidebarColumn.Width = new GridLength(_SidebarWidth);
+                    SidebarColumn.Width = new GridLength(_windowState.SidebarWidth);
                 }
             }
             else
             {
                 // 핀 해제: UI 모두 숨김
-                if (_isSidebarVisible && (int)SidebarColumn.Width.Value > 200)
+                if (_windowState.IsSidebarVisible && (int)SidebarColumn.Width.Value > 200)
                 {
-                    _SidebarWidth = (int)SidebarColumn.Width.Value;
+                    _windowState.SidebarWidth = (int)SidebarColumn.Width.Value;
                 }
 
                 AppTitleBar.Visibility = Visibility.Collapsed;
-                SetCaptionButtonsVisibility(false);
+                _windowState.SetCaptionButtonsVisibility(false);
                 ToolbarGrid.Visibility = Visibility.Collapsed;
                 StatusBarGrid.Visibility = Visibility.Collapsed;
                 SidebarGrid.Visibility = Visibility.Collapsed;
@@ -1116,12 +1071,7 @@ namespace Uviewer
 
         private void SetCaptionButtonsVisibility(bool isVisible)
         {
-            if (AppWindowTitleBar.IsCustomizationSupported())
-            {
-                this.AppWindow.TitleBar.PreferredHeightOption = isVisible
-                    ? Microsoft.UI.Windowing.TitleBarHeightOption.Standard
-                    : Microsoft.UI.Windowing.TitleBarHeightOption.Collapsed;
-            }
+            _windowState.SetCaptionButtonsVisibility(isVisible);
         }
 
         private void AlwaysOnTopButton_Click(object sender, RoutedEventArgs e)
@@ -1131,21 +1081,15 @@ namespace Uviewer
 
         private void ToggleAlwaysOnTop()
         {
-            _isAlwaysOnTop = !_isAlwaysOnTop;
-            if (AlwaysOnTopButton != null) AlwaysOnTopButton.IsChecked = _isAlwaysOnTop;
-
-            var appWindow = this.AppWindow;
-            if (appWindow != null && appWindow.Presenter is OverlappedPresenter overlapped)
-            {
-                overlapped.IsAlwaysOnTop = _isAlwaysOnTop;
-            }
+            _windowState.ToggleAlwaysOnTop();
+            if (AlwaysOnTopButton != null) AlwaysOnTopButton.IsChecked = _windowState.IsAlwaysOnTop;
             SaveWindowSettings();
         }
 
         private void GlobalThemeToggleButton_Click(object sender, RoutedEventArgs e)
         {
             // If in fullscreen, exit first, change theme, then re-enter
-            bool wasFullscreen = _isFullscreen;
+            bool wasFullscreen = _windowState.IsFullscreen;
             if (wasFullscreen)
             {
                 ToggleFullscreen();

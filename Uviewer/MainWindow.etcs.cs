@@ -356,8 +356,8 @@ namespace Uviewer
                         height = Math.Max(300, height);
 
                         // 4. 설정 적용
-                        _lastNonMaximizedRect = new Windows.Graphics.RectInt32(x, y, width, height);
-                        appWindow.MoveAndResize(_lastNonMaximizedRect);
+                        _windowState.LastNonMaximizedRect = new Windows.Graphics.RectInt32(x, y, width, height);
+                        appWindow.MoveAndResize(_windowState.LastNonMaximizedRect);
 
                         // 최대화 상태 및 기타 버튼 설정 복원
                         bool shouldMaximize = lines.Length >= 5 && lines[4].Trim() == "1";
@@ -376,18 +376,18 @@ namespace Uviewer
                         }
                         
                         if (lines.Length >= 11 && lines[10].Trim() == "0") _allowMultipleInstances = false;
-                        if (lines.Length >= 12 && lines[11].Trim() == "0") _isSidebarVisible = false;
-                        if (lines.Length >= 13 && lines[12].Trim() == "0") _isPinned = false;
-                        if (lines.Length >= 14 && lines[13].Trim() == "1") _isAlwaysOnTop = true;
+                        if (lines.Length >= 12 && lines[11].Trim() == "0") _windowState.IsSidebarVisible = false;
+                        if (lines.Length >= 13 && lines[12].Trim() == "0") _windowState.IsPinned = false;
+                        if (lines.Length >= 14 && lines[13].Trim() == "1") _windowState.IsAlwaysOnTop = true;
                         if (lines.Length >= 15 && lines[14].Trim() == "1") _autoDoublePageForArchive = true;
 
                         if (MatchControlDirectionMenuItem != null) MatchControlDirectionMenuItem.IsChecked = _matchControlDirection;
                         if (AllowMultipleInstancesMenuItem != null) AllowMultipleInstancesMenuItem.IsChecked = _allowMultipleInstances;
                         if (AutoDoublePageForArchiveMenuItem != null) AutoDoublePageForArchiveMenuItem.IsChecked = _autoDoublePageForArchive;
-                        if (AlwaysOnTopButton != null) AlwaysOnTopButton.IsChecked = _isAlwaysOnTop;
+                        if (AlwaysOnTopButton != null) AlwaysOnTopButton.IsChecked = _windowState.IsAlwaysOnTop;
                         if (appWindow != null && appWindow.Presenter is OverlappedPresenter op)
                         {
-                            op.IsAlwaysOnTop = _isAlwaysOnTop;
+                            op.IsAlwaysOnTop = _windowState.IsAlwaysOnTop;
                         }
                         UpdateSharpenButtonState();
                         UpdateSideBySideButtonState();
@@ -398,8 +398,8 @@ namespace Uviewer
                 }
 
                 // 파일이 없거나 읽기 실패 시 기본값(70%)으로 설정
-                _lastNonMaximizedRect = new Windows.Graphics.RectInt32(defaultX, defaultY, defaultWidth, defaultHeight);
-                appWindow.MoveAndResize(_lastNonMaximizedRect);
+                _windowState.LastNonMaximizedRect = new Windows.Graphics.RectInt32(defaultX, defaultY, defaultWidth, defaultHeight);
+                appWindow.MoveAndResize(_windowState.LastNonMaximizedRect);
             }
             catch (Exception ex)
             {
@@ -421,7 +421,7 @@ namespace Uviewer
             Activated -= RestoreMaximizedStateOnce;
             try
             {
-                if (_isFullscreen) return;
+                if (_windowState.IsFullscreen) return;
                 var appWindow = this.AppWindow;
                 if (appWindow.Presenter is OverlappedPresenter overlapped)
                 {
@@ -453,10 +453,10 @@ namespace Uviewer
                 bool isMaximized = false;
 
                 // 1. 현재 최대화 상태인지 확인
-                if (_isFullscreen)
+                if (_windowState.IsFullscreen)
                 {
                     // 전체화면 중 종료 시, 전체화면 진입 전의 최대화 여부를 따름
-                    isMaximized = _wasMaximizedBeforeFullscreen;
+                    isMaximized = _windowState.WasMaximizedBeforeFullscreen;
                 }
                 else if (appWindow.Presenter is OverlappedPresenter overlapped)
                 {
@@ -465,10 +465,10 @@ namespace Uviewer
 
                 // 2. [수정] 복잡한 조건문 필요 없이, 저장할 좌표는 
                 //    항상 'AppWindow_Changed'가 정교하게 관리해둔 Rect를 사용합니다.
-                int saveX = _lastNonMaximizedRect.X;
-                int saveY = _lastNonMaximizedRect.Y;
-                int saveWidth = _lastNonMaximizedRect.Width;
-                int saveHeight = _lastNonMaximizedRect.Height;
+                int saveX = _windowState.LastNonMaximizedRect.X;
+                int saveY = _windowState.LastNonMaximizedRect.Y;
+                int saveWidth = _windowState.LastNonMaximizedRect.Width;
+                int saveHeight = _windowState.LastNonMaximizedRect.Height;
 
                 var settings = new string[]
                 {
@@ -483,9 +483,9 @@ namespace Uviewer
             ((int)_currentTheme).ToString(),
             _matchControlDirection ? "1" : "0",
             _allowMultipleInstances ? "1" : "0",
-            _isSidebarVisible ? "1" : "0",
-            _isPinned ? "1" : "0",
-            _isAlwaysOnTop ? "1" : "0",
+            _windowState.IsSidebarVisible ? "1" : "0",
+            _windowState.IsPinned ? "1" : "0",
+            _windowState.IsAlwaysOnTop ? "1" : "0",
             _autoDoublePageForArchive ? "1" : "0"
                 };
 
