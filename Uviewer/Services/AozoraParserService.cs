@@ -339,6 +339,12 @@ namespace Uviewer.Services
                             if (c == '.' && j > 0 && j < text.Length - 1 && char.IsDigit(text[j - 1]) && char.IsDigit(text[j + 1])) { /* 무시 */ }
                             else
                             {
+                                // [수정] 연속된 !, ?, ！, ？ 기호는 분리하지 않고 한 덩어리로 묶음 (NormalizeVerticalText에서 !! 등을 처리하기 위함)
+                                while (j + 1 < text.Length && (text[j + 1] == '!' || text[j + 1] == '?' || text[j + 1] == '！' || text[j + 1] == '？'))
+                                {
+                                    j++;
+                                }
+
                                 while (j + 1 < text.Length && Array.IndexOf(closeBrackets, text[j + 1]) >= 0) j++;
                                 splitPos = j + 1;
                             }
