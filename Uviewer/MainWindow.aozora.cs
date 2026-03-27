@@ -14,6 +14,8 @@ using System.Threading;
 using System.Threading.Tasks;
 using Windows.Foundation;
 using Windows.UI;
+using Uviewer.Models;
+using Uviewer.Services;
 
 namespace Uviewer
 {
@@ -332,7 +334,7 @@ namespace Uviewer
                     if (AozoraTextCanvas != null) AozoraTextCanvas.Visibility = Visibility.Visible;
 
                     await PrepareAozoraDisplayAsync(_currentTextContent, targetLine, token);
-                    FileNameText.Text = GetFormattedDisplayName(fileName, _currentTextArchiveEntryKey != null);
+                    FileNameText.Text = FileExplorerService.GetFormattedDisplayName(fileName, _currentTextArchiveEntryKey != null, _currentArchivePath);
                 }
                 else
                 {

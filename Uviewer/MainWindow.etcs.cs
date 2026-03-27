@@ -9,6 +9,8 @@ using System.Threading;
 using System.Threading.Tasks;
 using Windows.ApplicationModel.DataTransfer;
 using Windows.Storage;
+using Uviewer.Models;
+using Uviewer.Services;
 using Visibility = Microsoft.UI.Xaml.Visibility;
 
 namespace Uviewer
@@ -123,7 +125,7 @@ namespace Uviewer
             // Images will stay visible showing the last loaded image
 
             // Update the filename text directly
-            FileNameText.Text = GetFormattedDisplayName(currentEntry.DisplayName, currentEntry.IsArchiveEntry);
+            FileNameText.Text = FileExplorerService.GetFormattedDisplayName(currentEntry.DisplayName, currentEntry.IsArchiveEntry);
 
             // Update status bar with filename and index
             TextProgressText.Text = ""; // Clear for image mode
@@ -270,19 +272,19 @@ namespace Uviewer
                     {
                         var ext = Path.GetExtension(file.Name).ToLowerInvariant();
 
-                        if (SupportedArchiveExtensions.Contains(ext))
+                        if (FileExplorerService.SupportedArchiveExtensions.Contains(ext))
                         {
                             await LoadImagesFromArchiveAsync(file.Path);
                         }
-                        else if (SupportedEpubExtensions.Contains(ext))
+                        else if (FileExplorerService.SupportedEpubExtensions.Contains(ext))
                         {
                             await LoadImageFromFileAsync(file);
                         }
-                        else if (SupportedPdfExtensions.Contains(ext))
+                        else if (FileExplorerService.SupportedPdfExtensions.Contains(ext))
                         {
                             await LoadImagesFromPdfAsync(file.Path);
                         }
-                        else if (SupportedImageExtensions.Contains(ext) || SupportedTextExtensions.Contains(ext))
+                        else if (FileExplorerService.SupportedImageExtensions.Contains(ext) || FileExplorerService.SupportedTextExtensions.Contains(ext))
                         {
                             await LoadImageFromFileAsync(file);
                         }

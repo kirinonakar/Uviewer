@@ -11,6 +11,8 @@ using System.Linq;
 using System.Threading.Tasks;
 using Windows.Graphics.DirectX;
 using System.Diagnostics;
+using Uviewer.Models;
+using Uviewer.Services;
 
 namespace Uviewer
 {

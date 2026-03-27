@@ -10,6 +10,8 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Windows.Storage;
+using Uviewer.Models;
+using Uviewer.Services;
 using Visibility = Microsoft.UI.Xaml.Visibility;
 
 namespace Uviewer
@@ -385,11 +387,11 @@ namespace Uviewer
                     var name = item.Name;
                     var ext = Path.GetExtension(name).ToLowerInvariant();
 
-                    var isImage = SupportedImageExtensions.Contains(ext);
-                    var isArchive = SupportedArchiveExtensions.Contains(ext);
-                    var isText = SupportedTextExtensions.Contains(ext);
-                    var isEpub = SupportedEpubExtensions.Contains(ext);
-                    var isPdf = SupportedPdfExtensions.Contains(ext);
+                    var isImage = FileExplorerService.SupportedImageExtensions.Contains(ext);
+                    var isArchive = FileExplorerService.SupportedArchiveExtensions.Contains(ext);
+                    var isText = FileExplorerService.SupportedTextExtensions.Contains(ext);
+                    var isEpub = FileExplorerService.SupportedEpubExtensions.Contains(ext);
+                    var isPdf = FileExplorerService.SupportedPdfExtensions.Contains(ext);
 
                     if (item.IsDirectory || isImage || isArchive || isText || isEpub || isPdf)
                     {
@@ -477,15 +479,15 @@ namespace Uviewer
 
                 var ext = Path.GetExtension(item.WebDavPath ?? item.Name).ToLowerInvariant();
 
-                if (SupportedArchiveExtensions.Contains(ext))
+                if (FileExplorerService.SupportedArchiveExtensions.Contains(ext))
                 {
                     await LoadImagesFromArchiveAsync(tempPath);
                 }
-                else if (SupportedPdfExtensions.Contains(ext))
+                else if (FileExplorerService.SupportedPdfExtensions.Contains(ext))
                 {
                     await LoadImagesFromPdfAsync(tempPath);
                 }
-                else if (SupportedEpubExtensions.Contains(ext))
+                else if (FileExplorerService.SupportedEpubExtensions.Contains(ext))
                 {
                     // Sequential navigation - include all supported files in folder
                     var viewableItems = _fileItems.Where(f => !f.IsDirectory && !f.IsParentDirectory).ToList();
@@ -576,7 +578,7 @@ namespace Uviewer
 
                     _imageEntries = _currentArchive.Entries
                         .Where(e => !e.IsDirectory &&
-                            SupportedImageExtensions.Contains(Path.GetExtension(e.Key ?? "").ToLowerInvariant()))
+                            FileExplorerService.SupportedImageExtensions.Contains(Path.GetExtension(e.Key ?? "").ToLowerInvariant()))
                         .OrderBy(e => e.Key, NaturalSortComparer.Default)
                         .Select(e => new ImageEntry
                         {

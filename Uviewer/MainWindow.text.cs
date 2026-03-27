@@ -16,6 +16,8 @@ using System.Threading.Tasks;
 using Windows.Foundation;
 using Windows.Storage;
 using Windows.UI;
+using Uviewer.Models;
+using Uviewer.Services;
 
 namespace Uviewer
 {
@@ -40,7 +42,6 @@ namespace Uviewer
 
 
 
-        // SupportedTextExtensions is defined in MainWindow.xaml.cs
 
         public class TextLine
         {
@@ -289,7 +290,7 @@ namespace Uviewer
                 if (token.IsCancellationRequested) return;
                 if (VerticalTextCanvas != null) VerticalTextCanvas.Visibility = Visibility.Visible;
 
-                FileNameText.Text = GetFormattedDisplayName(name, _currentTextArchiveEntryKey != null);
+                FileNameText.Text = FileExplorerService.GetFormattedDisplayName(name, _currentTextArchiveEntryKey != null);
                 UpdateTextStatusBar();
                 return;
             }
@@ -301,7 +302,7 @@ namespace Uviewer
                 if (token.IsCancellationRequested) return;
                 if (AozoraTextCanvas != null) AozoraTextCanvas.Visibility = Visibility.Visible;
 
-                FileNameText.Text = GetFormattedDisplayName(name, _currentTextArchiveEntryKey != null);
+                FileNameText.Text = FileExplorerService.GetFormattedDisplayName(name, _currentTextArchiveEntryKey != null);
             }
             else
             {
@@ -1918,7 +1919,7 @@ namespace Uviewer
             if (_isAozoraMode) { UpdateAozoraStatusBar(); return; }
             if (_isEpubMode) { UpdateEpubStatus(); return; }
 
-            if (fileName != null) FileNameText.Text = GetFormattedDisplayName(fileName, _currentTextArchiveEntryKey != null);
+            if (fileName != null) FileNameText.Text = FileExplorerService.GetFormattedDisplayName(fileName, _currentTextArchiveEntryKey != null);
 
             int total = totalLines ?? _textLines.Count;
             if (total == 0) total = 1;

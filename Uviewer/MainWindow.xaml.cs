@@ -18,6 +18,8 @@ using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
 using Windows.Storage;
+using Uviewer.Models;
+using Uviewer.Services;
 using Visibility = Microsoft.UI.Xaml.Visibility;
 
 namespace Uviewer
@@ -145,138 +147,7 @@ namespace Uviewer
             catch { }
         }
 
-        private static readonly string[] SupportedImageExtensions =
-        {
-            ".jpg", ".jpeg", ".png", ".bmp", ".gif", ".webp", ".avif", ".jxl", ".ico", ".tiff", ".tif"
-        };
 
-        private static readonly string[] SupportedTextExtensions =
-        {
-            ".txt", ".html", ".htm", ".md", ".xml"
-        };
-
-        private static readonly string[] SupportedArchiveExtensions =
-        {
-            ".zip", ".rar", ".7z", ".tar", ".gz", ".cbz", ".cbr"
-        };
-
-        private static readonly string[] SupportedEpubExtensions =
-        {
-            ".epub"
-        };
-
-        private static readonly string[] SupportedPdfExtensions =
-        {
-            ".pdf"
-        };
-
-        private IEnumerable<string> SupportedFileExtensions =>
-            SupportedImageExtensions.Concat(SupportedTextExtensions).Concat(SupportedArchiveExtensions).Concat(SupportedEpubExtensions).Concat(SupportedPdfExtensions);
-
-        private string? GetEntryExtension(ImageEntry entry)
-        {
-            if (entry == null) return null;
-            if (entry.FilePath != null) return Path.GetExtension(entry.FilePath);
-            if (entry.ArchiveEntryKey != null) return Path.GetExtension(entry.ArchiveEntryKey);
-            if (entry.WebDavPath != null) return Path.GetExtension(entry.WebDavPath);
-            return null;
-        }
-
-        private bool IsTextEntry(ImageEntry entry)
-        {
-            var ext = GetEntryExtension(entry);
-            return !string.IsNullOrEmpty(ext) && SupportedTextExtensions.Contains(ext.ToLowerInvariant());
-        }
-
-        private bool IsEpubEntry(ImageEntry entry)
-        {
-            var ext = GetEntryExtension(entry);
-            return !string.IsNullOrEmpty(ext) && SupportedEpubExtensions.Contains(ext.ToLowerInvariant());
-        }
-
-        private bool IsPdfEntry(ImageEntry entry)
-        {
-            var ext = GetEntryExtension(entry);
-            return (!string.IsNullOrEmpty(ext) && SupportedPdfExtensions.Contains(ext.ToLowerInvariant())) || entry.IsPdfEntry;
-        }
-
-        private bool IsImageEntry(ImageEntry entry)
-        {
-            var ext = GetEntryExtension(entry);
-            return !string.IsNullOrEmpty(ext) && SupportedImageExtensions.Contains(ext.ToLowerInvariant());
-        }
-
-        private bool IsNavigableImage(ImageEntry entry)
-        {
-            if (entry == null) return false;
-            return entry.IsPdfEntry || IsImageEntry(entry);
-        }
-
-        // File item for ListView
-        public class FileItem : INotifyPropertyChanged
-        {
-            public string Name { get; set; } = "";
-            public string FullPath { get; set; } = "";
-            public bool IsDirectory { get; set; }
-            public bool IsArchive { get; set; }
-            public bool IsImage { get; set; }
-            public bool IsText { get; set; }
-            public bool IsEpub { get; set; }
-            public bool IsPdf { get; set; }
-            public bool IsParentDirectory { get; set; }
-            public bool IsWebDav { get; set; }
-            public string? WebDavPath { get; set; }
-
-            private ImageSource? _thumbnail;
-            public ImageSource? Thumbnail
-            {
-                get => _thumbnail;
-                set
-                {
-                    if (_thumbnail != value)
-                    {
-                        _thumbnail = value;
-                        OnPropertyChanged();
-                    }
-                }
-            }
-
-            public string Icon => IsParentDirectory ? "\uE72B" :
-                                  IsDirectory ? "\uE8B7" :
-                                  IsArchive ? "\uE8D4" :
-                                  IsEpub ? "\uE82D" : // Book icon
-                                  IsPdf ? "\uEA90" : // PDF icon (Pdf icon glyph usually \uEA90 or Document \uE8A5)
-                                  IsImage ? "\uE8B9" :
-                                  IsText ? "\uE8C4" : "\uE7C3";
-
-            public SolidColorBrush IconColor => IsDirectory || IsParentDirectory ?
-                new SolidColorBrush(Colors.Gold) :
-                IsArchive ? new SolidColorBrush(Colors.Orange) :
-                IsEpub ? new SolidColorBrush(Colors.MediumPurple) :
-                IsPdf ? new SolidColorBrush(Colors.IndianRed) :
-                IsImage ? new SolidColorBrush(Colors.CornflowerBlue) :
-                IsText ? new SolidColorBrush(Colors.LightGreen) :
-                new SolidColorBrush(Colors.Gray);
-
-            public event PropertyChangedEventHandler? PropertyChanged;
-            private void OnPropertyChanged([CallerMemberName] string? propertyName = null)
-            {
-                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
-            }
-        }
-
-        // Represents an image entry (either file or archive entry)
-        private class ImageEntry
-        {
-            public string DisplayName { get; set; } = "";
-            public string? FilePath { get; set; }
-            public string? ArchiveEntryKey { get; set; }
-            public bool IsArchiveEntry => ArchiveEntryKey != null;
-            public bool IsPdfEntry { get; set; } = false;
-            public uint PdfPageIndex { get; set; } = 0;
-            public string? WebDavPath { get; set; }
-            public bool IsWebDavEntry => WebDavPath != null;
-        }
 
 
 
@@ -366,15 +237,15 @@ namespace Uviewer
                         var extension = Path.GetExtension(launchFilePath).ToLowerInvariant();
 
                         // [Step 1] Priority Load: Load the file first
-                        if (SupportedArchiveExtensions.Contains(extension))
+                        if (FileExplorerService.SupportedArchiveExtensions.Contains(extension))
                         {
                             await LoadImagesFromArchiveAsync(launchFilePath);
                         }
-                        else if (SupportedPdfExtensions.Contains(extension))
+                        else if (FileExplorerService.SupportedPdfExtensions.Contains(extension))
                         {
                             await LoadImagesFromPdfAsync(launchFilePath);
                         }
-                        else if (SupportedEpubExtensions.Contains(extension))
+                        else if (FileExplorerService.SupportedEpubExtensions.Contains(extension))
                         {
                             var file = await StorageFile.GetFileFromPathAsync(launchFilePath);
                             await LoadImageFromFileAsync(file, true); // Use fast initial load
@@ -1432,7 +1303,7 @@ namespace Uviewer
                     while (searchIdx > 0)
                     {
                         searchIdx--;
-                        if (IsNavigableImage(_imageEntries[searchIdx]))
+                        if (FileExplorerService.IsNavigableImage(_imageEntries[searchIdx]))
                         {
                             newIndex = searchIdx;
                             break;
@@ -1501,7 +1372,7 @@ namespace Uviewer
                     while (searchIdx < _imageEntries.Count - 1)
                     {
                         searchIdx++;
-                        if (IsNavigableImage(_imageEntries[searchIdx]))
+                        if (FileExplorerService.IsNavigableImage(_imageEntries[searchIdx]))
                         {
                             newIndex = searchIdx;
                             break;
@@ -1967,7 +1838,7 @@ namespace Uviewer
                     {
                         if (index < 0 || index >= _imageEntries.Count) continue;
                         if (index == _currentIndex) continue;
-                        if (!IsNavigableImage(_imageEntries[index])) continue;
+                        if (!FileExplorerService.IsNavigableImage(_imageEntries[index])) continue;
 
                         bool isPdfEntry = _imageEntries[index].IsPdfEntry && _currentPdfDocument != null;
                         bool isPreviewQuality = isPdfEntry && d >= 3;
@@ -2072,7 +1943,7 @@ namespace Uviewer
                     {
                         if (index < 0 || index >= _imageEntries.Count) continue;
                         if (index == _currentIndex) continue;
-                        if (!IsNavigableImage(_imageEntries[index])) continue;
+                        if (!FileExplorerService.IsNavigableImage(_imageEntries[index])) continue;
 
                         bool isPdfEntry = _imageEntries[index].IsPdfEntry && _currentPdfDocument != null;
                         bool isPreviewQuality = isPdfEntry && d >= 3;

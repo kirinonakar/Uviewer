@@ -20,6 +20,8 @@ using System.Threading;
 using System.Threading.Tasks;
 using Windows.Storage;
 using Windows.Storage.Streams;
+using Uviewer.Models;
+using Uviewer.Services;
 
 namespace Uviewer
 {
@@ -270,7 +272,7 @@ namespace Uviewer
                  // 4. Load TOC (Background)
                  _ = ParseEpubTocAsync();
 
-                 FileNameText.Text = GetFormattedDisplayName(entry?.DisplayName ?? file.Name, false);
+                 FileNameText.Text = FileExplorerService.GetFormattedDisplayName(entry?.DisplayName ?? file.Name, false);
                  SyncSidebarSelection(entry ?? new ImageEntry { FilePath = file.Path, DisplayName = file.Name });
              }
              catch (Exception ex)
@@ -1453,7 +1455,7 @@ namespace Uviewer
             }
             finally
             {
-                FileNameText.Text = GetFormattedDisplayName(_currentEpubDisplayName ?? Path.GetFileName(_currentEpubFilePath) ?? "", false);
+                FileNameText.Text = FileExplorerService.GetFormattedDisplayName(_currentEpubDisplayName ?? Path.GetFileName(_currentEpubFilePath) ?? "", false);
             }
         }
 

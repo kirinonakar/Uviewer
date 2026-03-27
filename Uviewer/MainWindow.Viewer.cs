@@ -11,6 +11,8 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Windows.Storage;
+using Uviewer.Models;
+using Uviewer.Services;
 using Visibility = Microsoft.UI.Xaml.Visibility;
 
 namespace Uviewer
@@ -134,12 +136,12 @@ namespace Uviewer
                 return;
             }
 
-            if (IsTextEntry(entry))
+            if (FileExplorerService.IsTextEntry(entry))
             {
                 await LoadTextEntryAsync(entry);
                 await AddToRecentAsync(false);
             }
-            else if (IsEpubEntry(entry))
+            else if (FileExplorerService.IsEpubEntry(entry))
             {
                 await LoadEpubEntryAsync(entry, token);
                 await AddToRecentAsync(false);
@@ -915,42 +917,10 @@ namespace Uviewer
             }
         }
 
-        private string GetFormattedDisplayName(string displayName, bool isArchiveEntry)
-        {
-            if (isArchiveEntry && !string.IsNullOrEmpty(_currentArchivePath))
-            {
-                string archivePath = _currentArchivePath;
-                if (archivePath.StartsWith("WebDAV:"))
-                {
-                    archivePath = archivePath.Substring("WebDAV:".Length);
-                }
-                string archiveName = Path.GetFileName(archivePath);
-                return $"{archiveName} - {displayName}";
-            }
-
-            if (_isWebDavMode && !string.IsNullOrEmpty(_currentWebDavItemPath))
-            {
-                string realName = Path.GetFileName(_currentWebDavItemPath);
-                
-                if (!string.IsNullOrEmpty(displayName))
-                {
-                    // If displayName contains " - ", preserve the suffix (e.g., PDF pages)
-                    int dashIndex = displayName.IndexOf(" - ");
-                    if (dashIndex > 0)
-                    {
-                        return realName + displayName.Substring(dashIndex);
-                    }
-                    
-                    return realName;
-                }
-            }
-
-            return displayName;
-        }
 
         private void UpdateStatusBar(ImageEntry entry, CanvasBitmap bitmap)
         {
-            FileNameText.Text = GetFormattedDisplayName(entry.DisplayName, entry.IsArchiveEntry);
+            FileNameText.Text = FileExplorerService.GetFormattedDisplayName(entry.DisplayName, entry.IsArchiveEntry, _currentArchivePath, _isWebDavMode ? _currentWebDavItemPath : null);
             if (bitmap != null && bitmap.Device != null)
                 ImageInfoText.Text = $"{(int)bitmap.Size.Width} × {(int)bitmap.Size.Height}";
             else

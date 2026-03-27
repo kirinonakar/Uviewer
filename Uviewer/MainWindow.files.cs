@@ -13,6 +13,8 @@ using System.Threading.Tasks;
 using Windows.Storage;
 using Windows.Storage.Pickers;
 using Microsoft.UI.Xaml.Media.Imaging;
+using Uviewer.Models;
+using Uviewer.Services;
 using Visibility = Microsoft.UI.Xaml.Visibility;
 
 namespace Uviewer
@@ -118,24 +120,24 @@ namespace Uviewer
             picker.SuggestedStartLocation = PickerLocationId.PicturesLibrary;
 
             // Add image extensions
-            foreach (var ext in SupportedImageExtensions)
+            foreach (var ext in FileExplorerService.SupportedImageExtensions)
             {
                 picker.FileTypeFilter.Add(ext);
             }
 
             // Add archive extensions
-            foreach (var ext in SupportedArchiveExtensions)
+            foreach (var ext in FileExplorerService.SupportedArchiveExtensions)
             {
                 picker.FileTypeFilter.Add(ext);
             }
 
-            foreach (var ext in SupportedEpubExtensions)
+            foreach (var ext in FileExplorerService.SupportedEpubExtensions)
             {
                  picker.FileTypeFilter.Add(ext);
             }
 
             // Add text extensions
-            foreach (var ext in SupportedFileExtensions)
+            foreach (var ext in FileExplorerService.SupportedFileExtensions)
             {
                 picker.FileTypeFilter.Add(ext);
             }
@@ -145,15 +147,15 @@ namespace Uviewer
             if (file != null)
             {
                 var extension = Path.GetExtension(file.Path).ToLowerInvariant();
-                if (SupportedArchiveExtensions.Contains(extension))
+                if (FileExplorerService.SupportedArchiveExtensions.Contains(extension))
                 {
                     await LoadImagesFromArchiveAsync(file.Path);
                 }
-                else if (SupportedPdfExtensions.Contains(extension))
+                else if (FileExplorerService.SupportedPdfExtensions.Contains(extension))
                 {
                     await LoadImagesFromPdfAsync(file.Path);
                 }
-                else if (SupportedEpubExtensions.Contains(extension))
+                else if (FileExplorerService.SupportedEpubExtensions.Contains(extension))
                 {
                     await LoadImageFromFileAsync(file);
                 }
@@ -230,7 +232,7 @@ namespace Uviewer
                         
                         var files = await folder.GetFilesAsync();
                         var allEntries = files
-                            .Where(f => SupportedFileExtensions.Contains(Path.GetExtension(f.Name).ToLowerInvariant()))
+                            .Where(f => FileExplorerService.SupportedFileExtensions.Contains(Path.GetExtension(f.Name).ToLowerInvariant()))
                             .OrderBy(f => f.Name, NaturalSortComparer.Default)
                             .Select(f => new ImageEntry
                             {
@@ -266,7 +268,7 @@ namespace Uviewer
                 {
                     var files = await folder.GetFilesAsync();
                     _imageEntries = files
-                        .Where(f => SupportedFileExtensions.Contains(Path.GetExtension(f.Name).ToLowerInvariant()))
+                        .Where(f => FileExplorerService.SupportedFileExtensions.Contains(Path.GetExtension(f.Name).ToLowerInvariant()))
                         .OrderBy(f => f.Name, NaturalSortComparer.Default)
                         .Select(f => new ImageEntry
                         {
@@ -311,7 +313,7 @@ namespace Uviewer
 
             var files = await folder.GetFilesAsync();
             _imageEntries = files
-                .Where(f => SupportedFileExtensions.Contains(Path.GetExtension(f.Name).ToLowerInvariant()))
+                .Where(f => FileExplorerService.SupportedFileExtensions.Contains(Path.GetExtension(f.Name).ToLowerInvariant()))
                 .OrderBy(f => f.Name, NaturalSortComparer.Default)
                 .Select(f => new ImageEntry
                 {
@@ -362,7 +364,7 @@ namespace Uviewer
 
                         _imageEntries = _current7zArchive.Entries
                             .Where(e => !e.IsFolder &&
-                                SupportedImageExtensions.Contains(Path.GetExtension(e.FileName ?? "").ToLowerInvariant()))
+                                FileExplorerService.SupportedImageExtensions.Contains(Path.GetExtension(e.FileName ?? "").ToLowerInvariant()))
                             .OrderBy(e => e.FileName, NaturalSortComparer.Default)
                             .Select(e => new ImageEntry
                             {
@@ -377,7 +379,7 @@ namespace Uviewer
 
                         _imageEntries = _currentArchive.Entries
                             .Where(e => !e.IsDirectory &&
-                                SupportedImageExtensions.Contains(Path.GetExtension(e.Key ?? "").ToLowerInvariant()))
+                                FileExplorerService.SupportedImageExtensions.Contains(Path.GetExtension(e.Key ?? "").ToLowerInvariant()))
                             .OrderBy(e => e.Key, NaturalSortComparer.Default)
                             .Select(e => new ImageEntry
                             {
@@ -559,7 +561,7 @@ namespace Uviewer
                             string libraryPath = Path.Combine(AppContext.BaseDirectory, "Libs", "7z.dll");
                             using var archive = new SevenZipExtractor.ArchiveFile(archivePath, libraryPath);
                             var entries = archive.Entries
-                                .Where(e => !e.IsFolder && SupportedImageExtensions.Contains(Path.GetExtension(e.FileName ?? "").ToLowerInvariant()))
+                                .Where(e => !e.IsFolder && FileExplorerService.SupportedImageExtensions.Contains(Path.GetExtension(e.FileName ?? "").ToLowerInvariant()))
                                 .ToList();
                             var entryMap = entries.ToDictionary(e => e.FileName!, e => e);
 
@@ -855,11 +857,11 @@ namespace Uviewer
                     foreach (var file in sortedFiles)
                     {
                         var ext = file.Extension.ToLowerInvariant();
-                        var isImage = SupportedImageExtensions.Contains(ext);
-                        var isArchive = SupportedArchiveExtensions.Contains(ext);
-                        var isText = SupportedTextExtensions.Contains(ext);
-                        var isEpub = SupportedEpubExtensions.Contains(ext);
-                        var isPdf = SupportedPdfExtensions.Contains(ext);
+                        var isImage = FileExplorerService.SupportedImageExtensions.Contains(ext);
+                        var isArchive = FileExplorerService.SupportedArchiveExtensions.Contains(ext);
+                        var isText = FileExplorerService.SupportedTextExtensions.Contains(ext);
+                        var isEpub = FileExplorerService.SupportedEpubExtensions.Contains(ext);
+                        var isPdf = FileExplorerService.SupportedPdfExtensions.Contains(ext);
 
                         if (isImage || isArchive || isText || isEpub || isPdf)
                         {
@@ -944,7 +946,7 @@ namespace Uviewer
                                 using var archive = new SevenZipExtractor.ArchiveFile(item.FullPath, libraryPath);
                                 var entry = archive.Entries
                                     .Where(e => !e.IsFolder &&
-                                           SupportedImageExtensions.Contains(Path.GetExtension(e.FileName)?.ToLowerInvariant() ?? ""))
+                                           FileExplorerService.SupportedImageExtensions.Contains(Path.GetExtension(e.FileName)?.ToLowerInvariant() ?? ""))
                                     .OrderBy(e => e.FileName, NaturalSortComparer.Default)
                                     .FirstOrDefault();
 
@@ -981,7 +983,7 @@ namespace Uviewer
                                 using var archive = ArchiveFactory.Open(item.FullPath);
                                 var entry = archive.Entries
                                     .Where(e => !e.IsDirectory &&
-                                           SupportedImageExtensions.Contains(Path.GetExtension(e.Key)?.ToLowerInvariant() ?? ""))
+                                           FileExplorerService.SupportedImageExtensions.Contains(Path.GetExtension(e.Key)?.ToLowerInvariant() ?? ""))
                                     .OrderBy(e => e.Key, NaturalSortComparer.Default)
                                     .FirstOrDefault();
 

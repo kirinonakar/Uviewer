@@ -12,6 +12,8 @@ using Windows.Data.Pdf;
 using Windows.Storage;
 using UglyToad.PdfPig;
 using UglyToad.PdfPig.Outline;
+using Uviewer.Models;
+using Uviewer.Services;
 
 namespace Uviewer
 {

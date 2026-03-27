@@ -9,6 +9,8 @@ using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 using Windows.Storage;
+using Uviewer.Models;
+using Uviewer.Services;
 
 namespace Uviewer
 {
@@ -231,7 +233,7 @@ namespace Uviewer
             itemGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
 
             bool isImageFile = favorite.Type == "File" && !string.IsNullOrEmpty(favorite.Path) && 
-                               SupportedImageExtensions.Contains(Path.GetExtension(favorite.Path).ToLowerInvariant());
+                               FileExplorerService.SupportedImageExtensions.Contains(Path.GetExtension(favorite.Path).ToLowerInvariant());
 
             string vMark = "";
             string posString = "";
@@ -757,9 +759,9 @@ namespace Uviewer
                          };
                          // Re-derive flags based on path extension, strictly for opening logic
                          string ext = Path.GetExtension(favorite.Path).ToLowerInvariant();
-                         fileItem.IsImage = SupportedImageExtensions.Contains(ext);
-                         fileItem.IsText = SupportedTextExtensions.Contains(ext);
-                         fileItem.IsEpub = SupportedEpubExtensions.Contains(ext);
+                         fileItem.IsImage = FileExplorerService.SupportedImageExtensions.Contains(ext);
+                         fileItem.IsText = FileExplorerService.SupportedTextExtensions.Contains(ext);
+                         fileItem.IsEpub = FileExplorerService.SupportedEpubExtensions.Contains(ext);
 
                          // Load parent folder in explorer for files and archives
                          if (favorite.Type != "Folder")
@@ -1152,7 +1154,7 @@ namespace Uviewer
                 itemGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
 
                 bool isImageFile = recent.Type == "File" && !string.IsNullOrEmpty(recent.Path) && 
-                                   SupportedImageExtensions.Contains(Path.GetExtension(recent.Path).ToLowerInvariant());
+                                   FileExplorerService.SupportedImageExtensions.Contains(Path.GetExtension(recent.Path).ToLowerInvariant());
 
                 string vMark = "";
                 string posString = "";
@@ -1641,10 +1643,10 @@ namespace Uviewer
                             IsArchive = targetType == "Archive",
                         };
                         string ext = Path.GetExtension(targetPath).ToLowerInvariant();
-                        fileItem.IsImage = SupportedImageExtensions.Contains(ext);
-                        fileItem.IsText = SupportedTextExtensions.Contains(ext);
-                        fileItem.IsEpub = SupportedEpubExtensions.Contains(ext);
-                        fileItem.IsPdf = SupportedPdfExtensions.Contains(ext);
+                        fileItem.IsImage = FileExplorerService.SupportedImageExtensions.Contains(ext);
+                        fileItem.IsText = FileExplorerService.SupportedTextExtensions.Contains(ext);
+                        fileItem.IsEpub = FileExplorerService.SupportedEpubExtensions.Contains(ext);
+                        fileItem.IsPdf = FileExplorerService.SupportedPdfExtensions.Contains(ext);
 
                         if (targetType != "Folder")
                         {
