@@ -538,8 +538,9 @@ namespace Uviewer
                  var urlKey = $"{_currentServer!.BaseUrl}{remotePath}";
                  var hashBytes = SHA256.HashData(Encoding.UTF8.GetBytes(urlKey));
                  var stableHash = BitConverter.ToString(hashBytes).Replace("-", "").Substring(0, 12).ToLowerInvariant();
-                 var stableFileName = $"{stableHash}_{fileName}";
-                 var tempPath = Path.Combine(tempDir, stableFileName);
+                 var subDir = Path.Combine(tempDir, stableHash);
+                 Directory.CreateDirectory(subDir);
+                 var tempPath = Path.Combine(subDir, fileName);
  
                  if (File.Exists(tempPath))
                  {
