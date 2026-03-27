@@ -48,14 +48,7 @@ namespace Uviewer
         }
 
         // Fullscreen
-        private const double FullscreenTopHoverZone = 80;
-        private const double FullscreenLeftHoverZone = 60;
-        private const double FullscreenSidebarKeepZoneRight = 300;
-        private const int FullscreenHideDelayMs = 1000;
-        private DispatcherQueueTimer? _fullscreenToolbarHideTimer;
-        private DispatcherQueueTimer? _fullscreenSidebarHideTimer;
-        private bool _toolbarHideTimerRunning = false;
-        private bool _sidebarHideTimerRunning = false;
+        private FullscreenOverlayManager _overlayManager = null!;
 
         private DispatcherQueueTimer? _notificationTimer;
 
@@ -327,6 +320,13 @@ namespace Uviewer
                     _windowState.LastNonMaximizedRect = new Windows.Graphics.RectInt32(centerX, centerY, defaultSize.Width, defaultSize.Height);
                 }
 
+                _overlayManager = new FullscreenOverlayManager();
+                _overlayManager.Initialize(DispatcherQueue);
+
+                // 타이머가 만료되었을 때 실행할 UI 숨김 로직 연결
+                _overlayManager.HideToolbarRequested += (s, e) => HideToolbarUI();
+                _overlayManager.HideSidebarRequested += (s, e) => HideSidebarUI();
+
                 // Initialize button states
                 UpdateSideBySideButtonState();
                 UpdateNextImageSideButtonState();
@@ -403,8 +403,7 @@ namespace Uviewer
                 try
                 {
                     // Stop all timers
-                    _fullscreenToolbarHideTimer?.Stop();
-                    _fullscreenSidebarHideTimer?.Stop();
+                    _overlayManager.StopAll();
                     _animatedWebpTimer?.Stop();
                     _fastNavOverlayTimer?.Stop();
 
@@ -467,37 +466,6 @@ namespace Uviewer
                 }
             };
 
-            // Initialize fullscreen timers with proper settings
-            _fullscreenToolbarHideTimer = DispatcherQueue.GetForCurrentThread().CreateTimer();
-            _fullscreenToolbarHideTimer.Interval = TimeSpan.FromMilliseconds(FullscreenHideDelayMs);
-            _fullscreenToolbarHideTimer.IsRepeating = false;
-            _fullscreenToolbarHideTimer.Tick += (s, e) =>
-            {
-                _toolbarHideTimerRunning = false;
-                if (_windowState.IsFullscreen || !_windowState.IsPinned)
-                {
-                    AppTitleBar.Visibility = Visibility.Collapsed;
-                    if (!_windowState.IsFullscreen) _windowState.SetCaptionButtonsVisibility(false);
-                    ToolbarGrid.Visibility = Visibility.Collapsed;
-                    if (!_windowState.IsFullscreen) StatusBarGrid.Visibility = Visibility.Collapsed;
-                    System.Diagnostics.Debug.WriteLine("✓ Titlebar and Toolbar hidden by timer");
-                }
-            };
-
-            _fullscreenSidebarHideTimer = DispatcherQueue.GetForCurrentThread().CreateTimer();
-            _fullscreenSidebarHideTimer.Interval = TimeSpan.FromMilliseconds(FullscreenHideDelayMs);
-            _fullscreenSidebarHideTimer.IsRepeating = false;
-            _fullscreenSidebarHideTimer.Tick += (s, e) =>
-            {
-                _sidebarHideTimerRunning = false;
-                if (_windowState.IsFullscreen || !_windowState.IsPinned)
-                {
-                    SidebarGrid.Visibility = Visibility.Collapsed;
-                    SidebarColumn.Width = new GridLength(0);
-                    if (SplitterGrid != null) SplitterGrid.Visibility = Visibility.Collapsed;
-                    System.Diagnostics.Debug.WriteLine("✓ Sidebar hidden by timer");
-                }
-            };
 
             // Initialize animated WebP timer
             _animatedWebpTimer = DispatcherQueue.GetForCurrentThread().CreateTimer();
@@ -746,6 +714,27 @@ namespace Uviewer
 
 
 
+        private void HideToolbarUI()
+        {
+            if (_windowState.IsFullscreen || !_windowState.IsPinned)
+            {
+                AppTitleBar.Visibility = Visibility.Collapsed;
+                if (!_windowState.IsFullscreen) _windowState.SetCaptionButtonsVisibility(false);
+                ToolbarGrid.Visibility = Visibility.Collapsed;
+                if (!_windowState.IsFullscreen) StatusBarGrid.Visibility = Visibility.Collapsed;
+            }
+        }
+
+        private void HideSidebarUI()
+        {
+            if (_windowState.IsFullscreen || !_windowState.IsPinned)
+            {
+                SidebarGrid.Visibility = Visibility.Collapsed;
+                SidebarColumn.Width = new GridLength(0);
+                if (SplitterGrid != null) SplitterGrid.Visibility = Visibility.Collapsed;
+            }
+        }
+
         #region Fullscreen
 
         private void FullscreenButton_Click(object sender, RoutedEventArgs e)
@@ -812,29 +801,13 @@ namespace Uviewer
                 SidebarColumn.Width = new GridLength(0);
                 SplitterGrid.Visibility = Visibility.Collapsed;  // Hide splitter in fullscreen
                 FullscreenIcon.Glyph = "\uE73F"; // Exit fullscreen icon
-                StopFullscreenHoverTimers();
+                _overlayManager.StopAll();
             }
 
             // [Important] Re-focus RootGrid after window state change
             RootGrid?.Focus(FocusState.Programmatic);
         }
 
-        private void StopFullscreenHoverTimers()
-        {
-            if (_toolbarHideTimerRunning)
-            {
-                _fullscreenToolbarHideTimer?.Stop();
-                _toolbarHideTimerRunning = false;
-                System.Diagnostics.Debug.WriteLine("■ Toolbar timer STOPPED");
-            }
-
-            if (_sidebarHideTimerRunning)
-            {
-                _fullscreenSidebarHideTimer?.Stop();
-                _sidebarHideTimerRunning = false;
-                System.Diagnostics.Debug.WriteLine("■ Sidebar timer STOPPED");
-            }
-        }
 
         private void RootGrid_PointerMoved(object sender, PointerRoutedEventArgs e)
         {
@@ -844,7 +817,7 @@ namespace Uviewer
             double x = pt.Position.X;
             double y = pt.Position.Y;
 
-            bool inTopZone = y < FullscreenTopHoverZone;
+            bool inTopZone = y < FullscreenOverlayManager.TopHoverZone;
             if (ToolbarGrid.Visibility == Visibility.Visible && y < ToolbarGrid.ActualHeight)
             {
                 inTopZone = true;
@@ -859,26 +832,19 @@ namespace Uviewer
                     if (!_windowState.IsFullscreen) _windowState.SetCaptionButtonsVisibility(true);
                     ToolbarGrid.Visibility = Visibility.Visible;
                     if (!_windowState.IsFullscreen) StatusBarGrid.Visibility = Visibility.Visible;
-                    System.Diagnostics.Debug.WriteLine("Titlebar and Toolbar SHOWN (mouse in top zone)");
                 }
-                if (_toolbarHideTimerRunning)
-                {
-                    _fullscreenToolbarHideTimer?.Stop();
-                    _toolbarHideTimerRunning = false;
-                    System.Diagnostics.Debug.WriteLine("Toolbar timer STOPPED (mouse in top zone)");
-                }
+                _overlayManager.StopToolbarTimer();
             }
             else
             {
                 // Start hide timer only if not already running
-                if (ToolbarGrid.Visibility == Visibility.Visible && !_toolbarHideTimerRunning)
+                if (ToolbarGrid.Visibility == Visibility.Visible && !_overlayManager.IsToolbarTimerRunning)
                 {
-                    System.Diagnostics.Debug.WriteLine($"Attempting to start toolbar timer (y={y})");
-                    StartOrRestartFullscreenToolbarHideTimer();
+                    _overlayManager.StartToolbarTimer();
                 }
             }
 
-            bool inLeftZone = _windowState.IsSidebarVisible && x < FullscreenLeftHoverZone;
+            bool inLeftZone = _windowState.IsSidebarVisible && x < FullscreenOverlayManager.LeftHoverZone;
             if (SidebarGrid.Visibility == Visibility.Visible && x < _windowState.SidebarWidth)
             {
                 inLeftZone = true;
@@ -891,22 +857,15 @@ namespace Uviewer
                 {
                     SidebarColumn.Width = new GridLength(_windowState.SidebarWidth);
                     SidebarGrid.Visibility = Visibility.Visible;
-                    System.Diagnostics.Debug.WriteLine("Sidebar SHOWN (mouse in left zone)");
                 }
-                if (_sidebarHideTimerRunning)
-                {
-                    _fullscreenSidebarHideTimer?.Stop();
-                    _sidebarHideTimerRunning = false;
-                    System.Diagnostics.Debug.WriteLine("Sidebar timer STOPPED (mouse in left zone)");
-                }
+                _overlayManager.StopSidebarTimer();
             }
             else
             {
                 // Start hide timer only if not already running
-                if (SidebarGrid.Visibility == Visibility.Visible && !_sidebarHideTimerRunning)
+                if (SidebarGrid.Visibility == Visibility.Visible && !_overlayManager.IsSidebarTimerRunning)
                 {
-                    System.Diagnostics.Debug.WriteLine($"Attempting to start sidebar timer (x={x})");
-                    StartOrRestartFullscreenSidebarHideTimer();
+                    _overlayManager.StartSidebarTimer();
                 }
             }
         }
@@ -921,42 +880,17 @@ namespace Uviewer
         {
             if (!_windowState.IsFullscreen && _windowState.IsPinned) return;
 
-            if (ToolbarGrid.Visibility == Visibility.Visible && !_toolbarHideTimerRunning)
+            if (ToolbarGrid.Visibility == Visibility.Visible && !_overlayManager.IsToolbarTimerRunning)
             {
-                StartOrRestartFullscreenToolbarHideTimer();
+                _overlayManager.StartToolbarTimer();
             }
 
-            if (SidebarGrid.Visibility == Visibility.Visible && !_sidebarHideTimerRunning)
+            if (SidebarGrid.Visibility == Visibility.Visible && !_overlayManager.IsSidebarTimerRunning)
             {
-                StartOrRestartFullscreenSidebarHideTimer();
+                _overlayManager.StartSidebarTimer();
             }
         }
 
-        private void StartOrRestartFullscreenToolbarHideTimer()
-        {
-            if (_toolbarHideTimerRunning)
-            {
-                System.Diagnostics.Debug.WriteLine("⚠ Toolbar timer already running, ignoring");
-                return;
-            }
-
-            _toolbarHideTimerRunning = true;
-            _fullscreenToolbarHideTimer?.Start();
-            System.Diagnostics.Debug.WriteLine($"▶ Toolbar hide timer STARTED (will hide in {FullscreenHideDelayMs}ms)");
-        }
-
-        private void StartOrRestartFullscreenSidebarHideTimer()
-        {
-            if (_sidebarHideTimerRunning)
-            {
-                System.Diagnostics.Debug.WriteLine("⚠ Sidebar timer already running, ignoring");
-                return;
-            }
-
-            _sidebarHideTimerRunning = true;
-            _fullscreenSidebarHideTimer?.Start();
-            System.Diagnostics.Debug.WriteLine($"▶ Sidebar hide timer STARTED (will hide in {FullscreenHideDelayMs}ms)");
-        }
 
         // Unified Touch Handler for Text, Aozora, and Epub modes
         private void HandleSmartTouchNavigation(PointerRoutedEventArgs e, Action prevAction, Action nextAction)
@@ -969,25 +903,25 @@ namespace Uviewer
             if (_windowState.IsFullscreen)
             {
                 // Top Edge -> Show Toolbar
-                if (y < FullscreenTopHoverZone)
+                if (y < FullscreenOverlayManager.TopHoverZone)
                 {
                     if (ToolbarGrid.Visibility != Visibility.Visible)
                     {
                         ToolbarGrid.Visibility = Visibility.Visible;
                     }
-                    StartOrRestartFullscreenToolbarHideTimer();
+                    _overlayManager.StartToolbarTimer();
                     return;
                 }
 
                 // Left Edge -> Show Sidebar
-                if (x < FullscreenLeftHoverZone)
+                if (x < FullscreenOverlayManager.LeftHoverZone)
                 {
                     if (SidebarGrid.Visibility != Visibility.Visible)
                     {
                         SidebarColumn.Width = new GridLength(_windowState.SidebarWidth);
                         SidebarGrid.Visibility = Visibility.Visible;
                     }
-                    StartOrRestartFullscreenSidebarHideTimer();
+                    _overlayManager.StartSidebarTimer();
                     return;
                 }
             }
@@ -1033,10 +967,7 @@ namespace Uviewer
             if (_windowState.IsPinned)
             {
                 // 핀 고정: UI 모두 표시
-                _fullscreenToolbarHideTimer?.Stop();
-                _toolbarHideTimerRunning = false;
-                _fullscreenSidebarHideTimer?.Stop();
-                _sidebarHideTimerRunning = false;
+                _overlayManager.StopAll();
 
                 AppTitleBar.Visibility = Visibility.Visible;
                 _windowState.SetCaptionButtonsVisibility(true);
