@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -72,6 +72,16 @@ namespace Uviewer
                     IntPtr factoryPtr = Marshal.GetIUnknownForObject(_commandFactory);
 
                     CoRegisterClassObject(ref clsid, factoryPtr, 4, 1, out _comCookie);
+
+                    // COM 활성화인 경우 별도로 InitializeComponent를 호출하지 않고 타이머만 시작하여 리소스 최소화
+                    _exitTimer = new System.Threading.Timer((_) =>
+                    {
+                        Interlocked.Exchange(ref _exitTimer, null)?.Dispose();
+                        _dispatcherQueue?.TryEnqueue(() =>
+                        {
+                            Application.Current.Exit();
+                        });
+                    }, null, 5000, Timeout.Infinite);
                 }
                 catch (Exception ex)
                 {
@@ -80,6 +90,9 @@ namespace Uviewer
             }
             else
             {
+                // 일반 실행 모드인 경우에만 UI 리소스 초기화
+                InitializeComponent();
+
                 try
                 {
                     LoadSettings();
@@ -105,28 +118,21 @@ namespace Uviewer
                     System.Diagnostics.Debug.WriteLine($"Error in App constructor: {ex.Message}");
                 }
             }
-
-            if (_isComActivation)
-            {
-                _exitTimer = new System.Threading.Timer((_) =>
-                {
-                    Interlocked.Exchange(ref _exitTimer, null)?.Dispose();
-                    _dispatcherQueue?.TryEnqueue(() =>
-                    {
-                        Application.Current.Exit();
-                    });
-                }, null, 15000, Timeout.Infinite);
-            }
-
-            InitializeComponent();
         }
 
+        private static long _lastActivityTicks = 0;
         public static void MarkActivity()
         {
             if (!_isComActivation) return;
+            
+            // 1초 미만의 짧은 주기로 호출될 경우 타이머 리셋 무시 (부하 감소)
+            long now = DateTime.UtcNow.Ticks;
+            if (now - _lastActivityTicks < TimeSpan.TicksPerSecond) return;
+            _lastActivityTicks = now;
+            
             try
             {
-                _exitTimer?.Change(15000, Timeout.Infinite);
+                _exitTimer?.Change(5000, Timeout.Infinite);
             }
             catch { }
         }

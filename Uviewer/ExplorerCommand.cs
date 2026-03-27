@@ -92,7 +92,6 @@ namespace Uviewer
 
         public int GetState(IntPtr psiItemArray, bool fOkToBeSlow, out uint pCommandState)
         {
-            App.MarkActivity();
             pCommandState = 0; // ECS_ENABLED
             return 0; // S_OK
         }
@@ -130,7 +129,6 @@ namespace Uviewer
 
         public int GetFlags(out uint pdwFlags)
         {
-            App.MarkActivity();
             pdwFlags = 0;
             return 0; // S_OK
         }
@@ -159,7 +157,6 @@ namespace Uviewer
     {
         public int CreateInstance(IntPtr pUnkOuter, ref Guid riid, out IntPtr ppvObject)
         {
-            App.MarkActivity();
             ppvObject = IntPtr.Zero;
 
             if (pUnkOuter != IntPtr.Zero)
