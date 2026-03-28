@@ -1384,12 +1384,16 @@ private (string text, List<(int start, int length)> boldRanges) ParseTableInline
         {
             if (!_isTextMode || !_isAozoraMode || _aozoraBlocks.Count == 0) return;
 
-            double progress = (_currentAozoraEndBlockIndex + 1) * 100.0 / _aozoraBlocks.Count;
-            if (progress > 100) progress = 100;
-
             int startLine = _aozoraBlocks[_currentAozoraStartBlockIndex].SourceLineNumber;
+            int totalLines = _aozoraTotalLineCountInSource;
+            if (totalLines < 1) totalLines = 1;
 
-            ImageInfoText.Text = Strings.LineInfo(startLine, _aozoraTotalLineCountInSource);
+            // Start-based progress (0% at the very beginning)
+            double progress = totalLines > 1 ? (double)(startLine - 1) / (totalLines - 1) * 100.0 : 100.0;
+            if (progress > 100) progress = 100;
+            if (progress < 0) progress = 0;
+
+            ImageInfoText.Text = Strings.LineInfo(startLine, totalLines);
             _ = AddToRecentAsync(true);
             TextProgressText.Text = $"{progress:F1}%";
 

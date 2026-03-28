@@ -1199,19 +1199,20 @@ namespace Uviewer
             else
             {
                 ImageInfoText.Text = Strings.LineInfo(currentLine, totalLines);
+
+                // Start-based line progress
+                double progress = totalLines > 1 ? (double)(currentLine - 1) / (totalLines - 1) * 100.0 : 100.0;
+                if (progress > 100) progress = 100;
+                if (progress < 0) progress = 0;
+                TextProgressText.Text = $"{progress:F1}%";
+
                 if (_isVerticalPageCalcCompleted)
                 {
                     ImageIndexText.Text = $"{currentPage} / {totalPages}";
-                    double progress = totalPages > 1 ? (double)(currentPage - 1) / (totalPages - 1) * 100.0 : 100.0;
-                    if (progress > 100) progress = 100;
-                    TextProgressText.Text = $"{progress:F1}%";
                 }
                 else
                 {
                     ImageIndexText.Text = Strings.CalculatingPages.Trim().Replace("(", "").Replace(")", "");
-                    var blocks = _aozoraBlocks;
-                    double progress = (blocks != null && blocks.Count > 0) ? (double)_currentVerticalStartBlockIndex / blocks.Count * 100.0 : 0;
-                    TextProgressText.Text = $"{progress:F1}%";
                 }
             }
 

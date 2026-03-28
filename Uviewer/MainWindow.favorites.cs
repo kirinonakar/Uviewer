@@ -1346,9 +1346,7 @@ namespace Uviewer
                         // 1. 현재 뷰어가 줄번호 1 이하, 오프셋 0인 '초기 상태'인가?
                         // 2. 기존 DB 기록에는 의미 있는 진행 내역(줄 > 1 또는 오프셋 > 0)이 있는가?
                         bool isResetState = currentLine <= 1 && (currentOffset == 0 || currentOffset == null);
-                        bool hasExistingProgress = existing != null && (existing.SavedLine > 1 || (existing.ScrollOffset ?? 0) > 0);
-
-                        if (isResetState && hasExistingProgress)
+                        if (isResetState && existing != null && (existing.SavedLine > 1 || (existing.ScrollOffset ?? 0) > 0))
                         {
                             // 로딩 중(내용 없음)이거나, 로딩은 되었지만 아직 스크롤 복원 전(_lastRecentSaveLine == -1)인 경우
                             // 기존 DB의 위치 값을 그대로 유지하여 데이터 오염을 방지합니다.

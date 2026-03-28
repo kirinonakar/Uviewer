@@ -1733,8 +1733,10 @@ namespace Uviewer
                 int currentLine = GetTopVisibleLineIndex();
                 if (currentLine > total) currentLine = total;
 
-                double progress = (TextScrollViewer.ExtentHeight > 0) ? (TextScrollViewer.VerticalOffset + TextScrollViewer.ViewportHeight) * 100.0 / TextScrollViewer.ExtentHeight : 0;
+                // Start-based line progress (Consistent with Aozora and Vertical modes)
+                double progress = total > 1 ? (double)(currentLine - 1) / (total - 1) * 100.0 : 100.0;
                 if (progress > 100) progress = 100;
+                if (progress < 0) progress = 0;
 
                 ImageInfoText.Text = Strings.LineInfo(currentLine, total);
                 TextProgressText.Text = $"{progress:F1}%";
