@@ -1775,7 +1775,7 @@ private (string text, List<(int start, int length)> boldRanges) ParseTableInline
                     items = _epubToc.Select(t => new TocItem
                     {
                         HeadingText = t.Title,
-                        HeadingLevel = 1, // Simplify level for now
+                        HeadingLevel = t.Level > 0 ? t.Level : 1,
                         SourceLineNumber = -1,
                         Tag = t
                     }).ToList();

@@ -127,12 +127,21 @@ namespace Uviewer
                             // 이미지 페이지면 이미지 블록의 줄 번호를 사용
                             if (_aozoraBlocks != null)
                             {
-                                var targetBlock = _aozoraBlocks.FirstOrDefault(b => 
-                                    b.Inlines.OfType<AozoraImage>().Any(img => img.Source == page.ImagePath));
-                                
-                                if (targetBlock != null)
+                                int targetIdx = -1;
+                                for (int i = 0; i < _aozoraBlocks.Count; i++)
                                 {
-                                    currentLine = targetBlock.SourceLineNumber;
+                                    if (_aozoraBlocks[i].Inlines.OfType<AozoraImage>().Any(img => img.Source == page.ImagePath))
+                                    {
+                                        targetIdx = i;
+                                        break;
+                                    }
+                                }
+                                
+                                if (targetIdx >= 0)
+                                {
+                                    currentLine = _aozoraBlocks[targetIdx].SourceLineNumber;
+                                    // [추가] 이미지 페이지일 때도 블록 인덱스를 정확히 설정
+                                    _pendingEpubStartBlockIndex = targetIdx;
                                 }
                             }
                         }
@@ -197,18 +206,51 @@ namespace Uviewer
                     _verticalKeyAttached = false;
                 }
                 
-                if (VerticalTextCanvas != null) VerticalTextCanvas.Visibility = Visibility.Collapsed;
+                    if (VerticalTextCanvas != null) VerticalTextCanvas.Visibility = Visibility.Collapsed;
                 if (_isEpubMode)
                 {
                     if (EpubArea != null) EpubArea.Visibility = Visibility.Visible;
                     if (TextArea != null) TextArea.Visibility = Visibility.Collapsed;
                     
+                    // [추가] 세로 모드에서 여러 챕터가 섞여 있을 수 있으므로(SBS), 현재 보고 있는 블록의 챕터로 갱신
+                    if (_aozoraBlocks != null && currentBlockIdx >= 0 && currentBlockIdx < _aozoraBlocks.Count)
+                    {
+                        var targetBlock = _aozoraBlocks[currentBlockIdx];
+                        if (targetBlock.EpubChapterIndex >= 0)
+                        {
+                            // 만약 블록의 챕터가 현재 챕터와 다르다면 챕터 인덱스 갱신
+                            if (targetBlock.EpubChapterIndex != _currentEpubChapterIndex)
+                            {
+                                _currentEpubChapterIndex = targetBlock.EpubChapterIndex;
+                            }
+
+                            // LoadEpubChapterAsync가 챕터 내 상대 경로 블록 인덱스를 사용하도록 보정
+                            int chapterStartIdx = -1;
+                            for (int i = 0; i <= currentBlockIdx; i++)
+                            {
+                                if (_aozoraBlocks[i].EpubChapterIndex == _currentEpubChapterIndex)
+                                {
+                                    chapterStartIdx = i;
+                                    break;
+                                }
+                            }
+                            if (chapterStartIdx >= 0)
+                            {
+                                currentBlockIdx = currentBlockIdx - chapterStartIdx;
+                            }
+                        }
+                    }
+
                     double? progress = null;
                     if (_aozoraBlocks != null && _aozoraBlocks.Count > 0)
                     {
-                         int maxSource = _aozoraBlocks[_aozoraBlocks.Count - 1].SourceLineNumber;
-                         if (maxSource > 0) progress = (double)currentLine / maxSource;
-                         if (progress > 1.0) progress = 1.0;
+                         // 현재 챕터 기준의 진행률을 구하도록 수정 (전체 combined 블록이 아님)
+                         var chapterBlocks = _aozoraBlocks.Where(b => b.EpubChapterIndex == _currentEpubChapterIndex).ToList();
+                         if (chapterBlocks.Count > 0)
+                         {
+                             int currentRelIdx = currentBlockIdx >= 0 ? Math.Min(currentBlockIdx, chapterBlocks.Count - 1) : 0;
+                             progress = (double)currentRelIdx / chapterBlocks.Count;
+                         }
                     }
 
                     await LoadEpubChapterAsync(_currentEpubChapterIndex, targetLine: currentLine, targetBlockIndex: currentBlockIdx, progress: progress);

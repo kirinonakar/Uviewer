@@ -71,8 +71,8 @@ namespace Uviewer
         private static readonly Regex RxEpubId = new Regex("id=[\"']([^\"']+)[\"']", RegexOptions.IgnoreCase | RegexOptions.Compiled);
         private static readonly Regex RxEpubHref = new Regex("href=[\"']([^\"']+)[\"']", RegexOptions.IgnoreCase | RegexOptions.Compiled);
         private static readonly Regex RxEpubNavProp = new Regex("properties=[\"'][^\"']*nav[^\"']*[\"']", RegexOptions.IgnoreCase | RegexOptions.Compiled);
-        private static readonly Regex RxEpubItemRef = new Regex("<itemref[^>]*idref=\"([^\"]+)\"[^>]*/>", RegexOptions.Compiled);
-        private static readonly Regex RxEpubSpineToc = new Regex("<spine[^>]*toc=\"([^\"]+)\"", RegexOptions.Compiled);
+        private static readonly Regex RxEpubItemRef = new Regex("<itemref[^>]*idref=[\"']([^\"']+)[\"']", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+        private static readonly Regex RxEpubSpineToc = new Regex("<spine[^>]*toc=[\"']([^\"']+)[\"']", RegexOptions.IgnoreCase | RegexOptions.Compiled);
         private static readonly Regex RxEpubImgTag = new Regex("(<(?:img|image)\\b[^>]*>)", RegexOptions.IgnoreCase | RegexOptions.Singleline | RegexOptions.Compiled);
         private static readonly Regex RxEpubIsImg = new Regex("^<(?:img|image)\\b", RegexOptions.IgnoreCase | RegexOptions.Compiled);
         private static readonly Regex RxEpubAnyTag = new Regex("<[^>]+>", RegexOptions.Compiled);
@@ -86,9 +86,9 @@ namespace Uviewer
         private static readonly Regex RxEpubRubySplit = new Regex(@"(\{\{RUBY\|.*?\}\})", RegexOptions.Compiled);
         private static readonly Regex RxEpubXmlns = new Regex("xmlns=\"[^\"]*\"", RegexOptions.Compiled);
         private static readonly Regex RxEpubNcxNav = new Regex("<navPoint[^>]*>([\\s\\S]*?)</navPoint>", RegexOptions.Compiled);
-        private static readonly Regex RxEpubNcxText = new Regex("<text>([^<]+)</text>", RegexOptions.Compiled);
+        private static readonly Regex RxEpubNcxText = new Regex("<text[^>]*>(.*?)</text>", RegexOptions.IgnoreCase | RegexOptions.Singleline | RegexOptions.Compiled);
         private static readonly Regex RxEpubNcxContent = new Regex("<content[^>]*src=[\"']([^\"']+)[\"']", RegexOptions.IgnoreCase | RegexOptions.Compiled);
-        private static readonly Regex RxEpubNavAnchor = new Regex("<a[^>]*href=[\"']([^\"']+)[\"'][^>]*>([^<]+)</a>", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+        private static readonly Regex RxEpubNavAnchor = new Regex("<a[^>]*href=[\"']([^\"']+)[\"'][^>]*>([\\s\\S]*?)</a>", RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
 
 
@@ -97,6 +97,8 @@ namespace Uviewer
             public string Title { get; set; } = "";
             public string Link { get; set; } = "";
             public int Level { get; set; } = 0;
+            public string HeadingText => Title;
+            public Thickness Margin => new Thickness(Level * 12, 0, 0, 0);
         }
 
         private List<EpubTocItem> _epubToc = new();
@@ -231,52 +233,39 @@ namespace Uviewer
                  }
 
                  
-                if (_isVerticalMode)
-                {
-                    if (VerticalToggleButton != null) VerticalToggleButton.IsChecked = true;
-                    if (VerticalTextCanvas != null) VerticalTextCanvas.Visibility = Visibility.Visible;
-                    if (TextScrollViewer != null) TextScrollViewer.Visibility = Visibility.Collapsed;
-                    if (AozoraTextCanvas != null) AozoraTextCanvas.Visibility = Visibility.Collapsed;
-                    
-                    if (TextArea != null) TextArea.Visibility = Visibility.Visible;
-                    if (EpubArea != null) EpubArea.Visibility = Visibility.Collapsed;
-
-                    if (!_verticalKeyAttached && RootGrid != null)
-                    {
-                        RootGrid.PreviewKeyDown += RootGrid_Vertical_PreviewKeyDown;
-                        _verticalKeyAttached = true;
-                    }
-                }
-                else
-                {
-                    if (TextArea != null) TextArea.Visibility = Visibility.Collapsed;
-                    if (EpubArea != null) EpubArea.Visibility = Visibility.Visible;
-                                // 3. Load Chapter (Updated to handle pending positions)
-                  if (PendingEpubChapterIndex >= 0 && PendingEpubChapterIndex < _epubSpine.Count)
-                  {
-                      _currentEpubChapterIndex = PendingEpubChapterIndex;
-                      await LoadEpubChapterAsync(_currentEpubChapterIndex, targetLine: _aozoraPendingTargetLine, targetBlockIndex: _pendingEpubStartBlockIndex, targetPage: PendingEpubPageIndex, token: token);
-
-                      // Page navigation (wait for items to be populated)
-                      if (!_isVerticalMode && PendingEpubPageIndex > 0)
-                      {
-                          await Task.Delay(100, token);
-                          if (PendingEpubPageIndex < _epubWin2DPages.Count)
-                          {
-                              SetEpubPageIndex(PendingEpubPageIndex);
-                          }
-                      }
-                  }
-                }
-                 
-                 // 3. Load Chapter (Updated to handle pending positions)
-                 if (PendingEpubChapterIndex >= 0 && PendingEpubChapterIndex < _epubSpine.Count)
+                 if (_isVerticalMode)
                  {
-                     _currentEpubChapterIndex = PendingEpubChapterIndex;
-                     await LoadEpubChapterAsync(_currentEpubChapterIndex, targetLine: _aozoraPendingTargetLine, targetBlockIndex: _pendingEpubStartBlockIndex, targetPage: PendingEpubPageIndex, token: token);
+                     if (VerticalToggleButton != null) VerticalToggleButton.IsChecked = true;
+                     if (VerticalTextCanvas != null) VerticalTextCanvas.Visibility = Visibility.Visible;
+                     if (TextScrollViewer != null) TextScrollViewer.Visibility = Visibility.Collapsed;
+                     if (AozoraTextCanvas != null) AozoraTextCanvas.Visibility = Visibility.Collapsed;
+                     
+                     if (TextArea != null) TextArea.Visibility = Visibility.Visible;
+                     if (EpubArea != null) EpubArea.Visibility = Visibility.Collapsed;
+
+                     if (!_verticalKeyAttached && RootGrid != null)
+                     {
+                         RootGrid.PreviewKeyDown += RootGrid_Vertical_PreviewKeyDown;
+                         _verticalKeyAttached = true;
+                     }
+
+                     // [수정] 세로 모드에서도 위치 유지를 위해 챕터 로딩 및 페이지 준비가 필요함
+                     int targetCh = (PendingEpubChapterIndex >= 0) ? PendingEpubChapterIndex : 0;
+                     _currentEpubChapterIndex = targetCh;
+                     await LoadEpubChapterAsync(targetCh, targetLine: _aozoraPendingTargetLine, targetBlockIndex: _pendingEpubStartBlockIndex, token: token);
+                 }
+                 else
+                 {
+                     if (TextArea != null) TextArea.Visibility = Visibility.Collapsed;
+                     if (EpubArea != null) EpubArea.Visibility = Visibility.Visible;
+                     
+                     // 3. Load Chapter (Updated to handle pending positions)
+                     int targetCh = (PendingEpubChapterIndex >= 0) ? PendingEpubChapterIndex : 0;
+                     _currentEpubChapterIndex = targetCh;
+                     await LoadEpubChapterAsync(targetCh, targetLine: _aozoraPendingTargetLine, targetBlockIndex: _pendingEpubStartBlockIndex, targetPage: PendingEpubPageIndex, token: token);
 
                      // Page navigation (wait for items to be populated)
-                     if (!_isVerticalMode && PendingEpubPageIndex > 0)
+                     if (PendingEpubPageIndex > 0)
                      {
                          await Task.Delay(100, token);
                          if (PendingEpubPageIndex < _epubWin2DPages.Count)
@@ -285,18 +274,13 @@ namespace Uviewer
                          }
                      }
                  }
-                 else
-                 {
-                     _currentEpubChapterIndex = 0;
-                     await LoadEpubChapterAsync(_currentEpubChapterIndex, token: token);
-                 }
                  
                  // Reset pending values
-                PendingEpubChapterIndex = -1;
-                PendingEpubPageIndex = -1;
-                _aozoraPendingTargetLine = 0;
-                _pendingEpubStartBlockIndex = -1;
-                _epubChapterHasText.Clear();
+                 PendingEpubChapterIndex = -1;
+                 PendingEpubPageIndex = -1;
+                 _aozoraPendingTargetLine = 0;
+                 _pendingEpubStartBlockIndex = -1;
+                 _epubChapterHasText.Clear();
                  
                  // 4. Load TOC (Background)
                  _ = ParseEpubTocAsync();
@@ -696,6 +680,7 @@ namespace Uviewer
                         Blocks = new List<AozoraBindingModel> { block },
                         IsImagePage = true,
                         ImagePath = imgSrc,
+                        StartBlockIndex = i,
                         StartLine = block.SourceLineNumber,
                         LineCount = 1
                     });
@@ -1668,6 +1653,17 @@ namespace Uviewer
                      });
                  }
              }
+
+             // [수정] 목차 로딩 완료 후 현재 열려있는 TOC UI가 있다면 즉시 갱신
+             DispatcherQueue.TryEnqueue(() => 
+             {
+                 if (_isEpubMode && TocFlyout != null && TocFlyout.IsOpen)
+                 {
+                     // TocButton_Click을 수동으로 호출하여 UI 갱신
+                     TocButton_Click(null!, null!); 
+                 }
+                 UpdateEpubStatus();
+             });
         }
 
 
@@ -1683,7 +1679,7 @@ namespace Uviewer
                 
                 string title = "";
                 var tm = RxEpubNcxText.Match(inner);
-                if (tm.Success) title = tm.Groups[1].Value;
+                if (tm.Success) title = RxEpubAnyTag.Replace(tm.Groups[1].Value, "").Trim();
                 
                 string src = "";
                 var cm = RxEpubNcxContent.Match(inner);
@@ -1704,7 +1700,7 @@ namespace Uviewer
             foreach (Match m in matches)
             {
                 string src = m.Groups[1].Value;
-                string title = m.Groups[2].Value.Trim();
+                string title = RxEpubAnyTag.Replace(m.Groups[2].Value, "").Trim();
                 
                 if (!string.IsNullOrEmpty(title) && !string.IsNullOrEmpty(src))
                 {
@@ -1731,9 +1727,10 @@ namespace Uviewer
              // item.Link should already be resolved to full path
              
              int index = -1;
+             string normPath = path.Replace("\\", "/");
              for (int i = 0; i < _epubSpine.Count; i++)
              {
-                 if (_epubSpine[i].Equals(path, StringComparison.OrdinalIgnoreCase))
+                 if (_epubSpine[i].Replace("\\", "/").Equals(normPath, StringComparison.OrdinalIgnoreCase))
                  {
                      index = i;
                      break;
