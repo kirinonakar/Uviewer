@@ -39,6 +39,7 @@ namespace Uviewer
         private int _currentAozoraEndBlockIndex = 0;
         private Stack<int> _aozoraNavHistory = new();
         private Dictionary<string, CanvasBitmap> _aozoraImageCache = new();
+        private HashSet<string> _knownMissingAozoraImages = new();
 
         // --- 이전 페이지 역산 최적화 및 백그라운드 캐시 ---
         private System.Threading.CancellationTokenSource? _backwardCacheCts;
@@ -1520,9 +1521,23 @@ private (string text, List<(int start, int length)> boldRanges) ParseTableInline
             {
                 if (_isWebDavMode && !string.IsNullOrEmpty(_currentWebDavItemPath))
                 {
-                    // For WebDAV, we assume it exists to avoid synchronous network calls.
-                    // The actual loading will handle failures.
-                    return true;
+                    if (_knownMissingAozoraImages.Contains(relativePath)) return false;
+
+                    // If it's in the same folder, we can check _imageEntries for faster initial feedback
+                    if (_imageEntries != null && !relativePath.Contains('/') && !relativePath.Contains('\\'))
+                    {
+                        string? fullRemotePath = ResolveWebDavImagePath(relativePath);
+                        if (fullRemotePath != null)
+                        {
+                            if (!_imageEntries.Any(e => e.WebDavPath == fullRemotePath ||
+                                string.Equals(e.WebDavPath, fullRemotePath, StringComparison.OrdinalIgnoreCase)))
+                            {
+                                return false; // Definitely missing from current folder
+                            }
+                        }
+                    }
+
+                    return true; // Unknown, load it async later
                 }
                 if (_isEpubMode && _currentEpubArchive != null)
                 {
@@ -1611,6 +1626,21 @@ private (string text, List<(int start, int length)> boldRanges) ParseTableInline
                         if (!string.IsNullOrEmpty(tempPath) && System.IO.File.Exists(tempPath))
                         {
                             bytes = await System.IO.File.ReadAllBytesAsync(tempPath);
+                        }
+                        else
+                        {
+                            // Mark as missing to prevent empty page on re-calculation
+                            _knownMissingAozoraImages.Add(relativePath);
+                            
+                            // Re-calculate pages to remove the blank page
+                            DispatcherQueue.TryEnqueue(() => 
+                            {
+                                int currentLine = 1;
+                                if (_aozoraBlocks.Count > 0 && _currentAozoraStartBlockIndex >= 0 && _currentAozoraStartBlockIndex < _aozoraBlocks.Count)
+                                    currentLine = _aozoraBlocks[_currentAozoraStartBlockIndex].SourceLineNumber;
+                                
+                                _ = PrepareAozoraDisplayAsync(_currentTextContent, currentLine, _globalTextCts?.Token ?? default);
+                            });
                         }
                     }
                 }

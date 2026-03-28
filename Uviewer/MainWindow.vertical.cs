@@ -23,6 +23,7 @@ namespace Uviewer
         private bool _isVerticalMode = false;
         private bool _verticalKeyAttached = false;
         private Dictionary<string, CanvasBitmap> _verticalImageCache = new();
+        private HashSet<string> _knownMissingVerticalImages = new();
         private int? _pendingVerticalScrollLine = null;
         private int _pendingVerticalStartBlockIndex = -1;
 
@@ -1443,6 +1444,22 @@ namespace Uviewer
                 }
                 if (_isWebDavMode && !string.IsNullOrEmpty(_currentWebDavItemPath))
                 {
+                    if (_knownMissingVerticalImages.Contains(relativePath)) return false;
+
+                    // If it's in the same folder, we can check _imageEntries for faster initial feedback
+                    if (_imageEntries != null && !relativePath.Contains('/') && !relativePath.Contains('\\'))
+                    {
+                        string? fullRemotePath = ResolveWebDavImagePath(relativePath);
+                        if (fullRemotePath != null)
+                        {
+                            if (!_imageEntries.Any(e => e.WebDavPath == fullRemotePath ||
+                                string.Equals(e.WebDavPath, fullRemotePath, StringComparison.OrdinalIgnoreCase)))
+                            {
+                                return false; // Definitely missing from current folder
+                            }
+                        }
+                    }
+
                     return true;
                 }
                 if (!string.IsNullOrEmpty(_currentTextFilePath) && _currentTextArchiveEntryKey == null)
@@ -1515,6 +1532,21 @@ namespace Uviewer
                         if (!string.IsNullOrEmpty(tempPath) && System.IO.File.Exists(tempPath))
                         {
                             bytes = await System.IO.File.ReadAllBytesAsync(tempPath);
+                        }
+                        else
+                        {
+                            // Mark as missing to prevent empty page on re-calculation
+                            _knownMissingVerticalImages.Add(relativePath);
+                            
+                            // Re-calculate Vertical pages
+                            DispatcherQueue.TryEnqueue(() => 
+                            {
+                                int currentLine = 1;
+                                if (_aozoraBlocks.Count > 0 && _currentVerticalStartBlockIndex >= 0 && _currentVerticalStartBlockIndex < _aozoraBlocks.Count)
+                                    currentLine = _aozoraBlocks[_currentVerticalStartBlockIndex].SourceLineNumber;
+                                
+                                _ = PrepareVerticalTextAsync(currentLine, -1, _globalTextCts?.Token ?? default);
+                            });
                         }
                     }
                 }

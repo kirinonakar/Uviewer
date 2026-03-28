@@ -222,6 +222,8 @@ namespace Uviewer
         {
             _currentTextContent = content; // Save for reload
             _aozoraBlocks.Clear(); // [핵심 수정] 새 파일을 로드할 때 이전 파일의 블록 캐시를 제거합니다.
+            _knownMissingAozoraImages.Clear();
+            _knownMissingVerticalImages.Clear();
 
             // [추가] 이전 파일의 스크롤 추적 기록을 초기화하여 엉뚱한 위치가 자동 저장되는 것을 방지합니다.
             _lastRecentSaveLine = -1;
