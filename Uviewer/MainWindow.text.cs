@@ -1588,60 +1588,73 @@ namespace Uviewer
             }
         }
 
-        // --- Element Prepared (Bold Logic) ---
-        private void TextItemsRepeater_ElementPrepared(ItemsRepeater sender, ItemsRepeaterElementPreparedEventArgs args)
+       private void TextItemsRepeater_ElementPrepared(ItemsRepeater sender, ItemsRepeaterElementPreparedEventArgs args)
+{
+    if (_isAozoraMode)
+    {
+        return;
+    }
+
+    if (args.Element is TextBlock tb && _textLines.Count > args.Index)
+    {
+        var line = _textLines[args.Index];
+
+        // Binding Properties
+        tb.FontSize = line.FontSize;
+        tb.FontFamily = new FontFamily(line.FontFamily);
+        tb.FontWeight = GetFontWeightForFamily(line.FontFamily);
+        tb.Foreground = line.Foreground;
+        tb.MaxWidth = line.MaxWidth;
+        tb.TextAlignment = line.TextAlignment;
+        
+        // [수정 1] 소수점 픽셀 오차로 인한 무한 바운스(Jittering) 차단을 위해 정수화
+        tb.LineHeight = Math.Ceiling(line.FontSize * 1.8);
+        
+        tb.LineStackingStrategy = LineStackingStrategy.BlockLineHeight;
+        tb.Margin = line.Margin;
+        tb.Padding = line.Padding;
+
+        // 중간에 껴있는 빈 줄의 높이 붕괴 방지
+        if (string.IsNullOrEmpty(line.Content))
         {
-            if (_isAozoraMode)
+            tb.MinHeight = tb.LineHeight;
+        }
+        else
+        {
+            tb.ClearValue(FrameworkElement.MinHeightProperty);
+        }
+
+        string content = line.Content;
+
+        // [수정 2] 긴 문장 래핑 시 발생하는 Inlines 버그 우회
+        // Bold(**) 처리가 없는 일반 문장(파일의 대부분 및 마지막 긴 문장)은 
+        // Inlines 대신 Text 속성을 사용하여 스크롤 높이 측정을 안정화합니다.
+        if (!content.Contains("**"))
+        {
+            tb.Inlines.Clear();
+            tb.Text = content;
+        }
+        else
+        {
+            tb.Text = ""; // Text가 남아있지 않도록 초기화
+            tb.Inlines.Clear();
+            var parts = Regex.Split(content, @"(\*\*.*?\*\*)");
+
+            foreach (var part in parts)
             {
-                // Aozora mode now uses Win2D CanvasControl (AozoraTextCanvas) for rendering.
-                // No XAML element preparation needed here.
-                return;
-            }
-
-            if (args.Element is TextBlock tb && _textLines.Count > args.Index)
-            {
-                var line = _textLines[args.Index];
-
-                // Binding Properties
-                tb.FontSize = line.FontSize;
-                tb.FontFamily = new FontFamily(line.FontFamily);
-                tb.FontWeight = GetFontWeightForFamily(line.FontFamily);
-                tb.Foreground = line.Foreground;
-                tb.MaxWidth = line.MaxWidth;
-                tb.TextAlignment = line.TextAlignment;
-                tb.LineHeight = line.FontSize * 1.8;
-                tb.LineStackingStrategy = LineStackingStrategy.BlockLineHeight;
-                tb.Margin = line.Margin;
-                tb.Padding = line.Padding;
-
-                // Border support requires wrapping TextBlock in Border, but ItemsRepeater template is TextBlock.
-                // We will just apply simple styling or we'd need to change the DataTemplate.
-                // Since we can't easily change DataTemplate in C# code behind without XAML change,
-                // we will ignore Border for now OR try access parent. 
-                // However, the user asked for "Correction", so let's try to do what we can.
-                // The ItemsRepeater ItemTemplate is defined in XAML. modifying it to Grid or Border would be better.
-                // For now, let's just stick to text properties we can set.
-
-                tb.Inlines.Clear();
-
-                string content = line.Content;
-                var parts = Regex.Split(content, @"(\*\*.*?\*\*)");
-
-                foreach (var part in parts)
+                if (part.StartsWith("**") && part.EndsWith("**") && part.Length >= 4)
                 {
-                    if (part.StartsWith("**") && part.EndsWith("**") && part.Length >= 4)
-                    {
-                        string boldText = part.Substring(2, part.Length - 4);
-                        tb.Inlines.Add(new Run { Text = boldText, FontWeight = Microsoft.UI.Text.FontWeights.Bold });
-                    }
-                    else
-                    {
-                        tb.Inlines.Add(new Run { Text = part });
-                    }
+                    string boldText = part.Substring(2, part.Length - 4);
+                    tb.Inlines.Add(new Run { Text = boldText, FontWeight = Microsoft.UI.Text.FontWeights.Bold });
+                }
+                else if (!string.IsNullOrEmpty(part))
+                {
+                    tb.Inlines.Add(new Run { Text = part });
                 }
             }
         }
-
+    }
+}
         // --- Input Handling ---
 
         private void TextArea_PointerPressed(object sender, PointerRoutedEventArgs e)
