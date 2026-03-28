@@ -122,13 +122,14 @@ namespace Uviewer
             // Save position of current file before switching
             await AddToRecentAsync(true);
 
-            InitializeText();
-            _currentTextFilePath = file.Path;
-            _currentTextArchiveEntryKey = null; // Clear archive context when loading local file
-            // No reset here, DisplayLoadedText will handle it after using the value
-
+            _isNavigatingRecent = true; // [추가] 로드 및 위치 복원 완료 전까지 자동 저장 차단
             try
             {
+                InitializeText();
+                _currentTextFilePath = file.Path;
+                _currentTextArchiveEntryKey = null; // Clear archive context when loading local file
+                // No reset here, DisplayLoadedText will handle it after using the value
+
                 CancelAndResetGlobalTextCts();
                 var token = _globalTextCts!.Token;
 
@@ -144,6 +145,10 @@ namespace Uviewer
             catch (Exception ex)
             {
                 FileNameText.Text = $"텍스트 로드 실패: {ex.Message}";
+            }
+            finally
+            {
+                _isNavigatingRecent = false;
             }
         }
 
@@ -162,13 +167,14 @@ namespace Uviewer
 
         private async Task LoadTextFromArchiveEntryAsync(ImageEntry entry)
         {
-            InitializeText();
-            _currentTextFilePath = null; // Clear to prevent state leakage from previous file
-            _currentTextArchiveEntryKey = entry.ArchiveEntryKey; // Store entry key for relative path resolution
-                                                                 // No reset here, DisplayLoadedText will handle it
-
+            _isNavigatingRecent = true; // [추가] 로드 및 위치 복원 완료 전까지 자동 저장 차단
             try
             {
+                InitializeText();
+                _currentTextFilePath = null; // Clear to prevent state leakage from previous file
+                _currentTextArchiveEntryKey = entry.ArchiveEntryKey; // Store entry key for relative path resolution
+                                                                     // No reset here, DisplayLoadedText will handle it
+
                 CancelAndResetGlobalTextCts();
                 var token = _globalTextCts!.Token;
 
@@ -215,6 +221,10 @@ namespace Uviewer
             catch (Exception ex)
             {
                 FileNameText.Text = $"아카이브 텍스트 로드 실패: {ex.Message}";
+            }
+            finally
+            {
+                _isNavigatingRecent = false;
             }
         }
 

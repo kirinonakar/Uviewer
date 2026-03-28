@@ -190,26 +190,28 @@ namespace Uviewer
         private async Task LoadEpubFileAsync(StorageFile file, ImageEntry? entry = null, CancellationToken token = default)
         {
              await AddToRecentAsync(true);
-             InitializeEpub();
-             StopAnimatedWebp();
 
-             // Ensure navigation token is fresh for vertical mode
-             CancelAndResetGlobalTextCts();
-             
-             // Close other formats first
-             CloseCurrentArchive();
-             await CloseCurrentPdfAsync();
-             CloseCurrentEpub();
+             _isNavigatingRecent = true; // [추가] 로드 및 위치 복원 완료 전까지 자동 저장 차단
+             try
+             {
+                 InitializeEpub();
+                 StopAnimatedWebp();
 
-             _currentEpubFilePath = file.Path;
-             _currentEpubDisplayName = entry?.DisplayName ?? file.Name;
-             
-              try
-              {
-                  _epubPreloadCache.Clear();
-                  var stream = await file.OpenStreamForReadAsync();
-                  _currentEpubArchive = new ZipArchive(stream, ZipArchiveMode.Read);
+                 // Ensure navigation token is fresh for vertical mode
+                 CancelAndResetGlobalTextCts();
                  
+                 // Close other formats first
+                 CloseCurrentArchive();
+                 await CloseCurrentPdfAsync();
+                 CloseCurrentEpub();
+
+                 _currentEpubFilePath = file.Path;
+                 _currentEpubDisplayName = entry?.DisplayName ?? file.Name;
+                 
+                 _epubPreloadCache.Clear();
+                 var stream = await file.OpenStreamForReadAsync();
+                 _currentEpubArchive = new ZipArchive(stream, ZipArchiveMode.Read);
+                
                  // 1. Parse Container
                  var rootPath = await ParseEpubContainerAsync();
                  if (string.IsNullOrEmpty(rootPath)) throw new Exception("Invalid container.xml");
@@ -219,8 +221,8 @@ namespace Uviewer
                  
                  if (_epubSpine.Count == 0) throw new Exception("No content found in EPUB");
                  
-                                 LoadEpubSettings();
-                SwitchToEpubMode();
+                 LoadEpubSettings();
+                 SwitchToEpubMode();
                  // Ensure the EPUB file we are loading is in the current image entries (album)
                  // to prevent sidebar sync logic from reverting to previous files.
                  if (_imageEntries == null || _imageEntries.Count == 0 || !_imageEntries.Any(e => e.FilePath != null && e.FilePath.Equals(file.Path, StringComparison.OrdinalIgnoreCase)))
@@ -232,7 +234,6 @@ namespace Uviewer
                      _currentIndex = 0;
                  }
 
-                 
                  if (_isVerticalMode)
                  {
                      if (VerticalToggleButton != null) VerticalToggleButton.IsChecked = true;
@@ -292,9 +293,11 @@ namespace Uviewer
              {
                  FileNameText.Text = Strings.EpubParseError(ex.Message);
              }
+             finally
+             {
+                 _isNavigatingRecent = false;
+             }
         }
-
-        // ... [Rest of File, ensuring CreateTextPages wraps in ScrollViewer] ...
 
 
         private void CloseCurrentEpub()

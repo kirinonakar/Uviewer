@@ -1263,12 +1263,15 @@ namespace Uviewer
                 int targetPage = existing?.SavedPage ?? 0;
                 int targetChapter = existing?.ChapterIndex ?? 0;
                 int targetLine = existing?.SavedLine ?? 1;
+                double targetProgress = existing?.Progress ?? 0;
                 string? targetArchiveKey = existing?.ArchiveEntryKey;
 
                 // [핵심 수정] saveCurrentPosition이 true일 때 '현재 뷰어 상태'를 읽어오되,
                 // 로딩 중 초기화(0)된 값으로 유의미한 기존 기록을 덮어쓰는 것을 방지
                 if (saveCurrentPosition)
                 {
+                    targetProgress = GetCurrentProgress(); // 일단 현재 UI 상태로 진행률 계산
+
                     if (_isEpubMode)
                     {
                         // 페이지가 0이거나 챕터가 0인 초기화 상태에서, 
@@ -1281,6 +1284,7 @@ namespace Uviewer
                             targetPage = existing.SavedPage;
                             targetChapter = existing.ChapterIndex;
                             targetLine = existing.SavedLine;
+                            targetProgress = existing.Progress; // 진행률도 기존 값 복구
                             System.Diagnostics.Debug.WriteLine($"[SafeGuard] Epub reset state detected. Keeping previous position: Ch.{targetChapter} P.{targetPage}");
                         }
                         else
@@ -1311,33 +1315,62 @@ namespace Uviewer
                     }
                     else if (_isTextMode)
                     {
+                        // --- 텍스트 뷰어 상태 수집 (세로모드, 아오조라, 일반 텍스트 통합) ---
+                        int currentLine = 1;
+                        double? currentOffset = 0;
+                        bool hasViewerContent = false;
+
                         if (_isVerticalMode)
                         {
-                            targetLine = _currentVerticalPageInfo.StartLine;
-                            targetOffset = 0;
+                            currentLine = _currentVerticalPageInfo.StartLine;
+                            currentOffset = 0;
+                            hasViewerContent = _currentVerticalPageInfo.Blocks != null && _currentVerticalPageInfo.Blocks.Count > 0;
                         }
-                        // [수정] 아오조라 모드를 가장 먼저 확인하여 정확한 최신 줄 번호를 즉시 가져옵니다.
-                        else if (_isAozoraMode && _aozoraBlocks.Count > 0 && _currentAozoraStartBlockIndex >= 0 && _currentAozoraStartBlockIndex < _aozoraBlocks.Count)
+                        else if (_isAozoraMode)
                         {
-                            targetLine = _aozoraBlocks[_currentAozoraStartBlockIndex].SourceLineNumber;
-                            targetOffset = 0;
+                            if (_aozoraBlocks.Count > 0 && _currentAozoraStartBlockIndex >= 0 && _currentAozoraStartBlockIndex < _aozoraBlocks.Count)
+                            {
+                                currentLine = _aozoraBlocks[_currentAozoraStartBlockIndex].SourceLineNumber;
+                                hasViewerContent = true;
+                            }
+                            currentOffset = 0;
                         }
-                        // 일반 텍스트 모드일 때만 스크롤바 방어 로직(세이프가드)을 실행합니다.
                         else if (TextScrollViewer != null)
                         {
-                            double currentOffset = TextScrollViewer.VerticalOffset;
-                            
-                            if (currentOffset == 0 && existing != null && existing.ScrollOffset > 0)
+                            currentOffset = TextScrollViewer.VerticalOffset;
+                            currentLine = GetTopVisibleLineIndex();
+                            hasViewerContent = _textLines.Count > 0;
+                        }
+
+                        // --- 세이프가드: 로딩 중 또는 초기화된 상태에서 기존 유효한 기록 덮어쓰기 방지 ---
+                        // 1. 현재 뷰어가 줄번호 1 이하, 오프셋 0인 '초기 상태'인가?
+                        // 2. 기존 DB 기록에는 의미 있는 진행 내역(줄 > 1 또는 오프셋 > 0)이 있는가?
+                        bool isResetState = currentLine <= 1 && (currentOffset == 0 || currentOffset == null);
+                        bool hasExistingProgress = existing != null && (existing.SavedLine > 1 || (existing.ScrollOffset ?? 0) > 0);
+
+                        if (isResetState && hasExistingProgress)
+                        {
+                            // 로딩 중(내용 없음)이거나, 로딩은 되었지만 아직 스크롤 복원 전(_lastRecentSaveLine == -1)인 경우
+                            // 기존 DB의 위치 값을 그대로 유지하여 데이터 오염을 방지합니다.
+                            if (!hasViewerContent || _lastRecentSaveLine == -1)
                             {
-                                targetOffset = existing.ScrollOffset;
                                 targetLine = existing.SavedLine;
-                                System.Diagnostics.Debug.WriteLine($"[SafeGuard] Text offset 0 detected. Keeping previous offset: {targetOffset}");
+                                targetOffset = existing.ScrollOffset;
+                                targetProgress = existing.Progress; // 진행률도 기존 값 복구
+                                System.Diagnostics.Debug.WriteLine($"[SafeGuard] Text loading/restoring state. Preserving previous: Line {targetLine}");
                             }
                             else
                             {
+                                // 사용자가 수동으로 맨 위로 스크롤한 경우라면 1로 저장 보류 없이 허용
+                                targetLine = currentLine;
                                 targetOffset = currentOffset;
-                                targetLine = GetTopVisibleLineIndex();
                             }
+                        }
+                        else
+                        {
+                            // 그 외의 경우(정상 읽기 중 혹은 첫 감상) 정상 업데이트
+                            targetLine = currentLine;
+                            targetOffset = currentOffset;
                         }
                     }
                     else if (_currentPdfDocument != null)
@@ -1368,7 +1401,7 @@ namespace Uviewer
                     IsWebDav = isWebDav,
                     WebDavServerName = webDavServerName,
                     IsVertical = _isVerticalMode,
-                    Progress = saveCurrentPosition ? GetCurrentProgress() : (existing?.Progress ?? 0)
+                    Progress = saveCurrentPosition ? targetProgress : (existing?.Progress ?? 0)
                 };
 
                 await _recentService.AddToRecentAsync(newItem);
