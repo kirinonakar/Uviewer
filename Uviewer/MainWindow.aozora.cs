@@ -1754,19 +1754,6 @@ private (string text, List<(int start, int length)> boldRanges) ParseTableInline
             {
                 items = _pdfToc.ToList();
             }
-            else if ((_isAozoraMode || _isVerticalMode) && _aozoraBlocks.Count > 0)
-            {
-                items = _aozoraBlocks
-                    .Where(b => b.HeadingLevel > 0)
-                    .Select(b => new TocItem
-                    {
-                        HeadingText = b.HeadingText,
-                        SourceLineNumber = b.SourceLineNumber,
-                        HeadingLevel = b.HeadingLevel
-                    })
-                    .ToList();
-            }
-
             else if (_isEpubMode)
             {
                 // EPUB Mode
@@ -1780,6 +1767,18 @@ private (string text, List<(int start, int length)> boldRanges) ParseTableInline
                         Tag = t
                     }).ToList();
                 }
+            }
+            else if ((_isAozoraMode || _isVerticalMode) && _aozoraBlocks.Count > 0)
+            {
+                items = _aozoraBlocks
+                    .Where(b => b.HeadingLevel > 0)
+                    .Select(b => new TocItem
+                    {
+                        HeadingText = b.HeadingText,
+                        SourceLineNumber = b.SourceLineNumber,
+                        HeadingLevel = b.HeadingLevel
+                    })
+                    .ToList();
             }
             else if (!string.IsNullOrEmpty(_currentTextContent))
             {
