@@ -280,7 +280,7 @@ namespace Uviewer
             if (_isVerticalMode && !_isMarkdownRenderMode)
             {
                 if (TextArea != null) TextArea.Background = _settingsManager.GetThemeBackground();
-                await PrepareVerticalTextAsync(targetLine, token);
+                await PrepareVerticalTextAsync(targetLine, -1, token);
                 if (token.IsCancellationRequested) return;
                 if (VerticalTextCanvas != null) VerticalTextCanvas.Visibility = Visibility.Visible;
 

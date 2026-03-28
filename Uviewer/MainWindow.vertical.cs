@@ -24,6 +24,7 @@ namespace Uviewer
         private bool _verticalKeyAttached = false;
         private Dictionary<string, CanvasBitmap> _verticalImageCache = new();
         private int? _pendingVerticalScrollLine = null;
+        private int _pendingVerticalStartBlockIndex = -1;
 
         private struct VerticalPageInfo
         {
@@ -55,6 +56,7 @@ namespace Uviewer
             _verticalImageCache.Clear();
             _verticalTotalPages = 0;
             _isVerticalPageCalcCompleted = false;
+            _pendingVerticalStartBlockIndex = -1;
             _verticalCalculatedCurrentPage = 1;
             ClearBackwardCache();
             VerticalTextCanvas?.Invalidate();
@@ -116,6 +118,8 @@ namespace Uviewer
                         {
                             // 텍스트 페이지면 해당 페이지의 시작 줄 번호를 그대로 사용
                             currentLine = page.StartLine;
+                            // [추가] 블록 인덱스도 함께 전달하여 정확한 위치 고정
+                            _pendingEpubStartBlockIndex = page.StartBlockIndex;
                         }
                         else
                         {
@@ -159,22 +163,31 @@ namespace Uviewer
                     currentLine = GetTopVisibleLineIndex();
                 }
 
-                await PrepareVerticalTextAsync(currentLine, _globalTextCts?.Token ?? default);
+                await PrepareVerticalTextAsync(currentLine, _pendingEpubStartBlockIndex, _globalTextCts?.Token ?? default);
             }
             else
             {
                 // [수정] _pendingVerticalScrollLine을 null로 초기화하기 전에 값을 먼저 구출합니다.
                 int currentLine = 1;
-                if (_pendingVerticalScrollLine.HasValue)
+                int currentBlockIdx = -1;
+                if (_pendingVerticalStartBlockIndex >= 0)
+                {
+                    currentBlockIdx = _pendingVerticalStartBlockIndex;
+                    if (_aozoraBlocks != null && currentBlockIdx < _aozoraBlocks.Count)
+                        currentLine = _aozoraBlocks[currentBlockIdx].SourceLineNumber;
+                }
+                else if (_pendingVerticalScrollLine.HasValue)
                 {
                     currentLine = _pendingVerticalScrollLine.Value;
                 }
                 else if (_currentVerticalPageInfo.Blocks != null && _currentVerticalPageInfo.Blocks.Count > 0)
                 {
                     currentLine = _currentVerticalPageInfo.StartLine;
+                    currentBlockIdx = _currentVerticalStartBlockIndex;
                 }
 
                 _pendingVerticalScrollLine = null; // 값을 구출한 뒤에 초기화
+                _pendingVerticalStartBlockIndex = -1;
 
                 // Detach vertical key handler
                 if (_verticalKeyAttached && RootGrid != null)
@@ -197,7 +210,7 @@ namespace Uviewer
                          if (progress > 1.0) progress = 1.0;
                     }
 
-                    await LoadEpubChapterAsync(_currentEpubChapterIndex, targetLine: currentLine, progress: progress);
+                    await LoadEpubChapterAsync(_currentEpubChapterIndex, targetLine: currentLine, targetBlockIndex: currentBlockIdx, progress: progress);
                 }
                 else if (_isAozoraMode)
                 {
@@ -214,7 +227,7 @@ namespace Uviewer
         }
 
 
-        private async Task PrepareVerticalTextAsync(int targetLine = 1, CancellationToken externalToken = default)
+        private async Task PrepareVerticalTextAsync(int targetLine = 1, int targetBlockIndex = -1, CancellationToken externalToken = default)
         {
             if (string.IsNullOrEmpty(_currentTextContent) && !_isEpubMode) return;
 
@@ -231,6 +244,7 @@ namespace Uviewer
             // _verticalImageCache.Clear(); // <-- 깜박임 방지를 위해 즉시 지우지 않고 새 페이지 준비 시 덮어씀
             _verticalNavHistory.Clear();
             _pendingVerticalScrollLine = targetLine;
+            _pendingVerticalStartBlockIndex = targetBlockIndex;
             ClearBackwardCache(); // <-- 캐시 초기화 추가
 
             // [수정] 이전 챕터의 잔여 데이터로 인한 무한 루프 방지를 위해 시작/끝 인덱스만 초기화하고,
@@ -280,9 +294,13 @@ namespace Uviewer
                     // 기존 while 루프를 지우고 단 한 줄로 교체
                     startIdx = FindPreviousPageStart(targetIdx, _aozoraBlocks, availWidth, availHeight, device, true);
                 }
-                else if (targetLine < 0) 
+                 else if (targetLine < 0) 
                 {
                     startIdx = Math.Max(0, _aozoraBlocks.Count - 15);
+                }
+                else if (targetBlockIndex >= 0)
+                {
+                    startIdx = Math.Clamp(targetBlockIndex, 0, _aozoraBlocks.Count - 1);
                 }
                 else if (_aozoraBlocks.Count > 0)
                 {
@@ -1170,15 +1188,18 @@ namespace Uviewer
                 if (_isEpubMode && (blocks == null || blocks.Count == 0)) return;
 
                 int currentLine = 1;
+                int currentBlockIdx = -1;
                 if (_pendingVerticalScrollLine.HasValue)
                 {
                     currentLine = _pendingVerticalScrollLine.Value;
+                    currentBlockIdx = _pendingVerticalStartBlockIndex;
                 }
                 else if (_currentVerticalPageInfo.Blocks != null)
                 {
                     currentLine = _currentVerticalPageInfo.StartLine;
+                    currentBlockIdx = _currentVerticalStartBlockIndex;
                 }
-                _ = PrepareVerticalTextAsync(currentLine);
+                _ = PrepareVerticalTextAsync(currentLine, currentBlockIdx);
             }
         }
 

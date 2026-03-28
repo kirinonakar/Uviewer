@@ -39,11 +39,13 @@ namespace Uviewer
         private bool _isEpubMode = false;
         public int PendingEpubChapterIndex { get; set; } = -1;
         public int PendingEpubPageIndex { get; set; } = -1;
+        private int _pendingEpubStartBlockIndex = -1;
 
         // Win2D 기반 EPUB 페이지 정보
         public class EpubWin2DPage
         {
             public List<AozoraBindingModel> Blocks { get; set; } = new();
+            public int StartBlockIndex { get; set; }
             public int StartLine { get; set; }
             public int LineCount { get; set; }
             public int TotalLinesInChapter { get; set; }
@@ -121,7 +123,8 @@ namespace Uviewer
                          _epubPreloadCache.Clear();
                          _epubImageCache.Clear();
                          int currentLine = CurrentEpubWin2DPage?.StartLine ?? 1;
-                         _ = LoadEpubChapterAsync(_currentEpubChapterIndex, targetLine: currentLine);
+                         int currentBlockIdx = CurrentEpubWin2DPage?.StartBlockIndex ?? -1;
+                         _ = LoadEpubChapterAsync(_currentEpubChapterIndex, targetLine: currentLine, targetBlockIndex: currentBlockIdx);
                      }
                 };
             }
@@ -248,13 +251,29 @@ namespace Uviewer
                 {
                     if (TextArea != null) TextArea.Visibility = Visibility.Collapsed;
                     if (EpubArea != null) EpubArea.Visibility = Visibility.Visible;
+                                // 3. Load Chapter (Updated to handle pending positions)
+                  if (PendingEpubChapterIndex >= 0 && PendingEpubChapterIndex < _epubSpine.Count)
+                  {
+                      _currentEpubChapterIndex = PendingEpubChapterIndex;
+                      await LoadEpubChapterAsync(_currentEpubChapterIndex, targetLine: _aozoraPendingTargetLine, targetBlockIndex: _pendingEpubStartBlockIndex, targetPage: PendingEpubPageIndex, token: token);
+
+                      // Page navigation (wait for items to be populated)
+                      if (!_isVerticalMode && PendingEpubPageIndex > 0)
+                      {
+                          await Task.Delay(100, token);
+                          if (PendingEpubPageIndex < _epubWin2DPages.Count)
+                          {
+                              SetEpubPageIndex(PendingEpubPageIndex);
+                          }
+                      }
+                  }
                 }
                  
                  // 3. Load Chapter (Updated to handle pending positions)
                  if (PendingEpubChapterIndex >= 0 && PendingEpubChapterIndex < _epubSpine.Count)
                  {
                      _currentEpubChapterIndex = PendingEpubChapterIndex;
-                     await LoadEpubChapterAsync(_currentEpubChapterIndex, targetLine: _aozoraPendingTargetLine, targetPage: PendingEpubPageIndex, token: token);
+                     await LoadEpubChapterAsync(_currentEpubChapterIndex, targetLine: _aozoraPendingTargetLine, targetBlockIndex: _pendingEpubStartBlockIndex, targetPage: PendingEpubPageIndex, token: token);
 
                      // Page navigation (wait for items to be populated)
                      if (!_isVerticalMode && PendingEpubPageIndex > 0)
@@ -276,6 +295,7 @@ namespace Uviewer
                 PendingEpubChapterIndex = -1;
                 PendingEpubPageIndex = -1;
                 _aozoraPendingTargetLine = 0;
+                _pendingEpubStartBlockIndex = -1;
                 _epubChapterHasText.Clear();
                  
                  // 4. Load TOC (Background)
@@ -708,6 +728,7 @@ namespace Uviewer
                 {
                     Blocks = pageBlocks,
                     IsImagePage = false,
+                    StartBlockIndex = pageStart,
                     StartLine = pageBlocks[0].SourceLineNumber,
                     LineCount = pageBlocks.Count
                 });
@@ -1331,7 +1352,7 @@ namespace Uviewer
             return null;
         }
 
-        private async Task LoadEpubChapterAsync(int index, bool fromEnd = false, int targetLine = -1, int targetPage = -1, double? progress = null, CancellationToken token = default)
+        private async Task LoadEpubChapterAsync(int index, bool fromEnd = false, int targetLine = -1, int targetBlockIndex = -1, int targetPage = -1, double? progress = null, CancellationToken token = default)
         {
             if (index < 0 || index >= _epubSpine.Count) return;
 
@@ -1387,7 +1408,7 @@ namespace Uviewer
                         }
                     }
                     _aozoraBlocks = blocks;
-                    await PrepareVerticalTextAsync(fromEnd ? 999999 : (targetLine > 0 ? targetLine : 1), token);
+                    await PrepareVerticalTextAsync(fromEnd ? 999999 : (targetLine > 0 ? targetLine : 1), targetBlockIndex, token);
                     return;
                 }
 
@@ -1421,7 +1442,23 @@ namespace Uviewer
 
                 int finalTargetPage = 0;
 
-                if (targetLine > 1)
+                if (targetBlockIndex >= 0)
+                {
+                    for (int i = 0; i < pages.Count; i++)
+                    {
+                        var p = pages[i];
+                        if (p.Blocks != null && p.Blocks.Count > 0)
+                        {
+                            // 해당 페이지가 목표 블록 인덱스를 포함하고 있는지 확인
+                            if (targetBlockIndex >= p.StartBlockIndex && targetBlockIndex < p.StartBlockIndex + p.Blocks.Count)
+                            {
+                                finalTargetPage = i;
+                                break;
+                            }
+                        }
+                    }
+                }
+                else if (targetLine > 1)
                 {
                     for (int i = 0; i < pages.Count; i++)
                     {
