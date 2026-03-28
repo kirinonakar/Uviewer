@@ -28,6 +28,70 @@ namespace Uviewer
         // 아카이브 동시 접근 방지를 위한 Semaphore 추가
         private readonly SemaphoreSlim _archiveLock = new(1, 1);
 
+        #region Drag and Drop
+
+        private void Grid_DragOver(object sender, DragEventArgs e)
+        {
+            e.AcceptedOperation = Windows.ApplicationModel.DataTransfer.DataPackageOperation.Copy;
+
+            if (e.DragUIOverride != null)
+            {
+                e.DragUIOverride.Caption = "이미지 열기";
+                e.DragUIOverride.IsCaptionVisible = true;
+                e.DragUIOverride.IsContentVisible = true;
+                e.DragUIOverride.IsGlyphVisible = true;
+            }
+        }
+
+        private async void Grid_Drop(object sender, DragEventArgs e)
+        {
+            if (e.DataView.Contains(Windows.ApplicationModel.DataTransfer.StandardDataFormats.StorageItems))
+            {
+                var items = await e.DataView.GetStorageItemsAsync();
+
+                if (items.Count > 0)
+                {
+                    var item = items[0];
+
+                    if (item is StorageFile file)
+                    {
+                        var ext = Path.GetExtension(file.Name).ToLowerInvariant();
+
+                        if (FileExplorerService.SupportedArchiveExtensions.Contains(ext))
+                        {
+                            await LoadImagesFromArchiveAsync(file.Path);
+                        }
+                        else if (FileExplorerService.SupportedEpubExtensions.Contains(ext))
+                        {
+                            await LoadImageFromFileAsync(file);
+                        }
+                        else if (FileExplorerService.SupportedPdfExtensions.Contains(ext))
+                        {
+                            await LoadImagesFromPdfAsync(file.Path);
+                        }
+                        else if (FileExplorerService.SupportedImageExtensions.Contains(ext) || FileExplorerService.SupportedTextExtensions.Contains(ext))
+                        {
+                            await LoadImageFromFileAsync(file);
+                        }
+
+                        // Update explorer
+                        var folder = Path.GetDirectoryName(file.Path);
+                        if (folder != null)
+                        {
+                            LoadExplorerFolder(folder);
+                        }
+                    }
+                    else if (item is StorageFolder folder)
+                    {
+                        LoadExplorerFolder(folder.Path);
+                        await LoadImagesFromFolderAsync(folder);
+                    }
+                }
+            }
+        }
+
+        #endregion
+
         #region File Operations
 
         private async void OpenFileButton_Click(object sender, RoutedEventArgs e)
@@ -523,9 +587,7 @@ namespace Uviewer
             _imageCache?.ClearAll();
 
             // Clean up fast navigation
-            _fastNavigationResetCts?.Cancel();
-            _fastNavigationResetCts?.Dispose();
-            _fastNavigationResetCts = null;
+            _fastNavigationService?.StopTimers();
 
             _currentBitmap = null;
             _leftBitmap = null;

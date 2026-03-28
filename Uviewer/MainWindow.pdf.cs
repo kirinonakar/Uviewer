@@ -188,9 +188,7 @@ namespace Uviewer
 
             _imageCache?.ClearAll();
 
-            _fastNavigationResetCts?.Cancel();
-            _fastNavigationResetCts?.Dispose();
-            _fastNavigationResetCts = null;
+            _fastNavigationService?.StopTimers();
 
             _currentBitmap = null;
             _leftBitmap = null;

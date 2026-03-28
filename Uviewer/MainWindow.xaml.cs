@@ -28,11 +28,8 @@ namespace Uviewer
     {
         private List<ImageEntry> _imageEntries = new();
         private int _currentIndex = -1;
-        private double _zoomLevel = 1.0;
+        private double _zoomLevel { get => _zoomService.Level; set => _zoomService.SetLevel(value); }
         private CanvasBitmap? _currentBitmap;
-        private const double ZoomStep = 0.25;
-        private const double MinZoom = 0.1;
-        private const double MaxZoom = 10.0;
 
         // Folder explorer
         private string? _currentExplorerPath;
@@ -108,6 +105,17 @@ namespace Uviewer
         private WindowStateManager _windowState = null!;
         private readonly SemaphoreSlim _thumbnailSemaphore = new(4); // Limit concurrent thumbnail loads (archives)
         private Services.PreloadManager _preloadManager = null!;
+
+        // Refactored Services
+        private readonly Services.AppSettingsService _appSettingsService = new();
+        private readonly Services.ZoomService _zoomService = new();
+        private Services.FastNavigationService _fastNavigationService = null!;
+
+        // Loading and navigation state
+        private CancellationTokenSource? _imageLoadingCts;
+
+        [System.Runtime.InteropServices.DllImport("user32.dll", CharSet = System.Runtime.InteropServices.CharSet.Unicode)]
+        private static extern int MessageBox(IntPtr hWnd, string text, string caption, uint type);
 
         // 7z background extraction
         private string? _current7zTempFolder;
@@ -295,8 +303,10 @@ namespace Uviewer
                 var appWindow2 = this.AppWindow;
                 appWindow2.Changed += AppWindow_Changed;
 
+                _fastNavigationService = new Services.FastNavigationService(DispatcherQueue);
+
                 // Load saved window position, size and maximized state
-                bool hasLoadedSettings = LoadWindowSettings(appWindow2);
+                bool hasLoadedSettings = ApplyWindowSettings(appWindow2);
                 if (!hasLoadedSettings)
                 {
                     // 설정 파일이 없으면 기본 사이즈 적용 및 중앙 정렬
@@ -399,11 +409,12 @@ namespace Uviewer
                     // Stop all timers
                     _overlayManager.StopAll();
                     _animatedWebpTimer?.Stop();
-                    _fastNavOverlayTimer?.Stop();
+
 
                     // Cancel any ongoing operations
                     _imageLoadingCts?.Cancel();
-                    _fastNavigationResetCts?.Cancel();
+                    // Clean up fast navigation timer
+                    _fastNavigationService?.Dispose();
 
                     // Clean up archive resources
                     if (_currentArchive != null)
@@ -452,7 +463,6 @@ namespace Uviewer
 
                     // Dispose cancellation tokens
                     _imageLoadingCts?.Dispose();
-                    _fastNavigationResetCts?.Dispose();
                 }
                 catch (Exception ex)
                 {
@@ -728,6 +738,115 @@ namespace Uviewer
                 if (SplitterGrid != null) SplitterGrid.Visibility = Visibility.Collapsed;
             }
         }
+
+        #region Window Settings
+        private bool ApplyWindowSettings(AppWindow appWindow)
+        {
+            var primaryArea = Microsoft.UI.Windowing.DisplayArea.Primary;
+            var settings = _appSettingsService.LoadSettings(primaryArea);
+            
+            // Check if settings file actually had data (assuming fallback values if file missing)
+            if (settings.LastNonMaximizedRect.Width == (int)(primaryArea.WorkArea.Width * 0.7) && 
+                settings.LastNonMaximizedRect.Height == (int)(primaryArea.WorkArea.Height * 0.7) &&
+                !File.Exists(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "Uviewer", "window_settings.txt")))
+            {
+                return false;
+            }
+
+            _windowState.LastNonMaximizedRect = settings.LastNonMaximizedRect;
+            appWindow.MoveAndResize(_windowState.LastNonMaximizedRect);
+
+            if (settings.IsMaximized)
+            {
+                Activated += RestoreMaximizedStateOnce;
+            }
+
+            _sharpenEnabled = settings.SharpenEnabled;
+            _isSideBySideMode = settings.IsSideBySideMode;
+            _nextImageOnRight = settings.NextImageOnRight;
+            SetTheme(settings.Theme);
+            _matchControlDirection = settings.MatchControlDirection;
+            _allowMultipleInstances = settings.AllowMultipleInstances;
+            _windowState.IsSidebarVisible = settings.IsSidebarVisible;
+            _windowState.IsPinned = settings.IsPinned;
+            _windowState.IsAlwaysOnTop = settings.IsAlwaysOnTop;
+            _autoDoublePageForArchive = settings.AutoDoublePageForArchive;
+
+            if (MatchControlDirectionMenuItem != null) MatchControlDirectionMenuItem.IsChecked = _matchControlDirection;
+            if (AllowMultipleInstancesMenuItem != null) AllowMultipleInstancesMenuItem.IsChecked = _allowMultipleInstances;
+            if (AutoDoublePageForArchiveMenuItem != null) AutoDoublePageForArchiveMenuItem.IsChecked = _autoDoublePageForArchive;
+            if (AlwaysOnTopButton != null) AlwaysOnTopButton.IsChecked = _windowState.IsAlwaysOnTop;
+            if (appWindow != null && appWindow.Presenter is OverlappedPresenter op)
+            {
+                op.IsAlwaysOnTop = _windowState.IsAlwaysOnTop;
+            }
+            UpdateSharpenButtonState();
+            UpdateSideBySideButtonState();
+            UpdateNextImageSideButtonState();
+
+            return true;
+        }
+
+        private void RestoreMaximizedStateOnce(object sender, WindowActivatedEventArgs e)
+        {
+            // Only restore when window is activated (not deactivated)
+            if (e.WindowActivationState == WindowActivationState.Deactivated)
+                return;
+
+            Activated -= RestoreMaximizedStateOnce;
+            try
+            {
+                if (_windowState.IsFullscreen) return;
+                var appWindow = this.AppWindow;
+                if (appWindow.Presenter is OverlappedPresenter overlapped)
+                {
+                    overlapped.Maximize();
+                }
+                else
+                {
+                    appWindow.SetPresenter(OverlappedPresenter.Create());
+                    (appWindow.Presenter as OverlappedPresenter)?.Maximize();
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error restoring maximized state: {ex.Message}");
+            }
+        }
+
+        private void SaveWindowSettings()
+        {
+            var appWindow = this.AppWindow;
+            bool isMaximized = false;
+
+            if (_windowState.IsFullscreen)
+            {
+                isMaximized = _windowState.WasMaximizedBeforeFullscreen;
+            }
+            else if (appWindow.Presenter is OverlappedPresenter overlapped)
+            {
+                isMaximized = overlapped.State == OverlappedPresenterState.Maximized;
+            }
+
+            var settings = new AppSettings
+            {
+                LastNonMaximizedRect = _windowState.LastNonMaximizedRect,
+                IsMaximized = isMaximized,
+                SharpenEnabled = _sharpenEnabled,
+                IsSideBySideMode = _isSideBySideMode,
+                NextImageOnRight = _nextImageOnRight,
+                Theme = _currentTheme,
+                MatchControlDirection = _matchControlDirection,
+                AllowMultipleInstances = _allowMultipleInstances,
+                IsSidebarVisible = _windowState.IsSidebarVisible,
+                IsPinned = _windowState.IsPinned,
+                IsAlwaysOnTop = _windowState.IsAlwaysOnTop,
+                AutoDoublePageForArchive = _autoDoublePageForArchive
+            };
+
+            _appSettingsService.SaveSettings(settings);
+        }
+        #endregion
 
         #region Fullscreen
 
@@ -1153,7 +1272,7 @@ namespace Uviewer
             _pdfScrollDirection = -1;
             if (_currentIndex > 0)
             {
-                bool isFast = !isManualClick && DetectFastNavigation();
+                bool isFast = !isManualClick && _fastNavigationService.DetectFastNavigation(ResetFastNavigation);
 
                 int step = (_isCurrentViewSideBySide && _currentPdfDocument == null) ? 2 : 1;
                 int newIndex = _currentIndex;
@@ -1214,7 +1333,7 @@ namespace Uviewer
             _pdfScrollDirection = 1;
             if (_currentIndex < _imageEntries.Count - 1)
             {
-                bool isFast = !isManualClick && DetectFastNavigation();
+                bool isFast = !isManualClick && _fastNavigationService.DetectFastNavigation(ResetFastNavigation);
 
                 int step = (_isCurrentViewSideBySide && _currentPdfDocument == null) ? 2 : 1;
                 int newIndex = _currentIndex;

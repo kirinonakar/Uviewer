@@ -20,6 +20,150 @@ namespace Uviewer
     public sealed partial class MainWindow : Window
     {
 
+        #region Fast Navigation
+
+        private void ShowFastNavigationOverlay()
+        {
+            if (_currentIndex < 0 || _imageEntries.Count == 0)
+                return;
+
+            _fastNavigationService.ShowOverlay(
+                showCallback: () => 
+                {
+                    FastNavText.Text = $"빠른 탐색 중... ({_currentIndex + 1}/{_imageEntries.Count})";
+                    FastNavOverlay.Visibility = Visibility.Visible;
+                },
+                hideCallback: () => 
+                {
+                    FastNavOverlay.Visibility = Visibility.Collapsed;
+                }
+            );
+        }
+
+        private async Task ResetFastNavigation()
+        {
+            _fastNavigationService.StopOverlayTimer();
+            if (_currentIndex >= 0 && _currentIndex < _imageEntries.Count)
+            {
+                Signal7zJump(); // Fast Navigation 종료 시 해당 위치로 추출 순위 재조정
+                await DisplayCurrentImageAsync();
+            }
+            // 화면 로딩이 완전히 끝난 후 오버레이를 닫고 그리기 허용
+            FastNavOverlay.Visibility = Visibility.Collapsed;
+            MainCanvas?.Invalidate();
+        }
+
+        private void ShowFilenameOnly()
+        {
+            if (_currentIndex < 0 || _currentIndex >= _imageEntries.Count)
+                return;
+
+            Signal7zJump(); // 빠른 탐색 중에도 추출 위치를 계속 업데이트
+            ShowFastNavigationOverlay();
+
+            var currentEntry = _imageEntries[_currentIndex];
+
+            // Don't hide images during fast navigation - just update text
+            // Images will stay visible showing the last loaded image
+
+            // Update the filename text directly
+            FileNameText.Text = FileExplorerService.GetFormattedDisplayName(currentEntry.DisplayName, currentEntry.IsArchiveEntry);
+
+            // Update status bar with filename and index
+            TextProgressText.Text = ""; // Clear for image mode
+            if (_isCurrentViewSideBySide)
+            {
+                int displayIndex = (_currentIndex / 2) + 1;
+                int totalPairs = (_imageEntries.Count + 1) / 2;
+                ImageIndexText.Text = $"{displayIndex} / {totalPairs} (B)";
+            }
+            else
+            {
+                ImageIndexText.Text = $"{_currentIndex + 1} / {_imageEntries.Count}";
+            }
+
+            ImageInfoText.Text = "빠르게 넘어가는 중...";
+        }
+
+        #endregion
+
+        #region Zoom
+
+        private void ZoomInButton_Click(object sender, RoutedEventArgs e)
+        {
+            ZoomIn();
+        }
+
+        private void ZoomOutButton_Click(object sender, RoutedEventArgs e)
+        {
+            ZoomOut();
+        }
+
+        private void ZoomFitButton_Click(object sender, RoutedEventArgs e)
+        {
+            FitToWindow();
+        }
+
+        private void ZoomActualButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (_currentBitmap != null && _currentBitmap.Device != null)
+            {
+                var containerWidth = ImageArea.ActualWidth;
+                var containerHeight = ImageArea.ActualHeight;
+
+                if (containerWidth > 0 && containerHeight > 0)
+                {
+                    _zoomService.CalculateActualZoom(containerWidth, containerHeight, _currentBitmap.Size.Width, _currentBitmap.Size.Height, MainCanvas.Dpi / 96.0f, _currentPdfDocument != null);
+                    ApplyZoom();
+                }
+            }
+        }
+
+        private void ZoomIn()
+        {
+            _zoomService.ZoomIn();
+            ApplyZoom();
+        }
+
+        private void ZoomOut()
+        {
+            _zoomService.ZoomOut();
+            ApplyZoom();
+        }
+
+        private void FitToWindow()
+        {
+            _zoomService.FitToWindow();
+            ApplyZoom();
+        }
+
+        private void ApplyZoom()
+        {
+            if (_currentBitmap == null || _currentBitmap.Device == null || ImageArea.ActualWidth <= 0 || ImageArea.ActualHeight <= 0)
+                return;
+
+            // Trigger canvas redraw for new zoom level
+            if (!_isCurrentViewSideBySide || _currentPdfDocument != null)
+            {
+                MainCanvas?.Invalidate();
+            }
+            else
+            {
+                LeftCanvas?.Invalidate();
+                RightCanvas?.Invalidate();
+            }
+
+            // Update zoom level display (relative to fit size)
+            ZoomLevelText.Text = $"{(int)(_zoomLevel * 100)}%";
+
+            if (_currentPdfDocument != null && !(_smoothZoomTimer?.IsRunning ?? false))
+            {
+                _ = RerenderPdfCurrentPageAsync();
+            }
+        }
+
+        #endregion
+
         #region Image Display
 
         private async Task DisplayCurrentImageAsync()
@@ -1042,7 +1186,7 @@ namespace Uviewer
             double normX = (position.X - oldVisualLeft) / _zoomLevel;
             double normY = (position.Y - oldVisualTop) / _zoomLevel;
 
-            double newZoom = Math.Clamp(_zoomLevel * zoomMultiplier, MinZoom, MaxZoom);
+            double newZoom = Math.Clamp(_zoomLevel * zoomMultiplier, Services.ZoomService.MinZoom, Services.ZoomService.MaxZoom);
             if (newZoom == _zoomLevel) return;
             _zoomLevel = newZoom;
 
@@ -1083,7 +1227,7 @@ namespace Uviewer
                 _targetZoomLevel = _zoomLevel;
             }
 
-            _targetZoomLevel = Math.Clamp(_targetZoomLevel * targetMultiplier, MinZoom, MaxZoom);
+            _targetZoomLevel = Math.Clamp(_targetZoomLevel * targetMultiplier, Services.ZoomService.MinZoom, Services.ZoomService.MaxZoom);
             _zoomPivot = pivot;
 
             if (!_smoothZoomTimer.IsRunning)
