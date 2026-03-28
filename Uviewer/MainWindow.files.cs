@@ -1188,6 +1188,12 @@ namespace Uviewer
         {
             if (string.IsNullOrEmpty(path)) return false;
 
+            // Direct match for major formats
+            if (!string.IsNullOrEmpty(_currentPdfPath) && _currentPdfPath.Equals(path, StringComparison.OrdinalIgnoreCase)) return true;
+            if (!string.IsNullOrEmpty(_currentArchivePath) && _currentArchivePath.Equals(path, StringComparison.OrdinalIgnoreCase)) return true;
+            if (!string.IsNullOrEmpty(_currentEpubFilePath) && _currentEpubFilePath.Equals(path, StringComparison.OrdinalIgnoreCase)) return true;
+            if (!string.IsNullOrEmpty(_currentTextFilePath) && _currentTextFilePath.Equals(path, StringComparison.OrdinalIgnoreCase)) return true;
+
             // WebDAV 모드인 경우 원격 경로 비교 추가
             if (_isWebDavMode && _currentIndex >= 0 && _imageEntries != null && _currentIndex < _imageEntries.Count)
             {
@@ -1195,16 +1201,6 @@ namespace Uviewer
                 if (entry.IsWebDavEntry && entry.WebDavPath == path) return true;
                 if (entry.IsArchiveEntry && _currentArchivePath != null && 
                     (_currentArchivePath == path || _currentArchivePath == $"WebDAV:{path}")) return true;
-            }
-
-            if (_isEpubMode && !string.IsNullOrEmpty(_currentEpubFilePath))
-            {
-                return _currentEpubFilePath.Equals(path, StringComparison.OrdinalIgnoreCase);
-            }
-
-            if (_isTextMode && !string.IsNullOrEmpty(_currentTextFilePath))
-            {
-                return _currentTextFilePath.Equals(path, StringComparison.OrdinalIgnoreCase);
             }
 
             if (_currentIndex >= 0 && _imageEntries != null && _currentIndex < _imageEntries.Count)
@@ -1344,6 +1340,8 @@ namespace Uviewer
 
         private async Task HandleFileSelectionAsync(FileItem item)
         {
+            if (_isNavigatingRecent) return;
+
             // WebDAV 항목 처리
             if (item.IsWebDav)
             {

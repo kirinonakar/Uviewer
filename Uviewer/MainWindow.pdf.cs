@@ -36,6 +36,7 @@ namespace Uviewer
 
         private async Task LoadImagesFromPdfAsync(string pdfPath)
         {
+            _currentPdfPath = pdfPath;
             _preloadManager.CancelAll();
             _imageLoadingCts?.Cancel(); // Cancel any ongoing image load
             _thumbnailLoadingCts?.Cancel(); // Cancel thumbnail loading
@@ -54,7 +55,6 @@ namespace Uviewer
                     CloseCurrentPdfInternal();
 
 
-                    _currentPdfPath = pdfPath;
                     var file = await StorageFile.GetFileFromPathAsync(pdfPath);
                     _currentPdfDocument = await Windows.Data.Pdf.PdfDocument.LoadFromFileAsync(file);
 
@@ -172,9 +172,9 @@ namespace Uviewer
         private void CloseCurrentPdfInternal()
         {
             // PDF Document 참조 해제
+            _currentPdfPath = null;
             var oldDoc = _currentPdfDocument;
             _currentPdfDocument = null;
-            _currentPdfPath = null;
             _pdfToc.Clear();
 
             // UI 스레드에서 버튼 가리기
