@@ -760,11 +760,11 @@ namespace Uviewer
         {
             if (_nextImageOnRight)
             {
-                NextImageSideText.Text = "→"; // Right arrow (left to right)
+                NextImageSideText.Glyph = "\uE111"; // Next/Forward glyph (left to right)
             }
             else
             {
-                NextImageSideText.Text = "←"; // Left arrow (right to left)
+                NextImageSideText.Glyph = "\uE112"; // Back/Previous glyph (right to left)
             }
         }
 

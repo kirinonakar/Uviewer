@@ -182,7 +182,7 @@
     <value>No Table of Contents</value>
   </data>
   <data name="BrowseFolderTooltip" xml:space="preserve">
-    <value>Browse Folder</value>
+    <value>Open Folder</value>
   </data>
   <data name="SettingsTooltip" xml:space="preserve">
     <value>Settings</value>

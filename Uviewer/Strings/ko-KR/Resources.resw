@@ -182,7 +182,7 @@
     <value>목차 없음</value>
   </data>
   <data name="BrowseFolderTooltip" xml:space="preserve">
-    <value>폴더 찾아보기</value>
+    <value>폴더 열기</value>
   </data>
   <data name="SettingsTooltip" xml:space="preserve">
     <value>설정</value>

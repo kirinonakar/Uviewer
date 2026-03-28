@@ -182,7 +182,7 @@
     <value>目次なし</value>
   </data>
   <data name="BrowseFolderTooltip" xml:space="preserve">
-    <value>フォルダ参照</value>
+    <value>フォルダを開く</value>
   </data>
   <data name="SettingsTooltip" xml:space="preserve">
     <value>設定</value>
