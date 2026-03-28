@@ -1344,6 +1344,7 @@ private (string text, List<(int start, int length)> boldRanges) ParseTableInline
                 {
                     // 💡 History Push 완전히 제거됨
                     RenderAozoraDynamicPage(_currentAozoraEndBlockIndex + 1);
+                    if (_isAozoraPageCalcCompleted) _aozoraCalculatedCurrentPage++; 
                     UpdateAozoraStatusBar();
                 }
             }
@@ -1372,6 +1373,7 @@ private (string text, List<(int start, int length)> boldRanges) ParseTableInline
                     }
 
                     RenderAozoraDynamicPage(bestStart);
+                    if (_isAozoraPageCalcCompleted) _aozoraCalculatedCurrentPage = Math.Max(1, _aozoraCalculatedCurrentPage - 1); 
                     UpdateAozoraStatusBar();
                 }
             }
@@ -1392,7 +1394,7 @@ private (string text, List<(int start, int length)> boldRanges) ParseTableInline
 
             if (_isAozoraPageCalcCompleted)
             {
-                int curPage = (int)((double)_currentAozoraStartBlockIndex / _aozoraBlocks.Count * _aozoraTotalPages) + 1;
+                int curPage = _aozoraCalculatedCurrentPage;
                 if (curPage > _aozoraTotalPages) curPage = _aozoraTotalPages;
                 ImageIndexText.Text = $"{curPage} / {_aozoraTotalPages}";
             }
@@ -1436,6 +1438,7 @@ private (string text, List<(int start, int length)> boldRanges) ParseTableInline
             }
 
             RenderAozoraDynamicPage(startIdx);
+            StartAozoraPageCalculationAsync(); 
         }
 
         private class HorizontalRubyRenderInfo
