@@ -343,7 +343,7 @@
                 <AppBarSeparator/>
 
                 <Button x:Name="PrevFileButton" Click="PrevFileButton_Click" ToolTipService.ToolTip="이전 파일">
-                    <FontIcon Glyph="&#xE627;" FontSize="14"/>
+                    <FontIcon Glyph="&#xE760;" FontSize="14"/>
                 </Button>
                 <Button x:Name="PrevPageButton" Click="PrevPageButton_Click" ToolTipService.ToolTip="이전 이미지/페이지">
                     <FontIcon Glyph="&#xE76B;" FontSize="14"/>
@@ -352,7 +352,7 @@
                     <FontIcon Glyph="&#xE76C;" FontSize="14"/>
                 </Button>
                 <Button x:Name="NextFileButton" Click="NextFileButton_Click" ToolTipService.ToolTip="다음 파일">
-                    <FontIcon Glyph="&#xE628;" FontSize="14"/>
+                    <FontIcon Glyph="&#xE761;" FontSize="14"/>
                 </Button>
 
                 <Button x:Name="FullscreenButton" Click="FullscreenButton_Click" ToolTipService.ToolTip="전체화면(F11)">
