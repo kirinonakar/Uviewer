@@ -86,7 +86,7 @@
                             </MenuFlyoutItem>
                             <MenuFlyoutSubItem x:Name="LanguageMenuItem" Text="언어 (Language)">
                                 <MenuFlyoutSubItem.Icon>
-                                    <FontIcon Glyph="&#xE774;"/>
+                                    <FontIcon Glyph="&#xE909;"/>
                                 </MenuFlyoutSubItem.Icon>
                                 <ToggleMenuFlyoutItem x:Name="LangAutoItem" Text="자동 (Default)" Click="LanguageItem_Click" Tag="Auto"/>
                                 <ToggleMenuFlyoutItem x:Name="LangKoItem" Text="한국어" Click="LanguageItem_Click" Tag="ko-KR"/>
