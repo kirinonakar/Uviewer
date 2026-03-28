@@ -188,9 +188,9 @@ namespace Uviewer
 
                 // 서버 이름 버튼 (클릭하면 연결)
                 var nameTb = new TextBlock { Text = name, VerticalAlignment = VerticalAlignment.Center };
-                if (!string.IsNullOrEmpty(_uiFontFamily) && _uiFontFamily != "Unknown")
+                if (!string.IsNullOrEmpty(_settingsManager.UIFontFamily) && _settingsManager.UIFontFamily != "Unknown")
                 {
-                    try { nameTb.FontFamily = new FontFamily(_uiFontFamily); }
+                    try { nameTb.FontFamily = new FontFamily(_settingsManager.UIFontFamily); }
                     catch { }
                 }
 

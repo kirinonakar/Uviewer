@@ -25,14 +25,7 @@ namespace Uviewer
     {
         private List<TextLine> _textLines = new();
         private string _currentTextContent = ""; // Stores raw text for mode switching
-        private string _userSelectedEncodingName = "Auto"; // User selected encoding
-        private double _textFontSize = 18;
-        private string _textFontFamily = "Yu Gothic";
-        private string _uiFontFamily = ""; // Default empty (system default)
-        private int _themeIndex = 0; // 0: White, 1: Beige, 2: Dark, 3: Custom
-        private string _languageSetting = "Auto"; // Store "Auto", "ko-KR", etc.
-        private Color? _customBackgroundColor = null;
-        private Color? _customForegroundColor = null;
+        private TextSettingsManager _settingsManager = null!;
         private bool _isTextMode = false;
         private int _textTotalLineCountInSource = 0; // Total lines in source file for simple text mode
 #pragma warning disable CS0414 // Field is assigned but never used - reserved for future loading state UI
@@ -68,7 +61,7 @@ namespace Uviewer
         // New Helper: Select encoding based on user choice or auto-detect
         private Encoding GetTextEncoding(byte[] bytes)
         {
-            switch (_userSelectedEncodingName)
+            switch (_settingsManager.EncodingName)
             {
                 case "UTF-8": return Encoding.UTF8;
                 case "EUC-KR": return Encoding.GetEncoding(949);
@@ -84,7 +77,7 @@ namespace Uviewer
         {
             if (sender is ToggleMenuFlyoutItem item && item.Tag is string tag)
             {
-                _userSelectedEncodingName = tag;
+                _settingsManager.EncodingName = tag;
 
                 // Update UI Check States
                 if (EncAutoItem != null) EncAutoItem.IsChecked = (tag == "Auto Detect");
@@ -285,7 +278,7 @@ namespace Uviewer
 
             if (_isVerticalMode)
             {
-                if (TextArea != null) TextArea.Background = GetThemeBackground();
+                if (TextArea != null) TextArea.Background = _settingsManager.GetThemeBackground();
                 await PrepareVerticalTextAsync(targetLine, token);
                 if (token.IsCancellationRequested) return;
                 if (VerticalTextCanvas != null) VerticalTextCanvas.Visibility = Visibility.Visible;
@@ -448,96 +441,51 @@ namespace Uviewer
 
         private void LoadTextSettings()
         {
+            if (_settingsManager == null)
+            {
+                _settingsManager = new TextSettingsManager(GetTextSettingsFilePath());
+            }
+
+            _settingsManager.Load();
+
+            _isVerticalMode = _settingsManager.IsVerticalMode;
+            if (VerticalToggleButton != null) VerticalToggleButton.IsChecked = _isVerticalMode;
+
+            if (TextSizeLevelText != null)
+            {
+                TextSizeLevelText.Text = _settingsManager.FontSize.ToString();
+            }
+
+            if (!string.IsNullOrEmpty(_settingsManager.UIFontFamily))
+            {
+                this.DispatcherQueue.TryEnqueue(() => SetUiFont(_settingsManager.UIFontFamily));
+            }
+
             try
             {
-                var settingsFile = GetTextSettingsFilePath();
-                if (System.IO.File.Exists(settingsFile))
+                ApplyLanguage(_settingsManager.Language);
+                this.DispatcherQueue.TryEnqueue(async () =>
                 {
-                    var json = System.IO.File.ReadAllText(settingsFile);
-                    var settings = System.Text.Json.JsonSerializer.Deserialize(json, typeof(TextSettings), TextSettingsContext.Default) as TextSettings;
-
-                    if (settings != null)
-                    {
-                        _textFontSize = settings.FontSize;
-                        _textFontFamily = settings.FontFamily;
-                        _themeIndex = settings.ThemeIndex;
-                        _isVerticalMode = settings.IsVerticalMode;
-                        if (settings.CustomBackgroundColor != null) _customBackgroundColor = ParseHexColor(settings.CustomBackgroundColor);
-                        if (settings.CustomForegroundColor != null) _customForegroundColor = ParseHexColor(settings.CustomForegroundColor);
-                        if (VerticalToggleButton != null) VerticalToggleButton.IsChecked = _isVerticalMode;
-
-                        if (!string.IsNullOrEmpty(settings.UIFontFamily))
-                        {
-                            _uiFontFamily = settings.UIFontFamily;
-                            this.DispatcherQueue.TryEnqueue(() => SetUiFont(_uiFontFamily));
-                        }
-
-                        try
-                        {
-                            _languageSetting = settings.Language ?? "Auto";
-                            ApplyLanguage(_languageSetting);
-                            this.DispatcherQueue.TryEnqueue(async () =>
-                            {
-                                await Task.Delay(100);
-                                Strings.Reload();
-                                ApplyLocalization();
-                                UpdateLanguageMenuCheckmark();
-                            });
-                        }
-                        catch (Exception ex)
-                        {
-                            System.Diagnostics.Debug.WriteLine($"Language load error: {ex.Message}");
-                        }
-                    }
-                }
+                    await Task.Delay(100);
+                    Strings.Reload();
+                    ApplyLocalization();
+                    UpdateLanguageMenuCheckmark();
+                });
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"Error loading text settings: {ex.Message}");
+                System.Diagnostics.Debug.WriteLine($"Language load error: {ex.Message}");
             }
 
             LoadAozoraSettings(); // Load Aozora settings
-
-            // Validate
-            if (_textFontSize < 8) _textFontSize = 8;
-            if (_textFontSize > 72) _textFontSize = 72;
-
-            // Update UI Labels
-            if (TextSizeLevelText != null)
-            {
-                TextSizeLevelText.Text = _textFontSize.ToString();
-            }
         }
 
         private void SaveTextSettings()
         {
-            try
+            if (_settingsManager != null)
             {
-                var settings = new TextSettings
-                {
-                    FontSize = _textFontSize,
-                    FontFamily = _textFontFamily,
-                    ThemeIndex = _themeIndex,
-                    IsVerticalMode = _isVerticalMode,
-                    CustomBackgroundColor = _customBackgroundColor?.ToString(),
-                    CustomForegroundColor = _customForegroundColor?.ToString(),
-                    Language = _languageSetting,
-                    UIFontFamily = _uiFontFamily
-                };
-
-                var settingsFile = GetTextSettingsFilePath();
-                var settingsDir = System.IO.Path.GetDirectoryName(settingsFile);
-                if (settingsDir != null && !System.IO.Directory.Exists(settingsDir))
-                {
-                    System.IO.Directory.CreateDirectory(settingsDir);
-                }
-
-                var json = System.Text.Json.JsonSerializer.Serialize(settings, typeof(TextSettings), TextSettingsContext.Default);
-                System.IO.File.WriteAllText(settingsFile, json);
-            }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"Error saving text settings: {ex.Message}");
+                _settingsManager.IsVerticalMode = _isVerticalMode;
+                _settingsManager.Save();
             }
         }
 
@@ -575,7 +523,7 @@ namespace Uviewer
             _isTextLinesFullyLoaded = false;
 
             // Cache common values to avoid repeated calls
-            var brush = GetThemeForeground();
+            var brush = _settingsManager.GetThemeForeground();
             var maxW = GetUrlMaxWidth();
 
             int initialLimit = 2000;
@@ -608,7 +556,7 @@ namespace Uviewer
                         ScrollToLine(targetLine);
                     }
                 }
-                if (TextArea != null) TextArea.Background = GetThemeBackground();
+                if (TextArea != null) TextArea.Background = _settingsManager.GetThemeBackground();
 
                 // 3. Load rest in background
                 _ = Task.Run(() =>
@@ -670,7 +618,7 @@ namespace Uviewer
                         ScrollToLine(targetLine);
                     }
                 }
-                if (TextArea != null) TextArea.Background = GetThemeBackground();
+                if (TextArea != null) TextArea.Background = _settingsManager.GetThemeBackground();
             }
 
             // Trigger background page calculation
@@ -691,8 +639,8 @@ namespace Uviewer
                 var textLine = new TextLine
                 {
                     Content = line,
-                    FontSize = _textFontSize,
-                    FontFamily = _textFontFamily,
+                    FontSize = _settingsManager.FontSize,
+                    FontFamily = _settingsManager.FontFamily,
                     Foreground = brush,
                     MaxWidth = maxW
                 };
@@ -719,9 +667,9 @@ namespace Uviewer
             var line = new TextLine
             {
                 Content = content,
-                FontSize = _textFontSize,
-                FontFamily = _textFontFamily,
-                Foreground = GetThemeForeground(),
+                FontSize = _settingsManager.FontSize,
+                FontFamily = _settingsManager.FontFamily,
+                Foreground = _settingsManager.GetThemeForeground(),
                 MaxWidth = GetUrlMaxWidth()
             };
 
@@ -747,17 +695,17 @@ namespace Uviewer
 
             if (content.Contains("［＃大見出し］"))
             {
-                line.FontSize = _textFontSize * 1.5;
+                line.FontSize = _settingsManager.FontSize * 1.5;
                 content = content.Replace("［＃大見出し］", "");
             }
             if (content.Contains("［＃中見出し］"))
             {
-                line.FontSize = _textFontSize * 1.25;
+                line.FontSize = _settingsManager.FontSize * 1.25;
                 content = content.Replace("［＃中見出し］", "");
             }
             if (content.Contains("［＃小見出し］"))
             {
-                line.FontSize = _textFontSize * 1.1;
+                line.FontSize = _settingsManager.FontSize * 1.1;
                 content = content.Replace("［＃小見出し］", "");
             }
             if (content.Contains("［＃センター］"))
@@ -787,7 +735,7 @@ namespace Uviewer
             }
             if (content.Contains("［＃ここから２段階小さな文字］"))
             {
-                line.FontSize = Math.Max(8, _textFontSize * 0.7);
+                line.FontSize = Math.Max(8, _settingsManager.FontSize * 0.7);
                 content = content.Replace("［＃ここから２段階小さな文字］", "");
             }
 
@@ -802,16 +750,9 @@ namespace Uviewer
             // "Text width max 42 chars"
             // With Consolas/Monospace it is easy. With variable width, 42 * FontSize is approximation (em).
             // Actually, for Japanese 'em' is full width.
-            return 42 * _textFontSize;
+            return 42 * _settingsManager.FontSize;
         }
 
-        private Brush GetThemeForeground()
-        {
-            if (_themeIndex == 2) return new SolidColorBrush(Microsoft.UI.ColorHelper.FromArgb(255, 204, 204, 204)); // Dark theme
-            if (_themeIndex == 3 && _customForegroundColor.HasValue) return new SolidColorBrush(_customForegroundColor.Value);
-            return new SolidColorBrush(Colors.Black);
-        }
-        
         private Windows.UI.Text.FontWeight GetFontWeightForFamily(string fontFamily)
         {
             if (string.IsNullOrEmpty(fontFamily)) return Microsoft.UI.Text.FontWeights.Normal;
@@ -821,39 +762,6 @@ namespace Uviewer
                 return Microsoft.UI.Text.FontWeights.Medium;
             }
             return Microsoft.UI.Text.FontWeights.Normal;
-        }
-
-        private Brush GetThemeBackground()
-        {
-            if (_themeIndex == 0) return new SolidColorBrush(Colors.White);
-            if (_themeIndex == 1) return new SolidColorBrush(Microsoft.UI.ColorHelper.FromArgb(255, 255, 249, 235)); // Beige
-            if (_themeIndex == 3 && _customBackgroundColor.HasValue) return new SolidColorBrush(_customBackgroundColor.Value);
-            return new SolidColorBrush(Microsoft.UI.ColorHelper.FromArgb(255, 30, 30, 30)); // Dark
-        }
-
-        private Color ParseHexColor(string hex)
-        {
-            try
-            {
-                if (hex.StartsWith("#")) hex = hex.Substring(1);
-                if (hex.Length == 8) // ARGB
-                {
-                    byte a = Convert.ToByte(hex.Substring(0, 2), 16);
-                    byte r = Convert.ToByte(hex.Substring(2, 2), 16);
-                    byte g = Convert.ToByte(hex.Substring(4, 2), 16);
-                    byte b = Convert.ToByte(hex.Substring(6, 2), 16);
-                    return Color.FromArgb(a, r, g, b);
-                }
-                else if (hex.Length == 6) // RGB
-                {
-                    byte r = Convert.ToByte(hex.Substring(0, 2), 16);
-                    byte g = Convert.ToByte(hex.Substring(2, 2), 16);
-                    byte b = Convert.ToByte(hex.Substring(4, 2), 16);
-                    return Color.FromArgb(255, r, g, b);
-                }
-            }
-            catch { }
-            return Colors.White;
         }
 
         private async Task RefreshTextDisplay(bool resetScroll = false)
@@ -873,7 +781,7 @@ namespace Uviewer
             }
             if (_isVerticalMode)
             {
-                if (TextArea != null) TextArea.Background = GetThemeBackground();
+                if (TextArea != null) TextArea.Background = _settingsManager.GetThemeBackground();
                 VerticalTextCanvas.Invalidate();
                 UpdateTextStatusBar();
                 return;
@@ -893,7 +801,7 @@ namespace Uviewer
 
                 // Content is already rendered progressively by PrepareAozoraDisplayAsync
                 if (TextArea != null)
-                    TextArea.Background = GetThemeBackground();
+                    TextArea.Background = _settingsManager.GetThemeBackground();
 
                 return;
             }
@@ -906,11 +814,11 @@ namespace Uviewer
             }
 
             // Apply current settings to all lines - process in background for large files
-            var brush = GetThemeForeground();
-            var bg = GetThemeBackground();
+            var brush = _settingsManager.GetThemeForeground();
+            var bg = _settingsManager.GetThemeBackground();
             var maxW = GetUrlMaxWidth();
-            var fontSize = _textFontSize;
-            var fontFamily = _textFontFamily;
+            var fontSize = _settingsManager.FontSize;
+            var fontFamily = _settingsManager.FontFamily;
 
             if (_textLines.Count > 1000)
             {
@@ -1016,7 +924,7 @@ namespace Uviewer
 
         private void ApplyLanguage(string lang)
         {
-            _languageSetting = lang;
+            _settingsManager.Language = lang;
             try
             {
                 if (lang == "Auto" || string.IsNullOrEmpty(lang))
@@ -1046,7 +954,7 @@ namespace Uviewer
 
         private void UpdateLanguageMenuCheckmark()
         {
-            string current = _languageSetting;
+            string current = _settingsManager.Language;
             if (string.IsNullOrEmpty(current)) current = "Auto";
 
             if (LangAutoItem != null) LangAutoItem.IsChecked = current == "Auto";
@@ -1062,8 +970,8 @@ namespace Uviewer
             _isColorPickerOpen = true;
             try
             {
-                var bgHsl = ToHsl(_customBackgroundColor ?? ((SolidColorBrush)GetThemeBackground()).Color);
-                var fgHsl = ToHsl(_customForegroundColor ?? ((SolidColorBrush)GetThemeForeground()).Color);
+                var bgHsl = ToHsl(_settingsManager.CustomBackgroundColor ?? ((SolidColorBrush)_settingsManager.GetThemeBackground()).Color);
+                var fgHsl = ToHsl(_settingsManager.CustomForegroundColor ?? ((SolidColorBrush)_settingsManager.GetThemeForeground()).Color);
 
                 var previewBorder = new Border
                 {
@@ -1138,9 +1046,9 @@ namespace Uviewer
 
                 if (await dialog.ShowAsync() == ContentDialogResult.Primary)
                 {
-                    _customBackgroundColor = FromHsl(bgHsl.h, bgHsl.s, bgHsl.l);
-                    _customForegroundColor = FromHsl(fgHsl.h, fgHsl.s, fgHsl.l);
-                    _themeIndex = 3; // Custom
+                    _settingsManager.CustomBackgroundColor = FromHsl(bgHsl.h, bgHsl.s, bgHsl.l);
+                    _settingsManager.CustomForegroundColor = FromHsl(fgHsl.h, fgHsl.s, fgHsl.l);
+                    _settingsManager.ThemeIndex = 3; // Custom
                     SaveTextSettings();
                     await RefreshTextDisplay();
                 }
@@ -1151,61 +1059,9 @@ namespace Uviewer
             }
         }
 
-        private (double h, double s, double l) ToHsl(Color color)
-        {
-            double r = color.R / 255.0;
-            double g = color.G / 255.0;
-            double b = color.B / 255.0;
-            double max = Math.Max(r, Math.Max(g, b));
-            double min = Math.Min(r, Math.Min(g, b));
-            double h, s, l = (max + min) / 2.0;
+        private (double h, double s, double l) ToHsl(Color color) => TextSettingsManager.ToHsl(color);
 
-            if (max == min)
-            {
-                h = s = 0; // achromatic
-            }
-            else
-            {
-                double d = max - min;
-                s = l > 0.5 ? d / (2.0 - max - min) : d / (max + min);
-                if (max == r) h = (g - b) / d + (g < b ? 6 : 0);
-                else if (max == g) h = (b - r) / d + 2;
-                else h = (r - g) / d + 4;
-                h /= 6.0;
-            }
-            return (h * 360, s * 100, l * 100);
-        }
-
-        private Color FromHsl(double h, double s, double l)
-        {
-            h /= 360.0;
-            s /= 100.0;
-            l /= 100.0;
-            double r, g, b;
-            if (s == 0)
-            {
-                r = g = b = l; // achromatic
-            }
-            else
-            {
-                double q = l < 0.5 ? l * (1 + s) : l + s - l * s;
-                double p = 2 * l - q;
-                r = HueToRgb(p, q, h + 1.0 / 3.0);
-                g = HueToRgb(p, q, h);
-                b = HueToRgb(p, q, h - 1.0 / 3.0);
-            }
-            return Color.FromArgb(255, (byte)Math.Clamp(r * 255, 0, 255), (byte)Math.Clamp(g * 255, 0, 255), (byte)Math.Clamp(b * 255, 0, 255));
-        }
-
-        private double HueToRgb(double p, double q, double t)
-        {
-            if (t < 0) t += 1;
-            if (t > 1) t -= 1;
-            if (t < 1.0 / 6.0) return p + (q - p) * 6.0 * t;
-            if (t < 1.0 / 2.0) return q;
-            if (t < 2.0 / 3.0) return p + (q - p) * (2.0 / 3.0 - t) * 6.0;
-            return p;
-        }
+        private Color FromHsl(double h, double s, double l) => TextSettingsManager.FromHsl(h, s, l);
 
         private void FontToggleButton_Click(object sender, RoutedEventArgs e)
         {
@@ -1246,7 +1102,7 @@ namespace Uviewer
                 };
 
                 // Pre-select current font
-                string currentFont = _textFontFamily;
+                string currentFont = _settingsManager.FontFamily;
                 fontList.SelectedItem = fonts.FirstOrDefault(f => f.Equals(currentFont, StringComparison.OrdinalIgnoreCase));
                 if (fontList.SelectedItem != null) fontList.ScrollIntoView(fontList.SelectedItem);
 
@@ -1297,7 +1153,7 @@ namespace Uviewer
 
         private async void SetTextFont(string fontFamily)
         {
-            _textFontFamily = fontFamily;
+            _settingsManager.FontFamily = fontFamily;
             SaveTextSettings();
             await RefreshTextDisplay();
         }
@@ -1336,7 +1192,7 @@ namespace Uviewer
                 };
 
                 // Pre-select current UI font
-                string currentFont = _uiFontFamily;
+                string currentFont = _settingsManager.UIFontFamily;
                 if (string.IsNullOrEmpty(currentFont))
                 {
                     // Try to get current default font if possible, or just don't select
@@ -1397,11 +1253,11 @@ namespace Uviewer
         {
             if (string.IsNullOrEmpty(fontFamily) || fontFamily == "Unknown")
             {
-                _uiFontFamily = "";
+                _settingsManager.UIFontFamily = "";
                 return; // Or reset to system default
             }
 
-            _uiFontFamily = fontFamily;
+            _settingsManager.UIFontFamily = fontFamily;
             FontFamily ff;
             try { ff = new FontFamily(fontFamily); }
             catch { return; }
@@ -1466,10 +1322,10 @@ namespace Uviewer
 
         private async void ToggleFont()
         {
-            if (_textFontFamily.Contains("Yu Gothic"))
-                _textFontFamily = "Yu Mincho";
+            if (_settingsManager.FontFamily.Contains("Yu Gothic"))
+                _settingsManager.FontFamily = "Yu Mincho";
             else
-                _textFontFamily = "Yu Gothic";
+                _settingsManager.FontFamily = "Yu Gothic";
 
             SaveTextSettings();
             await RefreshTextDisplay();
@@ -1482,9 +1338,9 @@ namespace Uviewer
 
         private async void IncreaseTextSize()
         {
-            _textFontSize += 2;
-            if (_textFontSize > 72) _textFontSize = 72;
-            TextSizeLevelText.Text = _textFontSize.ToString();
+            _settingsManager.FontSize += 2;
+            if (_settingsManager.FontSize > 72) _settingsManager.FontSize = 72;
+            TextSizeLevelText.Text = _settingsManager.FontSize.ToString();
             SaveTextSettings();
             await RefreshTextDisplay();
         }
@@ -1496,9 +1352,9 @@ namespace Uviewer
 
         private async void DecreaseTextSize()
         {
-            _textFontSize -= 2;
-            if (_textFontSize < 8) _textFontSize = 8;
-            TextSizeLevelText.Text = _textFontSize.ToString();
+            _settingsManager.FontSize -= 2;
+            if (_settingsManager.FontSize < 8) _settingsManager.FontSize = 8;
+            TextSizeLevelText.Text = _settingsManager.FontSize.ToString();
             SaveTextSettings();
             await RefreshTextDisplay();
         }
@@ -1510,7 +1366,7 @@ namespace Uviewer
 
         private async void ToggleTheme()
         {
-            _themeIndex = (_themeIndex + 1) % 3;
+            _settingsManager.ThemeIndex = (_settingsManager.ThemeIndex + 1) % 3;
             SaveTextSettings();
             await RefreshTextDisplay();
         }
@@ -1893,7 +1749,7 @@ namespace Uviewer
             double viewport = TextScrollViewer.ViewportHeight;
 
             // Calculate scroll amount based on LineHeight (FontSize * 1.8)
-            double lineH = _textFontSize * 1.8;
+            double lineH = _settingsManager.FontSize * 1.8;
             double overlap = lineH;
 
             // Safety check for very small viewports
@@ -2054,9 +1910,9 @@ namespace Uviewer
                 var linesToCalc = _textLines;
 
                 // Cache the font family if it's common
-                if (!string.IsNullOrEmpty(_textFontFamily))
+                if (!string.IsNullOrEmpty(_settingsManager.FontFamily))
                 {
-                    _cachedFontFamily = new FontFamily(_textFontFamily);
+                    _cachedFontFamily = new FontFamily(_settingsManager.FontFamily);
                 }
 
                 foreach (var line in linesToCalc)
@@ -2065,7 +1921,7 @@ namespace Uviewer
 
                     // Apply properties matching TextItemsRepeater_ElementPrepared logic
                     dummy.FontSize = line.FontSize;
-                    if (_cachedFontFamily != null && line.FontFamily == _textFontFamily)
+                    if (_cachedFontFamily != null && line.FontFamily == _settingsManager.FontFamily)
                         dummy.FontFamily = _cachedFontFamily;
                     else
                         dummy.FontFamily = new FontFamily(line.FontFamily);
@@ -2178,7 +2034,7 @@ namespace Uviewer
             catch { }
 
             // Fallback
-            double lineH = _textFontSize * 1.8;
+            double lineH = _settingsManager.FontSize * 1.8;
             if (lineH > 0)
                 return (int)(TextScrollViewer.VerticalOffset / lineH) + 1;
 
@@ -2194,7 +2050,7 @@ namespace Uviewer
             if (index >= _textLines.Count) index = _textLines.Count - 1;
             if (index < 0) return;
 
-            double lineH = _textFontSize * 1.8;
+            double lineH = _settingsManager.FontSize * 1.8;
             double targetOffset = index * lineH;
 
             // 1. ItemsRepeater가 데이터 바인딩 후 UI 레이아웃을 계산할 수 있도록 대기

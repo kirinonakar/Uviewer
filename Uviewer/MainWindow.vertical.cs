@@ -246,7 +246,7 @@ namespace Uviewer
                 {
                     _aozoraBlocks = await Task.Run(() => 
                     {
-                        var result = AozoraParserService.ParseAozoraContent(_currentTextContent, _textFontSize);
+                        var result = AozoraParserService.ParseAozoraContent(_currentTextContent, _settingsManager.FontSize);
                         var blocks = result.Blocks;
                         
                         int lineCount = result.SourceLineCount;
@@ -458,7 +458,7 @@ namespace Uviewer
                             continue;
                         }
 
-                        float fontSize = (float)(_textFontSize * block.FontSizeScale);
+                        float fontSize = (float)(_settingsManager.FontSize * block.FontSizeScale);
                         float blockWidth = MeasureVerticalBlockWidth(device, block, availableHeight, fontSize);
                         
                         // [수정] 세로 모드는 Tolerance를 0.8배로 허용
@@ -568,7 +568,7 @@ namespace Uviewer
                     var tempMerged = AozoraParserService.CloneBlockProperties(currentMergedBlock, true);
                     tempMerged.Inlines.AddRange(block.Inlines); // 기존 문단에 텍스트 이어붙이기
 
-                    float fontSize = (float)(_textFontSize * tempMerged.FontSizeScale);
+                    float fontSize = (float)(_settingsManager.FontSize * tempMerged.FontSizeScale);
                     float newWidth = MeasureVerticalBlockWidth(device, tempMerged, availableHeight, fontSize);
                     float widthDiff = newWidth - currentMergedBlockWidth;
                     
@@ -590,7 +590,7 @@ namespace Uviewer
                 }
 
                 // 2. 새 문단 또는 일반 블록
-                float fontSizeBase = (float)(_textFontSize * block.FontSizeScale);
+                float fontSizeBase = (float)(_settingsManager.FontSize * block.FontSizeScale);
                 float blockWidth = MeasureVerticalBlockWidth(device, block, availableHeight, fontSizeBase);
                 // [수정]
                 float leftTolerance = fontSizeBase * 0.8f;
@@ -686,8 +686,8 @@ namespace Uviewer
             using var format = new CanvasTextFormat
             {
                 FontSize = fontSize,
-                FontFamily = block.FontFamily ?? _textFontFamily,
-                FontWeight = GetFontWeightForFamily(block.FontFamily ?? _textFontFamily),
+                FontFamily = block.FontFamily ?? _settingsManager.FontFamily,
+                FontWeight = GetFontWeightForFamily(block.FontFamily ?? _settingsManager.FontFamily),
                 Direction = CanvasTextDirection.TopToBottomThenRightToLeft,
                 WordWrapping = CanvasWordWrapping.EmergencyBreak,
                 LineSpacing = fontSize * 1.8f,
@@ -778,15 +778,15 @@ namespace Uviewer
             {
                 var block = page.Blocks[i];
 
-                float fontSize = (float)(_textFontSize * block.FontSizeScale);
+                float fontSize = (float)(_settingsManager.FontSize * block.FontSizeScale);
                 float rubyFontSize = fontSize * 0.5f;
                 float measureWidth = fontSize * 2f;
 
                 using var format = new CanvasTextFormat
                 {
                     FontSize = fontSize,
-                    FontFamily = block.FontFamily ?? _textFontFamily,
-                    FontWeight = GetFontWeightForFamily(block.FontFamily ?? _textFontFamily),
+                    FontFamily = block.FontFamily ?? _settingsManager.FontFamily,
+                    FontWeight = GetFontWeightForFamily(block.FontFamily ?? _settingsManager.FontFamily),
                     Direction = CanvasTextDirection.TopToBottomThenRightToLeft,
                     WordWrapping = CanvasWordWrapping.EmergencyBreak,
                     LineSpacing = fontSize * 1.8f, 
@@ -905,8 +905,8 @@ namespace Uviewer
                 using var rubyFormat = new CanvasTextFormat
                 {
                     FontSize = rubyFontSize,
-                    FontFamily = _textFontFamily,
-                    FontWeight = GetFontWeightForFamily(_textFontFamily),
+                    FontFamily = _settingsManager.FontFamily,
+                    FontWeight = GetFontWeightForFamily(_settingsManager.FontFamily),
                     Direction = CanvasTextDirection.TopToBottomThenRightToLeft,
                     VerticalAlignment = CanvasVerticalAlignment.Top,
                     WordWrapping = CanvasWordWrapping.NoWrap
@@ -966,16 +966,16 @@ namespace Uviewer
 
         private Color GetVerticalTextColor()
         {
-            if (_themeIndex == 2) return Microsoft.UI.ColorHelper.FromArgb(255, 204, 204, 204); // Dark theme matching GetThemeForeground
-            if (_themeIndex == 3 && _customForegroundColor.HasValue) return _customForegroundColor.Value;
+            if (_settingsManager.ThemeIndex == 2) return Microsoft.UI.ColorHelper.FromArgb(255, 204, 204, 204); // Dark theme matching GetThemeForeground
+            if (_settingsManager.ThemeIndex == 3 && _settingsManager.CustomForegroundColor.HasValue) return _settingsManager.CustomForegroundColor.Value;
             return Colors.Black; // Light and Beige themes
         }
 
         private Color GetVerticalBackgroundColor()
         {
-            if (_themeIndex == 0) return Colors.White;
-            if (_themeIndex == 1) return Microsoft.UI.ColorHelper.FromArgb(255, 255, 249, 235); // Beige
-            if (_themeIndex == 3 && _customBackgroundColor.HasValue) return _customBackgroundColor.Value;
+            if (_settingsManager.ThemeIndex == 0) return Colors.White;
+            if (_settingsManager.ThemeIndex == 1) return Microsoft.UI.ColorHelper.FromArgb(255, 255, 249, 235); // Beige
+            if (_settingsManager.ThemeIndex == 3 && _settingsManager.CustomBackgroundColor.HasValue) return _settingsManager.CustomBackgroundColor.Value;
             return Microsoft.UI.ColorHelper.FromArgb(255, 30, 30, 30); // Dark
         }
 
@@ -1058,7 +1058,7 @@ namespace Uviewer
                     var device = VerticalTextCanvas?.Device ?? Microsoft.Graphics.Canvas.CanvasDevice.GetSharedDevice();
 
                     // 💡 이동 전 캐시 유효성 철저히 검증
-                    ValidateBackwardCache(availWidth, availHeight, _textFontSize, true, targetIdx);
+                    ValidateBackwardCache(availWidth, availHeight, _settingsManager.FontSize, true, targetIdx);
 
                     lock (_backwardPageCache)
                     {

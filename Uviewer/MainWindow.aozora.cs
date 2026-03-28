@@ -173,7 +173,7 @@ namespace Uviewer
                 maxWidth = _isMarkdownRenderMode ? availWidth : Math.Min(availWidth, (float)GetUrlMaxWidth());
 
             // 💡 백그라운드 캐싱 시작 전 무조건 유효성 검증
-            ValidateBackwardCache(maxWidth, availHeight, _textFontSize, isVertical, currentStartIdx);
+            ValidateBackwardCache(maxWidth, availHeight, _settingsManager.FontSize, isVertical, currentStartIdx);
 
             var blocks = _aozoraBlocks;
 
@@ -383,7 +383,7 @@ namespace Uviewer
         if (TextArea != null)
         {
             TextArea.Visibility = Visibility.Visible;
-            TextArea.Background = GetThemeBackground();
+            TextArea.Background = _settingsManager.GetThemeBackground();
         }
 
         bool isMarkdown = false;
@@ -470,7 +470,7 @@ namespace Uviewer
             else
             {
 // 서비스 클래스에서 Preprocess와 파싱, 그리고 TotalLineCount 반환을 한 번에 처리합니다.
-        var result = AozoraParserService.ParseAozoraContent(rawContent, _textFontSize);
+        var result = AozoraParserService.ParseAozoraContent(rawContent, _settingsManager.FontSize);
         parsedBlocks = result.Blocks;
         sourceLineCount = result.SourceLineCount;
             }
@@ -671,7 +671,7 @@ namespace Uviewer
                             continue;
                         }
 
-                        float fontSize = (float)(_textFontSize * block.FontSizeScale);
+                        float fontSize = (float)(_settingsManager.FontSize * block.FontSizeScale);
                         float blockHeight = MeasureHorizontalBlockHeight(device, block, maxWidth, fontSize);
 
                         // [수정] Tolerance는 0.8배로 타협
@@ -759,7 +759,7 @@ namespace Uviewer
                     var tempMerged = AozoraParserService.CloneBlockProperties(currentMergedBlock, true);
                     tempMerged.Inlines.AddRange(block.Inlines);
 
-                    float fontSize = (float)(_textFontSize * tempMerged.FontSizeScale);
+                    float fontSize = (float)(_settingsManager.FontSize * tempMerged.FontSizeScale);
                     float newHeight = MeasureHorizontalBlockHeight(device, tempMerged, availableWidth, fontSize);
                     float heightDiff = newHeight - currentMergedBlockHeight;
 
@@ -779,7 +779,7 @@ namespace Uviewer
                     continue;
                 }
 
-                float fontSizeBase = (float)(_textFontSize * block.FontSizeScale);
+                float fontSizeBase = (float)(_settingsManager.FontSize * block.FontSizeScale);
                 float blockHeight = MeasureHorizontalBlockHeight(device, block, availableWidth, fontSizeBase);
 
                 // [수정] 일반 블록 보정값 타협
@@ -872,9 +872,9 @@ private (string text, List<(int start, int length)> boldRanges) ParseTableInline
                 using var tableFormat = new CanvasTextFormat
                 {
                     FontSize = fontSize,
-                    FontFamily = block.FontFamily ?? _textFontFamily,
+                    FontFamily = block.FontFamily ?? _settingsManager.FontFamily,
                     WordWrapping = CanvasWordWrapping.Wrap, 
-                    FontWeight = (block.TableRowIndex == 0) ? Microsoft.UI.Text.FontWeights.Bold : GetFontWeightForFamily(block.FontFamily ?? _textFontFamily)
+                    FontWeight = (block.TableRowIndex == 0) ? Microsoft.UI.Text.FontWeights.Bold : GetFontWeightForFamily(block.FontFamily ?? _settingsManager.FontFamily)
                 };
 
                 float maxCellHeight = 0;
@@ -941,8 +941,8 @@ private (string text, List<(int start, int length)> boldRanges) ParseTableInline
             using var format = new CanvasTextFormat
             {
                    FontSize = fontSize,
-                   FontFamily = block.FontFamily ?? _textFontFamily,
-                   FontWeight = GetFontWeightForFamily(block.FontFamily ?? _textFontFamily),
+                   FontFamily = block.FontFamily ?? _settingsManager.FontFamily,
+                   FontWeight = GetFontWeightForFamily(block.FontFamily ?? _settingsManager.FontFamily),
                    Direction = CanvasTextDirection.LeftToRightThenTopToBottom,
                    // 👉 표/코드는 줄바꿈을 꺼서 표 틀어짐 방지
                    WordWrapping = block.IsTable ? CanvasWordWrapping.NoWrap : CanvasWordWrapping.Wrap,
@@ -1020,7 +1020,7 @@ private (string text, List<(int start, int length)> boldRanges) ParseTableInline
             {
                 var block = page.Blocks[i];
 
-                float fontSize = (float)(_textFontSize * block.FontSizeScale);
+                float fontSize = (float)(_settingsManager.FontSize * block.FontSizeScale);
                 float rubyFontSize = fontSize * 0.5f;
 
                 // ✅ 통합된 테이블 그래픽 그리기 로직 (행 단위)
@@ -1041,9 +1041,9 @@ private (string text, List<(int start, int length)> boldRanges) ParseTableInline
                     using var tableFormat = new CanvasTextFormat
                     {
                         FontSize = fontSize,
-                        FontFamily = block.FontFamily ?? _textFontFamily,
+                        FontFamily = block.FontFamily ?? _settingsManager.FontFamily,
                         WordWrapping = CanvasWordWrapping.Wrap,
-                        FontWeight = isHeader ? Microsoft.UI.Text.FontWeights.Bold : GetFontWeightForFamily(block.FontFamily ?? _textFontFamily)
+                        FontWeight = isHeader ? Microsoft.UI.Text.FontWeights.Bold : GetFontWeightForFamily(block.FontFamily ?? _settingsManager.FontFamily)
                     };
 
                     // 표 맨 위쪽 가로선 (전체 표의 첫 줄이거나, 페이지가 넘어가서 새로 시작될 때)
@@ -1144,8 +1144,8 @@ private (string text, List<(int start, int length)> boldRanges) ParseTableInline
                 using var format = new CanvasTextFormat
                 {
                     FontSize = fontSize,
-                    FontFamily = block.FontFamily ?? _textFontFamily,
-                    FontWeight = GetFontWeightForFamily(block.FontFamily ?? _textFontFamily),
+                    FontFamily = block.FontFamily ?? _settingsManager.FontFamily,
+                    FontWeight = GetFontWeightForFamily(block.FontFamily ?? _settingsManager.FontFamily),
                     Direction = CanvasTextDirection.LeftToRightThenTopToBottom,
                     // 👉 표/코드는 줄바꿈 끄기
                     WordWrapping = block.IsTable ? CanvasWordWrapping.NoWrap : CanvasWordWrapping.Wrap, 
@@ -1252,8 +1252,8 @@ private (string text, List<(int start, int length)> boldRanges) ParseTableInline
                 using var rubyFormat = new CanvasTextFormat
                 {
                     FontSize = rubyFontSize,
-                    FontFamily = _textFontFamily,
-                    FontWeight = GetFontWeightForFamily(_textFontFamily),
+                    FontFamily = _settingsManager.FontFamily,
+                    FontWeight = GetFontWeightForFamily(_settingsManager.FontFamily),
                     Direction = CanvasTextDirection.LeftToRightThenTopToBottom,
                     VerticalAlignment = CanvasVerticalAlignment.Top,
                     WordWrapping = CanvasWordWrapping.NoWrap
@@ -1365,7 +1365,7 @@ private (string text, List<(int start, int length)> boldRanges) ParseTableInline
                     var device = AozoraTextCanvas?.Device ?? Microsoft.Graphics.Canvas.CanvasDevice.GetSharedDevice();
 
                     // 💡 이동 전 캐시 유효성 철저히 검증
-                    ValidateBackwardCache(maxWidth, availHeight, _textFontSize, false, targetIdx);
+                    ValidateBackwardCache(maxWidth, availHeight, _settingsManager.FontSize, false, targetIdx);
 
                     lock (_backwardPageCache)
                     {

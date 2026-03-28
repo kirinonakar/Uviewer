@@ -646,7 +646,7 @@ namespace Uviewer
 
             float marginH = 80f; // Left 40 + Right 40
             float marginV = 40f; // Top 30 + Bottom 10
-            float limitedWidth = (float)(_textFontSize * 42); 
+            float limitedWidth = (float)(_settingsManager.FontSize * 42); 
             float maxWidth = availableWidth - marginH;
             if (maxWidth > limitedWidth) maxWidth = limitedWidth; // Limit to 42 characters
             if (maxWidth < 200) maxWidth = 600;
@@ -751,7 +751,7 @@ namespace Uviewer
             // 이미지 페이지는 EpubImageHost에서 처리
             if (pg.IsImagePage) return;
 
-            float limitedWidth = (float)(_textFontSize * 42);
+            float limitedWidth = (float)(_settingsManager.FontSize * 42);
             float marginLeft = 40f; 
             float contentWidth = Math.Min(limitedWidth, (float)size.Width - 80f);
             float marginTop = 30f;
@@ -775,7 +775,7 @@ namespace Uviewer
             for (int i = 0; i < blocks.Count; i++)
             {
                 var block = blocks[i];
-                float fontSize = (float)(_textFontSize * block.FontSizeScale);
+                float fontSize = (float)(_settingsManager.FontSize * block.FontSizeScale);
                 float rubyFontSize = fontSize * 0.5f;
 
                 // 테이블
@@ -795,9 +795,9 @@ namespace Uviewer
                     using var tableFormat = new CanvasTextFormat
                     {
                         FontSize = fontSize,
-                        FontFamily = block.FontFamily ?? _textFontFamily,
+                        FontFamily = block.FontFamily ?? _settingsManager.FontFamily,
                         WordWrapping = CanvasWordWrapping.Wrap,
-                        FontWeight = isHeader ? Microsoft.UI.Text.FontWeights.Bold : GetFontWeightForFamily(block.FontFamily ?? _textFontFamily)
+                        FontWeight = isHeader ? Microsoft.UI.Text.FontWeights.Bold : GetFontWeightForFamily(block.FontFamily ?? _settingsManager.FontFamily)
                     };
 
                     if (isHeader || isFirstOnPage)
@@ -861,8 +861,8 @@ namespace Uviewer
                 using var format = new CanvasTextFormat
                 {
                     FontSize = fontSize,
-                    FontFamily = block.FontFamily ?? _textFontFamily,
-                    FontWeight = GetFontWeightForFamily(block.FontFamily ?? _textFontFamily),
+                    FontFamily = block.FontFamily ?? _settingsManager.FontFamily,
+                    FontWeight = GetFontWeightForFamily(block.FontFamily ?? _settingsManager.FontFamily),
                     Direction = CanvasTextDirection.LeftToRightThenTopToBottom,
                     WordWrapping = block.IsTable ? CanvasWordWrapping.NoWrap : CanvasWordWrapping.Wrap,
                     LineSpacing = lineSpacing,
@@ -918,7 +918,7 @@ namespace Uviewer
                 }
 
                 // 루비 그리기
-                using var rubyFormat2 = new CanvasTextFormat { FontSize = rubyFontSize, FontFamily = _textFontFamily, FontWeight = GetFontWeightForFamily(_textFontFamily), Direction = CanvasTextDirection.LeftToRightThenTopToBottom, VerticalAlignment = CanvasVerticalAlignment.Top, WordWrapping = CanvasWordWrapping.NoWrap };
+                using var rubyFormat2 = new CanvasTextFormat { FontSize = rubyFontSize, FontFamily = _settingsManager.FontFamily, FontWeight = GetFontWeightForFamily(_settingsManager.FontFamily), Direction = CanvasTextDirection.LeftToRightThenTopToBottom, VerticalAlignment = CanvasVerticalAlignment.Top, WordWrapping = CanvasWordWrapping.NoWrap };
                 var rubyRenderInfos2 = new List<HorizontalRubyRenderInfo>();
                 foreach (var ruby in rubyRanges)
                 {
@@ -1536,7 +1536,7 @@ namespace Uviewer
         {
             if (TextSizeLevelText != null)
             {
-                TextSizeLevelText.Text = _textFontSize.ToString();
+                TextSizeLevelText.Text = _settingsManager.FontSize.ToString();
             }
         }
 
@@ -1554,16 +1554,16 @@ namespace Uviewer
 
         private Brush GetEpubThemeForeground()
         {
-            if (_themeIndex == 2) return new SolidColorBrush(Microsoft.UI.ColorHelper.FromArgb(255, 204, 204, 204)); // Dark theme
-            if (_themeIndex == 3 && _customForegroundColor.HasValue) return new SolidColorBrush(_customForegroundColor.Value);
+            if (_settingsManager.ThemeIndex == 2) return new SolidColorBrush(Microsoft.UI.ColorHelper.FromArgb(255, 204, 204, 204)); // Dark theme
+            if (_settingsManager.ThemeIndex == 3 && _settingsManager.CustomForegroundColor.HasValue) return new SolidColorBrush(_settingsManager.CustomForegroundColor.Value);
             return new SolidColorBrush(Colors.Black);
         }
         
         private Brush GetEpubThemeBackground()
         {
-             if (_themeIndex == 0) return new SolidColorBrush(Colors.White);
-             if (_themeIndex == 1) return new SolidColorBrush(Microsoft.UI.ColorHelper.FromArgb(255, 255, 249, 235)); // Beige
-             if (_themeIndex == 3 && _customBackgroundColor.HasValue) return new SolidColorBrush(_customBackgroundColor.Value);
+             if (_settingsManager.ThemeIndex == 0) return new SolidColorBrush(Colors.White);
+             if (_settingsManager.ThemeIndex == 1) return new SolidColorBrush(Microsoft.UI.ColorHelper.FromArgb(255, 255, 249, 235)); // Beige
+             if (_settingsManager.ThemeIndex == 3 && _settingsManager.CustomBackgroundColor.HasValue) return new SolidColorBrush(_settingsManager.CustomBackgroundColor.Value);
              return new SolidColorBrush(Microsoft.UI.ColorHelper.FromArgb(255, 30, 30, 30)); // Dark
         }
 

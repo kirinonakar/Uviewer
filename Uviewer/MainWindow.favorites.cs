@@ -65,23 +65,12 @@ namespace Uviewer
             public double Progress { get; set; } = 0; // 0-100 reading progress
         }
 
-        public class TextSettings
-        {
-             public double FontSize { get; set; } = 18;
-             public string FontFamily { get; set; } = "Yu Gothic";
-             public int ThemeIndex { get; set; } = 0;
-             public bool IsVerticalMode { get; set; } = false;
-             public string? CustomBackgroundColor { get; set; }
-             public string? CustomForegroundColor { get; set; }
-             public string? Language { get; set; } // "ko-KR", "en-US", "ja-JP" or null for auto
-             public string? UIFontFamily { get; set; }
-        }
+
 
         private const string TextSettingsFilePath = "text_settings.json";
         private string GetTextSettingsFilePath() => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "Uviewer", TextSettingsFilePath);
 
-        [System.Text.Json.Serialization.JsonSerializable(typeof(TextSettings))]
-        public partial class TextSettingsContext : System.Text.Json.Serialization.JsonSerializerContext;
+
 
 
         #region Favorites
@@ -177,9 +166,9 @@ namespace Uviewer
                     Margin = new Thickness(12, 8, 12, 8),
                     FontSize = 13
                 };
-                if (!string.IsNullOrEmpty(_uiFontFamily) && _uiFontFamily != "Unknown")
+                if (!string.IsNullOrEmpty(_settingsManager.UIFontFamily) && _settingsManager.UIFontFamily != "Unknown")
                 {
-                    try { emptyText.FontFamily = new FontFamily(_uiFontFamily); }
+                    try { emptyText.FontFamily = new FontFamily(_settingsManager.UIFontFamily); }
                     catch { }
                 }
                 filePanel.Children.Add(emptyText);
@@ -201,9 +190,9 @@ namespace Uviewer
                     Margin = new Thickness(12, 8, 12, 8),
                     FontSize = 13
                 };
-                if (!string.IsNullOrEmpty(_uiFontFamily) && _uiFontFamily != "Unknown")
+                if (!string.IsNullOrEmpty(_settingsManager.UIFontFamily) && _settingsManager.UIFontFamily != "Unknown")
                 {
-                    try { emptyText.FontFamily = new FontFamily(_uiFontFamily); }
+                    try { emptyText.FontFamily = new FontFamily(_settingsManager.UIFontFamily); }
                     catch { }
                 }
                 folderPanel.Children.Add(emptyText);
@@ -288,12 +277,12 @@ namespace Uviewer
             };
 
             // Set font family with validation to prevent 'Unknown' crash
-            if (!string.IsNullOrEmpty(_uiFontFamily) && _uiFontFamily != "Unknown")
+            if (!string.IsNullOrEmpty(_settingsManager.UIFontFamily) && _settingsManager.UIFontFamily != "Unknown")
             {
-                try { nameTextBlock.FontFamily = new FontFamily(_uiFontFamily); }
+                try { nameTextBlock.FontFamily = new FontFamily(_settingsManager.UIFontFamily); }
                 catch { /* Fallback to default if invalid */ }
             }
-            if (favorite.IsWebDav && !string.IsNullOrEmpty(_uiFontFamily))
+            if (favorite.IsWebDav && !string.IsNullOrEmpty(_settingsManager.UIFontFamily))
             {
                 // Ensure webIcon also uses UI font if possible, though it's likely FontIcon anyway
             }
@@ -1129,9 +1118,9 @@ namespace Uviewer
                     Margin = new Thickness(12, 8, 12, 8),
                     FontSize = 13
                 };
-                if (!string.IsNullOrEmpty(_uiFontFamily) && _uiFontFamily != "Unknown")
+                if (!string.IsNullOrEmpty(_settingsManager.UIFontFamily) && _settingsManager.UIFontFamily != "Unknown")
                 {
-                    try { emptyText.FontFamily = new FontFamily(_uiFontFamily); }
+                    try { emptyText.FontFamily = new FontFamily(_settingsManager.UIFontFamily); }
                     catch { }
                 }
                 panel.Children.Add(emptyText);
@@ -1207,9 +1196,9 @@ namespace Uviewer
                     MaxWidth = recent.IsWebDav ? 310 : 340,
                     FontSize = 13
                 };
-                if (!string.IsNullOrEmpty(_uiFontFamily) && _uiFontFamily != "Unknown")
+                if (!string.IsNullOrEmpty(_settingsManager.UIFontFamily) && _settingsManager.UIFontFamily != "Unknown")
                 {
-                    try { nameTextBlock.FontFamily = new FontFamily(_uiFontFamily); }
+                    try { nameTextBlock.FontFamily = new FontFamily(_settingsManager.UIFontFamily); }
                     catch { }
                 }
                 nameRow.Children.Add(nameTextBlock);
