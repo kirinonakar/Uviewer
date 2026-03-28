@@ -364,14 +364,14 @@ namespace Uviewer
                     name = Path.GetFileName(_currentTextFilePath);
                     path = _currentTextFilePath;
                     type = "File";
-                    CheckAndAddFolderToFavorites(Path.GetDirectoryName(path));
+                    if (!_isWebDavMode) CheckAndAddFolderToFavorites(Path.GetDirectoryName(path));
                 }
                 else if (_isEpubMode && !string.IsNullOrEmpty(_currentEpubFilePath))
                 {
                     name = Path.GetFileName(_currentEpubFilePath);
                     path = _currentEpubFilePath;
                     type = "File";
-                    CheckAndAddFolderToFavorites(Path.GetDirectoryName(path));
+                    if (!_isWebDavMode) CheckAndAddFolderToFavorites(Path.GetDirectoryName(path));
                 }
                 else if ((_currentArchive != null || _current7zArchive != null) && !string.IsNullOrEmpty(_currentArchivePath))
                 {
@@ -382,7 +382,7 @@ namespace Uviewer
                         path = _currentArchivePath;
                         type = "Archive";
                         archiveEntryKey = currentEntry.ArchiveEntryKey;
-                        CheckAndAddFolderToFavorites(Path.GetDirectoryName(_currentArchivePath));
+                        if (!_isWebDavMode) CheckAndAddFolderToFavorites(Path.GetDirectoryName(_currentArchivePath));
                     }
                 }
                 else if (_currentIndex >= 0 && _currentIndex < _imageEntries.Count && 
@@ -394,7 +394,7 @@ namespace Uviewer
                         name = currentEntry.DisplayName;
                         path = currentEntry.FilePath;
                         type = "File";
-                        CheckAndAddFolderToFavorites(Path.GetDirectoryName(path));
+                        if (!_isWebDavMode) CheckAndAddFolderToFavorites(Path.GetDirectoryName(path));
                     }
                 }
                 else if (!string.IsNullOrEmpty(_currentExplorerPath) || (_isWebDavMode && !string.IsNullOrEmpty(_currentWebDavPath)))
@@ -432,6 +432,9 @@ namespace Uviewer
                         // Use original filename for WebDAV archive
                         if (!string.IsNullOrEmpty(_currentWebDavItemPath))
                         {
+                            // [수정] WebDAV 아카이브의 경우 path를 로컬 temp 경로가 아닌 원본 WebDAV 경로로 설정
+                            path = _currentWebDavItemPath;
+
                             string origArchiveName = Path.GetFileName(_currentWebDavItemPath);
                             if (_currentIndex >= 0 && _currentIndex < _imageEntries.Count)
                             {
@@ -1196,6 +1199,13 @@ namespace Uviewer
                     path = _currentExplorerPath;
                     type = "Folder";
                 }
+                else if (_isWebDavMode && !string.IsNullOrEmpty(_currentWebDavPath))
+                {
+                    path = _currentWebDavPath;
+                    name = Path.GetFileName(path.TrimEnd('/'));
+                    if (string.IsNullOrEmpty(name)) name = _webDavService.CurrentServer?.ServerName ?? "WebDAV";
+                    type = "Folder";
+                }
 
                 if (string.IsNullOrEmpty(path)) return;
 
@@ -1214,6 +1224,9 @@ namespace Uviewer
 
                         if (!string.IsNullOrEmpty(_currentWebDavItemPath))
                         {
+                            // [수정] WebDAV 아카이브의 경우 path를 로컬 temp 경로가 아닌 원본 WebDAV 경로로 설정
+                            path = _currentWebDavItemPath;
+
                             string origArchiveName = Path.GetFileName(_currentWebDavItemPath);
                             if (_currentIndex >= 0 && _currentIndex < _imageEntries.Count)
                             {
