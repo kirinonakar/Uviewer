@@ -1728,16 +1728,22 @@ namespace Uviewer
                 TextProgressText.Text = $"{progress:F1}%";
 
                 // Update Page Info if calculated
-                if (_isPageCalculationCompleted && _calculatedTotalHeight > 0 && TextScrollViewer.ViewportHeight > 0)
+                if (_isPageCalculationCompleted && _textLinePages != null && _textTotalPages > 0)
                 {
-                    int totalPages = (int)Math.Ceiling(_calculatedTotalHeight / TextScrollViewer.ViewportHeight);
-                    int calcCurrentPage = (int)Math.Floor(TextScrollViewer.VerticalOffset / TextScrollViewer.ViewportHeight) + 1;
+                    int lineIdx = currentLine - 1;
 
-                    if (totalPages < 1) totalPages = 1;
-                    if (calcCurrentPage > totalPages) calcCurrentPage = totalPages;
+                    // 안전 범위 확인
+                    if (lineIdx < 0) lineIdx = 0;
+                    if (lineIdx >= _textLinePages.Length) lineIdx = _textLinePages.Length - 1;
+
+                    // 배열에서 정확히 매핑된 페이지 번호 가져오기
+                    int calcCurrentPage = _textLinePages[lineIdx];
+
+                    if (_textTotalPages < 1) _textTotalPages = 1;
+                    if (calcCurrentPage > _textTotalPages) calcCurrentPage = _textTotalPages;
                     if (calcCurrentPage < 1) calcCurrentPage = 1;
 
-                    ImageIndexText.Text = $"{calcCurrentPage} / {totalPages}";
+                    ImageIndexText.Text = $"{calcCurrentPage} / {_textTotalPages}";
                 }
                 else if (!_isPageCalculationCompleted)
                 {
@@ -1789,6 +1795,8 @@ namespace Uviewer
         private bool _isPageCalculationCompleted = false;
         private CancellationTokenSource? _pageCalcCts;
         private FontFamily? _cachedFontFamily = null;
+        private int[]? _textLinePages;
+        private int _textTotalPages = 0;
 
         private async void StartPageCalculationAsync()
         {
@@ -1827,6 +1835,8 @@ namespace Uviewer
 
             double viewportWidth = TextScrollViewer.ViewportWidth;
             if (viewportWidth <= 0) viewportWidth = TextScrollViewer.ActualWidth; // Fallback
+            double viewportHeight = TextScrollViewer.ViewportHeight;
+            if (viewportHeight <= 0) viewportHeight = TextScrollViewer.ActualHeight; // Fallback
 
             try
             {
@@ -1838,12 +1848,15 @@ namespace Uviewer
                 };
 
                 double totalH = 0;
-
-                // Use Stopwatch for time slicing
-                var sw = System.Diagnostics.Stopwatch.StartNew();
+                double currentPageHeight = 0;
+                int currentPage = 1;
 
                 // Snapshot the list reference to iterate safely
                 var linesToCalc = _textLines;
+                int[] pages = new int[linesToCalc.Count]; // 각 줄의 페이지를 담을 배열
+
+                // Use Stopwatch for time slicing
+                var sw = System.Diagnostics.Stopwatch.StartNew();
 
                 // Cache the font family if it's common
                 if (!string.IsNullOrEmpty(_settingsManager.FontFamily))
@@ -1851,9 +1864,10 @@ namespace Uviewer
                     _cachedFontFamily = new FontFamily(_settingsManager.FontFamily);
                 }
 
-                foreach (var line in linesToCalc)
+                for (int i = 0; i < linesToCalc.Count; i++)
                 {
                     if (token.IsCancellationRequested) return;
+                    var line = linesToCalc[i];
 
                     // Apply properties matching TextItemsRepeater_ElementPrepared logic
                     dummy.FontSize = line.FontSize;
@@ -1861,7 +1875,7 @@ namespace Uviewer
                         dummy.FontFamily = _cachedFontFamily;
                     else
                         dummy.FontFamily = new FontFamily(line.FontFamily);
-                    
+
                     dummy.FontWeight = GetFontWeightForFamily(line.FontFamily);
 
                     dummy.Text = line.Content;
@@ -1872,10 +1886,19 @@ namespace Uviewer
                     dummy.TextAlignment = line.TextAlignment;
 
                     // Measure
-                    // Constraint width is ViewportWidth, height is Infinite
                     dummy.Measure(new Size(viewportWidth, double.PositiveInfinity));
+                    double lineH = dummy.DesiredSize.Height;
 
-                    totalH += dummy.DesiredSize.Height;
+                    // 화면 높이를 초과하면 페이지 증가
+                    if (currentPageHeight > 0 && currentPageHeight + lineH > viewportHeight) 
+                    {
+                        currentPage++;
+                        currentPageHeight = 0;
+                    }
+
+                    pages[i] = currentPage;
+                    currentPageHeight += lineH;
+                    totalH += lineH;
 
                     // Yield if we've used up our time slice (e.g., 15ms to allow ~60fps)
                     if (sw.ElapsedMilliseconds > 15)
@@ -1888,17 +1911,19 @@ namespace Uviewer
                 if (totalH > 0)
                 {
                     _calculatedTotalHeight = totalH;
+                    _textLinePages = pages;         // 계산된 페이지 맵 저장
+                    _textTotalPages = currentPage;  // 총 페이지 저장
                 }
                 else if (TextScrollViewer != null)
                 {
-                    // Fallback if calculation resulted in 0 (weird)
+                    // Fallback
                     _calculatedTotalHeight = TextScrollViewer.ExtentHeight;
                 }
 
                 _isPageCalculationCompleted = true;
 
-                // Final update
-                UpdateTextStatusBar();
+                // 백그라운드 스레드에서 UI 스레드로 업데이트 명령
+                DispatcherQueue.TryEnqueue(() => UpdateTextStatusBar());
             }
             catch (OperationCanceledException)
             {
