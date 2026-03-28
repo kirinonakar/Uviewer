@@ -132,19 +132,16 @@ namespace Uviewer
 
 
 
-        [System.Text.Json.Serialization.JsonSerializable(typeof(List<FavoriteItem>))]
-        public partial class FavoritesContext : System.Text.Json.Serialization.JsonSerializerContext;
-
-        [System.Text.Json.Serialization.JsonSerializable(typeof(List<RecentItem>))]
-        public partial class RecentContext : System.Text.Json.Serialization.JsonSerializerContext;
+        private Services.FavoritesService _favoritesService = new();
+        private Services.RecentService _recentService = new();
 
         public async Task InitializeAsync(string? launchFilePath = null)
         {
             try
             {
                 // Always load metadata first to prevent race conditions and data loss
-                await LoadFavorites();
-                await LoadRecentItems();
+                await _favoritesService.LoadFavoritesAsync();
+                await _recentService.LoadRecentItemsAsync();
                 UpdateFavoritesMenu();
                 UpdateRecentMenu();
 
@@ -441,8 +438,8 @@ namespace Uviewer
                     // Save current position before closing
                     await AddToRecentAsync(true);
 
-                    await SaveRecentItems();
-                    await SaveFavorites();
+                    await _recentService.SaveRecentItemsAsync();
+                    await _favoritesService.SaveFavoritesAsync();
 
                     // Dispose semaphores
                     _archiveLock.Dispose();

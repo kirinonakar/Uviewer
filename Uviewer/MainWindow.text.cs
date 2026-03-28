@@ -318,7 +318,7 @@ namespace Uviewer
                 // Identify target solely by path if available, else by name AND ensure no path collision
                 // Use Case-Insensitive comparison for Windows paths
 
-                var recent = _recentItems.OrderByDescending(r => r.AccessedAt)
+                var recent = _recentService.RecentItems.OrderByDescending(r => r.AccessedAt)
                                          .FirstOrDefault(r => (path != null && string.Equals(r.Path, path, StringComparison.OrdinalIgnoreCase)) ||
                                                               (path == null && string.Equals(r.Name, name, StringComparison.OrdinalIgnoreCase)));
 
@@ -330,7 +330,7 @@ namespace Uviewer
                 }
 
                 // If not in recent, check favorites
-                var favorite = _favorites.FirstOrDefault(f => (path != null && string.Equals(f.Path, path, StringComparison.OrdinalIgnoreCase)) ||
+                var favorite = _favoritesService.Favorites.FirstOrDefault(f => (path != null && string.Equals(f.Path, path, StringComparison.OrdinalIgnoreCase)) ||
                                                               (path == null && string.Equals(f.Name, name, StringComparison.OrdinalIgnoreCase)));
                 if (favorite != null)
                 {
@@ -354,7 +354,7 @@ namespace Uviewer
 
                 if (TextScrollViewer != null)
                 {
-                    var recent = _recentItems.OrderByDescending(r => r.AccessedAt).FirstOrDefault(r => r.Name == name);
+                    var recent = _recentService.RecentItems.OrderByDescending(r => r.AccessedAt).FirstOrDefault(r => r.Name == name);
                     if (recent != null)
                     {
                         if (recent.SavedLine > 1)

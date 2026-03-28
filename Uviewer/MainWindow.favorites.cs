@@ -19,52 +19,6 @@ namespace Uviewer
         // [추가] 파일 이동 중 자동 저장을 막기 위한 플래그
         private bool _isNavigatingRecent = false;
 
-        // Favorites
-        private ObservableCollection<FavoriteItem> _favorites = new();
-        private const string FavoritesFilePath = "favorites.json";
-        private string GetFavoritesFilePath() => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "Uviewer", FavoritesFilePath);
-
-        // Recent Images
-        private ObservableCollection<RecentItem> _recentItems = new();
-        private const string RecentFilePath = "recent.json";
-        private string GetRecentFilePath() => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "Uviewer", RecentFilePath);
-        private const int MaxRecentItems = 10;
-
-        public class FavoriteItem
-        {
-            public string Name { get; set; } = "";
-            public string Path { get; set; } = "";
-            public string Type { get; set; } = ""; // "Folder", "File", "Archive"
-            public string? ArchiveEntryKey { get; set; }
-            public DateTime CreatedAt { get; set; } = DateTime.Now;
-            public double? ScrollOffset { get; set; }
-            public int SavedPage { get; set; } = 0;
-            public int ChapterIndex { get; set; } = 0;
-            public int SavedLine { get; set; } = 1;
-            public bool IsWebDav { get; set; } = false;
-            public string? WebDavServerName { get; set; }
-            public bool IsVertical { get; set; } = false;
-            public double Progress { get; set; } = 0; // 0-100 reading progress
-            public bool IsPinned { get; set; } = false;
-        }
-
-        public class RecentItem
-        {
-            public string Name { get; set; } = "";
-            public string Path { get; set; } = "";
-            public string Type { get; set; } = ""; // "Folder", "File", "Archive"
-            public string? ArchiveEntryKey { get; set; }
-            public DateTime AccessedAt { get; set; } = DateTime.Now;
-            public double? ScrollOffset { get; set; }
-            public int SavedPage { get; set; } = 0;
-            public int ChapterIndex { get; set; } = 0;
-            public int SavedLine { get; set; } = 1;
-            public bool IsWebDav { get; set; } = false;
-            public string? WebDavServerName { get; set; }
-            public bool IsVertical { get; set; } = false;
-            public double Progress { get; set; } = 0; // 0-100 reading progress
-        }
-
 
 
         private const string TextSettingsFilePath = "text_settings.json";
@@ -75,71 +29,6 @@ namespace Uviewer
 
         #region Favorites
 
-        private async Task LoadFavorites()
-        {
-            try
-            {
-                var favoritesFile = GetFavoritesFilePath();
-                var favoritesDir = Path.GetDirectoryName(favoritesFile);
-
-                // Ensure directory exists
-                if (!string.IsNullOrEmpty(favoritesDir) && !Directory.Exists(favoritesDir))
-                {
-                    Directory.CreateDirectory(favoritesDir);
-                }
-
-                System.Diagnostics.Debug.WriteLine($"Loading favorites from: {favoritesFile}");
-
-                if (File.Exists(favoritesFile))
-                {
-                    var json = await File.ReadAllTextAsync(favoritesFile);
-                    var favorites = System.Text.Json.JsonSerializer.Deserialize(json, typeof(List<FavoriteItem>), FavoritesContext.Default);
-                    if (favorites != null)
-                    {
-                        _favorites.Clear();
-                        foreach (var fav in (List<FavoriteItem>)favorites)
-                        {
-                            _favorites.Add(fav);
-                        }
-                        System.Diagnostics.Debug.WriteLine($"Loaded {_favorites.Count} favorites");
-                    }
-                }
-                else
-                {
-                    System.Diagnostics.Debug.WriteLine("Favorites file does not exist");
-                }
-            }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"Error loading favorites: {ex.Message}");
-                System.Diagnostics.Debug.WriteLine($"Stack trace: {ex.StackTrace}");
-            }
-        }
-
-        private async Task SaveFavorites()
-        {
-            try
-            {
-                var favoritesFile = GetFavoritesFilePath();
-                var favoritesDir = Path.GetDirectoryName(favoritesFile);
-
-                // Ensure directory exists
-                if (!string.IsNullOrEmpty(favoritesDir) && !Directory.Exists(favoritesDir))
-                {
-                    Directory.CreateDirectory(favoritesDir);
-                }
-
-                var json = System.Text.Json.JsonSerializer.Serialize(_favorites.ToList(), typeof(List<FavoriteItem>), FavoritesContext.Default);
-                await File.WriteAllTextAsync(favoritesFile, json);
-                System.Diagnostics.Debug.WriteLine($"Favorites saved to: {favoritesFile}");
-                System.Diagnostics.Debug.WriteLine($"Saved {_favorites.Count} favorites");
-            }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"Error saving favorites: {ex.Message}");
-                System.Diagnostics.Debug.WriteLine($"Stack trace: {ex.StackTrace}");
-            }
-        }
 
         private void UpdateFavoritesMenu()
         {
@@ -154,8 +43,8 @@ namespace Uviewer
             filePanel.Children.Clear();
             folderPanel.Children.Clear();
 
-            var fileFavorites = _favorites.Where(f => f.Type != "Folder").OrderByDescending(f => f.IsPinned).ThenByDescending(f => f.CreatedAt).ToList();
-            var folderFavorites = _favorites.Where(f => f.Type == "Folder").OrderByDescending(f => f.IsPinned).ThenByDescending(f => f.CreatedAt).ToList();
+            var fileFavorites = _favoritesService.Favorites.Where(f => f.Type != "Folder").OrderByDescending(f => f.IsPinned).ThenByDescending(f => f.CreatedAt).ToList();
+            var folderFavorites = _favoritesService.Favorites.Where(f => f.Type == "Folder").OrderByDescending(f => f.IsPinned).ThenByDescending(f => f.CreatedAt).ToList();
 
             if (fileFavorites.Count == 0)
             {
@@ -414,8 +303,7 @@ namespace Uviewer
             ToolTipService.SetToolTip(pinButton, favorite.IsPinned ? Strings.UnpinFavorite : Strings.PinFavorite);
             pinButton.Click += async (s, e) =>
             {
-                favorite.IsPinned = !favorite.IsPinned;
-                await SaveFavorites();
+                await _favoritesService.TogglePinAsync(favorite);
                 UpdateFavoritesMenu();
             };
             Grid.SetColumn(pinButton, 1);
@@ -465,8 +353,8 @@ namespace Uviewer
                 System.Diagnostics.Debug.WriteLine($"_imageEntries.Count: {_imageEntries.Count}");
 
                 // Show current favorites
-                System.Diagnostics.Debug.WriteLine($"Current favorites count: {_favorites.Count}");
-                foreach (var fav in _favorites)
+                System.Diagnostics.Debug.WriteLine($"Current favorites count: {_favoritesService.Favorites.Count}");
+                foreach (var fav in _favoritesService.Favorites)
                 {
                     System.Diagnostics.Debug.WriteLine($"  - {fav.Name} ({fav.Type}): {fav.Path}");
                 }
@@ -576,24 +464,7 @@ namespace Uviewer
 
                 if (!string.IsNullOrEmpty(name) && !string.IsNullOrEmpty(path))
                 {
-                    FavoriteItem? existing = _favorites.FirstOrDefault(f => f.Path == path && f.Type == type);
-                    
-                    bool wasPinned = false; // [추가] 기존 핀 상태를 기억하기 위한 변수
 
-                    if (existing != null)
-                    {
-                        wasPinned = existing.IsPinned;
-
-                        // [핵심 로직] '수동 저장(버튼 클릭 등)'이 아닐 경우 위치 업데이트를 무시합니다.
-                        if (!isManualSave)
-                        {
-                            System.Diagnostics.Debug.WriteLine($"Pinned favorite skipped during auto-save: {existing.Name}");
-                            return; 
-                        }
-
-                        System.Diagnostics.Debug.WriteLine($"Favorite already exists: {existing.Name}. Updating position.");
-                        _favorites.Remove(existing);
-                    }
 
                     int savedPage = 0;
                     int savedLine = 1;
@@ -678,12 +549,11 @@ namespace Uviewer
                         WebDavServerName = webDavServerName,
                         IsVertical = _isVerticalMode,
                         Progress = Math.Max(calcProgress, 0),
-                        IsPinned = wasPinned // [추가] 덮어쓰기 전의 핀 고정 상태를 그대로 인계합니다.
+                        IsPinned = false
                     };
 
-                    _favorites.Add(favorite);
+                    await _favoritesService.AddOrUpdateFavoriteAsync(favorite, isManualSave);
                     System.Diagnostics.Debug.WriteLine($"Added favorite: {favorite.Name}");
-                    await SaveFavorites();
                     UpdateFavoritesMenu();
                     System.Diagnostics.Debug.WriteLine("Favorite added and saved successfully");
                     ShowNotification(Strings.AddedToFavoritesNotification);
@@ -705,8 +575,7 @@ namespace Uviewer
             try
             {
                 System.Diagnostics.Debug.WriteLine($"Removing favorite: {favorite.Name}");
-                _favorites.Remove(favorite);
-                await SaveFavorites();
+                await _favoritesService.RemoveFavoriteAsync(favorite);
                 UpdateFavoritesMenu();
                 System.Diagnostics.Debug.WriteLine($"Favorite removed successfully");
             }
@@ -958,8 +827,7 @@ namespace Uviewer
             }
 
             // Check if folder bookmark already exists
-            var existingFolder = _favorites.FirstOrDefault(f => f.Path == folderPath && f.Type == "Folder" && f.IsWebDav == isWebDav && f.WebDavServerName == webDavServerName);
-            if (existingFolder == null)
+            if (!_favoritesService.AnyFolderFavoriteExists(folderPath, isWebDav, webDavServerName))
             {
                 var folderFavorite = new FavoriteItem
                 {
@@ -969,7 +837,7 @@ namespace Uviewer
                     IsWebDav = isWebDav,
                     WebDavServerName = webDavServerName
                 };
-                _favorites.Add(folderFavorite);
+                _ = _favoritesService.AddOrUpdateFavoriteAsync(folderFavorite, true);
             }
         }
 
@@ -1030,71 +898,6 @@ namespace Uviewer
 
         #region Recent Items
 
-        private async Task LoadRecentItems()
-        {
-            try
-            {
-                var recentFile = GetRecentFilePath();
-                var recentDir = Path.GetDirectoryName(recentFile);
-
-                // Ensure directory exists
-                if (!string.IsNullOrEmpty(recentDir) && !Directory.Exists(recentDir))
-                {
-                    Directory.CreateDirectory(recentDir);
-                }
-
-                System.Diagnostics.Debug.WriteLine($"Loading recent items from: {recentFile}");
-
-                if (File.Exists(recentFile))
-                {
-                    var json = await File.ReadAllTextAsync(recentFile);
-                    var recentItems = System.Text.Json.JsonSerializer.Deserialize(json, typeof(List<RecentItem>), RecentContext.Default);
-                    if (recentItems != null)
-                    {
-                        _recentItems.Clear();
-                        foreach (var item in (List<RecentItem>)recentItems)
-                        {
-                            _recentItems.Add(item);
-                        }
-                        System.Diagnostics.Debug.WriteLine($"Loaded {_recentItems.Count} recent items");
-                    }
-                }
-                else
-                {
-                    System.Diagnostics.Debug.WriteLine("Recent items file does not exist");
-                }
-            }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"Error loading recent items: {ex.Message}");
-                System.Diagnostics.Debug.WriteLine($"Stack trace: {ex.StackTrace}");
-            }
-        }
-
-        private async Task SaveRecentItems()
-        {
-            try
-            {
-                var recentFile = GetRecentFilePath();
-                var recentDir = Path.GetDirectoryName(recentFile);
-
-                // Ensure directory exists
-                if (!string.IsNullOrEmpty(recentDir) && !Directory.Exists(recentDir))
-                {
-                    Directory.CreateDirectory(recentDir);
-                }
-
-                var json = System.Text.Json.JsonSerializer.Serialize(_recentItems.ToList(), typeof(List<RecentItem>), RecentContext.Default);
-                await File.WriteAllTextAsync(recentFile, json);
-                System.Diagnostics.Debug.WriteLine($"Recent items saved to: {recentFile}");
-                System.Diagnostics.Debug.WriteLine($"Saved {_recentItems.Count} recent items");
-            }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"Error saving recent items: {ex.Message}");
-                System.Diagnostics.Debug.WriteLine($"Stack trace: {ex.StackTrace}");
-            }
-        }
 
         private void UpdateRecentMenu()
         {
@@ -1109,7 +912,7 @@ namespace Uviewer
             // Remove all existing items
             panel.Children.Clear();
 
-            if (_recentItems.Count == 0)
+            if (_recentService.RecentItems.Count == 0)
             {
                 var emptyText = new TextBlock
                 {
@@ -1127,7 +930,7 @@ namespace Uviewer
                 return;
             }
 
-            foreach (var recent in _recentItems.OrderByDescending<RecentItem, DateTime>(r => r.AccessedAt))
+            foreach (var recent in _recentService.RecentItems.OrderByDescending<RecentItem, DateTime>(r => r.AccessedAt))
             {
                 // Capture the recent item for lambda closures
                 var currentRecent = recent;
@@ -1438,7 +1241,7 @@ namespace Uviewer
                 }
 
                 // 2. 기존 기록이 있는지 확인
-                RecentItem? existing = _recentItems.FirstOrDefault(r =>
+                RecentItem? existing = _recentService.RecentItems.FirstOrDefault(r =>
                     r.Path.Equals(path, StringComparison.OrdinalIgnoreCase) &&
                     r.Type.Equals(type, StringComparison.OrdinalIgnoreCase));
 
@@ -1538,8 +1341,6 @@ namespace Uviewer
                 }
 
                 // 4. 목록 갱신 (기존 항목 제거 후 맨 앞에 추가)
-                if (existing != null) _recentItems.Remove(existing);
-
                 var newItem = new RecentItem
                 {
                     Name = name,
@@ -1557,15 +1358,7 @@ namespace Uviewer
                     Progress = saveCurrentPosition ? GetCurrentProgress() : (existing?.Progress ?? 0)
                 };
 
-                _recentItems.Insert(0, newItem);
-
-                // 최대 개수 제한
-                while (_recentItems.Count > MaxRecentItems)
-                {
-                    _recentItems.RemoveAt(_recentItems.Count - 1);
-                }
-
-                await SaveRecentItems();
+                await _recentService.AddToRecentAsync(newItem);
                 UpdateRecentMenu();
             }
             catch (Exception ex)
@@ -1580,8 +1373,7 @@ namespace Uviewer
             try
             {
                 System.Diagnostics.Debug.WriteLine($"Removing recent item: {recent.Name}");
-                _recentItems.Remove(recent);
-                await SaveRecentItems();
+                await _recentService.RemoveRecentAsync(recent);
                 UpdateRecentMenu();
                 System.Diagnostics.Debug.WriteLine($"Recent item removed successfully");
             }
