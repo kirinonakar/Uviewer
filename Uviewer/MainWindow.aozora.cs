@@ -386,19 +386,12 @@ namespace Uviewer
             TextArea.Background = _settingsManager.GetThemeBackground();
         }
 
-        bool isMarkdown = false;
-        if (!string.IsNullOrEmpty(_currentTextFilePath))
-        {
-            var ext = System.IO.Path.GetExtension(_currentTextFilePath).ToLower();
-            if (ext == ".md" || ext == ".markdown") isMarkdown = true;
-        }
-
-        _isMarkdownRenderMode = isMarkdown;
         ClearBackwardCache(); // <-- 파일/챕터 변경 시 캐시 지우기 추가
 
-        // [핵심 추가] 이미 파싱된 블록이 존재한다면 불필요한 재파싱을 생략하여 첫 페이지로 튀는 현상 완벽 방지
-        if (_aozoraBlocks != null && _aozoraBlocks.Count > 0)
+        // [핵심 추가] 이미 파싱된 블록이 존재하고, 스케일링 설정(FontSize)이 동일하다면 불필요한 재파싱을 생략하여 즉시 렌더링
+        if (_aozoraBlocks != null && _aozoraBlocks.Count > 0 && Math.Abs(_lastCacheFontSize - _settingsManager.FontSize) < 0.01)
         {
+            _lastCacheFontSize = _settingsManager.FontSize;
             int startIdx = 0;
             if (targetLine > 1)
             {
@@ -462,18 +455,20 @@ namespace Uviewer
             List<AozoraBindingModel> parsedBlocks;
             int sourceLineCount;
 
-            if (isMarkdown)
+            if (_isMarkdownRenderMode)
             {
                 parsedBlocks = AozoraParserService.ParseMarkdownContent(rawContent);
                 sourceLineCount = parsedBlocks.Count;
             }
             else
             {
-// 서비스 클래스에서 Preprocess와 파싱, 그리고 TotalLineCount 반환을 한 번에 처리합니다.
-        var result = AozoraParserService.ParseAozoraContent(rawContent, _settingsManager.FontSize);
-        parsedBlocks = result.Blocks;
-        sourceLineCount = result.SourceLineCount;
+                // 서비스 클래스에서 Preprocess와 파싱, 그리고 TotalLineCount 반환을 한 번에 처리합니다.
+                var result = AozoraParserService.ParseAozoraContent(rawContent, _settingsManager.FontSize);
+                parsedBlocks = result.Blocks;
+                sourceLineCount = result.SourceLineCount;
             }
+
+            DispatcherQueue.TryEnqueue(() => { _lastCacheFontSize = _settingsManager.FontSize; });
 
             if (token.IsCancellationRequested) return;
 

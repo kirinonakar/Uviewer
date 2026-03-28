@@ -241,16 +241,26 @@ namespace Uviewer
             try
             {
                 if (token.IsCancellationRequested) return;
-                // [수정] EPUB 모드일 때는 텍스트 모드용 파싱을 건너뜁니다.
+                // [수정] EPUB 모드일 때는 텍스트 모드용 파싱과 MD 감지 로직을 건너뜁니다.
                 if (!_isEpubMode && (_aozoraBlocks == null || _aozoraBlocks.Count == 0))
                 {
                     _aozoraBlocks = await Task.Run(() => 
                     {
-                        var result = AozoraParserService.ParseAozoraContent(_currentTextContent, _settingsManager.FontSize);
-                        var blocks = result.Blocks;
-                        
-                        int lineCount = result.SourceLineCount;
-                        
+                        List<AozoraBindingModel> blocks;
+                        int lineCount;
+
+                        if (_isMarkdownRenderMode)
+                        {
+                            blocks = AozoraParserService.ParseMarkdownContent(_currentTextContent);
+                            lineCount = blocks.Count;
+                        }
+                        else
+                        {
+                            var result = AozoraParserService.ParseAozoraContent(_currentTextContent, _settingsManager.FontSize);
+                            blocks = result.Blocks;
+                            lineCount = result.SourceLineCount;
+                        }
+
                         DispatcherQueue.TryEnqueue(() => { _textTotalLineCountInSource = lineCount; });
                         return blocks;
                     });

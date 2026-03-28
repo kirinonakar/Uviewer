@@ -227,6 +227,25 @@ namespace Uviewer
             _lastRecentSaveLine = -1;
 
             string ext = System.IO.Path.GetExtension(name).ToLower();
+            if (ext == ".md" || ext == ".markdown")
+            {
+                _isMarkdownRenderMode = true;
+                if (VerticalToggleButton != null)
+                {
+                    VerticalToggleButton.IsEnabled = false;
+                    VerticalToggleButton.IsChecked = false;
+                }
+            }
+            else
+            {
+                _isMarkdownRenderMode = false;
+                if (VerticalToggleButton != null)
+                {
+                    VerticalToggleButton.IsEnabled = true;
+                    VerticalToggleButton.IsChecked = _isVerticalMode;
+                }
+            }
+
             if (ext == ".html" || ext == ".htm")
             {
                 content = AozoraParserService.ParseHtml(content);
@@ -258,7 +277,7 @@ namespace Uviewer
             if (AozoraTextCanvas != null) AozoraTextCanvas.Visibility = Visibility.Collapsed;
             if (VerticalTextCanvas != null) VerticalTextCanvas.Visibility = Visibility.Collapsed;
 
-            if (_isVerticalMode)
+            if (_isVerticalMode && !_isMarkdownRenderMode)
             {
                 if (TextArea != null) TextArea.Background = _settingsManager.GetThemeBackground();
                 await PrepareVerticalTextAsync(targetLine, token);
@@ -1403,7 +1422,7 @@ namespace Uviewer
                 ToggleAozoraMode();
                 e.Handled = true;
             }
-            else if (e.Key == Windows.System.VirtualKey.V)
+            else if (e.Key == Windows.System.VirtualKey.V && !_isMarkdownRenderMode)
             {
                 _ = AddToRecentAsync(true);
                 _isVerticalMode = !_isVerticalMode;
