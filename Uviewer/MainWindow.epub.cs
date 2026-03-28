@@ -1239,7 +1239,7 @@ namespace Uviewer
             if (!_isEpubMode) return;
 
             int step = direction;
-            if (_isSideBySideMode) step = direction * 2;
+            if (_isSideBySideMode && _isEpubShowingTwoPages) step = direction * 2;
 
             int targetChapter = _currentEpubChapterIndex;
             int targetPage = _currentEpubPageIndex + step;
