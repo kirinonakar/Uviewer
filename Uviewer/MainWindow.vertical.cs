@@ -42,6 +42,7 @@ namespace Uviewer
         // 백그라운드 전체 페이지 계산용 상태
         private int _verticalTotalPages = 0;
         private bool _isVerticalPageCalcCompleted = false;
+        private Dictionary<int, int> _verticalBlockToPageMap = new();
         private System.Threading.CancellationTokenSource? _verticalPageCalcCts;
         private int _verticalCalculatedCurrentPage = 1;
         private CancellationTokenSource? _currentVerticalRenderCts;
@@ -485,11 +486,12 @@ namespace Uviewer
                     int pageCount = 1;
                     float currentPageWidth = 0;
                     var blockToPageMap = new Dictionary<int, int>();
+                    AozoraBindingModel? currentMergedBlock = null;
+                    float currentMergedBlockWidth = 0;
 
                     for (int i = 0; i < _aozoraBlocks.Count; i++)
                     {
                         if (token.IsCancellationRequested) return;
-                        blockToPageMap[i] = pageCount;
                         
                         var block = _aozoraBlocks[i];
 
@@ -507,41 +509,93 @@ namespace Uviewer
                                 pageCount++;
                                 currentPageWidth = 0;
                             }
+
+                            blockToPageMap[i] = pageCount;
                             
                             if (block.IsPageBreak)
                             {
-                                blockToPageMap[i] = pageCount; // Map the page break to the new page it starts
-                                continue; // Skip the page break block itself
+                                if (i < _aozoraBlocks.Count - 1)
+                                {
+                                    pageCount++;
+                                }
+                                currentMergedBlock = null;
+                                currentMergedBlockWidth = 0;
+                                continue;
                             }
 
                             // 이미지 존재 여부를 확인하여 없는 경우 페이지로 계산하지 않음
                             var aozoraImg = block.Inlines.OfType<AozoraImage>().FirstOrDefault();
                             if (aozoraImg != null && !DoesVerticalImageExist(aozoraImg.Source))
                             {
-                                blockToPageMap[i] = pageCount;
                                 continue;
                             }
 
-                            // If it's an image (and not a page break)
-                            pageCount++;
-                            currentPageWidth = 0;
-                            blockToPageMap[i] = pageCount; // Map the image to its new page
+                            if (i < _aozoraBlocks.Count - 1)
+                            {
+                                pageCount++;
+                            }
+                            currentMergedBlock = null;
+                            currentMergedBlockWidth = 0;
                             continue;
                         }
 
-                        float fontSize = (float)(_settingsManager.FontSize * block.FontSizeScale);
-                        float blockWidth = MeasureVerticalBlockWidth(device, block, availableHeight, fontSize);
+                        // 💡 문단 이어붙이기(Paragraph Continuation) 논리 추가
+                        if (block.IsParagraphContinuation && currentMergedBlock != null && !block.IsTable && block.HeadingLevel == 0)
+                        {
+                            var tempMerged = AozoraParserService.CloneBlockProperties(currentMergedBlock, true);
+                            tempMerged.Inlines.AddRange(block.Inlines);
+
+                            float fontSize = (float)(_settingsManager.FontSize * tempMerged.FontSizeScale);
+                            float newWidth = MeasureVerticalBlockWidth(device, tempMerged, availableHeight, fontSize);
+                            float widthDiff = newWidth - currentMergedBlockWidth;
+                            float leftToleranceMerged = fontSize * 0.8f;
+
+                            if (currentPageWidth + widthDiff > (availableWidth + leftToleranceMerged) && currentPageWidth > 0)
+                            {
+                                pageCount++;
+                                currentPageWidth = 0;
+                            }
+                            else
+                            {
+                                // 병합 성공
+                                blockToPageMap[i] = pageCount;
+                                currentPageWidth += widthDiff;
+                                currentMergedBlock = tempMerged;
+                                currentMergedBlockWidth = newWidth;
+                                continue;
+                            }
+                        }
+
+                        float fontSizeBase = (float)(_settingsManager.FontSize * block.FontSizeScale);
+                        float blockWidth = MeasureVerticalBlockWidth(device, block, availableHeight, fontSizeBase);
                         
+                        // 💡 테두리(Keigakomi) 마진 논리 추가
+                        bool isKeigakomi = block.BorderColor != null || block.BorderThickness.Top > 0;
+                        bool wasKeigakomi = currentMergedBlock != null && (currentMergedBlock.BorderColor != null || currentMergedBlock.BorderThickness.Top > 0);
+
+                        if (isKeigakomi && !wasKeigakomi) blockWidth += 20f;
+                        if (!isKeigakomi && wasKeigakomi) blockWidth += 20f;
+
                         // [수정] 세로 모드는 Tolerance를 0.8배로 허용
-                        float leftTolerance = fontSize * 0.8f;
+                        float leftTolerance = fontSizeBase * 0.8f;
                         if (currentPageWidth > 0 && currentPageWidth + blockWidth > (availableWidth + leftTolerance))
                         {
                             pageCount++;
                             currentPageWidth = 0;
-                            blockToPageMap[i] = pageCount;
                         }
-                        
+
+                        blockToPageMap[i] = pageCount;
                         currentPageWidth += blockWidth;
+
+                        if (!block.IsTable && !block.IsPageBreak && block.HeadingLevel == 0)
+                        {
+                            currentMergedBlock = block;
+                            currentMergedBlockWidth = blockWidth;
+                        }
+                        else
+                        {
+                            currentMergedBlock = null;
+                        }
                         
                         if (i % 50 == 0) await Task.Delay(1, token);
                     }
@@ -550,10 +604,11 @@ namespace Uviewer
 
                     DispatcherQueue.TryEnqueue(() =>
                     {
+                        _verticalBlockToPageMap = blockToPageMap;
                         _verticalTotalPages = pageCount;
                         _isVerticalPageCalcCompleted = true;
                         
-                        if (blockToPageMap.TryGetValue(_currentVerticalStartBlockIndex, out int cp))
+                        if (_verticalBlockToPageMap.TryGetValue(_currentVerticalStartBlockIndex, out int cp))
                             _verticalCalculatedCurrentPage = cp;
                         else
                             _verticalCalculatedCurrentPage = 1;
@@ -1208,7 +1263,13 @@ namespace Uviewer
 
                 if (_isVerticalPageCalcCompleted)
                 {
-                    ImageIndexText.Text = $"{currentPage} / {totalPages}";
+                    // 점프(Home/End/이동) 시에도 페이지 번호 즉시 반영
+                    if (_verticalBlockToPageMap != null && _verticalBlockToPageMap.TryGetValue(_currentVerticalStartBlockIndex, out int mappedPage))
+                    {
+                        _verticalCalculatedCurrentPage = mappedPage;
+                    }
+
+                    ImageIndexText.Text = $"{_verticalCalculatedCurrentPage} / {totalPages}";
                 }
                 else
                 {

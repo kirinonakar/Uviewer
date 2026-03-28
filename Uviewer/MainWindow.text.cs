@@ -1731,10 +1731,14 @@ namespace Uviewer
             if (TextScrollViewer != null)
             {
                 int currentLine = GetTopVisibleLineIndex();
+
+                // [수정] 스크롤이 끝에 도달했으면 강제로 마지막 라인/100%로 고정 (99%~100% 바운스 방지)
+                bool isAtBottom = TextScrollViewer.VerticalOffset >= TextScrollViewer.ScrollableHeight - 10.0;
+                if (isAtBottom) currentLine = total;
                 if (currentLine > total) currentLine = total;
 
                 // Start-based line progress (Consistent with Aozora and Vertical modes)
-                double progress = total > 1 ? (double)(currentLine - 1) / (total - 1) * 100.0 : 100.0;
+                double progress = isAtBottom ? 100.0 : (total > 1 ? (double)(currentLine - 1) / (total - 1) * 100.0 : 100.0);
                 if (progress > 100) progress = 100;
                 if (progress < 0) progress = 0;
 
