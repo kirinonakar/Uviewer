@@ -689,5 +689,66 @@ namespace Uviewer.Services
             if (copyInlines) clone.Inlines = new List<object>(source.Inlines);
             return clone;
         }
+
+        public static void ApplySimpleAozoraStyling(Uviewer.Models.TextLine line, double baseFontSize)
+        {
+            string content = line.Content;
+
+            if (content.Contains("［＃大見出し］"))
+            {
+                line.FontSize = baseFontSize * 1.5;
+                content = content.Replace("［＃大見出し］", "");
+            }
+            if (content.Contains("［＃中見出し］"))
+            {
+                line.FontSize = baseFontSize * 1.25;
+                content = content.Replace("［＃中見出し］", "");
+            }
+            if (content.Contains("［＃小見出し］"))
+            {
+                line.FontSize = baseFontSize * 1.1;
+                content = content.Replace("［＃小見出し］", "");
+            }
+            if (content.Contains("［＃センター］"))
+            {
+                line.TextAlignment = Microsoft.UI.Xaml.TextAlignment.Center;
+                content = content.Replace("［＃センター］", "");
+            }
+            if (content.Contains("［＃地から３字上げ］"))
+            {
+                line.TextAlignment = Microsoft.UI.Xaml.TextAlignment.Right;
+                line.Margin = new Microsoft.UI.Xaml.Thickness(0, 0, 60, 0); 
+                content = content.Replace("［＃地から３字上げ］", "");
+            }
+            if (content.Contains("［＃ここから２字下げ］"))
+            {
+                line.Margin = new Microsoft.UI.Xaml.Thickness(40, 0, 0, 0);
+                content = content.Replace("［＃ここから２字下げ］", "");
+            }
+            if (content.Contains("［＃ここから罫囲み］"))
+            {
+                line.BorderBrush = new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.Gray);
+                line.BorderThickness = new Microsoft.UI.Xaml.Thickness(1);
+                line.Padding = new Microsoft.UI.Xaml.Thickness(10);
+                content = content.Replace("［＃ここから罫囲み］", "");
+            }
+            if (content.Contains("［＃ここから２段階小さな文字］"))
+            {
+                line.FontSize = Math.Max(8, baseFontSize * 0.7);
+                content = content.Replace("［＃ここから２段階小さな文字］", "");
+            }
+
+            content = Regex.Replace(content, @"［＃[^］]+］", ""); 
+            line.Content = content;
+        }
+
+        public static string ParseHtml(string html)
+        {
+            string noScript = Regex.Replace(html, @"<script[^>]*>[\s\S]*?</script>", "", RegexOptions.IgnoreCase);
+            string noStyle = Regex.Replace(noScript, @"<style[^>]*>[\s\S]*?</style>", "", RegexOptions.IgnoreCase);
+            string textOnly = Regex.Replace(noStyle, @"<[^>]+>", "\n");
+            textOnly = System.Net.WebUtility.HtmlDecode(textOnly);
+            return Regex.Replace(textOnly, @"\n\s+\n", "\n\n");
+        }
     }
 }

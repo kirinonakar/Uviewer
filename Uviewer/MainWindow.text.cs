@@ -36,21 +36,7 @@ namespace Uviewer
 
 
 
-        public class TextLine
-        {
-            public string Content { get; set; } = "";
-            public double FontSize { get; set; }
-            public string FontFamily { get; set; } = "Yu Gothic";
-            public Brush? Foreground { get; set; }
-            public double MaxWidth { get; set; }
 
-            // New styling properties for Aozora
-            public TextAlignment TextAlignment { get; set; } = TextAlignment.Left;
-            public Thickness Margin { get; set; } = new Thickness(0);
-            public Thickness Padding { get; set; } = new Thickness(0);
-            public Brush? BorderBrush { get; set; } = null;
-            public Thickness BorderThickness { get; set; } = new Thickness(0);
-        }
 
         private bool _textInputInitialized = false;
         private string? _currentTextFilePath = null;
@@ -58,19 +44,15 @@ namespace Uviewer
         private int _lastRecentSaveLine = -1;
 
 
-        // New Helper: Select encoding based on user choice or auto-detect
-        private Encoding GetTextEncoding(byte[] bytes)
+        private async Task<string> ReadTextFileWithEncodingAsync(StorageFile file)
         {
-            switch (_settingsManager.EncodingName)
-            {
-                case "UTF-8": return Encoding.UTF8;
-                case "EUC-KR": return Encoding.GetEncoding(949);
-                case "Shift-JIS": return Encoding.GetEncoding(932);
-                case "Johab": return Encoding.GetEncoding(1361);
-                case "Auto":
-                default:
-                    return DetectEncoding(bytes);
-            }
+            var buffer = await FileIO.ReadBufferAsync(file);
+            using var dataReader = Windows.Storage.Streams.DataReader.FromBuffer(buffer);
+            byte[] bytes = new byte[buffer.Length];
+            dataReader.ReadBytes(bytes);
+
+            Encoding encoding = TextEncodingService.GetTextEncoding(bytes, _settingsManager.EncodingName);
+            return encoding.GetString(bytes);
         }
 
         private async void EncodingItem_Click(object sender, RoutedEventArgs e)
@@ -206,7 +188,7 @@ namespace Uviewer
                                 using var entryStream = archEntry.OpenEntryStream();
                                 entryStream.CopyTo(ms);
                                 var bytes = ms.ToArray();
-                                content = GetTextEncoding(bytes).GetString(bytes);
+                                content = TextEncodingService.GetTextEncoding(bytes, _settingsManager.EncodingName).GetString(bytes);
                             }
                         }
                         else if (_current7zArchive != null)
@@ -217,7 +199,7 @@ namespace Uviewer
                                 using var ms = new System.IO.MemoryStream();
                                 archEntry.Extract(ms);
                                 var bytes = ms.ToArray();
-                                content = GetTextEncoding(bytes).GetString(bytes);
+                                content = TextEncodingService.GetTextEncoding(bytes, _settingsManager.EncodingName).GetString(bytes);
                             }
                         }
                     }
@@ -247,7 +229,7 @@ namespace Uviewer
             string ext = System.IO.Path.GetExtension(name).ToLower();
             if (ext == ".html" || ext == ".htm")
             {
-                content = ParseHtml(content);
+                content = AozoraParserService.ParseHtml(content);
                 _currentTextContent = content;
             }
 
@@ -674,76 +656,11 @@ namespace Uviewer
             };
 
             // Parse Aozora tags
-            ApplyAozoraStyling(line);
+            AozoraParserService.ApplySimpleAozoraStyling(line, _settingsManager.FontSize);
 
             return line;
         }
 
-        private void ApplyAozoraStyling(TextLine line)
-        {
-            // Simple Parsing for Aozora Bunko Tags
-            // ［＃大見出し］ -> Heading 1
-            // ［＃中見出し］ -> Heading 2
-            // ［＃小見出し］ -> Heading 3
-            // ［＃センター］ -> Center Align
-            // ［＃地から３字上げ］ -> Margin Bottom/Indent? Actually 'Ji kara 3 ji age' means indent from bottom, effectively right align or specific margin. For simplicity, we treat complex indents as margin.
-            // ［＃ここから２字下げ］ -> Indent
-            // ［＃ここから罫囲み］ -> Border
-            // ［＃ここから２段階小さな文字］ -> Small font
-
-            string content = line.Content;
-
-            if (content.Contains("［＃大見出し］"))
-            {
-                line.FontSize = _settingsManager.FontSize * 1.5;
-                content = content.Replace("［＃大見出し］", "");
-            }
-            if (content.Contains("［＃中見出し］"))
-            {
-                line.FontSize = _settingsManager.FontSize * 1.25;
-                content = content.Replace("［＃中見出し］", "");
-            }
-            if (content.Contains("［＃小見出し］"))
-            {
-                line.FontSize = _settingsManager.FontSize * 1.1;
-                content = content.Replace("［＃小見出し］", "");
-            }
-            if (content.Contains("［＃センター］"))
-            {
-                line.TextAlignment = TextAlignment.Center;
-                content = content.Replace("［＃センター］", "");
-            }
-            if (content.Contains("［＃地から３字上げ］"))
-            {
-                // Right align with padding? Or just Right align for now.
-                // Aozora 'Ji from' usually implies vertical text, but in horizontal it's often right alignment.
-                line.TextAlignment = TextAlignment.Right;
-                line.Margin = new Thickness(0, 0, 60, 0); // Approx 3 chars
-                content = content.Replace("［＃地から３字上げ］", "");
-            }
-            if (content.Contains("［＃ここから２字下げ］"))
-            {
-                line.Margin = new Thickness(40, 0, 0, 0);
-                content = content.Replace("［＃ここから２字下げ］", "");
-            }
-            if (content.Contains("［＃ここから罫囲み］"))
-            {
-                line.BorderBrush = new SolidColorBrush(Colors.Gray);
-                line.BorderThickness = new Thickness(1);
-                line.Padding = new Thickness(10);
-                content = content.Replace("［＃ここから罫囲み］", "");
-            }
-            if (content.Contains("［＃ここから２段階小さな文字］"))
-            {
-                line.FontSize = Math.Max(8, _settingsManager.FontSize * 0.7);
-                content = content.Replace("［＃ここから２段階小さな文字］", "");
-            }
-
-            // Cleanup common tags
-            content = Regex.Replace(content, @"［＃[^］]+］", ""); // Remove other tags
-
-            line.Content = content;
-        }
 
         private double GetUrlMaxWidth()
         {
