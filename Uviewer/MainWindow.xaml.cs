@@ -1670,7 +1670,7 @@ namespace Uviewer
                     else
                     {
                         var destRect = new Windows.Foundation.Rect(position, scaledSize);
-                        ds.DrawImage(_currentBitmap, destRect);
+                        ds.DrawImage(_currentBitmap, destRect, _currentBitmap.Bounds, 1.0f, CanvasImageInterpolation.HighQualityCubic);
                     }
                 }
                 catch (Exception)
@@ -1742,7 +1742,10 @@ namespace Uviewer
                     }
 
                     var destRect = new Windows.Foundation.Rect(position, scaledSize);
-                    ds.DrawImage(_leftBitmap, destRect);
+                    if (_currentPdfDocument == null)
+                        ds.DrawImage(_leftBitmap, destRect, _leftBitmap.Bounds, 1.0f, CanvasImageInterpolation.HighQualityCubic);
+                    else
+                        ds.DrawImage(_leftBitmap, destRect);
                 }
                 catch (Exception) { }
             }
@@ -1812,7 +1815,10 @@ namespace Uviewer
                     }
 
                     var destRect = new Windows.Foundation.Rect(position, scaledSize);
-                    ds.DrawImage(_rightBitmap, destRect);
+                    if (_currentPdfDocument == null)
+                        ds.DrawImage(_rightBitmap, destRect, _rightBitmap.Bounds, 1.0f, CanvasImageInterpolation.HighQualityCubic);
+                    else
+                        ds.DrawImage(_rightBitmap, destRect);
                 }
                 catch (Exception) { }
             }

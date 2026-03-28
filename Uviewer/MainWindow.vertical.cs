@@ -1367,7 +1367,10 @@ namespace Uviewer
 
                 float drawY = (float)rect.Y + (canvasH - drawH) / 2;
 
-                ds.DrawImage(bitmap, new Rect(drawX, drawY, drawW, drawH));
+                if (!_isEpubMode)
+                    ds.DrawImage(bitmap, new Rect(drawX, drawY, drawW, drawH), bitmap.Bounds, 1.0f, CanvasImageInterpolation.HighQualityCubic);
+                else
+                    ds.DrawImage(bitmap, new Rect(drawX, drawY, drawW, drawH));
             }
             else
             {

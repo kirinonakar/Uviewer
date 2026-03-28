@@ -1602,7 +1602,7 @@ private (string text, List<(int start, int length)> boldRanges) ParseTableInline
                 float drawX = (canvasW - drawW) / 2;
                 float drawY = (canvasH - drawH) / 2;
 
-                ds.DrawImage(bitmap, new Rect(drawX, drawY, drawW, drawH));
+                ds.DrawImage(bitmap, new Rect(drawX, drawY, drawW, drawH), bitmap.Bounds, 1.0f, CanvasImageInterpolation.HighQualityCubic);
             }
             else
             {
