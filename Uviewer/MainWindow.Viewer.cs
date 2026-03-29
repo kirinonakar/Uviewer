@@ -300,18 +300,26 @@ namespace Uviewer
                                      _currentPdfDocument == null &&
                                      _imageEntries.Count > 1;
 
-                // [추가] 압축파일 자동 2장보기 옵션
+// [추가] 압축파일 자동 2장보기 옵션
                 if (!canSideBySide && _autoDoublePageForArchive && 
                     (_currentArchivePath != null || _current7zArchive != null) &&
                     _currentPdfDocument == null && _imageEntries.Count > 1)
                 {
-                    // 현재 이미지를 미리 로드하여 가로세로 비율 확인
-                    var firstBitmap = await LoadImageBitmapAsync(entry, MainCanvas, token);
+                    // 현재 이미지를 미리 로드하여 가로세로 비율 확인 (샤픈 적용을 피하기 위해 원본 로드 사용)
+                    CanvasBitmap? firstBitmap = _imageCache.GetPreloadedImage(_currentIndex, _zoomLevel);
+                    
+                    if (firstBitmap == null)
+                    {
+                        firstBitmap = await LoadBitmapForPreloadAsync(entry, false, token);
+                        if (firstBitmap != null)
+                        {
+                            // 원본 이미지를 캐시에 넣어두어 나중에 다시 로드되는 것을 방지
+                            _imageCache.UpdateCache(_currentIndex, firstBitmap, false, _zoomLevel, false, _currentBitmap);
+                        }
+                    }
+
                     if (firstBitmap != null)
                     {
-                        // 캐시에 넣어두어 나중에 다시 로드되는 것을 방지
-                        _imageCache.UpdateCache(_currentIndex, firstBitmap, false, _zoomLevel, false, _currentBitmap);
-
                         if (firstBitmap.Size.Height >= firstBitmap.Size.Width * 1.2)
                         {
                             canSideBySide = true;
