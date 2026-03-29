@@ -761,7 +761,8 @@ namespace Uviewer
 
             bool actualNextImageOnRight = _nextImageOnRight;
             string? targetPath = actualNextImageOnRight ? CurrentEpubWin2DPage?.ImagePath : pg2?.ImagePath;
-            DrawEpubCanvasInternal(sender, args, targetPath, actualNextImageOnRight ? HorizontalAlignment.Right : HorizontalAlignment.Left);
+            // Always align towards center (Right edge for left column)
+            DrawEpubCanvasInternal(sender, args, targetPath, HorizontalAlignment.Right);
         }
 
         private void EpubCanvasDisplayRight_Draw(CanvasControl sender, CanvasDrawEventArgs args)
@@ -773,7 +774,8 @@ namespace Uviewer
 
             bool actualNextImageOnRight = _nextImageOnRight;
             string? targetPath = actualNextImageOnRight ? pg2?.ImagePath : CurrentEpubWin2DPage?.ImagePath;
-            DrawEpubCanvasInternal(sender, args, targetPath, actualNextImageOnRight ? HorizontalAlignment.Left : HorizontalAlignment.Right);
+            // Always align towards center (Left edge for right column)
+            DrawEpubCanvasInternal(sender, args, targetPath, HorizontalAlignment.Left);
         }
 
         private void DrawEpubCanvasInternal(CanvasControl sender, CanvasDrawEventArgs args, string? imagePath, HorizontalAlignment align = HorizontalAlignment.Center)

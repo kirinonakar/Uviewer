@@ -833,15 +833,21 @@ namespace Uviewer
                 _animatedWebpSharpenedCache.Clear();
             }
 
-            // EPUB 이미지 캐시 초기화
+            // EPUB 및 텍스트 모드 이미지 캐시 초기화
+            foreach (var bmp in _epubImageCache.Values)
+                if (bmp != null) _imageCache?.SafeDisposeBitmap(bmp);
+            _epubImageCache.Clear();
+
+            foreach (var bmp in _verticalImageCache.Values)
+                if (bmp != null) _imageCache?.SafeDisposeBitmap(bmp);
+            _verticalImageCache.Clear();
+
+            foreach (var bmp in _aozoraImageCache.Values)
+                if (bmp != null) _imageCache?.SafeDisposeBitmap(bmp);
+            _aozoraImageCache.Clear();
+
             if (_isEpubMode)
             {
-                foreach (var bmp in _epubImageCache.Values)
-                {
-                    if (bmp != null) _imageCache?.SafeDisposeBitmap(bmp);
-                }
-                _epubImageCache.Clear();
-
                 if (CurrentEpubWin2DPage?.IsImagePage == true)
                 {
                     ShowEpubImagePage(CurrentEpubWin2DPage);
@@ -851,6 +857,9 @@ namespace Uviewer
                     EpubTextCanvas?.Invalidate();
                 }
             }
+
+            if (_isVerticalMode) VerticalTextCanvas?.Invalidate();
+            if (_isAozoraMode) AozoraTextCanvas?.Invalidate();
 
             UpdateSharpenButtonState();
             SaveWindowSettings();
@@ -868,16 +877,21 @@ namespace Uviewer
             if (_sharpenEnabled)
             {
                 SharpenIcon.FontWeight = Microsoft.UI.Text.FontWeights.Bold;
+                // 활성화 시 글자를 흰색으로 설정하여 가독성 확보
+                SharpenButton.Foreground = new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.White);
+                
+                // 배경색은 Accent 색상으로 강조 (Win2D 연산량을 고려하여 UI로만 표시)
                 if (Application.Current.Resources.TryGetValue("AccentFillColorDefaultBrush", out var accent) &&
                     accent is Microsoft.UI.Xaml.Media.Brush brush)
                 {
-                    SharpenButton.Foreground = brush;
+                    SharpenButton.Background = brush;
                 }
             }
             else
             {
                 SharpenIcon.FontWeight = Microsoft.UI.Text.FontWeights.Normal;
                 SharpenButton.ClearValue(Control.ForegroundProperty);
+                SharpenButton.ClearValue(Control.BackgroundProperty);
             }
         }
 
