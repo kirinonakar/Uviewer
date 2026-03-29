@@ -20,6 +20,7 @@ namespace Uviewer.Models
         public bool IsRegistered { get; set; } = false;
         public float UpscaleFactor { get; set; } = 2.0f;
         public float SharpenAmount { get; set; } = 1.0f;
+        public float SharpenThreshold { get; set; } = 0.01f;
         public float UnsharpAmount { get; set; } = 2.0f;
         public float UnsharpRadius { get; set; } = 1.0f;
     }

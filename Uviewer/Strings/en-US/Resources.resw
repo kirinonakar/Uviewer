@@ -404,6 +404,9 @@
   <data name="SharpenAmountLabel" xml:space="preserve">
     <value>Sharpen Amount:</value>
   </data>
+  <data name="SharpenThresholdLabel" xml:space="preserve">
+    <value>Sharpen Threshold:</value>
+  </data>
   <data name="UnsharpAmountLabel" xml:space="preserve">
     <value>Unsharp Amount:</value>
   </data>

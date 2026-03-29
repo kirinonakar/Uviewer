@@ -40,7 +40,7 @@ namespace Uviewer
                 if (device == null)
                     return originalBitmap;
 
-                // 1. skipUpscale이 아닐 때만 슬라이더에 지정된 비율 적용 (애니메이션 WebP는 성능상 1.0f로 처리됨)
+                // 1. skipUpscale이 아닐 때만 슬라이더에 지정된 비율 적용
                 float currentUpscale = (!skipUpscale && _upscaleFactor > 1.0f) ? _upscaleFactor : 1.0f;
 
                 float finalWidth = (float)originalBitmap.Size.Width * currentUpscale;
@@ -66,7 +66,7 @@ namespace Uviewer
                     {
                         Source = currentEffect,
                         Amount = _sharpenAmountParam,
-                        Threshold = 0.01f
+                        Threshold = _sharpenThresholdParam
                     };
                 }
 
@@ -227,7 +227,7 @@ namespace Uviewer
                             _animatedWebpHeight,
                             DirectXPixelFormat.B8G8R8A8UIntNormalized);
 
-                        newBitmap = await ApplySharpenToBitmapAsync(originalBitmap, MainCanvas, skipUpscale: true);
+                        newBitmap = await ApplySharpenToBitmapAsync(originalBitmap, MainCanvas, skipUpscale: false);
 
                         if (_animatedWebpFramePixels == null || MainCanvas.Device == null)
                         {

@@ -404,6 +404,9 @@
   <data name="SharpenAmountLabel" xml:space="preserve">
     <value>シャープ強さ:</value>
   </data>
+  <data name="SharpenThresholdLabel" xml:space="preserve">
+    <value>シャープしきい値:</value>
+  </data>
   <data name="UnsharpAmountLabel" xml:space="preserve">
     <value>アンシャープマスクの強さ:</value>
   </data>

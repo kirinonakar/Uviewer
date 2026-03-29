@@ -404,6 +404,9 @@
   <data name="SharpenAmountLabel" xml:space="preserve">
     <value>샤프닝 강도:</value>
   </data>
+  <data name="SharpenThresholdLabel" xml:space="preserve">
+    <value>샤프닝 임계값:</value>
+  </data>
   <data name="UnsharpAmountLabel" xml:space="preserve">
     <value>언샵 마스크 강도:</value>
   </data>

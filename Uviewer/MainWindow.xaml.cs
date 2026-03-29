@@ -64,6 +64,7 @@ namespace Uviewer
         private bool _sharpenEnabled;
         private float _upscaleFactor = 2.0f;
         private float _sharpenAmountParam = 1.0f;
+        private float _sharpenThresholdParam = 0.01f;
         private float _unsharpAmount = 2.0f;
         private float _unsharpRadius = 1.0f;
 
@@ -620,6 +621,7 @@ namespace Uviewer
             if (SharpenSettingsTitleText != null) SharpenSettingsTitleText.Text = Strings.SharpenSettingsTitle;
             if (UpscaleLabel != null) UpscaleLabel.Text = Strings.UpscaleFactorLabel;
             if (SharpenAmountLabel != null) SharpenAmountLabel.Text = Strings.SharpenAmountLabel;
+            if (SharpenThresholdLabel != null) SharpenThresholdLabel.Text = Strings.SharpenThresholdLabel;
             if (UnsharpAmountLabel != null) UnsharpAmountLabel.Text = Strings.UnsharpAmountLabel;
             if (UnsharpRadiusLabel != null) UnsharpRadiusLabel.Text = Strings.UnsharpRadiusLabel;
             if (SharpenParamsResetButton != null) SharpenParamsResetButton.Content = Strings.ResetButton;
@@ -798,23 +800,27 @@ namespace Uviewer
             // Load Sharpen & Upscale Parameters
             _upscaleFactor = settings.UpscaleFactor;
             _sharpenAmountParam = settings.SharpenAmount;
+            _sharpenThresholdParam = settings.SharpenThreshold;
             _unsharpAmount = settings.UnsharpAmount;
             _unsharpRadius = settings.UnsharpRadius;
 
             // Sync Sliders and Text
             if (UpscaleSlider != null) UpscaleSlider.Value = _upscaleFactor;
             if (SharpenSlider != null) SharpenSlider.Value = _sharpenAmountParam;
+            if (SharpenThresholdSlider != null) SharpenThresholdSlider.Value = _sharpenThresholdParam;
             if (UnsharpAmountSlider != null) UnsharpAmountSlider.Value = _unsharpAmount;
             if (UnsharpRadiusSlider != null) UnsharpRadiusSlider.Value = _unsharpRadius;
             
             if (UpscaleValueText != null) UpscaleValueText.Text = $"{_upscaleFactor:F1}x";
             if (SharpenValueText != null) SharpenValueText.Text = $"{_sharpenAmountParam:F1}";
+            if (SharpenThresholdValueText != null) SharpenThresholdValueText.Text = $"{_sharpenThresholdParam:F3}";
             if (UnsharpAmountValueText != null) UnsharpAmountValueText.Text = $"{_unsharpAmount:F1}";
             if (UnsharpRadiusValueText != null) UnsharpRadiusValueText.Text = $"{_unsharpRadius:F1}";
 
             // Attach events after setting initial values
             if (UpscaleSlider != null) UpscaleSlider.ValueChanged += SharpenParams_ValueChanged;
             if (SharpenSlider != null) SharpenSlider.ValueChanged += SharpenParams_ValueChanged;
+            if (SharpenThresholdSlider != null) SharpenThresholdSlider.ValueChanged += SharpenParams_ValueChanged;
             if (UnsharpAmountSlider != null) UnsharpAmountSlider.ValueChanged += SharpenParams_ValueChanged;
             if (UnsharpRadiusSlider != null) UnsharpRadiusSlider.ValueChanged += SharpenParams_ValueChanged;
 
@@ -891,6 +897,7 @@ namespace Uviewer
                 IsRegistered = _isRegistered,
                 UpscaleFactor = _upscaleFactor,
                 SharpenAmount = _sharpenAmountParam,
+                SharpenThreshold = _sharpenThresholdParam,
                 UnsharpAmount = _unsharpAmount,
                 UnsharpRadius = _unsharpRadius
             };
@@ -1464,12 +1471,14 @@ var image = new Microsoft.UI.Xaml.Controls.Image
             // 슬라이더 값 동기화
             _upscaleFactor = (float)UpscaleSlider.Value;
             _sharpenAmountParam = (float)SharpenSlider.Value;
+            _sharpenThresholdParam = (float)SharpenThresholdSlider.Value;
             _unsharpAmount = (float)UnsharpAmountSlider.Value;
             _unsharpRadius = (float)UnsharpRadiusSlider.Value;
 
             // 텍스트 업데이트
             if (UpscaleValueText != null) UpscaleValueText.Text = $"{_upscaleFactor:F1}x";
             if (SharpenValueText != null) SharpenValueText.Text = $"{_sharpenAmountParam:F1}";
+            if (SharpenThresholdValueText != null) SharpenThresholdValueText.Text = $"{_sharpenThresholdParam:F3}";
             if (UnsharpAmountValueText != null) UnsharpAmountValueText.Text = $"{_unsharpAmount:F1}";
             if (UnsharpRadiusValueText != null) UnsharpRadiusValueText.Text = $"{_unsharpRadius:F1}";
 
@@ -1502,6 +1511,7 @@ var image = new Microsoft.UI.Xaml.Controls.Image
         {
             if (UpscaleSlider != null) UpscaleSlider.Value = 2.0;
             if (SharpenSlider != null) SharpenSlider.Value = 1.0;
+            if (SharpenThresholdSlider != null) SharpenThresholdSlider.Value = 0.01;
             if (UnsharpAmountSlider != null) UnsharpAmountSlider.Value = 2.0;
             if (UnsharpRadiusSlider != null) UnsharpRadiusSlider.Value = 1.0;
         }

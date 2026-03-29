@@ -278,13 +278,19 @@
                                         <TextBlock x:Name="SharpenAmountLabel" Text="{x:Bind local:Strings.SharpenAmountLabel, Mode=OneWay}" FontSize="12" HorizontalAlignment="Left"/>
                                         <TextBlock x:Name="SharpenValueText" Text="1.0" FontSize="12" HorizontalAlignment="Right"/>
                                     </Grid>
-                                    <Slider x:Name="SharpenSlider" Minimum="0.0" Maximum="10.0" StepFrequency="0.5" Value="1.0"/>
+                                    <Slider x:Name="SharpenSlider" Minimum="0.0" Maximum="10.0" StepFrequency="0.1" Value="1.0"/>
+
+                                    <Grid>
+                                        <TextBlock x:Name="SharpenThresholdLabel" Text="{x:Bind local:Strings.SharpenThresholdLabel, Mode=OneWay}" FontSize="12" HorizontalAlignment="Left"/>
+                                        <TextBlock x:Name="SharpenThresholdValueText" Text="0.010" FontSize="12" HorizontalAlignment="Right"/>
+                                    </Grid>
+                                    <Slider x:Name="SharpenThresholdSlider" Minimum="0.0" Maximum="0.3" StepFrequency="0.001" Value="0.010"/>
 
                                     <Grid>
                                         <TextBlock x:Name="UnsharpAmountLabel" Text="{x:Bind local:Strings.UnsharpAmountLabel, Mode=OneWay}" FontSize="12" HorizontalAlignment="Left"/>
                                         <TextBlock x:Name="UnsharpAmountValueText" Text="2.0" FontSize="12" HorizontalAlignment="Right"/>
                                     </Grid>
-                                    <Slider x:Name="UnsharpAmountSlider" Minimum="0.0" Maximum="10.0" StepFrequency="0.5" Value="2.0"/>
+                                    <Slider x:Name="UnsharpAmountSlider" Minimum="0.0" Maximum="10.0" StepFrequency="0.1" Value="2.0"/>
 
                                     <Grid>
                                         <TextBlock x:Name="UnsharpRadiusLabel" Text="{x:Bind local:Strings.UnsharpRadiusLabel, Mode=OneWay}" FontSize="12" HorizontalAlignment="Left"/>

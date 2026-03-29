@@ -134,6 +134,7 @@ namespace Uviewer
         public static string SharpenSettingsTitle => GetString("SharpenSettingsTitle");
         public static string UpscaleFactorLabel => GetString("UpscaleFactorLabel");
         public static string SharpenAmountLabel => GetString("SharpenAmountLabel");
+        public static string SharpenThresholdLabel => GetString("SharpenThresholdLabel");
         public static string UnsharpAmountLabel => GetString("UnsharpAmountLabel");
         public static string UnsharpRadiusLabel => GetString("UnsharpRadiusLabel");
         public static string ResetButton => GetString("ResetButton");

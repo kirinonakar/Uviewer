@@ -78,6 +78,7 @@ namespace Uviewer.Services
                         if (lines.Length >= 18 && float.TryParse(lines[17], out float sAmount)) settings.SharpenAmount = sAmount;
                         if (lines.Length >= 19 && float.TryParse(lines[18], out float unAmount)) settings.UnsharpAmount = unAmount;
                         if (lines.Length >= 20 && float.TryParse(lines[19], out float unRadius)) settings.UnsharpRadius = unRadius;
+                        if (lines.Length >= 21 && float.TryParse(lines[20], out float sThreshold)) settings.SharpenThreshold = sThreshold;
                         
                         return settings;
                     }
@@ -121,7 +122,8 @@ namespace Uviewer.Services
                     settings.UpscaleFactor.ToString("F2"),
                     settings.SharpenAmount.ToString("F2"),
                     settings.UnsharpAmount.ToString("F2"),
-                    settings.UnsharpRadius.ToString("F2")
+                    settings.UnsharpRadius.ToString("F2"),
+                    settings.SharpenThreshold.ToString("F3")
                 };
 
                 File.WriteAllLines(_windowSettingsFile, lines);
