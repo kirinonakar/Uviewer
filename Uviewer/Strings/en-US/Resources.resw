@@ -389,4 +389,10 @@
   <data name="SortByDateAscTooltip" xml:space="preserve">
     <value>Date Modified (Oldest)</value>
   </data>
+  <data name="About" xml:space="preserve">
+    <value>About</value>
+  </data>
+  <data name="AboutTitle" xml:space="preserve">
+    <value>About Uviewer</value>
+  </data>
 </root>

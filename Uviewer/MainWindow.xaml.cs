@@ -580,6 +580,7 @@ namespace Uviewer
             {
                 AutoDoublePageForArchiveMenuItem.Text = Strings.AutoDoublePageForArchive;
             }
+            if (AboutMenuItem != null) AboutMenuItem.Text = Strings.About;
             if (NotificationText != null) NotificationText.Text = Strings.AddedToFavoritesNotification;
 
             if (LanguageMenuItem != null) LanguageMenuItem.Text = Strings.LanguageSelection;
@@ -858,6 +859,81 @@ namespace Uviewer
         private void CloseWindowButton_Click(object sender, RoutedEventArgs e)
         {
             Application.Current.Exit();
+        }
+
+        private void AboutMenu_Click(object sender, RoutedEventArgs e)
+        {
+            _ = ShowAboutDialog();
+        }
+
+        private async Task ShowAboutDialog()
+        {
+            try
+            {
+                var assembly = typeof(MainWindow).Assembly;
+                var version = assembly.GetName().Version;
+                var versionString = version != null ? $"{version.Major}.{version.Minor}.{version.Build}.{version.Revision}" : "0.0.0.0";
+
+                var stackPanel = new StackPanel { Spacing = 12, Width = 320, HorizontalAlignment = HorizontalAlignment.Center };
+
+                // Icon image from Assets folder - using standard ms-appx protocol for resource selection
+                var image = new Microsoft.UI.Xaml.Controls.Image
+                {
+                    Source = new Microsoft.UI.Xaml.Media.Imaging.BitmapImage(new Uri("ms-appx:///Assets/Square150x150Logo.scale-200.png")),
+                    Width = 100,
+                    Height = 100,
+                    Margin = new Microsoft.UI.Xaml.Thickness(0, 10, 0, 10),
+                    HorizontalAlignment = HorizontalAlignment.Center
+                };
+                stackPanel.Children.Add(image);
+
+                // Title and version string
+                var titleText = new Microsoft.UI.Xaml.Controls.TextBlock
+                {
+                    Text = $"Uviewer ({versionString})",
+                    FontSize = 24,
+                    FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+                    HorizontalAlignment = HorizontalAlignment.Center,
+                    Margin = new Microsoft.UI.Xaml.Thickness(0, 0, 0, 8),
+                    TextAlignment = Microsoft.UI.Xaml.TextAlignment.Center
+                };
+                stackPanel.Children.Add(titleText);
+
+                // External project link
+                var linkButton = new Microsoft.UI.Xaml.Controls.HyperlinkButton
+                {
+                    Content = "Project GitHub",
+                    NavigateUri = new Uri("https://github.com/kirinonakar/Uviewer"),
+                    HorizontalAlignment = HorizontalAlignment.Center,
+                    Margin = new Microsoft.UI.Xaml.Thickness(0, 0, 0, 10)
+                };
+                stackPanel.Children.Add(linkButton);
+
+                var dialog = new Microsoft.UI.Xaml.Controls.ContentDialog
+                {
+                    Title = Strings.AboutTitle,
+                    Content = stackPanel,
+                    XamlRoot = RootGrid.XamlRoot,
+                    RequestedTheme = RootGrid.ActualTheme
+                };
+
+                // Centered Close Button inside the stack panel
+                var closeButton = new Microsoft.UI.Xaml.Controls.Button
+                {
+                    Content = Strings.Close,
+                    HorizontalAlignment = HorizontalAlignment.Center,
+                    Margin = new Microsoft.UI.Xaml.Thickness(0, 10, 0, 0),
+                    Width = 100
+                };
+                closeButton.Click += (s, e) => dialog.Hide();
+                stackPanel.Children.Add(closeButton);
+
+                await dialog.ShowAsync();
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error showing About dialog: {ex.Message}");
+            }
         }
 
         private void ToggleFullscreen()

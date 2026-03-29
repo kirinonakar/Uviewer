@@ -126,6 +126,9 @@ namespace Uviewer
         public static string SortByNameTooltip => GetString("SortByNameTooltip");
         public static string SortByDateDescTooltip => GetString("SortByDateDescTooltip");
         public static string SortByDateAscTooltip => GetString("SortByDateAscTooltip");
+        public static string About => GetString("About");
+        public static string AboutTitle => GetString("AboutTitle");
+        public static string Close => GetString("CloseWindowTooltip").Replace("(Esc)", "").Trim();
 
         public static void Reload()
         {

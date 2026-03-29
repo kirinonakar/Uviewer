@@ -389,4 +389,10 @@
   <data name="SortByDateAscTooltip" xml:space="preserve">
     <value>수정한 날짜(오래된순)</value>
   </data>
+  <data name="About" xml:space="preserve">
+    <value>정보(About)</value>
+  </data>
+  <data name="AboutTitle" xml:space="preserve">
+    <value>Uviewer 정보</value>
+  </data>
 </root>
