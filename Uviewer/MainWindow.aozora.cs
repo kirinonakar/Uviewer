@@ -701,7 +701,7 @@ namespace Uviewer
                             float fontSize = (float)(_settingsManager.FontSize * tempMerged.FontSizeScale);
                             float newHeight = MeasureHorizontalBlockHeight(device, tempMerged, maxWidth, fontSize);
                             float heightDiff = newHeight - currentMergedBlockHeight;
-                            float bottomToleranceMerged = fontSize * 0.8f;
+                            float bottomToleranceMerged = fontSize * 1.2f;
 
                             if (currentPageHeight + heightDiff > (availableHeight + bottomToleranceMerged) && currentPageHeight > 0)
                             {
@@ -734,7 +734,7 @@ namespace Uviewer
                         if (!isKeigakomi && wasKeigakomi) blockHeight += 20f + (fontSizeBase * 2.1f);
 
                         // [수정] Tolerance는 0.8배로 타협
-                        float bottomTolerance = fontSizeBase * 0.8f;
+                        float bottomTolerance = fontSizeBase * 1.2f;
 
                         if (currentPageHeight > 0 && currentPageHeight + blockHeight > (availableHeight + bottomTolerance))
                         {
@@ -833,7 +833,7 @@ namespace Uviewer
                     float heightDiff = newHeight - currentMergedBlockHeight;
 
                     // [수정] Tolerance를 0.8배로 타협
-                    float bottomToleranceMerged = fontSize * 0.8f;
+                    float bottomToleranceMerged = fontSize * 1.2f;
 
                     if (usedHeight + heightDiff > (availableHeight + bottomToleranceMerged) && pageBlocks.Count > 0)
                     {
@@ -852,7 +852,7 @@ namespace Uviewer
                 float blockHeight = MeasureHorizontalBlockHeight(device, block, availableWidth, fontSizeBase);
 
                 // [수정] 일반 블록 보정값 타협
-                float bottomTolerance = fontSizeBase * 0.8f;
+                float bottomTolerance = fontSizeBase * 1.2f;
 
                 bool isKeigakomi = block.BorderThickness.Top > 0 && block.BorderThickness.Bottom > 0 && block.BorderThickness.Left > 0 && block.BorderThickness.Right > 0;
                 bool wasKeigakomi = pageBlocks.Count > 0 && 

@@ -653,7 +653,7 @@ namespace Uviewer
             if (availableHeight < 200) availableHeight = (float)(RootGrid.ActualHeight - 120);
 
             float marginH = 80f; // Left 40 + Right 40
-            float marginV = 40f; // Top 30 + Bottom 10
+            float marginV = 30f; // 👉 Top 30 + Bottom 여백을 줄여 하단 공간 추가 확보
             float limitedWidth = (float)(_settingsManager.FontSize * 42); 
             float maxWidth = availableWidth - marginH;
             if (maxWidth > limitedWidth) maxWidth = limitedWidth; // Limit to 42 characters
@@ -1707,42 +1707,102 @@ namespace Uviewer
         return sb.ToString();
     });
     
-    // 💡 [버그 수정] 블록 태그(p, div, h1~h6 등)를 단순히 지우지 않고 줄바꿈(\n)으로 변환하여
-    // 여러 문단이 한 줄의 거대한 텍스트로 합쳐지는 것을 방지합니다.
-    html = Regex.Replace(html, @"</?(?:p|div|h[1-6]|li|blockquote|tr|table|ul|ol)[^>]*>", "\n", RegexOptions.IgnoreCase);
+    // 💡 [버그 수정 & 개선] 블록 태그(p, div, h1~h6 등)를 이중 개행(\n\n)으로 치환하여 문단을 확실히 분리합니다.
+    html = Regex.Replace(html, @"</?(?:p|div|h[1-6]|li|blockquote|tr|table|ul|ol)[^>]*>", "\n\n", RegexOptions.IgnoreCase);
 
     // Strip remaining tags
     html = RxEpubAnyTag.Replace(html, ""); 
     html = System.Net.WebUtility.HtmlDecode(html);
     
     html = html.Replace("\r\n", "\n").Replace("\r", "\n");
-    var lines = html.Split('\n');
+    // 여러 개의 연속된 빈 줄을 2개(새 문단 기준)로 줄임
+    html = Regex.Replace(html, @"\n{3,}", "\n\n");
     
+    var lines = html.Split('\n');
+    bool isNewParagraph = true;
+    
+    // 💡 [핵심] 긴 문장을 분리하기 위한 정규식 (마침표, 쉼표, 느낌표, 물음표 등 + 뒤따르는 공백 캡처)
+    // 영어 등에서 숫자(3.14)나 콤마(1,000)가 분리되지 않도록 공백이나 줄끝(?=\s|$)을 조건으로 줍니다.
+    var splitRegex = new Regex(@"(。|、|！|？|，|\.(?=\s|$)|!(?=\s|$)|\?(?=\s|$)|,(?=\s|$))(\s*)");
+
     foreach (var line in lines)
     {
-        var trimmed = line.Replace('\u3000', ' ').Replace('\u00A0', ' ').Trim();
-        if (string.IsNullOrWhiteSpace(trimmed)) continue;
+        if (string.IsNullOrWhiteSpace(line)) 
+        {
+            isNewParagraph = true;
+            continue;
+        }
         
-        var block = new AozoraBindingModel { SourceLineNumber = lineNum++, EpubChapterIndex = chapterIndex };
+        // 불필요한 공백 치환 (단일 띄어쓰기는 보존하여 Aozora 파서와 호환 유지)
+        string cleanLine = line.Replace('\u00A0', ' ').TrimEnd('\r', '\n', ' ');
+        if (isNewParagraph) cleanLine = cleanLine.TrimStart();
+        if (string.IsNullOrWhiteSpace(cleanLine)) continue;
         
-        var tokens = RxEpubRubySplit.Split(line);
+        var tokens = RxEpubRubySplit.Split(cleanLine);
+        
+        AozoraBindingModel currentBlock = new AozoraBindingModel 
+        { 
+            SourceLineNumber = lineNum++, 
+            EpubChapterIndex = chapterIndex,
+            IsParagraphContinuation = !isNewParagraph
+        };
+
         foreach (var token in tokens)
         {
+            // 루비 텍스트인 경우 내부를 건드리지 않고 보호합니다.
             if (token.StartsWith("{{RUBY|"))
             {
                 var content = token.Substring(7, token.Length - 9);
                 var parts = content.Split(new[] { "|~|" }, StringSplitOptions.None);
                 if (parts.Length == 2)
                 {
-                    block.Inlines.Add(new AozoraRuby { BaseText = parts[0], RubyText = parts[1] });
+                    currentBlock.Inlines.Add(new AozoraRuby { BaseText = parts[0], RubyText = parts[1] });
                 }
             }
             else if (!string.IsNullOrEmpty(token))
             {
-                block.Inlines.Add(token);
+                // 일반 텍스트는 구두점 단위로 분리하여 여러 블록으로 쪼갭니다.
+                var parts = splitRegex.Split(token);
+                for (int i = 0; i < parts.Length; i++)
+                {
+                    string part = parts[i];
+                    if (!string.IsNullOrEmpty(part)) currentBlock.Inlines.Add(part);
+
+                    // 매칭된 구두점 (group 1)
+                    if (i % 3 == 1)
+                    {
+                        // 뒤따르는 공백 (group 2)
+                        if (i + 1 < parts.Length)
+                        {
+                            if (!string.IsNullOrEmpty(parts[i + 1])) 
+                                currentBlock.Inlines.Add(parts[i + 1]);
+                            i++; 
+                        }
+                        
+                        // 구두점 처리가 완료되면 현재 블록을 리스트에 넣고 새로운 이어지는 블록을 시작합니다.
+                        if (currentBlock.Inlines.Count > 0)
+                        {
+                            blocks.Add(currentBlock);
+                            currentBlock = new AozoraBindingModel 
+                            { 
+                                SourceLineNumber = lineNum++, 
+                                EpubChapterIndex = chapterIndex,
+                                IsParagraphContinuation = true // 구두점 뒤에서 잘린 이어지는 문장임을 명시
+                            };
+                        }
+                    }
+                }
             }
         }
-        blocks.Add(block);
+        
+        // 루프 종료 후 남은 인라인 처리
+        if (currentBlock.Inlines.Count > 0)
+        {
+            blocks.Add(currentBlock);
+        }
+        
+        // 다음 줄은 빈 줄(개행)이 나타나지 않는 한 현재 문단과 이어집니다.
+        isNewParagraph = false;
     }
     
     return blocks;
