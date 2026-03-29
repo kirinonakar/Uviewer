@@ -597,104 +597,113 @@ namespace Uviewer
         }
 
         private async Task Start7zBackgroundExtractionAsync(string archivePath, CancellationToken token)
+{
+    try
+    {
+        // 이전 데이터 정리 및 새 템프 폴더 생성
+        string baseTemp = Path.Combine(Path.GetTempPath(), "Uviewer");
+        _current7zTempFolder = Path.Combine(baseTemp, "7z_" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(_current7zTempFolder);
+
+        var total = _imageEntries.Count;
+        var extracted = new bool[total];
+        var lockObj = new object();
+
+        // [멀티스레드 압축 해제]
+        int threadCount = Math.Min(Environment.ProcessorCount, 6); // 최대 6개 스레드 사용
+        var tasks = new List<Task>();
+
+        for (int t = 0; t < threadCount; t++)
         {
-            try
+            tasks.Add(Task.Run(() =>
             {
-                // 이전 데이터 정리 및 새 템프 폴더 생성
-                string baseTemp = Path.Combine(Path.GetTempPath(), "Uviewer");
-                _current7zTempFolder = Path.Combine(baseTemp, "7z_" + Guid.NewGuid().ToString("N"));
-                Directory.CreateDirectory(_current7zTempFolder);
-
-                var total = _imageEntries.Count;
-                var extracted = new bool[total];
-                var lockObj = new object();
-
-                // [멀티스레드 압축 해제]
-                int threadCount = Math.Min(Environment.ProcessorCount, 6); // 최대 6개 스레드 사용
-                var tasks = new List<Task>();
-
-                for (int t = 0; t < threadCount; t++)
+                try
                 {
-                    tasks.Add(Task.Run(async () =>
+                    string libraryPath = Path.Combine(AppContext.BaseDirectory, "Libs", "7z.dll");
+                    using var archive = new SevenZipExtractor.ArchiveFile(archivePath, libraryPath);
+                    var entries = archive.Entries
+                        .Where(e => !e.IsFolder && FileExplorerService.SupportedImageExtensions.Contains(Path.GetExtension(e.FileName ?? "").ToLowerInvariant()))
+                        .ToList();
+                    var entryMap = entries.ToDictionary(e => e.FileName!, e => e);
+
+                    while (!token.IsCancellationRequested)
                     {
-                        try
+                        int targetIndex = -1;
+                        lock (lockObj)
                         {
-                            string libraryPath = Path.Combine(AppContext.BaseDirectory, "Libs", "7z.dll");
-                            using var archive = new SevenZipExtractor.ArchiveFile(archivePath, libraryPath);
-                            var entries = archive.Entries
-                                .Where(e => !e.IsFolder && FileExplorerService.SupportedImageExtensions.Contains(Path.GetExtension(e.FileName ?? "").ToLowerInvariant()))
-                                .ToList();
-                            var entryMap = entries.ToDictionary(e => e.FileName!, e => e);
-
-                            while (!token.IsCancellationRequested)
+                            int current = _currentIndex;
+                            int bestDist = int.MaxValue;
+                            for (int i = 0; i < total; i++)
                             {
-                                int targetIndex = -1;
-                                lock (lockObj)
+                                if (extracted[i]) continue;
+                                int dist = Math.Abs(i - current);
+                                if (dist < bestDist)
                                 {
-                                    int current = _currentIndex;
-                                    int bestDist = int.MaxValue;
-                                    for (int i = 0; i < total; i++)
-                                    {
-                                        if (extracted[i]) continue;
-                                        int dist = Math.Abs(i - current);
-                                        if (dist < bestDist)
-                                        {
-                                            bestDist = dist;
-                                            targetIndex = i;
-                                        }
-                                    }
-
-                                    if (targetIndex != -1) extracted[targetIndex] = true;
-                                }
-
-                                if (targetIndex == -1) break;
-
-                                var imageEntry = _imageEntries[targetIndex];
-                                if (entryMap.TryGetValue(imageEntry.ArchiveEntryKey!, out var archiveEntry))
-                                {
-                                    string? outputPath = null;
-                                    try
-                                    {
-                                        using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(token, _7zJumpCts.Token);
-                                        var linkedToken = linkedCts.Token;
-
-                                        string ext = Path.GetExtension(imageEntry.ArchiveEntryKey ?? "") ?? "";
-                                        outputPath = Path.Combine(_current7zTempFolder!, Guid.NewGuid().ToString("N") + ext);
-                                        
-                                        archiveEntry.Extract(outputPath);
-                                        imageEntry.FilePath = outputPath;
-                                    }
-                                    catch (OperationCanceledException)
-                                    {
-                                        // 취소된 경우 생성 중이던 불완전한 파일 삭제
-                                        if (outputPath != null && File.Exists(outputPath))
-                                        {
-                                            try { File.Delete(outputPath); } catch { }
-                                        }
-
-                                        lock (lockObj)
-                                        {
-                                            extracted[targetIndex] = false;
-                                        }
-                                    }
-                                    catch 
-                                    {
-                                        if (outputPath != null && File.Exists(outputPath))
-                                        {
-                                            try { File.Delete(outputPath); } catch { }
-                                        }
-                                    }
+                                    bestDist = dist;
+                                    targetIndex = i;
                                 }
                             }
-                        }
-                        catch { }
-                    }, token));
-                }
 
-                await Task.WhenAll(tasks);
-            }
-            catch { }
+                            if (targetIndex != -1) extracted[targetIndex] = true;
+                        }
+
+                        if (targetIndex == -1) break;
+
+                        var imageEntry = _imageEntries[targetIndex];
+                        if (entryMap.TryGetValue(imageEntry.ArchiveEntryKey!, out var archiveEntry))
+                        {
+                            string? outputPath = null;
+                            string? tempExtractPath = null;
+                            
+                            try
+                            {
+                                using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(token, _7zJumpCts.Token);
+                                var linkedToken = linkedCts.Token;
+
+                                string ext = Path.GetExtension(imageEntry.ArchiveEntryKey ?? "") ?? "";
+                                string fileId = Guid.NewGuid().ToString("N");
+                                
+                                outputPath = Path.Combine(_current7zTempFolder!, fileId + ext);
+                                tempExtractPath = Path.Combine(_current7zTempFolder!, fileId + ".tmp"); // 안전한 임시 파일명
+                                
+                                // 1. 임시 파일로 먼저 압축 풀기
+                                archiveEntry.Extract(tempExtractPath);
+                                
+                                // 2. 0바이트 파일 방지 및 무결성 검증 후 이동
+                                var fi = new FileInfo(tempExtractPath);
+                                if (fi.Exists && fi.Length > 0)
+                                {
+                                    File.Move(tempExtractPath, outputPath, true);
+                                    imageEntry.FilePath = outputPath; // 이 순간부터 UI가 로컬 파일로 인식
+                                }
+                                else
+                                {
+                                    if (fi.Exists) fi.Delete();
+                                    lock (lockObj) extracted[targetIndex] = false; // 추출 실패 시 재시도 대기열로 복귀
+                                }
+                            }
+                            catch (OperationCanceledException)
+                            {
+                                if (tempExtractPath != null && File.Exists(tempExtractPath))
+                                    try { File.Delete(tempExtractPath); } catch { }
+                                lock (lockObj) extracted[targetIndex] = false;
+                            }
+                            catch 
+                            {
+                                if (tempExtractPath != null && File.Exists(tempExtractPath))
+                                    try { File.Delete(tempExtractPath); } catch { }
+                            }
+                        }
+                    }
+                }
+                catch { }
+            }, token));
         }
+
+        await Task.WhenAll(tasks);
+    }
+    catch { }
+}
 
         private void Cleanup7zTempData(bool immediate = false)
         {

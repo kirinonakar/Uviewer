@@ -648,7 +648,15 @@ namespace Uviewer
                          }
                          else if (favorite.Type == "Archive")
                          {
-                             await OpenWebDavArchiveAsync(fileItem);
+                             // [수정] WebDAV에서도 .7z의 경우 OpenWebDavFileAsync를 통해 다운로드 후 로컬처럼 추출하도록 수정합니다.
+                             if (ext == ".7z")
+                             {
+                                 await OpenWebDavFileAsync(fileItem);
+                             }
+                             else
+                             {
+                                 await OpenWebDavArchiveAsync(fileItem);
+                             }
                              
                              // Restore Archive Position
                              if (!string.IsNullOrEmpty(favorite.ArchiveEntryKey))
@@ -1492,7 +1500,15 @@ namespace Uviewer
                         }
                         else if (targetType == "Archive")
                         {
-                            await OpenWebDavArchiveAsync(fileItem);
+                            // [수정] WebDAV에서도 .7z의 경우 OpenWebDavFileAsync를 통해 다운로드 후 로컬처럼 추출하도록 수정합니다.
+                            if (ext == ".7z")
+                            {
+                                await OpenWebDavFileAsync(fileItem);
+                            }
+                            else
+                            {
+                                await OpenWebDavArchiveAsync(fileItem);
+                            }
                             if (!string.IsNullOrEmpty(targetArchiveKey))
                             {
                                 var entryIndex = _imageEntries.FindIndex(e => e.ArchiveEntryKey == targetArchiveKey);

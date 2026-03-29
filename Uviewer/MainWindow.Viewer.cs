@@ -947,59 +947,72 @@ namespace Uviewer
         }
 
         private async Task<CanvasBitmap?> LoadImageFromArchiveEntryAsync(string entryKey, CanvasControl canvas, CancellationToken token)
+{
+    if (token.IsCancellationRequested) return null;
+
+    // [스크롤 버벅임 최적화] 이미 백그라운드에서 압축 해제하여 파일이 존재한다면 Lock 없이 즉시 로드
+    var imageEntry = _imageEntries.FirstOrDefault(e => e.ArchiveEntryKey == entryKey);
+    if (imageEntry != null && !string.IsNullOrEmpty(imageEntry.FilePath) && File.Exists(imageEntry.FilePath))
+    {
+        return await LoadImageFromPathAsync(imageEntry.FilePath, canvas);
+    }
+
+    using var memoryStream = new MemoryStream();
+
+    // 1. [Lock 구간] 아카이브에서 데이터만 빠르게 메모리로 복사
+    await _archiveLock.WaitAsync(token);
+    try
+    {
+        // [Race Condition 방지] Lock을 기다리는 사이에 백그라운드 스레드가 압축을 풀었을 수 있음
+        if (imageEntry != null && !string.IsNullOrEmpty(imageEntry.FilePath) && File.Exists(imageEntry.FilePath))
         {
-            if (token.IsCancellationRequested) return null;
-
-            using var memoryStream = new MemoryStream();
-
-            // 1. [Lock 구간] 아카이브에서 데이터만 빠르게 메모리로 복사
-            await _archiveLock.WaitAsync(token);
-            try
-            {
-                if (_currentArchive != null)
-                {
-                    var archiveEntry = _currentArchive.Entries.FirstOrDefault(e => e.Key == entryKey);
-                    if (archiveEntry == null) return null;
-
-                    using var entryStream = archiveEntry.OpenEntryStream();
-                    await entryStream.CopyToAsync(memoryStream, token);
-                }
-                else if (_current7zArchive != null)
-                {
-                    var archiveEntry = _current7zArchive.Entries.FirstOrDefault(e => e.FileName == entryKey);
-                    if (archiveEntry == null) return null;
-
-                    archiveEntry.Extract(memoryStream);
-                }
-                else
-                {
-                    return null;
-                }
-            }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"Archive Stream Error: {ex.Message}");
-                return null;
-            }
-            finally
-            {
-                _archiveLock.Release();
-            }
-
-            memoryStream.Position = 0;
-            if (token.IsCancellationRequested) return null;
-
-            // 2. [Lock 해제 후] 디코딩 수행 (여기가 CPU를 많이 쓰므로 락 밖에서 해야 함)
-            try
-            {
-                return await CanvasBitmap.LoadAsync(canvas, memoryStream.AsRandomAccessStream(), 96.0f);
-            }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"Win2D Load Error: {ex.Message}");
-                return null;
-            }
+            return await LoadImageFromPathAsync(imageEntry.FilePath, canvas);
         }
+
+        if (_currentArchive != null)
+        {
+            var archiveEntry = _currentArchive.Entries.FirstOrDefault(e => e.Key == entryKey);
+            if (archiveEntry == null) return null;
+
+            using var entryStream = archiveEntry.OpenEntryStream();
+            await entryStream.CopyToAsync(memoryStream, token);
+        }
+        else if (_current7zArchive != null)
+        {
+            var archiveEntry = _current7zArchive.Entries.FirstOrDefault(e => e.FileName == entryKey);
+            if (archiveEntry == null) return null;
+
+            archiveEntry.Extract(memoryStream);
+        }
+        else
+        {
+            return null;
+        }
+    }
+    catch (Exception ex)
+    {
+        System.Diagnostics.Debug.WriteLine($"Archive Stream Error: {ex.Message}");
+        return null;
+    }
+    finally
+    {
+        _archiveLock.Release();
+    }
+
+    memoryStream.Position = 0;
+    if (token.IsCancellationRequested) return null;
+
+    // 2. [Lock 해제 후] 디코딩 수행 (여기가 CPU를 많이 쓰므로 락 밖에서 해야 함)
+    try
+    {
+        return await CanvasBitmap.LoadAsync(canvas, memoryStream.AsRandomAccessStream(), 96.0f);
+    }
+    catch (Exception ex)
+    {
+        System.Diagnostics.Debug.WriteLine($"Win2D Load Error: {ex.Message}");
+        return null;
+    }
+}
 
 
         private async Task<byte[]?> LoadBytesFromArchiveEntryAsync(string entryKey, CancellationToken token)
