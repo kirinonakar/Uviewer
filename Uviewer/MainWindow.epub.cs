@@ -1260,8 +1260,10 @@ namespace Uviewer
                         var p = pages[i];
                         if (p.Blocks != null && p.Blocks.Count > 0)
                         {
-                            // 해당 페이지가 목표 블록 인덱스를 포함하고 있는지 확인
-                            if (targetBlockIndex >= p.StartBlockIndex && targetBlockIndex < p.StartBlockIndex + p.Blocks.Count)
+                            // 병합된 블록으로 인해 Count가 축소되는 문제를 해결하기 위해 다음 페이지의 시작 인덱스와 비교
+                            int nextStart = (i + 1 < pages.Count) ? pages[i + 1].StartBlockIndex : int.MaxValue;
+                            
+                            if (targetBlockIndex >= p.StartBlockIndex && targetBlockIndex < nextStart)
                             {
                                 finalTargetPage = i;
                                 break;
@@ -1274,27 +1276,15 @@ namespace Uviewer
                     for (int i = 0; i < pages.Count; i++)
                     {
                         var p = pages[i];
-                        if (!p.IsImagePage && p.Blocks != null && p.Blocks.Count > 0)
+                        if (p.Blocks != null && p.Blocks.Count > 0)
                         {
+                            // 라인 번호도 동일하게 다음 페이지의 시작 라인과 비교하여 누락 방지
                             int pageStartLine = p.Blocks.First().SourceLineNumber;
-                            int pageEndLine = p.Blocks.Last().SourceLineNumber;
+                            int nextStartLine = (i + 1 < pages.Count && pages[i + 1].Blocks != null && pages[i + 1].Blocks.Count > 0) 
+                                ? pages[i + 1].Blocks.First().SourceLineNumber 
+                                : int.MaxValue;
 
-                            // 목표 라인이 이 페이지의 시작과 끝 사이에 있다면 이 페이지가 정답
-                            if (targetLine >= pageStartLine && targetLine <= pageEndLine)
-                            { 
-                                finalTargetPage = i; 
-                                break; 
-                            }
-                            // 마지막 페이지 처리 방어 로직
-                            if (i == pages.Count - 1 && targetLine >= pageStartLine)
-                            { 
-                                finalTargetPage = i; 
-                                break; 
-                            }
-                        }
-                        else if (p.IsImagePage && p.Blocks != null && p.Blocks.Count > 0)
-                        {
-                            if (targetLine == p.Blocks.First().SourceLineNumber)
+                            if (targetLine >= pageStartLine && targetLine < nextStartLine)
                             {
                                 finalTargetPage = i;
                                 break;

@@ -387,6 +387,7 @@ namespace Uviewer
                 
                 if (TextFastNavOverlay != null) TextFastNavOverlay.Visibility = Visibility.Collapsed;
                 _pendingVerticalScrollLine = null;
+                _pendingVerticalStartBlockIndex = -1; // <-- 이 줄을 추가하여 이전 위치 캐시를 비웁니다.
 
                 // 전체 페이지 수와 스크롤바 세팅은 백그라운드에 던짐
                 StartVerticalPageCalculationAsync();
