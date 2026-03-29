@@ -577,7 +577,7 @@ namespace Uviewer
                 if (TextArea != null) TextArea.Background = _settingsManager.GetThemeBackground();
 
                 // 3. Load rest in background
-                _ = Task.Run(() =>
+                _ = Task.Run(async () => // <-- async 키워드 추가
                 {
                     try
                     {
@@ -586,10 +586,17 @@ namespace Uviewer
                         var restTextLines = ParseTextLinesChunk(restLines, brush, maxW);
 
                         if (token.IsCancellationRequested) return;
+
+                        // [핵심 수정 1] ScrollToLine이 완전히 안착할 수 있도록 백그라운드 병합을 잠시 지연시킵니다.
+                        if (targetLine > 1) await Task.Delay(400, token);
+
                         this.DispatcherQueue.TryEnqueue(() =>
                         {
                             if (token.IsCancellationRequested) return;
                             if (_isAozoraMode) return; // Mode switched, abort
+
+                            // 병합 직전의 현재 스크롤 위치(픽셀 오프셋)를 안전하게 저장
+                            double savedOffset = TextScrollViewer?.VerticalOffset ?? 0;
 
                             _textLines.AddRange(restTextLines);
                             _isTextLinesFullyLoaded = true;
@@ -597,28 +604,26 @@ namespace Uviewer
                             // Refresh ItemsSource to show all lines
                             if (TextItemsRepeater != null)
                             {
-                                // --- [핵심 수정 1] 백그라운드 로드 시 스크롤 초기화 방지 ---
-                                // 1. 현재 렌더링 중인 라인(또는 목표 라인)을 구출
-                                int currentLineToRestore = GetTopVisibleLineIndex();
-                                if (targetLine > 1 && currentLineToRestore <= 1)
-                                {
-                                    currentLineToRestore = targetLine;
-                                }
-
                                 var currentSource = _textLines;
                                 TextItemsRepeater.ItemsSource = null;
                                 TextItemsRepeater.ItemsSource = currentSource;
 
-                                // 2. Source 갱신으로 0으로 돌아간 스크롤을 구출한 라인으로 재복구
-                                if (currentLineToRestore > 1)
+                                // [핵심 수정 2] Source 교체로 인해 0으로 튕긴 스크롤을 즉시 원래 자리로 복구
+                                if (savedOffset > 0 && TextScrollViewer != null)
                                 {
+                                    TextScrollViewer.UpdateLayout();
+                                    TextScrollViewer.ChangeView(null, savedOffset, null, true);
+
+                                    // 혹시 모를 바운스(Jitter)를 방지하기 위해 50ms 후 한 번 더 고정
                                     _ = Task.Run(async () =>
                                     {
                                         await Task.Delay(50);
-                                        DispatcherQueue.TryEnqueue(() => ScrollToLine(currentLineToRestore));
+                                        DispatcherQueue.TryEnqueue(() =>
+                                        {
+                                            TextScrollViewer?.ChangeView(null, savedOffset, null, true);
+                                        });
                                     });
                                 }
-                                // -----------------------------------------------------------
                             }
 
                             // Recalculate pages
@@ -2071,7 +2076,7 @@ namespace Uviewer
             // 1. ItemsRepeater가 데이터 바인딩 후 UI 레이아웃을 계산할 수 있도록 대기
             await Task.Delay(50);
 
-            // --- [핵심 수정 2] 레이아웃 강제 갱신으로 ChangeView 명령 무시 방지 ---
+            // [추가] ChangeView 명령이 무시되지 않도록 렌더 트리 강제 갱신
             TextScrollViewer.UpdateLayout();
 
             // 2. 가상화(Virtualization) 환경에서는 ExtentHeight가 즉시 전체를 반영하지 못하므로,
@@ -2079,7 +2084,7 @@ namespace Uviewer
             for (int i = 0; i < 5; i++)
             {
                 TextScrollViewer.ChangeView(null, targetOffset, null, true);
-                await Task.Delay(30);
+                await Task.Delay(30); // 50에서 30으로 줄여 더 빠르게 안착되도록 유도
 
                 // 스크롤 오프셋이 목표치 근처에 도달했거나 화면 전체 Extent가 목표를 수용할 만큼 충분히 커졌다면 중단
                 if (Math.Abs(TextScrollViewer.VerticalOffset - targetOffset) <= lineH * 2 ||
