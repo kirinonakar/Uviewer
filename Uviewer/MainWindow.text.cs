@@ -266,10 +266,13 @@ namespace Uviewer
 
             // Unified Target Line Logic
             int targetLine = 1;
+            int targetBlockIdx = -1;
             if (_aozoraPendingTargetLine != 1)
             {
                 targetLine = _aozoraPendingTargetLine;
                 _aozoraPendingTargetLine = 1; // Reset
+                targetBlockIdx = _aozoraPendingTargetBlockIndex;
+                _aozoraPendingTargetBlockIndex = -1; // Reset
             }
             else
             {
@@ -292,7 +295,7 @@ namespace Uviewer
             if (_isVerticalMode && !_isMarkdownRenderMode)
             {
                 if (TextArea != null) TextArea.Background = _settingsManager.GetThemeBackground();
-                await PrepareVerticalTextAsync(targetLine, -1, token);
+                await PrepareVerticalTextAsync(targetLine, targetBlockIdx, token);
                 if (token.IsCancellationRequested) return;
                 if (VerticalTextCanvas != null) VerticalTextCanvas.Visibility = Visibility.Visible;
 
@@ -304,7 +307,7 @@ namespace Uviewer
             if (_isAozoraMode)
             {
                 // Use page-based container display with target line restoration
-                await PrepareAozoraDisplayAsync(content, targetLine, token);
+                await PrepareAozoraDisplayAsync(content, targetLine, targetBlockIdx, token);
                 if (token.IsCancellationRequested) return;
                 if (AozoraTextCanvas != null) AozoraTextCanvas.Visibility = Visibility.Visible;
 
@@ -745,7 +748,7 @@ namespace Uviewer
                 }
 
                 // Re-calculate pages with new font size/settings
-                await PrepareAozoraDisplayAsync(_currentTextContent, currentLine, _globalTextCts?.Token ?? default);
+                await PrepareAozoraDisplayAsync(_currentTextContent, currentLine, -1, _globalTextCts?.Token ?? default);
 
                 // Content is already rendered progressively by PrepareAozoraDisplayAsync
                 if (TextArea != null)

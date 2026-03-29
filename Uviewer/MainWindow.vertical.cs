@@ -175,7 +175,8 @@ namespace Uviewer
                     currentLine = GetTopVisibleLineIndex();
                 }
 
-                await PrepareVerticalTextAsync(currentLine, _pendingEpubStartBlockIndex, _globalTextCts?.Token ?? default);
+                int targetBlockIdx = _isEpubMode ? _pendingEpubStartBlockIndex : (_isAozoraMode ? _currentAozoraStartBlockIndex : -1);
+                await PrepareVerticalTextAsync(currentLine, targetBlockIdx, _globalTextCts?.Token ?? default);
             }
             else
             {
@@ -260,7 +261,7 @@ namespace Uviewer
                 else if (_isAozoraMode)
                 {
                     if (AozoraTextCanvas != null) AozoraTextCanvas.Visibility = Visibility.Visible;
-                    await PrepareAozoraDisplayAsync(_currentTextContent, currentLine, _globalTextCts?.Token ?? default);
+                    await PrepareAozoraDisplayAsync(_currentTextContent, currentLine, currentBlockIdx, _globalTextCts?.Token ?? default);
                 }
                 else
                 {
@@ -274,7 +275,11 @@ namespace Uviewer
 
         private async Task PrepareVerticalTextAsync(int targetLine = 1, int targetBlockIndex = -1, CancellationToken externalToken = default)
         {
-            if (string.IsNullOrEmpty(_currentTextContent) && !_isEpubMode) return;
+            if (string.IsNullOrEmpty(_currentTextContent) && !_isEpubMode)
+            {
+                if (TextFastNavOverlay != null) TextFastNavOverlay.Visibility = Visibility.Collapsed;
+                return;
+            }
 
             // 로딩 오버레이 켬 (EPUB 모드에서는 즉각적인 반응을 위해 오버레이를 표시하지 않습니다)
             if (!_isEpubMode && TextFastNavOverlay != null) TextFastNavOverlay.Visibility = Visibility.Visible;

@@ -278,6 +278,7 @@ namespace Uviewer
                 if (_isVerticalMode && _currentVerticalPageInfo.Blocks != null && _currentVerticalPageInfo.Blocks.Count > 0)
                 {
                     currentLine = _currentVerticalPageInfo.StartLine;
+                    _aozoraPendingTargetBlockIndex = _currentVerticalStartBlockIndex;
                 }
                 // [수정] 가로 렌더링 대기 라인을 우선 확인
                 else if (_aozoraPendingTargetLine > 1)
@@ -318,6 +319,10 @@ namespace Uviewer
                 string displayName = string.IsNullOrEmpty(_currentTextFilePath) ? "Document" : System.IO.Path.GetFileName(_currentTextFilePath);
                 await DisplayLoadedText(_currentTextContent, displayName, _currentTextFilePath, _globalTextCts!.Token);
             }
+            else
+            {
+                if (TextFastNavOverlay != null) TextFastNavOverlay.Visibility = Visibility.Collapsed;
+            }
         }
 
         private async Task ReloadTextDisplayFromCacheAsync(string fileName, int targetLine)
@@ -336,7 +341,7 @@ namespace Uviewer
                     if (TextScrollViewer != null) TextScrollViewer.Visibility = Visibility.Collapsed;
                     if (AozoraTextCanvas != null) AozoraTextCanvas.Visibility = Visibility.Visible;
 
-                    await PrepareAozoraDisplayAsync(_currentTextContent, targetLine, token);
+                    await PrepareAozoraDisplayAsync(_currentTextContent, targetLine, -1, token);
                     FileNameText.Text = FileExplorerService.GetFormattedDisplayName(fileName, _currentTextArchiveEntryKey != null, _currentArchivePath);
                 }
                 else
@@ -367,9 +372,11 @@ namespace Uviewer
         }
 
         private int _aozoraPendingTargetLine = 1;
+        private int _aozoraPendingTargetBlockIndex = -1;
 
-        private async Task PrepareAozoraDisplayAsync(string rawContent, int targetLine = 1, CancellationToken token = default)
+        private async Task PrepareAozoraDisplayAsync(string rawContent, int targetLine = 1, int targetBlockIndex = -1, CancellationToken token = default)
 {
+    int startIdx = 0;
     try
     {
         if (_aozoraPendingTargetLine != 1)
@@ -395,8 +402,11 @@ namespace Uviewer
         if (_aozoraBlocks != null && _aozoraBlocks.Count > 0 && Math.Abs(_lastCacheFontSize - _settingsManager.FontSize) < 0.01)
         {
             _lastCacheFontSize = _settingsManager.FontSize;
-            int startIdx = 0;
-            if (targetLine > 1)
+            if (targetBlockIndex >= 0)
+            {
+                startIdx = Math.Clamp(targetBlockIndex, 0, _aozoraBlocks.Count - 1);
+            }
+            else if (targetLine > 1)
             {
                 // O(log N) 이진 탐색으로 즉시 탐색
                 int left = 0;
@@ -485,9 +495,13 @@ namespace Uviewer
                 _aozoraTotalLineCountInSource = sourceLineCount;
                 _textTotalLineCountInSource = sourceLineCount;
 
-                // 목표 라인(TargetLine) 인덱스 탐색
+                // 목표 라인(TargetLine) 또는 블록 인덱스 탐색
                 int startIdx = 0;
-                if (targetLine > 1)
+                if (targetBlockIndex >= 0)
+                {
+                    startIdx = Math.Clamp(targetBlockIndex, 0, _aozoraBlocks.Count - 1);
+                }
+                else if (targetLine > 1)
                 {
                     for (int i = 0; i < _aozoraBlocks.Count; i++)
                     {
@@ -1315,7 +1329,7 @@ namespace Uviewer
                                 if (_aozoraBlocks.Count > 0 && _currentAozoraStartBlockIndex >= 0 && _currentAozoraStartBlockIndex < _aozoraBlocks.Count)
                                     currentLine = _aozoraBlocks[_currentAozoraStartBlockIndex].SourceLineNumber;
                                 
-                                _ = PrepareAozoraDisplayAsync(_currentTextContent, currentLine, _globalTextCts?.Token ?? default);
+                                _ = PrepareAozoraDisplayAsync(_currentTextContent, currentLine, -1, _globalTextCts?.Token ?? default);
                             });
                         }
                     }
