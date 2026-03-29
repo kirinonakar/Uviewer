@@ -142,6 +142,7 @@ namespace Uviewer
 
         private Services.FavoritesService _favoritesService = new();
         private Services.RecentService _recentService = new();
+        private Microsoft.UI.Xaml.Controls.ContentDialog? _aboutDialog;
 
         public async Task InitializeAsync(string? launchFilePath = null)
         {
@@ -918,6 +919,8 @@ var image = new Microsoft.UI.Xaml.Controls.Image
                     RequestedTheme = RootGrid.ActualTheme
                 };
 
+                _aboutDialog = dialog;
+
                 // Centered Close Button inside the stack panel
                 var closeButton = new Microsoft.UI.Xaml.Controls.Button
                 {
@@ -930,6 +933,7 @@ var image = new Microsoft.UI.Xaml.Controls.Image
                 stackPanel.Children.Add(closeButton);
 
                 await dialog.ShowAsync();
+                _aboutDialog = null;
             }
             catch (Exception ex)
             {
