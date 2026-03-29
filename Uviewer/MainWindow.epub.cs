@@ -801,7 +801,7 @@ namespace Uviewer
 
             float posY = (float)(canvasSize.Height - scaledSize.Height) / 2;
 
-            ds.DrawImage(bitmap, new Rect(posX, posY, scaledSize.Width, scaledSize.Height));
+            ds.DrawImage(bitmap, new Rect(posX, posY, (float)scaledSize.Width, (float)scaledSize.Height), bitmap.Bounds, 1.0f, CanvasImageInterpolation.HighQualityCubic);
         }
 
 
