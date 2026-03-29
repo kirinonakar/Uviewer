@@ -89,16 +89,16 @@
     <value>Next Image Position</value>
   </data>
   <data name="PrevFileTooltip" xml:space="preserve">
-    <value>Previous File</value>
+    <value>Previous File (↑)</value>
   </data>
   <data name="NextFileTooltip" xml:space="preserve">
-    <value>Next File</value>
+    <value>Next File (↓)</value>
   </data>
   <data name="PrevPageTooltip" xml:space="preserve">
-    <value>Previous Image/Page</value>
+    <value>Previous Image/Page (←)</value>
   </data>
   <data name="NextPageTooltip" xml:space="preserve">
-    <value>Next Image/Page</value>
+    <value>Next Image/Page (→)</value>
   </data>
   <data name="AozoraTooltip" xml:space="preserve">
     <value>Aozora/md (A)</value>

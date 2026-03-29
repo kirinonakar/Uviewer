@@ -89,16 +89,16 @@
     <value>다음 그림 위치</value>
   </data>
   <data name="PrevFileTooltip" xml:space="preserve">
-    <value>이전 파일</value>
+    <value>이전 파일(↑)</value>
   </data>
   <data name="NextFileTooltip" xml:space="preserve">
-    <value>다음 파일</value>
+    <value>다음 파일(↓)</value>
   </data>
   <data name="PrevPageTooltip" xml:space="preserve">
-    <value>이전 이미지/페이지</value>
+    <value>이전 이미지/페이지(←)</value>
   </data>
   <data name="NextPageTooltip" xml:space="preserve">
-    <value>다음 이미지/페이지</value>
+    <value>다음 이미지/페이지(→)</value>
   </data>
   <data name="AozoraTooltip" xml:space="preserve">
     <value>Aozora/md (A)</value>

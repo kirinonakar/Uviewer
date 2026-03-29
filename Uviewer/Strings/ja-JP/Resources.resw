@@ -89,16 +89,16 @@
     <value>次ページの配置</value>
   </data>
   <data name="PrevFileTooltip" xml:space="preserve">
-    <value>前のファイル</value>
+    <value>前のファイル(↑)</value>
   </data>
   <data name="NextFileTooltip" xml:space="preserve">
-    <value>次のファイル</value>
+    <value>次のファイル(↓)</value>
   </data>
   <data name="PrevPageTooltip" xml:space="preserve">
-    <value>前の画像/ページ</value>
+    <value>前の画像/ページ(←)</value>
   </data>
   <data name="NextPageTooltip" xml:space="preserve">
-    <value>次の画像/ページ</value>
+    <value>次の画像/ページ(→)</value>
   </data>
   <data name="AozoraTooltip" xml:space="preserve">
     <value>青空文庫/md (A)</value>
