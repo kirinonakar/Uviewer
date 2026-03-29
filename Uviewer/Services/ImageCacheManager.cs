@@ -25,7 +25,6 @@ namespace Uviewer.Services
             _dispatcher = dispatcher ?? throw new ArgumentNullException(nameof(dispatcher));
         }
 
-        // 특정 인덱스의 이미지가 현재 로딩 중인지 확인하고, 아니라면 로딩 상태로 마킹
         public bool TryMarkForLoading(int index)
         {
             lock (_lockObject)
@@ -44,7 +43,6 @@ namespace Uviewer.Services
             }
         }
 
-        // 캐시에 이미지가 있는지, 업그레이드(저해상도->고해상도)가 필요한지 판별
         public bool ShouldSkipPreload(int index, bool isPdfEntry, double currentZoom, bool isPreviewQuality)
         {
             lock (_lockObject)
@@ -58,14 +56,11 @@ namespace Uviewer.Services
                         if (zoomMatches)
                         {
                             bool isLowRes = _pdfLowResPageIndices.Contains(index);
-                            
-                            // 풀 해상도 캐시가 있거나, (저해상도 캐시가 있는데 또 저해상도 요청인 경우) 스킵
                             if (!isLowRes || isPreviewQuality) return true;
                         }
                     }
                     else
                     {
-                        // PDF가 아닌 일반 이미지는 캐시가 있으면 무조건 스킵
                         return true;
                     }
                 }
@@ -73,7 +68,6 @@ namespace Uviewer.Services
             }
         }
 
-        // 로드된 이미지를 캐시에 저장 (기존 이미지가 있다면 안전하게 교체 및 해제)
         public void UpdateCache(int index, CanvasBitmap bitmap, bool isPdf, double currentZoom, bool isPreviewQuality, CanvasBitmap? currentDisplayingBitmap = null)
         {
             lock (_lockObject)
@@ -88,15 +82,18 @@ namespace Uviewer.Services
                     else _pdfLowResPageIndices.Remove(index);
                 }
 
-                // 기존 이미지가 있고, 방금 새로 가져온 이미지와 다르고, 현재 화면에 보여지는 이미지가 아니라면 메모리 해제
+                // 기존 이미지가 있고, 방금 새로 가져온 이미지와 다르고, 현재 화면에 보여지는 이미지가 아니라면
                 if (hasOld && oldBitmap != null && oldBitmap != bitmap && oldBitmap != currentDisplayingBitmap)
                 {
-                    SafeDisposeBitmap(oldBitmap);
+                    // [수정] 다른 캐시(Sharpened 등)에서 아직 사용 중인지 확인 후 안전하게 해제
+                    if (!IsBitmapInCache(oldBitmap))
+                    {
+                        SafeDisposeBitmap(oldBitmap);
+                    }
                 }
             }
         }
 
-        // 현재 인덱스를 기준으로 범위를 벗어난 오래된 캐시 정리
         public void CleanupOldPreloadedImages(int currentIndex, bool isPdfMode, int basePreloadCount, params CanvasBitmap?[] activeBitmaps)
         {
             lock (_lockObject)
@@ -110,7 +107,11 @@ namespace Uviewer.Services
                 {
                     if (_preloadedImages.TryGetValue(key, out var bitmap))
                     {
-                        // 현재 사용 중인 비트맵(Main, Left, Right)은 삭제 금지
+                        // [수정] IsBitmapInCache가 정상 작동하도록 컬렉션에서 먼저 제거
+                        _preloadedImages.Remove(key);
+                        _pdfPreloadZoomLevels.Remove(key);
+                        _pdfLowResPageIndices.Remove(key);
+
                         bool isActive = false;
                         foreach (var active in activeBitmaps)
                         {
@@ -121,19 +122,16 @@ namespace Uviewer.Services
                             }
                         }
 
-                        if (!isActive)
+                        // [수정] Sharpened 캐시 등에 아직 남아있는지 교차 검증
+                        if (!isActive && !IsBitmapInCache(bitmap))
                         {
                             SafeDisposeBitmap(bitmap);
                         }
                     }
-                    _preloadedImages.Remove(key);
-                    _pdfPreloadZoomLevels.Remove(key);
-                    _pdfLowResPageIndices.Remove(key);
                 }
             }
         }
 
-        // 저해상도 캐시 업그레이드 필요 여부 확인
         public bool NeedsHighResUpgrade(int index)
         {
             lock (_lockObject)
@@ -142,7 +140,6 @@ namespace Uviewer.Services
             }
         }
 
-        // 안전한 Win2D 메모리 해제 (UI 스레드 위임)
         public void SafeDisposeBitmap(CanvasBitmap? bitmap)
         {
             if (bitmap == null) return;
@@ -151,10 +148,9 @@ namespace Uviewer.Services
             {
                 try
                 {
-                    if (bitmap != null && bitmap.Device != null) 
-                    {
-                        bitmap.Dispose();
-                    }
+                    // [수정] bitmap.Device 접근 제거. 파괴된 객체의 속성에 접근하면 예외가 발생함.
+                    // Dispose()는 중복 호출되거나 이미 해제된 상태여도 안전하게 처리됨.
+                    bitmap?.Dispose();
                 }
                 catch (Exception ex)
                 {
@@ -163,14 +159,12 @@ namespace Uviewer.Services
             });
         }
 
-        // 캐시 데이터 조회용
         public CanvasBitmap? GetPreloadedImage(int index, double? requiredZoom = null)
         {
             lock (_lockObject)
             {
                 if (_preloadedImages.TryGetValue(index, out var bitmap))
                 {
-                    // PDF인 경우 줌 레벨도 확인 (전달되었을 때만)
                     if (requiredZoom.HasValue && _pdfPreloadZoomLevels.TryGetValue(index, out var cachedZoom))
                     {
                         if (Math.Abs(cachedZoom - requiredZoom.Value) > 0.01)
@@ -206,12 +200,14 @@ namespace Uviewer.Services
                     {
                         if (_sharpenedImageCache.TryGetValue(key, out var bitmap))
                         {
+                            // [수정] 컬렉션에서 먼저 지워야 IsBitmapInCache가 논리적으로 맞게 동작함
+                            _sharpenedImageCache.Remove(key);
+                            
                             if (!IsBitmapInCache(bitmap))
                             {
                                 SafeDisposeBitmap(bitmap);
                             }
                         }
-                        _sharpenedImageCache.Remove(key);
                     }
                 }
                 _sharpenedImageCache[index] = sharpenedBitmap;
@@ -221,17 +217,20 @@ namespace Uviewer.Services
         public bool IsBitmapInCache(CanvasBitmap bitmap)
         {
             if (bitmap == null) return false;
-            lock (_lockObject)
-            {
-                return _preloadedImages.ContainsValue(bitmap) || _sharpenedImageCache.ContainsValue(bitmap);
-            }
+            // lock (_lockObject)는 호출하는 쪽에서 이미 락을 걸고 있으므로 교착 상태 방지를 위해 락을 유지하지만
+            // 딕셔너리 내부 검색으로 충분히 빠릅니다.
+            return _preloadedImages.ContainsValue(bitmap) || _sharpenedImageCache.ContainsValue(bitmap);
         }
 
         public void ClearSharpenedCache(params CanvasBitmap?[] activeBitmaps)
         {
             lock (_lockObject)
             {
-                foreach (var kvp in _sharpenedImageCache.ToList())
+                // [수정] 복사본을 만들고 먼저 Clear 해야 IsBitmapInCache 검증이 안전함
+                var copy = _sharpenedImageCache.ToList();
+                _sharpenedImageCache.Clear();
+
+                foreach (var kvp in copy)
                 {
                     bool isActive = false;
                     foreach (var active in activeBitmaps)
@@ -243,12 +242,11 @@ namespace Uviewer.Services
                         }
                     }
 
-                    if (!isActive)
+                    if (!isActive && !IsBitmapInCache(kvp.Value))
                     {
                         SafeDisposeBitmap(kvp.Value);
                     }
                 }
-                _sharpenedImageCache.Clear();
             }
         }
 
@@ -256,14 +254,23 @@ namespace Uviewer.Services
         {
             lock (_lockObject)
             {
-                foreach (var img in _preloadedImages.Values) SafeDisposeBitmap(img);
-                foreach (var img in _sharpenedImageCache.Values) SafeDisposeBitmap(img);
+                // [수정] 중복된 참조가 양쪽 캐시에 있을 경우 두 번 Dispose 되는 것을 막기 위해 Distinct 처리
+                var allBitmaps = _preloadedImages.Values
+                    .Concat(_sharpenedImageCache.Values)
+                    .Where(b => b != null)
+                    .Distinct()
+                    .ToList();
                 
                 _preloadedImages.Clear();
                 _pdfPreloadZoomLevels.Clear();
                 _loadingIndices.Clear();
                 _pdfLowResPageIndices.Clear();
                 _sharpenedImageCache.Clear();
+
+                foreach (var img in allBitmaps) 
+                {
+                    SafeDisposeBitmap(img);
+                }
             }
         }
 
