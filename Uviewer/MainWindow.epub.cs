@@ -22,6 +22,7 @@ using Windows.Storage;
 using Windows.Storage.Streams;
 using Uviewer.Models;
 using Uviewer.Services;
+using Uviewer.Renderers;
 
 namespace Uviewer
 {
@@ -757,215 +758,28 @@ namespace Uviewer
             var pg = CurrentEpubWin2DPage;
             if (pg == null || pg.Blocks == null || pg.Blocks.Count == 0) return;
 
-            // 이미지 페이지는 EpubImageHost에서 처리
+            // 이미지 페이지는 EpubImageHost에서 처리하므로 넘김
             if (pg.IsImagePage) return;
 
             float limitedWidth = (float)(_settingsManager.FontSize * 42);
             float marginLeft = 40f; 
             float contentWidth = Math.Min(limitedWidth, (float)size.Width - 80f);
             float marginTop = 30f;
-            float currentY = marginTop;
 
-            // Aozora 수평 드로우 로직 재사용 (세로모드 예외)
-            DrawHorizontalEpubBlocks(ds, size, pg.Blocks, textColor, marginLeft, marginTop, contentWidth);
+            // ⭐ 통합 렌더러 호출 (EPUB과 Aozora가 완벽히 동일한 품질로 렌더링됩니다!)
+            HorizontalRenderer.RenderBlocks(
+                ds: ds,
+                blocks: pg.Blocks,
+                textColor: textColor,
+                marginLeft: marginLeft,
+                marginTop: marginTop,
+                maxWidth: contentWidth,
+                baseFontSize: _settingsManager.FontSize,
+                defaultFontFamily: _settingsManager.FontFamily,
+                getFontWeight: GetFontWeightForFamily
+            );
         }
 
-        private void DrawHorizontalEpubBlocks(CanvasDrawingSession ds, Windows.Foundation.Size size,
-    List<AozoraBindingModel> blocks, Color textColor, float marginLeft, float marginTop, float maxWidth)
-{
-    float currentY = marginTop;
-
-    bool isBoxing = false;
-    float boxLeft = float.MaxValue, boxRight = float.MinValue;
-    float boxTop = 0f, boxBottom = float.MaxValue;
-    Color boxColor = Colors.Gray;
-    float boxPad = 20f;
-
-    for (int i = 0; i < blocks.Count; i++)
-    {
-        var block = blocks[i];
-        float fontSize = (float)(_settingsManager.FontSize * block.FontSizeScale);
-        float rubyFontSize = fontSize * 0.5f;
-
-        // 테이블
-        if (block.IsTable && block.TableRows != null && block.TableRows.Count > 0)
-        {
-            var row = block.TableRows[0];
-            int colCount = row.Count;
-            int r = block.TableRowIndex;
-            bool isHeader = (r == 0);
-            bool isFirstOnPage = (i == 0) || !blocks[i - 1].IsTable;
-
-            float tableIndent = (float)(block.BlockIndent > 0 ? block.BlockIndent : block.Margin.Left);
-            float tableMaxWidth = maxWidth - tableIndent;
-            float tableDrawX = marginLeft + tableIndent;
-            float colWidth = tableMaxWidth / colCount;
-
-            using var tableFormat = new CanvasTextFormat
-            {
-                FontSize = fontSize,
-                FontFamily = block.FontFamily ?? _settingsManager.FontFamily,
-                WordWrapping = CanvasWordWrapping.Wrap,
-                FontWeight = isHeader ? Microsoft.UI.Text.FontWeights.Bold : GetFontWeightForFamily(block.FontFamily ?? _settingsManager.FontFamily)
-            };
-
-            if (isHeader || isFirstOnPage)
-                ds.DrawLine(tableDrawX, currentY, tableDrawX + tableMaxWidth, currentY, Colors.Gray, 1.5f);
-
-            float maxCellHeight = 0;
-            var cellLayouts = new List<CanvasTextLayout>();
-            foreach (var cellText in row)
-            {
-                var parsed = ParseTableInline(cellText);
-                var cellLayout = new CanvasTextLayout(ds, parsed.text, tableFormat, Math.Max(10, colWidth - 20), 0.0f);
-                cellLayout.Options = Microsoft.Graphics.Canvas.Text.CanvasDrawTextOptions.EnableColorFont;
-                foreach (var br in parsed.boldRanges)
-                    cellLayout.SetFontWeight(br.start, br.length, Microsoft.UI.Text.FontWeights.Bold);
-                cellLayouts.Add(cellLayout);
-                float h = (float)cellLayout.LayoutBounds.Height;
-                if (h > maxCellHeight) maxCellHeight = h;
-            }
-            float rowHeight = maxCellHeight + 20f;
-            if (isHeader)
-                ds.FillRectangle(tableDrawX, currentY, tableMaxWidth, rowHeight, Microsoft.UI.ColorHelper.FromArgb(30, 128, 128, 128));
-            else if (r % 2 == 1)
-                ds.FillRectangle(tableDrawX, currentY, tableMaxWidth, rowHeight, Microsoft.UI.ColorHelper.FromArgb(10, 128, 128, 128));
-            for (int c = 0; c < colCount; c++)
-            {
-                float cellX = tableDrawX + (c * colWidth);
-                ds.DrawTextLayout(cellLayouts[c], cellX + 10, currentY + 10, textColor);
-                cellLayouts[c].Dispose();
-                ds.DrawLine(cellX, currentY, cellX, currentY + rowHeight, Colors.Gray, 1f);
-            }
-            ds.DrawLine(tableDrawX + tableMaxWidth, currentY, tableDrawX + tableMaxWidth, currentY + rowHeight, Colors.Gray, 1f);
-            currentY += rowHeight;
-            ds.DrawLine(tableDrawX, currentY, tableDrawX + tableMaxWidth, currentY, Colors.Gray, isHeader ? 2f : 1f);
-            if (r == block.TableRowCount - 1) currentY += 20f;
-            continue;
-        }
-
-        // 💡 [수정] 측정 로직과 일치하도록 헤딩(HeadingLevel > 0)일 때 줄 간격을 1.3f로 통일
-        float lineSpacing = (block.IsTable || block.HeadingLevel > 0) ? fontSize * 1.3f : fontSize * 2.1f;
-
-        var sb2 = new StringBuilder();
-        var rubyRanges = new List<(int start, int length, string rubyText)>();
-        var boldRanges2 = new List<(int start, int length)>();
-        var italicRanges2 = new List<(int start, int length)>();
-
-        foreach (var inline in block.Inlines)
-        {
-            int st = sb2.Length;
-            if (inline is string s) sb2.Append(s);
-            else if (inline is AozoraRuby ruby) { sb2.Append(ruby.BaseText); rubyRanges.Add((st, ruby.BaseText.Length, ruby.RubyText)); if (ruby.IsBold) boldRanges2.Add((st, ruby.BaseText.Length)); }
-            else if (inline is AozoraBold bold) { sb2.Append(bold.Text); boldRanges2.Add((st, bold.Text.Length)); }
-            else if (inline is AozoraItalic italic) { sb2.Append(italic.Text); italicRanges2.Add((st, italic.Text.Length)); }
-            else if (inline is AozoraCode code) sb2.Append(code.Text);
-            else if (inline is AozoraTCY tcy) { sb2.Append(tcy.Text); if (tcy.IsBold) boldRanges2.Add((st, tcy.Text.Length)); }
-            else if (inline is AozoraLineBreak) sb2.Append("\n");
-        }
-
-        string blockText = sb2.ToString();
-        // 💡 [수정] 빈 블록일 경우 CanvasTextLayout 에러나 라인 카운트 증발을 막기 위해 최소 공백 할당
-        if (string.IsNullOrEmpty(blockText)) blockText = " ";
-
-        float indent = (float)(block.BlockIndent > 0 ? block.BlockIndent : block.Margin.Left);
-        // 💡 [수정] Margin.Right 값까지 빼주어 실제 가용 너비를 정확히 계산
-        float actualMaxWidth = maxWidth - indent - (float)block.Margin.Right;
-        if (actualMaxWidth < 100) actualMaxWidth = 100;
-
-        using var format = new CanvasTextFormat
-        {
-            FontSize = fontSize,
-            FontFamily = block.FontFamily ?? _settingsManager.FontFamily,
-            FontWeight = GetFontWeightForFamily(block.FontFamily ?? _settingsManager.FontFamily),
-            Direction = CanvasTextDirection.LeftToRightThenTopToBottom,
-            WordWrapping = block.IsTable ? CanvasWordWrapping.NoWrap : CanvasWordWrapping.Wrap,
-            LineSpacing = lineSpacing,
-            VerticalAlignment = CanvasVerticalAlignment.Top
-        };
-
-        using var textLayout = new CanvasTextLayout(ds, blockText, format, actualMaxWidth, 0.0f);
-        textLayout.Options = Microsoft.Graphics.Canvas.Text.CanvasDrawTextOptions.EnableColorFont;
-        if (block.IsBold) textLayout.SetFontWeight(0, blockText.Length, Microsoft.UI.Text.FontWeights.Bold);
-        foreach (var rr in boldRanges2) textLayout.SetFontWeight(rr.start, rr.length, Microsoft.UI.Text.FontWeights.Bold);
-        foreach (var ir in italicRanges2) textLayout.SetFontStyle(ir.start, ir.length, Windows.UI.Text.FontStyle.Italic);
-
-        int lineCount2 = textLayout.LineCount;
-        float currentBlockHeight = block.IsBlankLine ? lineSpacing * 0.3f : lineCount2 * lineSpacing;
-
-        var bounds = textLayout.LayoutBounds;
-        float drawX = marginLeft + indent;
-        
-        // 💡 [수정] 중앙 정렬과 우측 정렬 위치를 부모 마진을 기반으로 정확히 배치
-        if (block.Alignment == TextAlignment.Center) drawX = marginLeft + (maxWidth - (float)bounds.Width) / 2;
-        else if (block.Alignment == TextAlignment.Right) drawX = marginLeft + maxWidth - (float)bounds.Width - (float)block.Margin.Right;
-
-        bool isKeigakomi = block.BorderThickness.Top > 0 && block.BorderThickness.Bottom > 0 && block.BorderThickness.Left > 0 && block.BorderThickness.Right > 0;
-        float currentW = (float)bounds.Width;
-        if (block.IsBlankLine && currentW < fontSize) currentW = fontSize;
-
-        if (isKeigakomi)
-        {
-            if (!isBoxing) { currentY += boxPad; isBoxing = true; boxTop = currentY; boxBottom = currentY + currentBlockHeight; boxLeft = drawX + (float)bounds.X; boxRight = drawX + (float)bounds.X + currentW; boxColor = block.BorderColor ?? Colors.Gray; }
-            else { boxTop = Math.Min(boxTop, currentY + (float)bounds.Y); boxBottom = Math.Max(boxBottom, currentY + (float)bounds.Y + currentBlockHeight); boxLeft = Math.Min(boxLeft, drawX + (float)bounds.X); boxRight = Math.Max(boxRight, drawX + (float)bounds.X + currentW); }
-        }
-        else if (isBoxing)
-        {
-            ds.DrawRectangle(boxLeft - boxPad, boxTop - boxPad, boxRight - boxLeft + boxPad * 2, boxBottom - boxTop + boxPad * 2, boxColor, 1.5f);
-            isBoxing = false; currentY += boxPad + lineSpacing;
-        }
-
-        if (block.BackgroundColor != null)
-        {
-            var db = textLayout.DrawBounds;
-            float dbTop = (float)db.Top; float dbH = (float)db.Height;
-            if (dbH < fontSize) dbH = fontSize;
-            ds.FillRectangle(drawX - 4, currentY + dbTop - 4f, currentW + 8, dbH + 8f, block.BackgroundColor.Value);
-        }
-
-        ds.DrawTextLayout(textLayout, drawX, currentY, textColor);
-
-        if (!isKeigakomi && block.BorderColor != null)
-        {
-            var db2 = textLayout.DrawBounds;
-            float actualTextBottom = (float)Math.Max(db2.Bottom, fontSize);
-            float borderBottomY = currentY + actualTextBottom - 20f;
-            if (block.BorderThickness.Bottom > 0) ds.DrawLine(drawX, borderBottomY, drawX + currentW, borderBottomY, block.BorderColor.Value, (float)block.BorderThickness.Bottom);
-            if (block.BorderThickness.Left > 0) { float quoteLeft = drawX - 15; float actualTextTop = (float)Math.Min(db2.Top, 0); ds.DrawLine(quoteLeft, currentY + actualTextTop, quoteLeft, borderBottomY, block.BorderColor.Value, (float)block.BorderThickness.Left); }
-        }
-
-        // 루비 그리기
-        using var rubyFormat2 = new CanvasTextFormat { FontSize = rubyFontSize, FontFamily = _settingsManager.FontFamily, FontWeight = GetFontWeightForFamily(_settingsManager.FontFamily), Direction = CanvasTextDirection.LeftToRightThenTopToBottom, VerticalAlignment = CanvasVerticalAlignment.Top, WordWrapping = CanvasWordWrapping.NoWrap };
-        var rubyRenderInfos2 = new List<HorizontalRubyRenderInfo>();
-        foreach (var ruby in rubyRanges)
-        {
-            var regions = textLayout.GetCharacterRegions(ruby.start, ruby.length);
-            if (regions.Length > 0)
-            {
-                var charBounds = regions[0].LayoutBounds;
-                float lineBoxTop = currentY + (float)charBounds.Top;
-                float rubyY = lineBoxTop - (rubyFontSize * 3f);
-                float charCenter = drawX + (float)charBounds.Left + (float)charBounds.Width / 2.0f;
-                var rubyLayout = new CanvasTextLayout(ds, ruby.rubyText, rubyFormat2, 0.0f, 0.0f);
-                rubyLayout.Options = Microsoft.Graphics.Canvas.Text.CanvasDrawTextOptions.EnableColorFont;
-                float rubyWidth = (float)rubyLayout.LayoutBounds.Width;
-                float idealLeft = charCenter - (rubyWidth / 2.0f);
-                rubyRenderInfos2.Add(new HorizontalRubyRenderInfo { Layout = rubyLayout, IdealX = idealLeft, Width = rubyWidth, X = idealLeft, Y = rubyY });
-            }
-        }
-        ResolveHorizontalRubyOverlaps(rubyRenderInfos2);
-        foreach (var info in rubyRenderInfos2) { ds.DrawTextLayout(info.Layout, info.X, info.Y, textColor); info.Layout.Dispose(); }
-
-        // 💡 [수정] 블록의 하단 여백(Margin.Bottom)을 Y 좌표 계산에 반영
-        currentY += currentBlockHeight + (float)block.Margin.Bottom;
-
-        if (i == blocks.Count - 1 && isBoxing)
-        {
-            ds.DrawRectangle(boxLeft - boxPad, boxTop - boxPad, boxRight - boxLeft + boxPad * 2, boxBottom - boxTop + boxPad * 2, boxColor, 1.5f);
-            isBoxing = false;
-        }
-    }
-}
 
         private void EpubTouchOverlay_PointerPressed(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
         {
