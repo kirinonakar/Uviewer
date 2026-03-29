@@ -35,6 +35,7 @@ namespace Uviewer
         private Window? _window;
         public static string? LaunchFilePath { get; set; }
         private static bool _allowMultipleInstances = true;
+        private static bool _isRegistered = false;
         private static CancellationTokenSource? _pipeCts;
         private uint _comCookie;
         private static bool _isComActivation = false;
@@ -149,7 +150,41 @@ namespace Uviewer
                     {
                         if (lines[10].Trim() == "0") _allowMultipleInstances = false;
                     }
+                    if (lines.Length >= 16)
+                    {
+                        if (lines[15].Trim() == "1") _isRegistered = true;
+                    }
                 }
+            }
+            catch { }
+        }
+
+        private void SaveRegistrationStatus()
+        {
+            try
+            {
+                string settingsFile = System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "Uviewer", "window_settings.txt");
+                string[] lines;
+                if (System.IO.File.Exists(settingsFile))
+                {
+                    lines = File.ReadAllLines(settingsFile);
+                }
+                else
+                {
+                    lines = new string[16];
+                    for (int i = 0; i < 16; i++) lines[i] = "0";
+                    // Default values for essentials if file didn't exist
+                    lines[10] = _allowMultipleInstances ? "1" : "0";
+                }
+
+                if (lines.Length < 16)
+                {
+                    Array.Resize(ref lines, 16);
+                    for (int i = lines.Length; i < 16; i++) lines[i] = "0";
+                }
+
+                lines[15] = "1"; // Mark as registered
+                File.WriteAllLines(settingsFile, lines);
             }
             catch { }
         }
@@ -243,6 +278,8 @@ namespace Uviewer
 
         private void RegisterFileAssociations()
         {
+            if (_isRegistered) return;
+
             try
             {
                 string[] extensions = { 
@@ -252,6 +289,9 @@ namespace Uviewer
                     ".epub", ".pdf" 
                 };
                 ActivationRegistrationManager.RegisterForFileTypeActivation(extensions, null, "Uviewer File", null, "");
+                
+                _isRegistered = true;
+                SaveRegistrationStatus();
             }
             catch (Exception ex)
             {

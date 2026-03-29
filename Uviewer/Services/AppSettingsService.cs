@@ -73,6 +73,7 @@ namespace Uviewer.Services
                         if (lines.Length >= 13 && lines[12].Trim() == "0") settings.IsPinned = false;
                         if (lines.Length >= 14 && lines[13].Trim() == "1") settings.IsAlwaysOnTop = true;
                         if (lines.Length >= 15 && lines[14].Trim() == "1") settings.AutoDoublePageForArchive = true;
+                        if (lines.Length >= 16 && lines[15].Trim() == "1") settings.IsRegistered = true;
                         
                         return settings;
                     }
@@ -111,7 +112,8 @@ namespace Uviewer.Services
                     settings.IsSidebarVisible ? "1" : "0",
                     settings.IsPinned ? "1" : "0",
                     settings.IsAlwaysOnTop ? "1" : "0",
-                    settings.AutoDoublePageForArchive ? "1" : "0"
+                    settings.AutoDoublePageForArchive ? "1" : "0",
+                    settings.IsRegistered ? "1" : "0"
                 };
 
                 File.WriteAllLines(_windowSettingsFile, lines);

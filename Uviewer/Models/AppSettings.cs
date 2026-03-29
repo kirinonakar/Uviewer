@@ -17,5 +17,6 @@ namespace Uviewer.Models
         public bool IsPinned { get; set; } = true;
         public bool IsAlwaysOnTop { get; set; } = false;
         public bool AutoDoublePageForArchive { get; set; } = false;
+        public bool IsRegistered { get; set; } = false;
     }
 }
