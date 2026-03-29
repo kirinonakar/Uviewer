@@ -15,6 +15,7 @@ using Windows.Foundation;
 using Windows.UI;
 using Uviewer.Models;
 using Uviewer.Services;
+using Uviewer.Renderers;
 
 namespace Uviewer
 {
@@ -773,29 +774,29 @@ namespace Uviewer
             foreach (var inline in block.Inlines)
             {
                 int start = sb.Length;
-                if (inline is string s) sb.Append(NormalizeVerticalText(s));
+                if (inline is string s) sb.Append(VerticalRenderer.NormalizeVerticalText(s));
                 else if (inline is AozoraRuby ruby)
                 {
-                    var normBase = NormalizeVerticalText(ruby.BaseText);
+                    var normBase = VerticalRenderer.NormalizeVerticalText(ruby.BaseText);
                     sb.Append(normBase);
                     if (ruby.IsBold) boldRanges.Add((start, normBase.Length));
                 }
                 else if (inline is AozoraBold bold)
                 {
-                    var normText = NormalizeVerticalText(bold.Text);
+                    var normText = VerticalRenderer.NormalizeVerticalText(bold.Text);
                     sb.Append(normText);
                     boldRanges.Add((start, normText.Length));
                 }
                 else if (inline is AozoraItalic italic)
                 {
-                    var normText = NormalizeVerticalText(italic.Text);
+                    var normText = VerticalRenderer.NormalizeVerticalText(italic.Text);
                     sb.Append(normText);
                     italicRanges.Add((start, normText.Length));
                 }
-                else if (inline is AozoraCode code) sb.Append(NormalizeVerticalText(code.Text));
+                else if (inline is AozoraCode code) sb.Append(VerticalRenderer.NormalizeVerticalText(code.Text));
                 else if (inline is AozoraTCY tcy)
                 {
-                    var normText = NormalizeVerticalText(tcy.Text);
+                    var normText = VerticalRenderer.NormalizeVerticalText(tcy.Text);
                     sb.Append(normText);
                     if (tcy.IsBold) boldRanges.Add((start, normText.Length));
                 }
@@ -851,8 +852,6 @@ namespace Uviewer
             var size = sender.Size;
             Color textColor = GetVerticalTextColor();
             
-            // [수정] EPUB 이미지 페이지에서는 읽기 테마(베이지 등) 대신 앱 표준 배경색을 사용합니다.
-            // 또한 페이지 전환 중(데이터 로딩)에도 EPUB 모드라면 미리 해당 배경색으로 비워서 베이지색 깜박임을 방지합니다.
             bool isImgPage = _currentVerticalPageInfo.Blocks != null && _currentVerticalPageInfo.Blocks.Any(b => b.HasImage);
             bool isEmptyPage = _currentVerticalPageInfo.Blocks == null || _currentVerticalPageInfo.Blocks.Count == 0;
 
@@ -863,16 +862,11 @@ namespace Uviewer
 
             var page = _currentVerticalPageInfo;
             
-            // [수정] 렌더링 측정한 마진과 동일하게 적용
             float marginTop = 20;
             float marginBottom = 20;
             float marginRight = 30;
+            float marginLeft = 10;
 
-            float currentX = (float)size.Width - marginRight; 
-            float startY = marginTop;
-            float drawHeight = (float)size.Height - (marginTop + marginBottom);
-
-            // [추가] 이미지 모드 체크 (SideBySide일 때 한 페이지에 여러 블록(이미지)이 있을 수 있음)
             var imgBlocks = page.Blocks.Where(b => b.HasImage).ToList();
             if (imgBlocks.Count > 0)
             {
@@ -887,207 +881,23 @@ namespace Uviewer
                     var src = imgBlocks[0].Inlines.OfType<AozoraImage>().First().Source;
                     DrawVerticalImage(ds, size, src);
                 }
-                return; // 이미지 페이지는 텍스트를 그리지 않음
+                return; 
             }
 
-            // [罫囲み] 박스 렌더링을 위한 상태 변수
-            bool isBoxing = false;
-            float boxRight = 0f;
-            float boxLeft = float.MaxValue;
-            float boxTop = float.MaxValue;
-            float boxBottom = float.MinValue;
-            Color boxColor = Colors.Gray;
-            float boxPad = 20f; // 박스 안팎 여백
-
-            // 기존 foreach를 for 문으로 교체합니다.
-            for (int i = 0; i < page.Blocks.Count; i++)
-            {
-                var block = page.Blocks[i];
-
-                float fontSize = (float)(_settingsManager.FontSize * block.FontSizeScale);
-                float rubyFontSize = fontSize * 0.5f;
-                float measureWidth = fontSize * 2f;
-
-                using var format = new CanvasTextFormat
-                {
-                    FontSize = fontSize,
-                    FontFamily = block.FontFamily ?? _settingsManager.FontFamily,
-                    FontWeight = GetFontWeightForFamily(block.FontFamily ?? _settingsManager.FontFamily),
-                    Direction = CanvasTextDirection.TopToBottomThenRightToLeft,
-                    WordWrapping = CanvasWordWrapping.EmergencyBreak,
-                    LineSpacing = fontSize * 1.8f, 
-                    VerticalGlyphOrientation = CanvasVerticalGlyphOrientation.Default,
-                    VerticalAlignment = CanvasVerticalAlignment.Center 
-                };
-
-                // --- 텍스트 빌더 및 범위 기록 ---
-                StringBuilder sb = new StringBuilder();
-                var rubyRanges = new List<(int start, int length, string rubyText)>();
-                var boldRanges = new List<(int start, int length)>();
-                var tcyRanges = new List<(int start, int length)>();
-                var italicRanges = new List<(int start, int length)>();
-
-                foreach (var inline in block.Inlines)
-                {
-                    int start = sb.Length;
-                    if (inline is string s) sb.Append(NormalizeVerticalText(s));
-                    else if (inline is AozoraRuby ruby)
-                    {
-                        var normBase = NormalizeVerticalText(ruby.BaseText);
-                        sb.Append(normBase);
-                        rubyRanges.Add((start, normBase.Length, ruby.RubyText));
-                        if (ruby.IsBold) boldRanges.Add((start, normBase.Length));
-                    }
-                    else if (inline is AozoraBold bold)
-                    {
-                        var normText = NormalizeVerticalText(bold.Text);
-                        sb.Append(normText);
-                        boldRanges.Add((start, normText.Length));
-                    }
-                    else if (inline is AozoraItalic italic)
-                    {
-                        var normText = NormalizeVerticalText(italic.Text);
-                        sb.Append(normText);
-                        italicRanges.Add((start, normText.Length));
-                    }
-                    else if (inline is AozoraCode code) sb.Append(NormalizeVerticalText(code.Text));
-                    else if (inline is AozoraTCY tcy)
-                    {
-                        var normText = NormalizeVerticalText(tcy.Text);
-                        sb.Append(normText);
-                        tcyRanges.Add((start, normText.Length));
-                        if (tcy.IsBold) boldRanges.Add((start, normText.Length));
-                    }
-                    else if (inline is AozoraLineBreak) sb.Append("\n");
-                }
-
-                if (block.IsTable && block.TableRows.Count > 0)
-                {
-                    foreach (var row in block.TableRows) sb.AppendLine(string.Join(" | ", row));
-                }
-
-                string blockText = sb.ToString();
-
-                using var textLayout = new CanvasTextLayout(ds, blockText, format, measureWidth, drawHeight);
-                ApplyVerticalBracketSpacing(ds, format, textLayout, blockText, fontSize);
-                
-                if (block.IsBold) textLayout.SetFontWeight(0, blockText.Length, Microsoft.UI.Text.FontWeights.Bold);
-                foreach (var r in boldRanges) textLayout.SetFontWeight(r.start, r.length, Microsoft.UI.Text.FontWeights.Bold);
-                foreach (var r in italicRanges) textLayout.SetFontStyle(r.start, r.length, Windows.UI.Text.FontStyle.Italic);
-
-                var bounds = textLayout.LayoutBounds;
-                float currentLineThickness = (float)bounds.Width;
-                if (block.IsBlankLine) currentLineThickness *= 0.5f;
-
-                // --- 罫囲み (박스) 처리 ---
-                bool isKeigakomi = block.BorderColor != null || block.BorderThickness.Top > 0;
-                
-                float drawY = startY + (float)block.Margin.Top;
-                if (block.Alignment == TextAlignment.Center) drawY = (float)((size.Height - bounds.Height) / 2);
-                else if (block.Alignment == TextAlignment.Right) drawY = (float)(size.Height - bounds.Height - marginBottom);
-
-                // 빈 줄일 경우 텍스트 높이가 너무 작아 박스가 찌그러지는 것을 방지
-                float currentH = (float)bounds.Height;
-                if (block.IsBlankLine && currentH < fontSize) currentH = fontSize;
-
-                if (isKeigakomi)
-                {
-                    if (!isBoxing)
-                    {
-                        // 박스 시작: 오른쪽 여백 확보
-                        currentX -= boxPad;
-                        isBoxing = true;
-                        boxRight = currentX;
-                        boxLeft = currentX - currentLineThickness;
-                        boxTop = drawY + (float)bounds.Y;
-                        boxBottom = drawY + (float)bounds.Y + currentH;
-                        boxColor = block.BorderColor ?? Colors.Gray;
-                    }
-                    else
-                    {
-                        // 박스 진행 중: 가장 넓은 상하좌우 영역으로 갱신
-                        boxLeft = currentX - currentLineThickness;
-                        boxTop = Math.Min(boxTop, drawY + (float)bounds.Y);
-                        boxBottom = Math.Max(boxBottom, drawY + (float)bounds.Y + currentH);
-                    }
-                }
-                else if (!isKeigakomi && isBoxing)
-                {
-                    // 박스 종료: 텍스트 뒤에 박스 테두리 그리기
-                    ds.DrawRectangle(boxLeft - boxPad, boxTop - boxPad, boxRight - boxLeft + boxPad * 2, boxBottom - boxTop + boxPad * 2, boxColor, 1.5f);
-                    isBoxing = false;
-                    
-                    // 박스 종료 후 왼쪽 여백 확보
-                    currentX -= boxPad;
-                }
-
-                // 4. 그리기 위치(drawX) 보정
-                float drawX = currentX - (float)(bounds.X + bounds.Width);
-
-                // 5. 본문 그리기
-                ds.DrawTextLayout(textLayout, drawX, drawY, textColor);
-
-                // 6. 루비 그리기 
-                using var rubyFormat = new CanvasTextFormat
-                {
-                    FontSize = rubyFontSize,
-                    FontFamily = _settingsManager.FontFamily,
-                    FontWeight = GetFontWeightForFamily(_settingsManager.FontFamily),
-                    Direction = CanvasTextDirection.TopToBottomThenRightToLeft,
-                    VerticalAlignment = CanvasVerticalAlignment.Top,
-                    WordWrapping = CanvasWordWrapping.NoWrap
-                };
-
-                var rubyRenderInfos = new List<RubyRenderInfo>();
-                foreach (var ruby in rubyRanges)
-                {
-                    var regions = textLayout.GetCharacterRegions(ruby.start, ruby.length);
-                    if (regions.Length > 0)
-                    {
-                        var charBounds = regions[0].LayoutBounds;
-                        float rubyX = drawX + (float)charBounds.Left + (float)charBounds.Width + (rubyFontSize * 2.2f);
-                        float rubyY = drawY + (float)charBounds.Top; 
-
-                        var rubyLayout = new CanvasTextLayout(ds, ruby.rubyText, rubyFormat, 0.0f, rubyFontSize * 1.5f);
-                        if (block.IsBold || boldRanges.Any(br => ruby.start >= br.start && ruby.start < br.start + br.length))
-                        {
-                            rubyLayout.SetFontWeight(0, ruby.rubyText.Length, Microsoft.UI.Text.FontWeights.Bold);
-                        }
-
-                        float rubyHeight = (float)rubyLayout.LayoutBounds.Height;
-                        float charHeight = (float)charBounds.Height;
-                        float idealTop = rubyY + (charHeight - rubyHeight) / 2;
-
-                        rubyRenderInfos.Add(new RubyRenderInfo
-                        {
-                            Layout = rubyLayout,
-                            IdealY = idealTop,
-                            Height = rubyHeight,
-                            X = rubyX,
-                            Y = idealTop 
-                        });
-                    }
-                }
-
-                ResolveRubyOverlaps(rubyRenderInfos);
-
-                foreach (var info in rubyRenderInfos)
-                {
-                    ds.DrawTextLayout(info.Layout, info.X, info.Y, textColor);
-                    info.Layout.Dispose(); 
-                }
-
-                // 7. 다음 줄 위치 계산
-                float spacing = fontSize * (block.IsBlankLine ? 0.2f : 0.6f); 
-                currentX -= (currentLineThickness + spacing);
-
-                // 루프가 끝났는데(페이지의 끝) 박스가 닫히지 않은 경우 이어서 그리기
-                if (i == page.Blocks.Count - 1 && isBoxing)
-                {
-                    ds.DrawRectangle(boxLeft - boxPad, boxTop - boxPad, boxRight - boxLeft + boxPad * 2, boxBottom - boxTop + boxPad * 2, boxColor, 1.5f);
-                    isBoxing = false;
-                }
-            }
+            // ⭐ 세로 모드 통합 렌더러 호출!
+            VerticalRenderer.RenderBlocks(
+                ds: ds,
+                blocks: page.Blocks,
+                textColor: textColor,
+                canvasSize: size,
+                marginTop: marginTop,
+                marginBottom: marginBottom,
+                marginRight: marginRight,
+                marginLeft: marginLeft,
+                baseFontSize: _settingsManager.FontSize,
+                defaultFontFamily: _settingsManager.FontFamily,
+                getFontWeight: GetFontWeightForFamily
+            );
         }
 
         private Color GetVerticalTextColor()
@@ -1441,100 +1251,6 @@ namespace Uviewer
             }
         }
 
-        private void ResolveRubyOverlaps(List<RubyRenderInfo> rubies)
-        {
-            if (rubies.Count == 0) return;
-
-            // X 좌표가 같은 그룹끼리 처리 (줄바꿈이 발생할 경우 X가 다름)
-            int startIndex = 0;
-            while (startIndex < rubies.Count)
-            {
-                int endIndex = startIndex;
-                float currentX = rubies[startIndex].X;
-
-                // 같은 X 좌표 라인 찾기 (오차 범위 2px)
-                while (endIndex + 1 < rubies.Count && Math.Abs(rubies[endIndex + 1].X - currentX) < 2.0f)
-                {
-                    endIndex++;
-                }
-
-                // 해당 라인 내에서 충돌 해결
-                ResolveRubyOverlapsInColumn(rubies, startIndex, endIndex);
-                startIndex = endIndex + 1;
-            }
-        }
-
-        private void ResolveRubyOverlapsInColumn(List<RubyRenderInfo> rubies, int start, int end)
-        {
-            float prevBottom = -10000f; // 초기값 (충분히 작은 값)
-
-            int i = start;
-            while (i <= end)
-            {
-                // 클러스터 시작 (현재 루비)
-                float clusterSumCenter = rubies[i].IdealY + rubies[i].Height / 2.0f;
-                float clusterTotalHeight = rubies[i].Height;
-                int clusterCount = 1;
-                int clusterEnd = i;
-
-                // 다음 루비들과 충돌 체크 및 병합
-                while (clusterEnd + 1 <= end)
-                {
-                    var next = rubies[clusterEnd + 1];
-                    
-                    // 현재까지 클러스터의 가상 Top/Bottom 계산 (중심 기준 재배치 시뮬레이션)
-                    float currentHypotheticalTop = (clusterSumCenter / clusterCount) - (clusterTotalHeight / 2.0f);
-                    float currentHypotheticalBottom = currentHypotheticalTop + clusterTotalHeight;
-
-                    // 겹침 여부 확인 (Bottom > Next.IdealTop)
-                    // 주의: next.IdealY는 "이상적인 위치"의 Top입니다.
-                    // 클러스터가 확장되면서 아래로 밀려날 수 있으므로, 현재 클러스터의 Bottom이 다음 녀석의 Ideal Top을 침범하면 병합 대상입니다.
-                    if (currentHypotheticalBottom > next.IdealY)
-                    {
-                        // 병합
-                        clusterEnd++;
-                        clusterSumCenter += (next.IdealY + next.Height / 2.0f);
-                        clusterTotalHeight += next.Height;
-                        clusterCount++;
-                    }
-                    else
-                    {
-                        break; // 겹치지 않으면 중단
-                    }
-                }
-
-                // 병합된 클러스터를 재배치 (중심 유지 전략)
-                float finalTop = (clusterSumCenter / clusterCount) - (clusterTotalHeight / 2.0f);
-
-                // [수정] 위쪽 방향으로의 이동 제한 (이전 루비와 겹치지 않도록 함)
-                // 만약 계산된 위치가 이전 루비의 끝보다 위라면(작다면), 이전 루비 끝에 맞춤 (Push Down 효과)
-                if (finalTop < prevBottom)
-                {
-                    finalTop = prevBottom;
-                }
-
-                // 실제 위치 적용
-                for (int k = i; k <= clusterEnd; k++)
-                {
-                    rubies[k].Y = finalTop;
-                    finalTop += rubies[k].Height;
-                }
-
-                // 다음 루비를 위한 prevBottom 갱신
-                prevBottom = finalTop;
-
-                i = clusterEnd + 1;
-            }
-        }
-
-        private class RubyRenderInfo
-        {
-            public required CanvasTextLayout Layout;
-            public float IdealY;
-            public float Height;
-            public float X;
-            public float Y;
-        }
 
         private bool DoesVerticalImageExist(string relativePath)
         {
@@ -1744,60 +1460,5 @@ namespace Uviewer
             }
         }
 
-        private string NormalizeVerticalText(string text)
-        {
-            if (string.IsNullOrEmpty(text)) return text;
-            
-            // 세로 모드 전용: !!, ??, ?!, !? 를 하나의 TCY(세로중짜) 유니코드 문자로 치환하여
-            // 세로 쓰기 레이아웃에서 나란히 바르게 서도록 처리합니다. (전각/반각 모두 지원)
-            text = text.Replace("!!", "‼").Replace("！！", "‼");
-            text = text.Replace("??", "⁇").Replace("？？", "⁇");
-            text = text.Replace("?!", "⁈").Replace("？！", "⁈");
-            text = text.Replace("!?", "⁉").Replace("！？", "⁉");
-
-            return text;
-        }
-
-        private void ApplyVerticalBracketSpacing(ICanvasResourceCreator resourceCreator, CanvasTextFormat format, CanvasTextLayout layout, string text, float fontSize)
-        {
-            if (string.IsNullOrEmpty(text)) return;
-
-            // 조정할 괄호 목록
-            string brackets = "()[]{}<>（）「」『』【】〈〉《》";
-            float baseReduction = -fontSize * 0.4f;
-
-            for (int i = 0; i < text.Length; i++)
-            {
-                if (brackets.Contains(text[i]))
-                {
-                    // 폰트에 따라 괄호의 잉크 위치가 다르므로 실제 측정을 통해 공백 여부 판단
-                    using var tmpFormat = new CanvasTextFormat
-                    {
-                        FontFamily = format.FontFamily,
-                        FontSize = fontSize,
-                        Direction = format.Direction,
-                        VerticalAlignment = CanvasVerticalAlignment.Top // 측정을 위해 상단 정렬
-                    };
-                    
-                    using var tmpLayout = new CanvasTextLayout(resourceCreator, text[i].ToString(), tmpFormat, fontSize * 2, fontSize * 2);
-                    var drawBounds = tmpLayout.DrawBounds;
-                    var layoutBounds = tmpLayout.LayoutBounds;
-
-                    // 세로 모드(TopToBottom)에서 자간 조정은 아래쪽 글자를 끌어올리는 방식임.
-                    // 따라서 현재 글자의 하단(slotBottom)과 실제 잉크의 하단(inkBottom) 사이에 여백이 있을 때만 안전하게 적용 가능.
-                    float slotBottom = (float)(layoutBounds.Y + layoutBounds.Height);
-                    float inkBottom = (float)(drawBounds.Y + drawBounds.Height);
-                    float gapBelow = slotBottom - inkBottom;
-
-                    // 하단 여백이 폰트 크기의 15% 이상일 때만 조정을 적용하여 겹침 방지
-                    if (gapBelow > fontSize * 0.15f)
-                    {
-                        // 여백보다 과하게 겹치지 않도록 실제 여백 크기에 맞춰 조정값 결정
-                        float actualReduction = Math.Max(baseReduction, -gapBelow * 0.85f);
-                        layout.SetCharacterSpacing(i, 1, 0, actualReduction, 0);
-                    }
-                }
-            }
-        }
     }
 }
