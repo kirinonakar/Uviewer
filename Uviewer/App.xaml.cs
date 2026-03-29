@@ -174,7 +174,10 @@ namespace Uviewer
                     lines = new string[16];
                     for (int i = 0; i < 16; i++) lines[i] = "0";
                     // Default values for essentials if file didn't exist
+                    lines[0] = "100"; lines[1] = "100"; lines[2] = "1200"; lines[3] = "800"; // Default rect
                     lines[10] = _allowMultipleInstances ? "1" : "0";
+                    lines[11] = "1"; // Sidebar visible
+                    lines[12] = "1"; // Pinned
                 }
 
                 if (lines.Length < 16)
@@ -280,6 +283,15 @@ namespace Uviewer
         {
             if (_isRegistered) return;
 
+            // Packaged 앱(MSIX)은 Manifest에서 이미 연결되어 있으므로 중복 등록을 피합니다.
+            // 이렇게 하면 매번 실행 시 발생하는 쉘 리프레시를 원천적으로 방지할 수 있습니다.
+            if (IsPackaged())
+            {
+                _isRegistered = true;
+                SaveRegistrationStatus();
+                return;
+            }
+
             try
             {
                 string[] extensions = { 
@@ -296,6 +308,18 @@ namespace Uviewer
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"Error registering file associations: {ex.Message}");
+            }
+        }
+
+        private bool IsPackaged()
+        {
+            try
+            {
+                return Windows.ApplicationModel.Package.Current != null;
+            }
+            catch
+            {
+                return false;
             }
         }
     }

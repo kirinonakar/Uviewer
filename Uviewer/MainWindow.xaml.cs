@@ -66,6 +66,7 @@ namespace Uviewer
         private int _pdfScrollDirection = 1; // 1 for next (start top), -1 for prev (start bottom)
         private bool _isSeamlessScroll = false;
         private bool _allowMultipleInstances = true;
+        private bool _isRegistered = false;
 
         // 컨트롤 반전 로직 수정:
         // - Match Control Direction이 켜져 있고 Next Image가 왼쪽인 경우
@@ -773,6 +774,7 @@ namespace Uviewer
             _windowState.IsPinned = settings.IsPinned;
             _windowState.IsAlwaysOnTop = settings.IsAlwaysOnTop;
             _autoDoublePageForArchive = settings.AutoDoublePageForArchive;
+            _isRegistered = settings.IsRegistered;
 
             if (MatchControlDirectionMenuItem != null) MatchControlDirectionMenuItem.IsChecked = _matchControlDirection;
             if (AllowMultipleInstancesMenuItem != null) AllowMultipleInstancesMenuItem.IsChecked = _allowMultipleInstances;
@@ -843,7 +845,8 @@ namespace Uviewer
                 IsSidebarVisible = _windowState.IsSidebarVisible,
                 IsPinned = _windowState.IsPinned,
                 IsAlwaysOnTop = _windowState.IsAlwaysOnTop,
-                AutoDoublePageForArchive = _autoDoublePageForArchive
+                AutoDoublePageForArchive = _autoDoublePageForArchive,
+                IsRegistered = _isRegistered
             };
 
             _appSettingsService.SaveSettings(settings);
