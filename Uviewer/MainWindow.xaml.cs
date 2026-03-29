@@ -876,15 +876,16 @@ namespace Uviewer
 
                 var stackPanel = new StackPanel { Spacing = 12, Width = 320, HorizontalAlignment = HorizontalAlignment.Center };
 
-                // Icon image from Assets folder - using standard ms-appx protocol for resource selection
-                var image = new Microsoft.UI.Xaml.Controls.Image
-                {
-                    Source = new Microsoft.UI.Xaml.Media.Imaging.BitmapImage(new Uri("ms-appx:///Assets/Square150x150Logo.scale-200.png")),
-                    Width = 100,
-                    Height = 100,
-                    Margin = new Microsoft.UI.Xaml.Thickness(0, 10, 0, 10),
-                    HorizontalAlignment = HorizontalAlignment.Center
-                };
+// 절대 경로를 구하는 대신 ms-appx 스키마 사용
+var image = new Microsoft.UI.Xaml.Controls.Image
+{
+    // 패키지 앱 내부 자산에 접근하는 올바른 URI 스키마
+    Source = new Microsoft.UI.Xaml.Media.Imaging.BitmapImage(new Uri("ms-appx:///Assets/Uviewer2.png")),
+    Width = 100,
+    Height = 100,
+    Margin = new Microsoft.UI.Xaml.Thickness(0, 10, 0, 10),
+    HorizontalAlignment = HorizontalAlignment.Center
+};
                 stackPanel.Children.Add(image);
 
                 // Title and version string
