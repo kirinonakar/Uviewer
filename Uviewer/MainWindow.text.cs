@@ -267,10 +267,10 @@ namespace Uviewer
             // Unified Target Line Logic
             int targetLine = 1;
             int targetBlockIdx = -1;
-            if (_aozoraPendingTargetLine != 1)
+            if (_aozoraPendingTargetLine > 0)
             {
                 targetLine = _aozoraPendingTargetLine;
-                _aozoraPendingTargetLine = 1; // Reset
+                _aozoraPendingTargetLine = 0; // Reset to 0 instead of 1 to avoid conflicts
                 targetBlockIdx = _aozoraPendingTargetBlockIndex;
                 _aozoraPendingTargetBlockIndex = -1; // Reset
             }
@@ -321,9 +321,11 @@ namespace Uviewer
                     TextItemsRepeater.ItemTemplate = (DataTemplate)template;
                 }
 
+                // [핵심 수정] ScrollToLine이 정상 작동하도록 가상화 컨테이너를 먼저 화면에 표시(Visible)합니다.
+                if (TextScrollViewer != null) TextScrollViewer.Visibility = Visibility.Visible;
+
                 // Progressive loading for large files
                 await LoadTextLinesProgressivelyAsync(content, targetLine, token);
-                if (TextScrollViewer != null) TextScrollViewer.Visibility = Visibility.Visible;
 
                 // Reset to top immediately if not restoring position
                 if (targetLine <= 1 && TextScrollViewer != null)
@@ -595,10 +597,28 @@ namespace Uviewer
                             // Refresh ItemsSource to show all lines
                             if (TextItemsRepeater != null)
                             {
-                                // Use a more efficient approach - just update the source
+                                // --- [핵심 수정 1] 백그라운드 로드 시 스크롤 초기화 방지 ---
+                                // 1. 현재 렌더링 중인 라인(또는 목표 라인)을 구출
+                                int currentLineToRestore = GetTopVisibleLineIndex();
+                                if (targetLine > 1 && currentLineToRestore <= 1)
+                                {
+                                    currentLineToRestore = targetLine;
+                                }
+
                                 var currentSource = _textLines;
                                 TextItemsRepeater.ItemsSource = null;
                                 TextItemsRepeater.ItemsSource = currentSource;
+
+                                // 2. Source 갱신으로 0으로 돌아간 스크롤을 구출한 라인으로 재복구
+                                if (currentLineToRestore > 1)
+                                {
+                                    _ = Task.Run(async () =>
+                                    {
+                                        await Task.Delay(50);
+                                        DispatcherQueue.TryEnqueue(() => ScrollToLine(currentLineToRestore));
+                                    });
+                                }
+                                // -----------------------------------------------------------
                             }
 
                             // Recalculate pages
@@ -630,7 +650,7 @@ namespace Uviewer
                     TextItemsRepeater.ItemsSource = _textLines;
                     if (targetLine > 1)
                     {
-                        await Task.Yield();
+                        await Task.Delay(50);
                         ScrollToLine(targetLine);
                     }
                 }
@@ -2049,14 +2069,17 @@ namespace Uviewer
             double targetOffset = index * lineH;
 
             // 1. ItemsRepeater가 데이터 바인딩 후 UI 레이아웃을 계산할 수 있도록 대기
-            await Task.Delay(100);
+            await Task.Delay(50);
+
+            // --- [핵심 수정 2] 레이아웃 강제 갱신으로 ChangeView 명령 무시 방지 ---
+            TextScrollViewer.UpdateLayout();
 
             // 2. 가상화(Virtualization) 환경에서는 ExtentHeight가 즉시 전체를 반영하지 못하므로,
             // 목표 오프셋까지 도달할 수 있도록 점진적으로 ChangeView를 시도하여 Extent를 늘립니다.
             for (int i = 0; i < 5; i++)
             {
                 TextScrollViewer.ChangeView(null, targetOffset, null, true);
-                await Task.Delay(50);
+                await Task.Delay(30);
 
                 // 스크롤 오프셋이 목표치 근처에 도달했거나 화면 전체 Extent가 목표를 수용할 만큼 충분히 커졌다면 중단
                 if (Math.Abs(TextScrollViewer.VerticalOffset - targetOffset) <= lineH * 2 ||

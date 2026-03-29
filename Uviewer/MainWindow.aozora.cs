@@ -281,7 +281,7 @@ namespace Uviewer
                     _aozoraPendingTargetBlockIndex = _currentVerticalStartBlockIndex;
                 }
                 // [수정] 가로 렌더링 대기 라인을 우선 확인
-                else if (_aozoraPendingTargetLine > 1)
+                else if (_aozoraPendingTargetLine > 0)
                 {
                     currentLine = _aozoraPendingTargetLine;
                 }
@@ -371,7 +371,7 @@ namespace Uviewer
             }
         }
 
-        private int _aozoraPendingTargetLine = 1;
+        private int _aozoraPendingTargetLine = 0;
         private int _aozoraPendingTargetBlockIndex = -1;
 
         private async Task PrepareAozoraDisplayAsync(string rawContent, int targetLine = 1, int targetBlockIndex = -1, CancellationToken token = default)
@@ -379,10 +379,10 @@ namespace Uviewer
     int startIdx = 0;
     try
     {
-        if (_aozoraPendingTargetLine != 1)
+        if (_aozoraPendingTargetLine > 0)
         {
             targetLine = _aozoraPendingTargetLine;
-            // _aozoraPendingTargetLine = 1; // <--- 이 줄을 삭제하세요! (섣불리 지우면 위치를 잃어버립니다)
+            // _aozoraPendingTargetLine = 0; // <--- 이 줄을 삭제하세요! (섣불리 지우면 위치를 잃어버립니다)
         }
 
         // 화면 전환 전 불필요한 UI 숨기기 (로딩 뷰가 있다면 여기서 띄워도 좋습니다)
@@ -449,7 +449,7 @@ namespace Uviewer
             }
 
             RenderAozoraDynamicPage(_currentAozoraStartBlockIndex);
-            _aozoraPendingTargetLine = 1;
+            _aozoraPendingTargetLine = 0;
             StartAozoraPageCalculationAsync();
             UpdateAozoraStatusBar();
             return; // 재파싱 없이 함수 즉시 종료
@@ -536,7 +536,7 @@ namespace Uviewer
                     RenderAozoraDynamicPage(_currentAozoraStartBlockIndex);
                 }
 
-                _aozoraPendingTargetLine = 1; // <--- 렌더링이 화면에 반영된 직후인 이 위치에서 초기화해 줍니다!
+                _aozoraPendingTargetLine = 0; // <--- 렌더링이 화면에 반영된 직후인 이 위치에서 초기화해 줍니다!
 
                 // 렌더링 완료 후 남은 전체 페이지 계산 백그라운드 시작
                 StartAozoraPageCalculationAsync();

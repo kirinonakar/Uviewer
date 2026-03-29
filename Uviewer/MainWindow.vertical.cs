@@ -153,9 +153,10 @@ namespace Uviewer
                 else if (_isAozoraMode)
                 {
                     // [수정] 진행 중인 렌더링이 있다면 해당 목표 라인을 우선 사용
-                    if (_aozoraPendingTargetLine > 1) 
+                    if (_aozoraPendingTargetLine > 0) 
                     {
                         currentLine = _aozoraPendingTargetLine;
+                        _aozoraPendingTargetLine = 0; // Reset after use
                     }
                     else if (_currentAozoraPageInfo.Blocks != null && _currentAozoraPageInfo.Blocks.Count > 0)
                     {
