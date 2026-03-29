@@ -260,55 +260,6 @@
                         <TextBlock Text="1:1" FontSize="12" FontWeight="SemiBold"/>
                     </Button>
 
-                    <AppBarSeparator/>
-
-                    <ToggleButton x:Name="SharpenButton" Click="SharpenButton_Click" ToolTipService.ToolTip="{x:Bind local:Strings.SharpenTooltip, Mode=OneWay}">
-                        <ToggleButton.ContextFlyout>
-                            <Flyout>
-                                <StackPanel Width="250" Spacing="8" Padding="10">
-                                    <TextBlock x:Name="SharpenSettingsTitleText" Text="{x:Bind local:Strings.SharpenSettingsTitle, Mode=OneWay}" FontWeight="SemiBold" Margin="0,0,0,8"/>
-
-                                    <Grid>
-                                        <TextBlock x:Name="UpscaleLabel" Text="{x:Bind local:Strings.UpscaleFactorLabel, Mode=OneWay}" FontSize="12" HorizontalAlignment="Left"/>
-                                        <TextBlock x:Name="UpscaleValueText" Text="2.0x" FontSize="12" HorizontalAlignment="Right"/>
-                                    </Grid>
-                                    <Slider x:Name="UpscaleSlider" Minimum="1.0" Maximum="4.0" StepFrequency="0.1" Value="2.0"/>
-
-                                    <Grid>
-                                        <TextBlock x:Name="SharpenAmountLabel" Text="{x:Bind local:Strings.SharpenAmountLabel, Mode=OneWay}" FontSize="12" HorizontalAlignment="Left"/>
-                                        <TextBlock x:Name="SharpenValueText" Text="1.0" FontSize="12" HorizontalAlignment="Right"/>
-                                    </Grid>
-                                    <Slider x:Name="SharpenSlider" Minimum="0.0" Maximum="10.0" StepFrequency="0.1" Value="1.0"/>
-
-                                    <Grid>
-                                        <TextBlock x:Name="SharpenThresholdLabel" Text="{x:Bind local:Strings.SharpenThresholdLabel, Mode=OneWay}" FontSize="12" HorizontalAlignment="Left"/>
-                                        <TextBlock x:Name="SharpenThresholdValueText" Text="0.010" FontSize="12" HorizontalAlignment="Right"/>
-                                    </Grid>
-                                    <Slider x:Name="SharpenThresholdSlider" Minimum="0.0" Maximum="0.3" StepFrequency="0.001" Value="0.010"/>
-
-                                    <Grid>
-                                        <TextBlock x:Name="UnsharpAmountLabel" Text="{x:Bind local:Strings.UnsharpAmountLabel, Mode=OneWay}" FontSize="12" HorizontalAlignment="Left"/>
-                                        <TextBlock x:Name="UnsharpAmountValueText" Text="2.0" FontSize="12" HorizontalAlignment="Right"/>
-                                    </Grid>
-                                    <Slider x:Name="UnsharpAmountSlider" Minimum="0.0" Maximum="10.0" StepFrequency="0.1" Value="2.0"/>
-
-                                    <Grid>
-                                        <TextBlock x:Name="UnsharpRadiusLabel" Text="{x:Bind local:Strings.UnsharpRadiusLabel, Mode=OneWay}" FontSize="12" HorizontalAlignment="Left"/>
-                                        <TextBlock x:Name="UnsharpRadiusValueText" Text="1.0" FontSize="12" HorizontalAlignment="Right"/>
-                                    </Grid>
-                                    <Slider x:Name="UnsharpRadiusSlider" Minimum="0.1" Maximum="10.0" StepFrequency="0.1" Value="1.0"/>
-
-                                    <Button x:Name="SharpenParamsResetButton" Content="{x:Bind local:Strings.ResetButton, Mode=OneWay}" Click="SharpenParams_Reset_Click" HorizontalAlignment="Stretch" Margin="0,8,0,0"/>
-                                </StackPanel>
-                            </Flyout>
-                        </ToggleButton.ContextFlyout>
-                        <ToggleButton.Resources>
-                            <StaticResource x:Key="ToggleButtonForegroundPointerOver" ResourceKey="ToggleButtonForeground" />
-                            <StaticResource x:Key="ToggleButtonForegroundCheckedPointerOver" ResourceKey="ToggleButtonForegroundChecked" />
-                        </ToggleButton.Resources>
-                        <FontIcon x:Name="SharpenIcon" Glyph="S" FontSize="14" FontFamily="Segoe UI" />
-                    </ToggleButton>
-
                 </StackPanel>
 
                 <!-- Text Toolbar -->
@@ -384,6 +335,55 @@
                         <FontIcon x:Name="NextImageSideText" Glyph="&#xE111;" FontSize="14"/>
                     </Button>
                 </StackPanel>
+
+                <AppBarSeparator x:Name="SharpenSeparator"/>
+
+                <ToggleButton x:Name="SharpenButton" Click="SharpenButton_Click" ToolTipService.ToolTip="{x:Bind local:Strings.SharpenTooltip, Mode=OneWay}">
+                    <ToggleButton.ContextFlyout>
+                        <Flyout>
+                            <StackPanel Width="250" Spacing="8" Padding="10">
+                                <TextBlock x:Name="SharpenSettingsTitleText" Text="{x:Bind local:Strings.SharpenSettingsTitle, Mode=OneWay}" FontWeight="SemiBold" Margin="0,0,0,8"/>
+
+                                <Grid>
+                                    <TextBlock x:Name="UpscaleLabel" Text="{x:Bind local:Strings.UpscaleFactorLabel, Mode=OneWay}" FontSize="12" HorizontalAlignment="Left"/>
+                                    <TextBlock x:Name="UpscaleValueText" Text="2.0x" FontSize="12" HorizontalAlignment="Right"/>
+                                </Grid>
+                                <Slider x:Name="UpscaleSlider" Minimum="1.0" Maximum="4.0" StepFrequency="0.1" Value="2.0"/>
+
+                                <Grid>
+                                    <TextBlock x:Name="SharpenAmountLabel" Text="{x:Bind local:Strings.SharpenAmountLabel, Mode=OneWay}" FontSize="12" HorizontalAlignment="Left"/>
+                                    <TextBlock x:Name="SharpenValueText" Text="1.0" FontSize="12" HorizontalAlignment="Right"/>
+                                </Grid>
+                                <Slider x:Name="SharpenSlider" Minimum="0.0" Maximum="10.0" StepFrequency="0.1" Value="1.0"/>
+
+                                <Grid>
+                                    <TextBlock x:Name="SharpenThresholdLabel" Text="{x:Bind local:Strings.SharpenThresholdLabel, Mode=OneWay}" FontSize="12" HorizontalAlignment="Left"/>
+                                    <TextBlock x:Name="SharpenThresholdValueText" Text="0.010" FontSize="12" HorizontalAlignment="Right"/>
+                                </Grid>
+                                <Slider x:Name="SharpenThresholdSlider" Minimum="0.0" Maximum="0.3" StepFrequency="0.001" Value="0.010"/>
+
+                                <Grid>
+                                    <TextBlock x:Name="UnsharpAmountLabel" Text="{x:Bind local:Strings.UnsharpAmountLabel, Mode=OneWay}" FontSize="12" HorizontalAlignment="Left"/>
+                                    <TextBlock x:Name="UnsharpAmountValueText" Text="2.0" FontSize="12" HorizontalAlignment="Right"/>
+                                </Grid>
+                                <Slider x:Name="UnsharpAmountSlider" Minimum="0.0" Maximum="10.0" StepFrequency="0.1" Value="2.0"/>
+
+                                <Grid>
+                                    <TextBlock x:Name="UnsharpRadiusLabel" Text="{x:Bind local:Strings.UnsharpRadiusLabel, Mode=OneWay}" FontSize="12" HorizontalAlignment="Left"/>
+                                    <TextBlock x:Name="UnsharpRadiusValueText" Text="1.0" FontSize="12" HorizontalAlignment="Right"/>
+                                </Grid>
+                                <Slider x:Name="UnsharpRadiusSlider" Minimum="0.1" Maximum="10.0" StepFrequency="0.1" Value="1.0"/>
+
+                                <Button x:Name="SharpenParamsResetButton" Content="{x:Bind local:Strings.ResetButton, Mode=OneWay}" Click="SharpenParams_Reset_Click" HorizontalAlignment="Stretch" Margin="0,8,0,0"/>
+                            </StackPanel>
+                        </Flyout>
+                    </ToggleButton.ContextFlyout>
+                    <ToggleButton.Resources>
+                        <StaticResource x:Key="ToggleButtonForegroundPointerOver" ResourceKey="ToggleButtonForeground" />
+                        <StaticResource x:Key="ToggleButtonForegroundCheckedPointerOver" ResourceKey="ToggleButtonForegroundChecked" />
+                    </ToggleButton.Resources>
+                    <FontIcon x:Name="SharpenIcon" Glyph="S" FontSize="14" FontFamily="Segoe UI" />
+                </ToggleButton>
 
                 <AppBarSeparator/>
 
@@ -674,7 +674,7 @@
                                      CreateResources="MainCanvas_CreateResources"/>
 
                 <!-- Side-by-Side Image Display with Win2D -->
-                <Grid x:Name="SideBySideGrid" Visibility="Collapsed">
+                <Grid x:Name="SideBySideGrid" Visibility="Collapsed" ColumnSpacing="0">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*"/>
                         <ColumnDefinition Width="*"/>
@@ -766,17 +766,21 @@
                                       SizeChanged="EpubTextCanvas_SizeChanged"/>
                 <!-- Image host for EPUB image pages -->
                 <Grid x:Name="EpubImageHost" Visibility="Collapsed"
-                      HorizontalAlignment="Stretch" VerticalAlignment="Stretch">
+                      HorizontalAlignment="Stretch" VerticalAlignment="Stretch"
+                      ColumnSpacing="0" Padding="0">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition x:Name="EpubImageLeftColumn" Width="*"/>
                         <ColumnDefinition x:Name="EpubImageRightColumn" Width="0"/>
                     </Grid.ColumnDefinitions>
-                    <Image x:Name="EpubImageDisplay" Grid.Column="0" Grid.ColumnSpan="2" Stretch="Uniform"
-                           HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                    <Image x:Name="EpubImageDisplayLeft" Grid.Column="0" Stretch="Uniform" Visibility="Collapsed"
-                           HorizontalAlignment="Right" VerticalAlignment="Center"/>
-                    <Image x:Name="EpubImageDisplayRight" Grid.Column="1" Stretch="Uniform" Visibility="Collapsed"
-                           HorizontalAlignment="Left" VerticalAlignment="Center"/>
+                    <canvas:CanvasControl x:Name="EpubCanvasDisplay" Grid.Column="0" Grid.ColumnSpan="2"
+                                          HorizontalAlignment="Stretch" VerticalAlignment="Stretch"
+                                          Draw="EpubCanvasDisplay_Draw"/>
+                    <canvas:CanvasControl x:Name="EpubCanvasDisplayLeft" Grid.Column="0" Visibility="Collapsed"
+                                          HorizontalAlignment="Stretch" VerticalAlignment="Stretch"
+                                          Draw="EpubCanvasDisplayLeft_Draw"/>
+                    <canvas:CanvasControl x:Name="EpubCanvasDisplayRight" Grid.Column="1" Visibility="Collapsed"
+                                          HorizontalAlignment="Stretch" VerticalAlignment="Stretch"
+                                          Draw="EpubCanvasDisplayRight_Draw"/>
                 </Grid>
                 <!-- Touch Overlay for Page Navigation (left half = prev, right half = next) -->
                 <Grid x:Name="EpubTouchOverlay" 

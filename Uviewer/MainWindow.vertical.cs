@@ -1452,11 +1452,23 @@ namespace Uviewer
                      // Switch to UI thread or Canvas session thread? 
                      // CanvasBitmap.LoadAsync can be called anywhere if we have device.
                      var device = VerticalTextCanvas.Device;
-                     var bitmap = await CanvasBitmap.LoadAsync(device, winrtStream);
+                     var originalBitmap = await CanvasBitmap.LoadAsync(device, winrtStream);
+                     var finalBitmap = originalBitmap;
+
+                     if (_sharpenEnabled)
+                     {
+                         var sharpened = await ApplySharpenToBitmapAsync(originalBitmap, VerticalTextCanvas!, skipUpscale: false);
+                         if (sharpened != null && sharpened != originalBitmap)
+                         {
+                             finalBitmap = sharpened;
+                             // Note: ApplySharpenToBitmapAsync might already dispose original if it returned a new one
+                             // but we keep the logic consistent.
+                         }
+                     }
 
                      this.DispatcherQueue.TryEnqueue(() => 
                      {
-                         _verticalImageCache[relativePath] = bitmap;
+                         _verticalImageCache[relativePath] = finalBitmap;
                          VerticalTextCanvas.Invalidate(); // Redraw with image
                      });
                 }

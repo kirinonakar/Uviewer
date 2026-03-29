@@ -113,6 +113,7 @@ namespace Uviewer
 
                 SideBySideToolbarPanel.Visibility = Visibility.Collapsed;
                 SharpenButton.Visibility = Visibility.Collapsed;
+                SharpenSeparator.Visibility = Visibility.Collapsed;
 
                 // Reset PDF view state for the new document
                 _zoomLevel = 1.0;

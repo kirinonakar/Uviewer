@@ -282,12 +282,32 @@ namespace Uviewer
 
             if (FileExplorerService.IsTextEntry(entry))
             {
-                await LoadTextEntryAsync(entry);
+                if (!_isTextMode || _currentTextFilePath != entry.FilePath || _currentTextArchiveEntryKey != entry.ArchiveEntryKey)
+                {
+                    await LoadTextEntryAsync(entry);
+                }
+                else
+                {
+                    // Already in text mode and same file: update UI
+                    if (_isVerticalMode) VerticalTextCanvas?.Invalidate();
+                    else if (_isAozoraMode) AozoraTextCanvas?.Invalidate();
+                    else TextScrollViewer?.InvalidateArrange(); // Or similar refresh
+                }
                 await AddToRecentAsync(false);
             }
             else if (FileExplorerService.IsEpubEntry(entry))
             {
-                await LoadEpubEntryAsync(entry, token);
+                if (!_isEpubMode || _currentEpubFilePath != entry.FilePath)
+                {
+                    await LoadEpubEntryAsync(entry, token);
+                }
+                else
+                {
+                    // Already in EPUB mode and same file: update UI
+                    if (_isVerticalMode) VerticalTextCanvas?.Invalidate();
+                    else if (CurrentEpubWin2DPage?.IsImagePage == true) ShowEpubImagePage(CurrentEpubWin2DPage);
+                    else EpubTextCanvas?.Invalidate();
+                }
                 await AddToRecentAsync(false);
             }
             else
@@ -811,6 +831,25 @@ namespace Uviewer
                     }
                 }
                 _animatedWebpSharpenedCache.Clear();
+            }
+
+            // EPUB 이미지 캐시 초기화
+            if (_isEpubMode)
+            {
+                foreach (var bmp in _epubImageCache.Values)
+                {
+                    if (bmp != null) _imageCache?.SafeDisposeBitmap(bmp);
+                }
+                _epubImageCache.Clear();
+
+                if (CurrentEpubWin2DPage?.IsImagePage == true)
+                {
+                    ShowEpubImagePage(CurrentEpubWin2DPage);
+                }
+                else
+                {
+                    EpubTextCanvas?.Invalidate();
+                }
             }
 
             UpdateSharpenButtonState();

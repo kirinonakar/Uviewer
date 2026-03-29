@@ -204,7 +204,7 @@ namespace Uviewer
             {
                 case Windows.System.VirtualKey.S:
                     if (ctrlPressed) _ = AddToFavoritesAsync();
-                    else if (!_isTextMode && !_isEpubMode) // Disable in text/epub mode
+                    else if (!_isTextMode) // Enable in EPUB mode, keep disabled in raw text mode
                     {
                         SharpenButton.IsChecked = !(SharpenButton.IsChecked ?? false);
                         SharpenButton_Click(SharpenButton, new RoutedEventArgs());

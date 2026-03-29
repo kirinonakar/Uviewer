@@ -362,6 +362,8 @@ namespace Uviewer
             ImageToolbarPanel.Visibility = Visibility.Collapsed;
             TextToolbarPanel.Visibility = Visibility.Visible; // Reuse text toolbar for now
             SideBySideToolbarPanel.Visibility = Visibility.Visible;
+            SharpenButton.Visibility = Visibility.Visible;
+            SharpenSeparator.Visibility = Visibility.Visible;
             UpdateSideBySideButtonState();
             UpdateNextImageSideButtonState();
             
@@ -745,6 +747,62 @@ namespace Uviewer
                 EpubTextCanvas?.Invalidate();
         }
 
+        private void EpubCanvasDisplay_Draw(CanvasControl sender, CanvasDrawEventArgs args)
+        {
+            DrawEpubCanvasInternal(sender, args, CurrentEpubWin2DPage?.ImagePath);
+        }
+
+        private void EpubCanvasDisplayLeft_Draw(CanvasControl sender, CanvasDrawEventArgs args)
+        {
+            var nextChapIndex = _currentEpubChapterIndex;
+            var nextPgIndex = _currentEpubPageIndex + 1;
+            if (nextPgIndex >= _epubWin2DPages.Count) { nextChapIndex++; nextPgIndex = 0; }
+            var pg2 = GetEpubWin2DPage(nextChapIndex, nextPgIndex);
+
+            bool actualNextImageOnRight = _nextImageOnRight;
+            string? targetPath = actualNextImageOnRight ? CurrentEpubWin2DPage?.ImagePath : pg2?.ImagePath;
+            DrawEpubCanvasInternal(sender, args, targetPath, actualNextImageOnRight ? HorizontalAlignment.Right : HorizontalAlignment.Left);
+        }
+
+        private void EpubCanvasDisplayRight_Draw(CanvasControl sender, CanvasDrawEventArgs args)
+        {
+            var nextChapIndex = _currentEpubChapterIndex;
+            var nextPgIndex = _currentEpubPageIndex + 1;
+            if (nextPgIndex >= _epubWin2DPages.Count) { nextChapIndex++; nextPgIndex = 0; }
+            var pg2 = GetEpubWin2DPage(nextChapIndex, nextPgIndex);
+
+            bool actualNextImageOnRight = _nextImageOnRight;
+            string? targetPath = actualNextImageOnRight ? pg2?.ImagePath : CurrentEpubWin2DPage?.ImagePath;
+            DrawEpubCanvasInternal(sender, args, targetPath, actualNextImageOnRight ? HorizontalAlignment.Left : HorizontalAlignment.Right);
+        }
+
+        private void DrawEpubCanvasInternal(CanvasControl sender, CanvasDrawEventArgs args, string? imagePath, HorizontalAlignment align = HorizontalAlignment.Center)
+        {
+            if (string.IsNullOrEmpty(imagePath)) return;
+            if (!_epubImageCache.TryGetValue(imagePath, out var bitmap) || bitmap == null)
+            {
+                // 로딩 중이면 표시하지 않음 (LoadEpubImageForWin2DAsync가 완료 시 Invalidate 호출)
+                return;
+            }
+
+            var ds = args.DrawingSession;
+            var canvasSize = sender.Size;
+            var imageSize = bitmap.Size;
+
+            var fitRatio = Math.Min(canvasSize.Width / imageSize.Width, canvasSize.Height / imageSize.Height);
+            var scaledSize = new Windows.Foundation.Size(imageSize.Width * fitRatio, imageSize.Height * fitRatio);
+
+            float posX = 0;
+            if (align == HorizontalAlignment.Center) posX = (float)(canvasSize.Width - scaledSize.Width) / 2;
+            else if (align == HorizontalAlignment.Right) posX = (float)(canvasSize.Width - scaledSize.Width);
+            else posX = 0;
+
+            float posY = (float)(canvasSize.Height - scaledSize.Height) / 2;
+
+            ds.DrawImage(bitmap, new Rect(posX, posY, scaledSize.Width, scaledSize.Height));
+        }
+
+
         private void EpubTextCanvas_Draw(CanvasControl sender, CanvasDrawEventArgs args)
         {
             if (!_isEpubMode) return;
@@ -824,9 +882,8 @@ namespace Uviewer
         private async Task LoadEpubImageForWin2DAsync(string imagePath)
         {
             if (string.IsNullOrEmpty(imagePath)) return;
-            if (_epubImageCache.ContainsKey(imagePath)) return;
+            if (_epubImageCache.TryGetValue(imagePath, out var cached) && cached != null) return;
 
-            _epubImageCache[imagePath] = null;
             try
             {
                 var entry = FindEntryLoose(imagePath);
@@ -843,22 +900,41 @@ namespace Uviewer
                 }
                 finally { _epubArchiveLock.Release(); }
 
-                if (EpubTextCanvas == null) return;
-                var winrtStream = new InMemoryRandomAccessStream();
-                using (var writer = new DataWriter(winrtStream))
+                var device = EpubTextCanvas?.Device ?? CanvasDevice.GetSharedDevice();
+                if (device == null) return;
+
+                var ras = new InMemoryRandomAccessStream();
+                using (var writer = new DataWriter(ras))
                 {
                     writer.WriteBytes(bytes);
                     await writer.StoreAsync();
                     await writer.FlushAsync();
                     writer.DetachStream();
                 }
-                winrtStream.Seek(0);
-                var bitmap = await CanvasBitmap.LoadAsync(EpubTextCanvas.Device, winrtStream);
+                ras.Seek(0);
+                
+                var originalBitmap = await CanvasBitmap.LoadAsync(device, ras, 96.0f);
+                CanvasBitmap finalBitmap = originalBitmap;
+
+                if (_sharpenEnabled)
+                {
+                    var sharpened = await ApplySharpenToBitmapAsync(originalBitmap, EpubTextCanvas!, skipUpscale: false);
+                    if (sharpened != null && sharpened != originalBitmap)
+                    {
+                        finalBitmap = sharpened;
+                        originalBitmap.Dispose();
+                    }
+                }
+
                 this.DispatcherQueue.TryEnqueue(() =>
                 {
-                    _epubImageCache[imagePath] = bitmap;
+                    _epubImageCache[imagePath] = finalBitmap;
                     if (_isEpubMode && CurrentEpubWin2DPage?.IsImagePage == true)
-                        ShowEpubImagePage(CurrentEpubWin2DPage);
+                    {
+                         EpubCanvasDisplay?.Invalidate();
+                         EpubCanvasDisplayLeft?.Invalidate();
+                         EpubCanvasDisplayRight?.Invalidate();
+                    }
                 });
             }
             catch (Exception ex)
@@ -876,70 +952,39 @@ namespace Uviewer
             if (!_isSideBySideMode || !_isEpubShowingTwoPages)
             {
                 // Single image mode
-                EpubImageDisplay.Visibility = Visibility.Visible;
-                EpubImageDisplayLeft.Visibility = Visibility.Collapsed;
-                EpubImageDisplayRight.Visibility = Visibility.Collapsed;
+                EpubCanvasDisplay.Visibility = Visibility.Visible;
+                EpubCanvasDisplayLeft.Visibility = Visibility.Collapsed;
+                EpubCanvasDisplayRight.Visibility = Visibility.Collapsed;
                 EpubImageLeftColumn.Width = new GridLength(1, GridUnitType.Star);
                 EpubImageRightColumn.Width = new GridLength(0);
 
-                _ = LoadBitmapToImageDisplayAsync(page.ImagePath, EpubImageDisplay);
+                _ = LoadEpubImageForWin2DAsync(page.ImagePath);
+                EpubCanvasDisplay.Invalidate();
             }
             else
             {
                 // Side-by-side mode
-                EpubImageDisplay.Visibility = Visibility.Collapsed;
-                EpubImageDisplayLeft.Visibility = Visibility.Visible;
-                EpubImageDisplayRight.Visibility = Visibility.Visible;
+                EpubCanvasDisplay.Visibility = Visibility.Collapsed;
+                EpubCanvasDisplayLeft.Visibility = Visibility.Visible;
+                EpubCanvasDisplayRight.Visibility = Visibility.Visible;
                 EpubImageLeftColumn.Width = new GridLength(1, GridUnitType.Star);
                 EpubImageRightColumn.Width = new GridLength(1, GridUnitType.Star);
+
+                _ = LoadEpubImageForWin2DAsync(page.ImagePath);
 
                 int nextChapIndex = _currentEpubChapterIndex;
                 int nextPgIndex = _currentEpubPageIndex + 1;
                 if (nextPgIndex >= _epubWin2DPages.Count) { nextChapIndex++; nextPgIndex = 0; }
                 var pg2 = GetEpubWin2DPage(nextChapIndex, nextPgIndex);
 
-                bool actualNextImageOnRight = _nextImageOnRight;
-                // Note: EPUB often follows LTR, but we can respect user setting
-
-                Image targetLeft = actualNextImageOnRight ? EpubImageDisplayLeft : EpubImageDisplayRight;
-                Image targetRight = actualNextImageOnRight ? EpubImageDisplayRight : EpubImageDisplayLeft;
-
-                _ = LoadBitmapToImageDisplayAsync(page.ImagePath, targetLeft);
                 if (pg2 != null && pg2.IsImagePage)
                 {
-                    _ = LoadBitmapToImageDisplayAsync(pg2.ImagePath, targetRight);
+                    _ = LoadEpubImageForWin2DAsync(pg2.ImagePath);
                 }
-            }
-        }
 
-        private async Task LoadBitmapToImageDisplayAsync(string imagePath, Image targetImage)
-        {
-            try
-            {
-                var entry = FindEntryLoose(imagePath);
-                if (entry == null) return;
-                byte[] bytes;
-                await _epubArchiveLock.WaitAsync();
-                try
-                {
-                    using var ms = new MemoryStream();
-                    using var es = entry.Open();
-                    await es.CopyToAsync(ms);
-                    bytes = ms.ToArray();
-                }
-                finally { _epubArchiveLock.Release(); }
-
-                var ras = new InMemoryRandomAccessStream();
-                using (var dw = new DataWriter(ras))
-                {
-                    dw.WriteBytes(bytes); await dw.StoreAsync(); await dw.FlushAsync(); dw.DetachStream();
-                }
-                ras.Seek(0);
-                var bitmapImage = new BitmapImage();
-                await bitmapImage.SetSourceAsync(ras);
-                targetImage.Source = bitmapImage;
+                EpubCanvasDisplayLeft.Invalidate();
+                EpubCanvasDisplayRight.Invalidate();
             }
-            catch { }
         }
 
         private ZipArchiveEntry? FindEntryLoose(string path)

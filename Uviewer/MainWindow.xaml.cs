@@ -1499,6 +1499,34 @@ var image = new Microsoft.UI.Xaml.Controls.Image
                     _animatedWebpSharpenedCache.Clear();
                 }
 
+                // EPUB 및 텍스트 모드 이미지 캐시 초기화
+                foreach (var bmp in _epubImageCache.Values)
+                    if (bmp != null) _imageCache?.SafeDisposeBitmap(bmp);
+                _epubImageCache.Clear();
+
+                foreach (var bmp in _verticalImageCache.Values)
+                    if (bmp != null) _imageCache?.SafeDisposeBitmap(bmp);
+                _verticalImageCache.Clear();
+
+                foreach (var bmp in _aozoraImageCache.Values)
+                    if (bmp != null) _imageCache?.SafeDisposeBitmap(bmp);
+                _aozoraImageCache.Clear();
+                
+                if (_isEpubMode)
+                {
+                    if (CurrentEpubWin2DPage?.IsImagePage == true)
+                    {
+                        ShowEpubImagePage(CurrentEpubWin2DPage);
+                    }
+                    else
+                    {
+                        EpubTextCanvas?.Invalidate();
+                    }
+                }
+                
+                if (_isVerticalMode) VerticalTextCanvas?.Invalidate();
+                if (_isAozoraMode) AozoraTextCanvas?.Invalidate();
+
                 // 현재 이미지 다시 그리기
                 _ = DisplayCurrentImageAsync();
             }

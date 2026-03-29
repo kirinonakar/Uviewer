@@ -1402,11 +1402,21 @@ namespace Uviewer
                     winrtStream.Seek(0);
 
                     var device = AozoraTextCanvas.Device;
-                    var bitmap = await CanvasBitmap.LoadAsync(device, winrtStream);
+                    var originalBitmap = await CanvasBitmap.LoadAsync(device, winrtStream);
+                    var finalBitmap = originalBitmap;
+
+                    if (_sharpenEnabled)
+                    {
+                        var sharpened = await ApplySharpenToBitmapAsync(originalBitmap, AozoraTextCanvas!, skipUpscale: false);
+                        if (sharpened != null && sharpened != originalBitmap)
+                        {
+                            finalBitmap = sharpened;
+                        }
+                    }
 
                     this.DispatcherQueue.TryEnqueue(() =>
                     {
-                        _aozoraImageCache[relativePath] = bitmap;
+                        _aozoraImageCache[relativePath] = finalBitmap;
                         AozoraTextCanvas.Invalidate();
                     });
                 }
