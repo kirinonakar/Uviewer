@@ -28,112 +28,86 @@ namespace Uviewer
         private const int DefaultWebpFrameDelayMs = 30;
         private volatile bool _isDecodingAnimatedImage = false;
 
-        // Sharpen (Win2D GPU-based sharpening)
-        private bool _sharpenEnabled;
-        private const float SharpenAmount = 5.0f;      // Very strong sharpening (increased from 1.5)
-        private const float SharpenThreshold = 0.0f;   // Apply to all details
-
         private readonly Dictionary<int, CanvasBitmap> _animatedWebpSharpenedCache = new();
 
         #region Sharpened Image Caching
 
         private async Task<CanvasBitmap?> ApplySharpenToBitmapAsync(CanvasBitmap originalBitmap, CanvasControl canvas, bool skipUpscale = false)
-{
-    try
-    {
-        // [버그 수정] PreloadManager가 MainCanvas로 이미지를 로드하여 캐시한 경우,
-        // LeftCanvas나 RightCanvas와 Device 래퍼 인스턴스가 다를 수 있습니다.
-        // 따라서 canvas.Device와 엄격히 비교하지 않고, originalBitmap의 Device를 직접 사용하여 이펙트를 생성합니다.
-        var device = originalBitmap.Device;
-        if (device == null)
-            return originalBitmap;
-
-        // 1. 업스케일 조건 확인 (1024 미만)
-        bool shouldUpscale = !skipUpscale && (originalBitmap.Size.Width < 1024 || originalBitmap.Size.Height < 1024);
-
-        float finalWidth = (float)originalBitmap.Size.Width;
-        float finalHeight = (float)originalBitmap.Size.Height;
-
-        // 업스케일 시 최대 강도(10.0f), 아닐 경우 기본 강도(5.0f)
-        float currentSharpenAmount = shouldUpscale ? 10.0f : SharpenAmount;
-        float currentThreshold = shouldUpscale ? 0.03f : 0.01f;
-
-        CanvasBitmap processedSource;
-
-        if (shouldUpscale)
         {
-            // --- 저해상도: 노이즈 억제 + 2배 업스케일 ---
-            var deNoiseEffect = new GaussianBlurEffect
+            try
             {
-                Source = originalBitmap,
-                BlurAmount = 0.4f,
-                Optimization = EffectOptimization.Balanced
-            };
+                var device = originalBitmap.Device;
+                if (device == null)
+                    return originalBitmap;
 
-            finalWidth *= 2f;
-            finalHeight *= 2f;
-            var upscaledSize = new Windows.Foundation.Size(finalWidth, finalHeight);
+                // 1. skipUpscale이 아닐 때만 슬라이더에 지정된 비율 적용 (애니메이션 WebP는 성능상 1.0f로 처리됨)
+                float currentUpscale = (!skipUpscale && _upscaleFactor > 1.0f) ? _upscaleFactor : 1.0f;
 
-            // canvas 대신 device와 원본 DPI를 사용해 생성
-            var upscaledTarget = new CanvasRenderTarget(device, finalWidth, finalHeight, originalBitmap.Dpi);
-            using (var ds = upscaledTarget.CreateDrawingSession())
-            {
-                ds.DrawImage(deNoiseEffect,
-                    new Windows.Foundation.Rect(0, 0, finalWidth, finalHeight),
-                    originalBitmap.GetBounds(device), // canvas -> device로 변경
-                    1.0f,
-                    CanvasImageInterpolation.HighQualityCubic);
+                float finalWidth = (float)originalBitmap.Size.Width * currentUpscale;
+                float finalHeight = (float)originalBitmap.Size.Height * currentUpscale;
+
+                ICanvasImage currentEffect = originalBitmap;
+
+                // 1. 업스케일 (ScaleEffect 사용 - 기본적으로 HighQualityCubic 적용됨)
+                if (currentUpscale > 1.0f)
+                {
+                    currentEffect = new ScaleEffect
+                    {
+                        Source = currentEffect,
+                        Scale = new System.Numerics.Vector2(currentUpscale, currentUpscale),
+                        InterpolationMode = CanvasImageInterpolation.HighQualityCubic
+                    };
+                }
+
+                // 2. 샤프닝 (SharpenEffect)
+                if (_sharpenAmountParam > 0.0f)
+                {
+                    currentEffect = new SharpenEffect
+                    {
+                        Source = currentEffect,
+                        Amount = _sharpenAmountParam,
+                        Threshold = 0.01f
+                    };
+                }
+
+                // 3. 언샵 마스크 (Manual Implementation using GaussianBlur + ArithmeticComposite)
+                if (_unsharpAmount > 0.0f)
+                {
+                    var blurred = new GaussianBlurEffect
+                    {
+                        Source = currentEffect,
+                        BlurAmount = _unsharpRadius,
+                        Optimization = EffectOptimization.Speed
+                    };
+
+                    currentEffect = new ArithmeticCompositeEffect
+                    {
+                        Source1 = currentEffect,
+                        Source2 = blurred,
+                        MultiplyAmount = 0.0f,
+                        Source1Amount = 1.0f + _unsharpAmount,
+                        Source2Amount = -_unsharpAmount,
+                        Offset = 0.0f
+                    };
+                }
+
+                // 4. 최종 결과물 렌더링
+                var finalTarget = new CanvasRenderTarget(device, finalWidth, finalHeight, originalBitmap.Dpi);
+                using (var ds = finalTarget.CreateDrawingSession())
+                {
+                    ds.Antialiasing = CanvasAntialiasing.Antialiased;
+                    ds.DrawImage(currentEffect);
+                }
+
+                // 메모리 관리 (업스케일이 진행되었다면 중간 파이프라인에서 생성된 리소스들은 GC가 수거)
+                return finalTarget;
             }
-            processedSource = upscaledTarget;
-        }
-        else
-        {
-            processedSource = originalBitmap;
-        }
-
-        // 3. 샤프닝 적용 (첫 번째)
-        var sharpenEffect1 = new SharpenEffect
-        {
-            Source = processedSource,
-            Amount = currentSharpenAmount,
-            Threshold = currentThreshold
-        };
-
-        ICanvasImage finalEffect = sharpenEffect1;
-
-        // 4. [추가] 작은 이미지인 경우 샤프닝 한 번 더 중첩
-        if (shouldUpscale)
-        {
-            finalEffect = new SharpenEffect
+            catch (Exception ex)
             {
-                Source = sharpenEffect1, // 첫 번째 샤프닝 결과를 소스로 사용
-                Amount = 4.0f,
-                Threshold = 0.03f
-            };
+                System.Diagnostics.Debug.WriteLine($"Error in Processing: {ex.Message}");
+                return originalBitmap;
+            }
         }
-
-        // 5. 최종 결과물 렌더링 (canvas 대신 device 사용)
-        var finalTarget = new CanvasRenderTarget(device, finalWidth, finalHeight, originalBitmap.Dpi);
-        using (var ds = finalTarget.CreateDrawingSession())
-        {
-            ds.Antialiasing = CanvasAntialiasing.Antialiased;
-            ds.DrawImage(finalEffect);
-        }
-
-        // 6. 메모리 해제
-        if (shouldUpscale)
-        {
-            _imageCache.SafeDisposeBitmap(processedSource);
-        }
-
-        return finalTarget;
-    }
-    catch (Exception ex)
-    {
-        System.Diagnostics.Debug.WriteLine($"Error in Processing: {ex.Message}");
-        return originalBitmap;
-    }
-}
 
         private void CacheSharpenedImage(int index, CanvasBitmap sharpenedBitmap)
         {

@@ -80,7 +80,7 @@
     <value>実サイズ(1)</value>
   </data>
   <data name="SharpenTooltip" xml:space="preserve">
-    <value>シャープネス(S)</value>
+    <value>シャープネス(S) - 右クリックで設定</value>
   </data>
   <data name="SideBySideTooltip" xml:space="preserve">
     <value>見開き表示(Space)</value>
@@ -394,5 +394,23 @@
   </data>
   <data name="AboutTitle" xml:space="preserve">
     <value>Uviewer 情報</value>
+  </data>
+  <data name="SharpenSettingsTitle" xml:space="preserve">
+    <value>シャープネス &amp; アップスケール設定</value>
+  </data>
+  <data name="UpscaleFactorLabel" xml:space="preserve">
+    <value>アップスケール倍率:</value>
+  </data>
+  <data name="SharpenAmountLabel" xml:space="preserve">
+    <value>シャープ強さ:</value>
+  </data>
+  <data name="UnsharpAmountLabel" xml:space="preserve">
+    <value>アンシャープマスクの強さ:</value>
+  </data>
+  <data name="UnsharpRadiusLabel" xml:space="preserve">
+    <value>アンシャープマスクの半径:</value>
+  </data>
+  <data name="ResetButton" xml:space="preserve">
+    <value>リセット</value>
   </data>
 </root>

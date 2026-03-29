@@ -130,6 +130,14 @@ namespace Uviewer
         public static string AboutTitle => GetString("AboutTitle");
         public static string Close => GetString("CloseWindowTooltip").Replace("(Esc)", "").Trim();
 
+        // Sharpen & Upscale
+        public static string SharpenSettingsTitle => GetString("SharpenSettingsTitle");
+        public static string UpscaleFactorLabel => GetString("UpscaleFactorLabel");
+        public static string SharpenAmountLabel => GetString("SharpenAmountLabel");
+        public static string UnsharpAmountLabel => GetString("UnsharpAmountLabel");
+        public static string UnsharpRadiusLabel => GetString("UnsharpRadiusLabel");
+        public static string ResetButton => GetString("ResetButton");
+
         public static void Reload()
         {
             try

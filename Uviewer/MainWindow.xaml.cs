@@ -59,6 +59,14 @@ namespace Uviewer
         private CanvasBitmap? _rightBitmap;
         private bool _matchControlDirection = false;
         private int _pendingPdfPageIndex = -1;
+
+        // Sharpen & Upscale Parameters
+        private bool _sharpenEnabled;
+        private float _upscaleFactor = 2.0f;
+        private float _sharpenAmountParam = 1.0f;
+        private float _unsharpAmount = 2.0f;
+        private float _unsharpRadius = 1.0f;
+
         private double _pdfPanY = 0;
         private double _pdfPanX = 0;
         private double _lastCanvasWidth = 0;
@@ -607,6 +615,17 @@ namespace Uviewer
             if (SortByDateAscMenu != null) SortByDateAscMenu.Text = Strings.SortByDateAscTooltip;
 
             UpdateLanguageMenuCheckmark();
+
+            // Sharpen & Upscale Flyout
+            if (SharpenSettingsTitleText != null) SharpenSettingsTitleText.Text = Strings.SharpenSettingsTitle;
+            if (UpscaleLabel != null) UpscaleLabel.Text = Strings.UpscaleFactorLabel;
+            if (SharpenAmountLabel != null) SharpenAmountLabel.Text = Strings.SharpenAmountLabel;
+            if (UnsharpAmountLabel != null) UnsharpAmountLabel.Text = Strings.UnsharpAmountLabel;
+            if (UnsharpRadiusLabel != null) UnsharpRadiusLabel.Text = Strings.UnsharpRadiusLabel;
+            if (SharpenParamsResetButton != null) SharpenParamsResetButton.Content = Strings.ResetButton;
+
+            // Trigger x:Bind Refresh
+            this.Bindings.Update();
         }
 
         private void AppWindow_Changed(AppWindow sender, AppWindowChangedEventArgs args)
@@ -776,6 +795,29 @@ namespace Uviewer
             _autoDoublePageForArchive = settings.AutoDoublePageForArchive;
             _isRegistered = settings.IsRegistered;
 
+            // Load Sharpen & Upscale Parameters
+            _upscaleFactor = settings.UpscaleFactor;
+            _sharpenAmountParam = settings.SharpenAmount;
+            _unsharpAmount = settings.UnsharpAmount;
+            _unsharpRadius = settings.UnsharpRadius;
+
+            // Sync Sliders and Text
+            if (UpscaleSlider != null) UpscaleSlider.Value = _upscaleFactor;
+            if (SharpenSlider != null) SharpenSlider.Value = _sharpenAmountParam;
+            if (UnsharpAmountSlider != null) UnsharpAmountSlider.Value = _unsharpAmount;
+            if (UnsharpRadiusSlider != null) UnsharpRadiusSlider.Value = _unsharpRadius;
+            
+            if (UpscaleValueText != null) UpscaleValueText.Text = $"{_upscaleFactor:F1}x";
+            if (SharpenValueText != null) SharpenValueText.Text = $"{_sharpenAmountParam:F1}";
+            if (UnsharpAmountValueText != null) UnsharpAmountValueText.Text = $"{_unsharpAmount:F1}";
+            if (UnsharpRadiusValueText != null) UnsharpRadiusValueText.Text = $"{_unsharpRadius:F1}";
+
+            // Attach events after setting initial values
+            if (UpscaleSlider != null) UpscaleSlider.ValueChanged += SharpenParams_ValueChanged;
+            if (SharpenSlider != null) SharpenSlider.ValueChanged += SharpenParams_ValueChanged;
+            if (UnsharpAmountSlider != null) UnsharpAmountSlider.ValueChanged += SharpenParams_ValueChanged;
+            if (UnsharpRadiusSlider != null) UnsharpRadiusSlider.ValueChanged += SharpenParams_ValueChanged;
+
             if (MatchControlDirectionMenuItem != null) MatchControlDirectionMenuItem.IsChecked = _matchControlDirection;
             if (AllowMultipleInstancesMenuItem != null) AllowMultipleInstancesMenuItem.IsChecked = _allowMultipleInstances;
             if (AutoDoublePageForArchiveMenuItem != null) AutoDoublePageForArchiveMenuItem.IsChecked = _autoDoublePageForArchive;
@@ -846,7 +888,11 @@ namespace Uviewer
                 IsPinned = _windowState.IsPinned,
                 IsAlwaysOnTop = _windowState.IsAlwaysOnTop,
                 AutoDoublePageForArchive = _autoDoublePageForArchive,
-                IsRegistered = _isRegistered
+                IsRegistered = _isRegistered,
+                UpscaleFactor = _upscaleFactor,
+                SharpenAmount = _sharpenAmountParam,
+                UnsharpAmount = _unsharpAmount,
+                UnsharpRadius = _unsharpRadius
             };
 
             _appSettingsService.SaveSettings(settings);
@@ -1398,7 +1444,6 @@ var image = new Microsoft.UI.Xaml.Controls.Image
                 await AddToRecentAsync(true);
 
                 // [최적화] 프리로드 재시작을 100ms 지연(디바운스)
-                // 빠른 스크롤 시 매 페이지마다 프리로드가 취소/재시작되는 낭비를 방지
                 if (_currentArchive != null || _currentPdfDocument != null)
                 {
                     _ = _preloadManager.StartPreloadAsync(
@@ -1410,6 +1455,55 @@ var image = new Microsoft.UI.Xaml.Controls.Image
                 }
             }
             RootGrid.Focus(FocusState.Programmatic);
+        }
+
+        private void SharpenParams_ValueChanged(object sender, Microsoft.UI.Xaml.Controls.Primitives.RangeBaseValueChangedEventArgs e)
+        {
+            if (UpscaleSlider == null) return; // UI가 완전히 초기화되기 전이면 무시
+
+            // 슬라이더 값 동기화
+            _upscaleFactor = (float)UpscaleSlider.Value;
+            _sharpenAmountParam = (float)SharpenSlider.Value;
+            _unsharpAmount = (float)UnsharpAmountSlider.Value;
+            _unsharpRadius = (float)UnsharpRadiusSlider.Value;
+
+            // 텍스트 업데이트
+            if (UpscaleValueText != null) UpscaleValueText.Text = $"{_upscaleFactor:F1}x";
+            if (SharpenValueText != null) SharpenValueText.Text = $"{_sharpenAmountParam:F1}";
+            if (UnsharpAmountValueText != null) UnsharpAmountValueText.Text = $"{_unsharpAmount:F1}";
+            if (UnsharpRadiusValueText != null) UnsharpRadiusValueText.Text = $"{_unsharpRadius:F1}";
+
+            // 샤프닝이 켜져있다면 즉시 캐시 지우고 화면 리렌더링
+            if (_sharpenEnabled)
+            {
+                _imageCache?.ClearSharpenedCache(_currentBitmap, _leftBitmap, _rightBitmap);
+                
+                lock (_animatedWebpSharpenedCache)
+                {
+                    foreach (var bmp in _animatedWebpSharpenedCache.Values)
+                    {
+                        if (bmp != _currentBitmap && bmp != _leftBitmap && bmp != _rightBitmap)
+                        {
+                            _imageCache?.SafeDisposeBitmap(bmp);
+                        }
+                    }
+                    _animatedWebpSharpenedCache.Clear();
+                }
+
+                // 현재 이미지 다시 그리기
+                _ = DisplayCurrentImageAsync();
+            }
+            
+            // 변경사항 저장
+            SaveWindowSettings();
+        }
+
+        private void SharpenParams_Reset_Click(object sender, RoutedEventArgs e)
+        {
+            if (UpscaleSlider != null) UpscaleSlider.Value = 2.0;
+            if (SharpenSlider != null) SharpenSlider.Value = 1.0;
+            if (UnsharpAmountSlider != null) UnsharpAmountSlider.Value = 2.0;
+            if (UnsharpRadiusSlider != null) UnsharpRadiusSlider.Value = 1.0;
         }
 
         private async Task NavigateToNextAsync(bool isManualClick = false)

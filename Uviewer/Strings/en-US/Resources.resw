@@ -80,7 +80,7 @@
     <value>Actual Size (1)</value>
   </data>
   <data name="SharpenTooltip" xml:space="preserve">
-    <value>Sharpen (S)</value>
+    <value>Sharpen(S) - Right-click for settings</value>
   </data>
   <data name="SideBySideTooltip" xml:space="preserve">
     <value>Side by Side (Space)</value>
@@ -394,5 +394,23 @@
   </data>
   <data name="AboutTitle" xml:space="preserve">
     <value>About Uviewer</value>
+  </data>
+  <data name="SharpenSettingsTitle" xml:space="preserve">
+    <value>Sharpen &amp; Upscale Settings</value>
+  </data>
+  <data name="UpscaleFactorLabel" xml:space="preserve">
+    <value>Upscale Factor:</value>
+  </data>
+  <data name="SharpenAmountLabel" xml:space="preserve">
+    <value>Sharpen Amount:</value>
+  </data>
+  <data name="UnsharpAmountLabel" xml:space="preserve">
+    <value>Unsharp Amount:</value>
+  </data>
+  <data name="UnsharpRadiusLabel" xml:space="preserve">
+    <value>Unsharp Radius:</value>
+  </data>
+  <data name="ResetButton" xml:space="preserve">
+    <value>Reset</value>
   </data>
 </root>

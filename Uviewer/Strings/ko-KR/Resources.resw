@@ -80,7 +80,7 @@
     <value>원본 크기(1)</value>
   </data>
   <data name="SharpenTooltip" xml:space="preserve">
-    <value>샤프닝(S)</value>
+    <value>샤프닝(S) - 우클릭으로 설정</value>
   </data>
   <data name="SideBySideTooltip" xml:space="preserve">
     <value>좌우 보기(Space)</value>
@@ -394,5 +394,23 @@
   </data>
   <data name="AboutTitle" xml:space="preserve">
     <value>Uviewer 정보</value>
+  </data>
+  <data name="SharpenSettingsTitle" xml:space="preserve">
+    <value>샤프닝 &amp; 업스케일 설정</value>
+  </data>
+  <data name="UpscaleFactorLabel" xml:space="preserve">
+    <value>업스케일 비율:</value>
+  </data>
+  <data name="SharpenAmountLabel" xml:space="preserve">
+    <value>샤프닝 강도:</value>
+  </data>
+  <data name="UnsharpAmountLabel" xml:space="preserve">
+    <value>언샵 마스크 강도:</value>
+  </data>
+  <data name="UnsharpRadiusLabel" xml:space="preserve">
+    <value>언샵 마스크 반경:</value>
+  </data>
+  <data name="ResetButton" xml:space="preserve">
+    <value>초기화</value>
   </data>
 </root>
