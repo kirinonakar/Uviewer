@@ -8,6 +8,7 @@
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     xmlns:canvas="using:Microsoft.Graphics.Canvas.UI.Xaml"
     xmlns:controls="using:CommunityToolkit.WinUI.Controls"
+    xmlns:uc="using:Uviewer.Controls"
     mc:Ignorable="d"
     Title="Uviewer - Image &amp; Text Viewer">
 
@@ -156,18 +157,20 @@
                                         <ScrollViewer MaxHeight="400" 
                                                      HorizontalScrollBarVisibility="Disabled" 
                                                      VerticalScrollBarVisibility="Auto">
-                                            <StackPanel x:Name="FileFavoritesPanel" Spacing="2">
-                                                <!-- Favorites will be added dynamically -->
-                                            </StackPanel>
+                                            <uc:BookmarkListControl x:Name="FileFavoritesList" 
+                                                                    ItemClicked="BookmarkList_ItemClicked"
+                                                                    RemoveClicked="BookmarkList_RemoveClicked"
+                                                                    PinClicked="BookmarkList_PinClicked"/>
                                         </ScrollViewer>
                                     </PivotItem>
                                     <PivotItem x:Name="FolderFavoritesPivotItem" Header="{x:Bind local:Strings.FavoritesFolders}">
                                         <ScrollViewer MaxHeight="400" 
                                                      HorizontalScrollBarVisibility="Disabled" 
                                                      VerticalScrollBarVisibility="Auto">
-                                            <StackPanel x:Name="FolderFavoritesPanel" Spacing="2">
-                                                <!-- Favorites will be added dynamically -->
-                                            </StackPanel>
+                                            <uc:BookmarkListControl x:Name="FolderFavoritesList" 
+                                                                    ItemClicked="BookmarkList_ItemClicked"
+                                                                    RemoveClicked="BookmarkList_RemoveClicked"
+                                                                    PinClicked="BookmarkList_PinClicked"/>
                                         </ScrollViewer>
                                     </PivotItem>
                                 </Pivot>
@@ -180,12 +183,12 @@
                     <FontIcon Glyph="&#xE823;" FontSize="14"/>
                     <Button.Flyout>
                         <Flyout x:Name="RecentFlyout" Placement="Bottom">
-                            <ScrollViewer MaxHeight="400" Width="400" 
+                            <ScrollViewer MaxHeight="600" Width="400" 
                                          HorizontalScrollBarVisibility="Disabled" 
                                          VerticalScrollBarVisibility="Auto">
-                                <StackPanel x:Name="RecentPanel" Spacing="2">
-                                    <!-- Recent items will be added dynamically -->
-                                </StackPanel>
+                                    <uc:BookmarkListControl x:Name="RecentList" 
+                                                            ItemClicked="RecentList_ItemClicked"
+                                                            RemoveClicked="RecentList_RemoveClicked"/>
                             </ScrollViewer>
                         </Flyout>
                     </Button.Flyout>
@@ -468,18 +471,20 @@
                                             <ScrollViewer MaxHeight="400" 
                                                          HorizontalScrollBarVisibility="Disabled" 
                                                          VerticalScrollBarVisibility="Auto">
-                                                <StackPanel x:Name="SidebarFileFavoritesPanel" Spacing="2">
-                                                    <!-- Favorites will be added dynamically -->
-                                                </StackPanel>
+                                                <uc:BookmarkListControl x:Name="SidebarFileFavoritesList" 
+                                                                        ItemClicked="BookmarkList_ItemClicked"
+                                                                        RemoveClicked="BookmarkList_RemoveClicked"
+                                                                        PinClicked="BookmarkList_PinClicked"/>
                                             </ScrollViewer>
                                         </PivotItem>
                                         <PivotItem x:Name="SidebarFolderFavoritesPivotItem" Header="{x:Bind local:Strings.FavoritesFolders}">
                                             <ScrollViewer MaxHeight="400" 
                                                          HorizontalScrollBarVisibility="Disabled" 
                                                          VerticalScrollBarVisibility="Auto">
-                                                <StackPanel x:Name="SidebarFolderFavoritesPanel" Spacing="2">
-                                                    <!-- Favorites will be added dynamically -->
-                                                </StackPanel>
+                                                <uc:BookmarkListControl x:Name="SidebarFolderFavoritesList" 
+                                                                        ItemClicked="BookmarkList_ItemClicked"
+                                                                        RemoveClicked="BookmarkList_RemoveClicked"
+                                                                        PinClicked="BookmarkList_PinClicked"/>
                                             </ScrollViewer>
                                         </PivotItem>
                                     </Pivot>
@@ -493,12 +498,12 @@
                         <FontIcon Glyph="&#xE823;" FontSize="16"/>
                         <Button.Flyout>
                             <Flyout x:Name="SidebarRecentFlyout" Placement="Bottom">
-                                <ScrollViewer MaxHeight="400" Width="400" 
+                                <ScrollViewer MaxHeight="600" Width="400" 
                                              HorizontalScrollBarVisibility="Disabled" 
                                              VerticalScrollBarVisibility="Auto">
-                                    <StackPanel x:Name="SidebarRecentPanel" Spacing="2">
-                                        <!-- Recent items will be added dynamically -->
-                                    </StackPanel>
+                                        <uc:BookmarkListControl x:Name="SidebarRecentList" 
+                                                                ItemClicked="RecentList_ItemClicked"
+                                                                RemoveClicked="RecentList_RemoveClicked"/>
                                 </ScrollViewer>
                             </Flyout>
                         </Button.Flyout>

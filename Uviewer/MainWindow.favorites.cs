@@ -16,8 +16,12 @@ namespace Uviewer
 {
     public sealed partial class MainWindow : Window
     {
-        // [추가] 파일 이동 중 자동 저장을 막기 위한 플래그
         private bool _isNavigatingRecent = false;
+
+        // UI Collections
+        private ObservableCollection<BookmarkViewModel> _fileFavoriteItems = new();
+        private ObservableCollection<BookmarkViewModel> _folderFavoriteItems = new();
+        private ObservableCollection<BookmarkViewModel> _recentItemsList = new();
 
 
 
@@ -32,307 +36,141 @@ namespace Uviewer
 
         private void UpdateFavoritesMenu()
         {
-            UpdateFavoritesPanel(FileFavoritesPanel, FolderFavoritesPanel);
-            UpdateFavoritesPanel(SidebarFileFavoritesPanel, SidebarFolderFavoritesPanel);
+            // Update the source collections
+            var fileFavorites = _favoritesService.Favorites
+                .Where(f => f.Type != "Folder")
+                .OrderByDescending(f => f.IsPinned)
+                .ThenByDescending(f => f.CreatedAt);
+            
+            var folderFavorites = _favoritesService.Favorites
+                .Where(f => f.Type == "Folder")
+                .OrderByDescending(f => f.IsPinned)
+                .ThenByDescending(f => f.CreatedAt);
+
+            // Sync File Favorites
+            _fileFavoriteItems.Clear();
+            foreach (var fav in fileFavorites)
+            {
+                _fileFavoriteItems.Add(CreateBookmarkViewModel(fav));
+            }
+
+            // Sync Folder Favorites
+            _folderFavoriteItems.Clear();
+            foreach (var fav in folderFavorites)
+            {
+                _folderFavoriteItems.Add(CreateBookmarkViewModel(fav));
+            }
+
+            // Bind to controls
+            FileFavoritesList.ItemsSource = _fileFavoriteItems;
+            FileFavoritesList.EmptyMessage = Strings.NoFavorites;
+            
+            FolderFavoritesList.ItemsSource = _folderFavoriteItems;
+            FolderFavoritesList.EmptyMessage = Strings.NoFavorites;
+
+            SidebarFileFavoritesList.ItemsSource = _fileFavoriteItems;
+            SidebarFileFavoritesList.EmptyMessage = Strings.NoFavorites;
+            
+            SidebarFolderFavoritesList.ItemsSource = _folderFavoriteItems;
+            SidebarFolderFavoritesList.EmptyMessage = Strings.NoFavorites;
         }
 
-        private void UpdateFavoritesPanel(StackPanel filePanel, StackPanel folderPanel)
+        private BookmarkViewModel CreateBookmarkViewModel(FavoriteItem fav)
         {
-            if (filePanel == null || folderPanel == null) return;
+            bool isImageFile = fav.Type == "File" && !string.IsNullOrEmpty(fav.Path) && 
+                               FileExplorerService.SupportedImageExtensions.Contains(Path.GetExtension(fav.Path).ToLowerInvariant());
 
-            filePanel.Children.Clear();
-            folderPanel.Children.Clear();
-
-            var fileFavorites = _favoritesService.Favorites.Where(f => f.Type != "Folder").OrderByDescending(f => f.IsPinned).ThenByDescending(f => f.CreatedAt).ToList();
-            var folderFavorites = _favoritesService.Favorites.Where(f => f.Type == "Folder").OrderByDescending(f => f.IsPinned).ThenByDescending(f => f.CreatedAt).ToList();
-
-            if (fileFavorites.Count == 0)
-            {
-                var emptyText = new TextBlock
-                {
-                    Text = Strings.NoFavorites,
-                    Foreground = new SolidColorBrush(Microsoft.UI.Colors.Gray),
-                    Margin = new Thickness(12, 8, 12, 8),
-                    FontSize = 13
-                };
-                if (!string.IsNullOrEmpty(_settingsManager.UIFontFamily) && _settingsManager.UIFontFamily != "Unknown")
-                {
-                    try { emptyText.FontFamily = new FontFamily(_settingsManager.UIFontFamily); }
-                    catch { }
-                }
-                filePanel.Children.Add(emptyText);
-            }
-            else
-            {
-                foreach (var fav in fileFavorites)
-                {
-                    filePanel.Children.Add(CreateFavoriteItemControl(fav));
-                }
-            }
-
-            if (folderFavorites.Count == 0)
-            {
-                var emptyText = new TextBlock
-                {
-                    Text = Strings.NoFavorites,
-                    Foreground = new SolidColorBrush(Microsoft.UI.Colors.Gray),
-                    Margin = new Thickness(12, 8, 12, 8),
-                    FontSize = 13
-                };
-                if (!string.IsNullOrEmpty(_settingsManager.UIFontFamily) && _settingsManager.UIFontFamily != "Unknown")
-                {
-                    try { emptyText.FontFamily = new FontFamily(_settingsManager.UIFontFamily); }
-                    catch { }
-                }
-                folderPanel.Children.Add(emptyText);
-            }
-            else
-            {
-                foreach (var fav in folderFavorites)
-                {
-                    folderPanel.Children.Add(CreateFavoriteItemControl(fav));
-                }
-            }
-        }
-
-        private Grid CreateFavoriteItemControl(FavoriteItem favorite)
-        {
-            var currentFavorite = favorite;
-
-            // Create a Grid to hold the name and delete button
-            var itemGrid = new Grid
-            {
-                Margin = new Thickness(0, 1, 0, 1),
-                Background = new SolidColorBrush(Microsoft.UI.Colors.Transparent),
-                MinHeight = favorite.Type != "Folder" ? 44 : 36
-            };
-            itemGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-            itemGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-            itemGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-
-            bool isImageFile = favorite.Type == "File" && !string.IsNullOrEmpty(favorite.Path) && 
-                               FileExplorerService.SupportedImageExtensions.Contains(Path.GetExtension(favorite.Path).ToLowerInvariant());
-
-            string vMark = "";
             string posString = "";
-
             if (!isImageFile)
             {
-                if (favorite.Path.EndsWith(".epub", StringComparison.OrdinalIgnoreCase))
-                {
-                    posString = $" (Ch.{favorite.ChapterIndex + 1} P.{favorite.SavedPage + 1} L.{favorite.SavedLine})";
-                }
-                else if (favorite.Type == "File" && !favorite.Path.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase))
-                {
-                    posString = $" (Line {favorite.SavedLine})";
-                }
-                else if (favorite.SavedPage > 0 || favorite.ChapterIndex > 0) 
-                    posString = $" ({(favorite.ChapterIndex > 0 ? $"Ch.{favorite.ChapterIndex + 1} " : "")}P.{favorite.SavedPage + 1})";
+                if (fav.Path.EndsWith(".epub", StringComparison.OrdinalIgnoreCase))
+                    posString = $" (Ch.{fav.ChapterIndex + 1} P.{fav.SavedPage + 1} L.{fav.SavedLine})";
+                else if (fav.Type == "File" && !fav.Path.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase))
+                    posString = $" (Line {fav.SavedLine})";
+                else if (fav.SavedPage > 0 || fav.ChapterIndex > 0) 
+                    posString = $" ({(fav.ChapterIndex > 0 ? $"Ch.{fav.ChapterIndex + 1} " : "")}P.{fav.SavedPage + 1})";
             }
 
-            // Create vertical container for text content + progress bar
-            var contentPanel = new StackPanel 
-            { 
-                Orientation = Orientation.Vertical, 
-                VerticalAlignment = VerticalAlignment.Center,
-                Margin = new Thickness(12, 4, 8, 4)
-            };
+            string tooltipText = fav.Path + (string.IsNullOrEmpty(posString) ? "" : $"\n{posString.Trim(' ', '(', ')')}");
+            if (fav.IsWebDav && !string.IsNullOrEmpty(fav.WebDavServerName))
+                tooltipText = $"[{fav.WebDavServerName}] {tooltipText}";
+            if (fav.Type != "Folder" && !isImageFile)
+                tooltipText += $"\n{Strings.ProgressLabel}: {fav.Progress:F1}%";
 
-            // Create horizontal row for icon + name
-            var nameRow = new StackPanel { Orientation = Orientation.Horizontal };
+            return BookmarkViewModel.FromFavorite(fav, posString, tooltipText);
+        }
 
-            if (favorite.IsWebDav)
+        private BookmarkViewModel CreateBookmarkViewModel(RecentItem recent)
+        {
+            bool isImageFile = recent.Type == "File" && !string.IsNullOrEmpty(recent.Path) && 
+                               FileExplorerService.SupportedImageExtensions.Contains(Path.GetExtension(recent.Path).ToLowerInvariant());
+
+            string posString = "";
+            if (!isImageFile)
             {
-                var webIcon = new FontIcon
-                {
-                    Glyph = "\uE774", // Globe icon
-                    FontSize = 12,
-                    Margin = new Thickness(0, 1, 6, 0),
-                    Foreground = new SolidColorBrush(Microsoft.UI.Colors.CornflowerBlue)
-                };
-                nameRow.Children.Add(webIcon);
+                if (recent.Path.EndsWith(".epub", StringComparison.OrdinalIgnoreCase))
+                    posString = $" (Ch.{recent.ChapterIndex + 1} P.{recent.SavedPage + 1} L.{recent.SavedLine})";
+                else if (recent.Type == "File" && !recent.Path.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase))
+                    posString = $" (Line {recent.SavedLine})";
+                else if (recent.SavedPage > 0 || recent.ChapterIndex > 0) 
+                    posString = $" ({(recent.ChapterIndex > 0 ? $"Ch.{recent.ChapterIndex + 1} " : "")}P.{recent.SavedPage + 1})";
             }
 
-            // Create TextBlock for the favorite name
-            var nameTextBlock = new TextBlock
-            {
-                Text = vMark + favorite.Name + posString,
-                VerticalAlignment = VerticalAlignment.Center,
-                HorizontalAlignment = HorizontalAlignment.Left,
-                TextTrimming = TextTrimming.CharacterEllipsis,
-                TextWrapping = TextWrapping.NoWrap,
-                MaxWidth = favorite.IsWebDav ? 270 : 300,
-                FontSize = 13
-            };
+            string tooltipText = recent.Path + (string.IsNullOrEmpty(posString) ? "" : $"\n{posString.Trim(' ', '(', ')')}");
+            if (recent.IsWebDav && !string.IsNullOrEmpty(recent.WebDavServerName))
+                tooltipText = $"[{recent.WebDavServerName}] {tooltipText}";
+            if (recent.Type != "Folder" && !isImageFile)
+                tooltipText += $"\n{Strings.ProgressLabel}: {recent.Progress:F1}%";
 
-            // Set font family with validation to prevent 'Unknown' crash
-            if (!string.IsNullOrEmpty(_settingsManager.UIFontFamily) && _settingsManager.UIFontFamily != "Unknown")
-            {
-                try { nameTextBlock.FontFamily = new FontFamily(_settingsManager.UIFontFamily); }
-                catch { /* Fallback to default if invalid */ }
-            }
-            if (favorite.IsWebDav && !string.IsNullOrEmpty(_settingsManager.UIFontFamily))
-            {
-                // Ensure webIcon also uses UI font if possible, though it's likely FontIcon anyway
-            }
-            nameRow.Children.Add(nameTextBlock);
-            contentPanel.Children.Add(nameRow);
+            return BookmarkViewModel.FromRecent(recent, posString, tooltipText);
+        }
 
-            // Add progress bar for non-folder items (excluding single image files)
-            if (favorite.Type != "Folder" && !isImageFile)
-            {
-                var progressRow = new Grid { Margin = new Thickness(0, 3, 0, 0) };
-                progressRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-                progressRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-
-                // Progress bar container (transparent background = clean look)
-                var progressBarBg = new Border
-                {
-                    Height = 3,
-                    CornerRadius = new CornerRadius(1.5),
-                    Background = new SolidColorBrush(Microsoft.UI.Colors.Transparent),
-                    HorizontalAlignment = HorizontalAlignment.Stretch
-                };
-
-                var progressBarFill = new Border
-                {
-                    Height = 3,
-                    CornerRadius = new CornerRadius(1.5),
-                    Background = new SolidColorBrush(Microsoft.UI.Colors.CornflowerBlue),
-                    HorizontalAlignment = HorizontalAlignment.Left,
-                    MaxWidth = 280
-                };
-
-                // Use a Grid to overlay fill on background
-                var progressBarGrid = new Grid
-                {
-                    HorizontalAlignment = HorizontalAlignment.Stretch,
-                    VerticalAlignment = VerticalAlignment.Center,
-                    MaxWidth = 280
-                };
-                progressBarGrid.Children.Add(progressBarBg);
-                progressBarGrid.Children.Add(progressBarFill);
-
-                // Set width based on progress
-                double progress = Math.Min(Math.Max(favorite.Progress, 0), 100);
-                progressBarFill.Loaded += (s, e) =>
-                {
-                    if (progressBarGrid.ActualWidth > 0)
-                        progressBarFill.Width = progressBarGrid.ActualWidth * (progress / 100.0);
-                    else
-                        progressBarFill.Width = 280 * (progress / 100.0);
-                };
-                progressBarGrid.SizeChanged += (s, e) =>
-                {
-                    if (e.NewSize.Width > 0)
-                        progressBarFill.Width = e.NewSize.Width * (progress / 100.0);
-                };
-
-                Grid.SetColumn(progressBarGrid, 0);
-                progressRow.Children.Add(progressBarGrid);
-
-                // Progress percentage text
-                var progressText = new TextBlock
-                {
-                    Text = $"{progress:F0}%",
-                    FontSize = 10,
-                    Foreground = new SolidColorBrush(Microsoft.UI.Colors.Gray),
-                    Margin = new Thickness(6, -2, 0, 0),
-                    VerticalAlignment = VerticalAlignment.Center
-                };
-                Grid.SetColumn(progressText, 1);
-                progressRow.Children.Add(progressText);
-
-                contentPanel.Children.Add(progressRow);
-            }
-            
-            string tooltipText = favorite.Path + (string.IsNullOrEmpty(posString) ? "" : $"\n{posString.Trim(' ', '(', ')')}");
-             if (favorite.IsWebDav && !string.IsNullOrEmpty(favorite.WebDavServerName))
-            {
-                tooltipText = $"[{favorite.WebDavServerName}] {tooltipText}";
-            }
-            if (favorite.Type != "Folder" && !isImageFile)
-                tooltipText += $"\n{Strings.ProgressLabel}: {favorite.Progress:F1}%";
-            ToolTipService.SetToolTip(contentPanel, tooltipText);
-
-            // Create a transparent button overlay for clicking
-            var nameButton = new Button
-            {
-                Background = new SolidColorBrush(Microsoft.UI.Colors.Transparent),
-                BorderThickness = new Thickness(0, 0, 0, 0),
-                Padding = new Thickness(0, 0, 0, 0),
-                HorizontalAlignment = HorizontalAlignment.Stretch,
-                VerticalAlignment = VerticalAlignment.Stretch
-            };
-            ToolTipService.SetToolTip(nameButton, tooltipText); // Set tooltip on button too
-            
-            nameButton.Click += async (s, e) =>
+        // Event Handlers for BookmarkListControl
+        private async void BookmarkList_ItemClicked(object? sender, BookmarkViewModel e)
+        {
+            if (e.OriginalItem is FavoriteItem fav)
             {
                 FavoritesFlyout?.Hide();
                 SidebarFavoritesFlyout?.Hide();
-                await NavigateToFavoriteAsync(currentFavorite);
-            };
-
-            // Add both to a container grid in the first column
-            var nameContainer = new Grid();
-            nameContainer.Children.Add(contentPanel);
-            nameContainer.Children.Add(nameButton);
-
-            Grid.SetColumn(nameContainer, 0);
-            itemGrid.Children.Add(nameContainer);
-
-            // Create pin button
-            var pinButton = new Button
-            {
-                Content = new FontIcon { 
-                    Glyph = favorite.IsPinned ? "\uE840" : "\uE718", 
-                    FontSize = 14,
-                    Foreground = favorite.IsPinned 
-                        ? (Brush)Application.Current.Resources["AccentFillColorDefaultBrush"] 
-                        : new SolidColorBrush(Microsoft.UI.Colors.Gray) { Opacity = 0.5 }
-                },
-                Width = 32,
-                Height = 32,
-                Background = new SolidColorBrush(Microsoft.UI.Colors.Transparent),
-                BorderThickness = new Thickness(0),
-                Padding = new Thickness(0),
-                VerticalAlignment = VerticalAlignment.Center,
-                HorizontalAlignment = HorizontalAlignment.Right,
-                Margin = new Thickness(0, 0, 0, 0)
-            };
-            ToolTipService.SetToolTip(pinButton, favorite.IsPinned ? Strings.UnpinFavorite : Strings.PinFavorite);
-            pinButton.Click += async (s, e) =>
-            {
-                await _favoritesService.TogglePinAsync(favorite);
-                UpdateFavoritesMenu();
-            };
-            Grid.SetColumn(pinButton, 1);
-            itemGrid.Children.Add(pinButton);
-
-            // Create delete button with X icon - right aligned
-            var deleteButton = new Button
-            {
-                Content = new FontIcon { Glyph = "\uE711", FontSize = 14 }, // X icon
-                Width = 32,
-                Height = 32,
-                Background = new SolidColorBrush(Microsoft.UI.Colors.Transparent),
-                BorderThickness = new Thickness(0, 0, 0, 0),
-                Padding = new Thickness(0, 0, 0, 0),
-                Margin = new Thickness(0, 0, 4, 0),
-                VerticalAlignment = VerticalAlignment.Center,
-                HorizontalAlignment = HorizontalAlignment.Right
-            };
-            ToolTipService.SetToolTip(deleteButton, Strings.RemoveFavorite);
-            deleteButton.Click += async (s, e) =>
-            {
-                System.Diagnostics.Debug.WriteLine($"Delete button clicked for: {currentFavorite.Name}");
-                await RemoveFavoriteAsync(currentFavorite);
-            };
-            Grid.SetColumn(deleteButton, 2);
-            itemGrid.Children.Add(deleteButton);
-
-            return itemGrid;
+                await NavigateToFavoriteAsync(fav);
+            }
         }
+
+        private async void BookmarkList_RemoveClicked(object? sender, BookmarkViewModel e)
+        {
+            if (e.OriginalItem is FavoriteItem fav)
+            {
+                await RemoveFavoriteAsync(fav);
+            }
+        }
+
+        private async void BookmarkList_PinClicked(object? sender, BookmarkViewModel e)
+        {
+            if (e.OriginalItem is FavoriteItem fav)
+            {
+                await _favoritesService.TogglePinAsync(fav);
+                UpdateFavoritesMenu();
+            }
+        }
+
+        private async void RecentList_ItemClicked(object? sender, BookmarkViewModel e)
+        {
+            if (e.OriginalItem is RecentItem recent)
+            {
+                RecentFlyout?.Hide();
+                SidebarRecentFlyout?.Hide();
+                await NavigateToRecentAsync(recent);
+            }
+        }
+
+        private async void RecentList_RemoveClicked(object? sender, BookmarkViewModel e)
+        {
+            if (e.OriginalItem is RecentItem recent)
+            {
+                await RemoveRecentAsync(recent);
+            }
+        }
+
 
         // [수정] 수동 저장 여부를 구분하기 위해 isManualSave 파라미터 추가 (기본값 true)
         private async Task AddToFavoritesAsync(bool isManualSave = true)
@@ -912,240 +750,21 @@ namespace Uviewer
 
         private void UpdateRecentMenu()
         {
-            UpdateRecentPanel(RecentPanel);
-            UpdateRecentPanel(SidebarRecentPanel);
-        }
-
-        private void UpdateRecentPanel(StackPanel panel)
-        {
-            if (panel == null) return;
-
-            // Remove all existing items
-            panel.Children.Clear();
-
-            if (_recentService.RecentItems.Count == 0)
+            var recentItems = _recentService.RecentItems.OrderByDescending(r => r.AccessedAt);
+            
+            _recentItemsList.Clear();
+            foreach (var r in recentItems)
             {
-                var emptyText = new TextBlock
-                {
-                    Text = Strings.NoRecentFiles,
-                    Foreground = new SolidColorBrush(Microsoft.UI.Colors.Gray),
-                    Margin = new Thickness(12, 8, 12, 8),
-                    FontSize = 13
-                };
-                if (!string.IsNullOrEmpty(_settingsManager.UIFontFamily) && _settingsManager.UIFontFamily != "Unknown")
-                {
-                    try { emptyText.FontFamily = new FontFamily(_settingsManager.UIFontFamily); }
-                    catch { }
-                }
-                panel.Children.Add(emptyText);
-                return;
+                _recentItemsList.Add(CreateBookmarkViewModel(r));
             }
 
-            foreach (var recent in _recentService.RecentItems.OrderByDescending<RecentItem, DateTime>(r => r.AccessedAt))
-            {
-                // Capture the recent item for lambda closures
-                var currentRecent = recent;
+            RecentList.ItemsSource = _recentItemsList;
+            RecentList.EmptyMessage = Strings.NoRecentFiles;
 
-                // Create a Grid to hold the name and delete button
-                var itemGrid = new Grid
-                {
-                    Margin = new Thickness(0, 1, 0, 1),
-                    Background = new SolidColorBrush(Microsoft.UI.Colors.Transparent),
-                    MinHeight = recent.Type != "Folder" ? 44 : 36
-                };
-                itemGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-                itemGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-
-                bool isImageFile = recent.Type == "File" && !string.IsNullOrEmpty(recent.Path) && 
-                                   FileExplorerService.SupportedImageExtensions.Contains(Path.GetExtension(recent.Path).ToLowerInvariant());
-
-                string vMark = "";
-                string posString = "";
-
-                if (!isImageFile)
-                {
-                    if (recent.Path.EndsWith(".epub", StringComparison.OrdinalIgnoreCase))
-                    {
-                        posString = $" (Ch.{recent.ChapterIndex + 1} P.{recent.SavedPage + 1} L.{recent.SavedLine})";
-                    }
-                    else if (recent.Type == "File" && !recent.Path.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase))
-                    {
-                        posString = $" (Line {recent.SavedLine})";
-                    }
-                    else if (recent.SavedPage > 0 || recent.ChapterIndex > 0) 
-                        posString = $" ({(recent.ChapterIndex > 0 ? $"Ch.{recent.ChapterIndex + 1} " : "")}P.{recent.SavedPage + 1})";
-                }
-                
-                // Create vertical container for name + progress bar
-                var contentPanel = new StackPanel
-                {
-                    Orientation = Orientation.Vertical,
-                    VerticalAlignment = VerticalAlignment.Center,
-                    Margin = new Thickness(12, 4, 8, 4)
-                };
-
-                // Create horizontal row for icon + name
-                var nameRow = new StackPanel { Orientation = Orientation.Horizontal };
-
-                if (recent.IsWebDav)
-                {
-                    var webIcon = new FontIcon
-                    {
-                        Glyph = "\uE774", // Globe icon
-                        FontSize = 12,
-                        Margin = new Thickness(0, 1, 6, 0),
-                        Foreground = new SolidColorBrush(Microsoft.UI.Colors.CornflowerBlue)
-                    };
-                    nameRow.Children.Add(webIcon);
-                }
-
-                // Create TextBlock for the recent item name with left alignment and tooltip
-                var nameTextBlock = new TextBlock
-                {
-                    Text = vMark + recent.Name + posString,
-                    VerticalAlignment = VerticalAlignment.Center,
-                    HorizontalAlignment = HorizontalAlignment.Left,
-                    TextTrimming = TextTrimming.CharacterEllipsis,
-                    TextWrapping = TextWrapping.NoWrap,
-                    MaxWidth = recent.IsWebDav ? 310 : 340,
-                    FontSize = 13
-                };
-                if (!string.IsNullOrEmpty(_settingsManager.UIFontFamily) && _settingsManager.UIFontFamily != "Unknown")
-                {
-                    try { nameTextBlock.FontFamily = new FontFamily(_settingsManager.UIFontFamily); }
-                    catch { }
-                }
-                nameRow.Children.Add(nameTextBlock);
-                contentPanel.Children.Add(nameRow);
-
-                // Add progress bar for non-folder items (excluding single image files)
-                if (recent.Type != "Folder" && !isImageFile)
-                {
-                    var progressRow = new Grid { Margin = new Thickness(0, 3, 0, 0) };
-                    progressRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-                    progressRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-
-                    // Progress bar container (transparent background = clean look)
-                    var progressBarBg = new Border
-                    {
-                        Height = 3,
-                        CornerRadius = new CornerRadius(1.5),
-                        Background = new SolidColorBrush(Microsoft.UI.Colors.Transparent),
-                        HorizontalAlignment = HorizontalAlignment.Stretch
-                    };
-
-                    var progressBarFill = new Border
-                    {
-                        Height = 3,
-                        CornerRadius = new CornerRadius(1.5),
-                        Background = new SolidColorBrush(Microsoft.UI.Colors.CornflowerBlue),
-                        HorizontalAlignment = HorizontalAlignment.Left,
-                        MaxWidth = 280
-                    };
-
-                    // Use a Grid to overlay fill on background
-                    var progressBarGrid = new Grid
-                    {
-                        HorizontalAlignment = HorizontalAlignment.Stretch,
-                        VerticalAlignment = VerticalAlignment.Center,
-                        MaxWidth = 280
-                    };
-                    progressBarGrid.Children.Add(progressBarBg);
-                    progressBarGrid.Children.Add(progressBarFill);
-
-                    // Set width based on progress
-                    double progress = Math.Min(Math.Max(recent.Progress, 0), 100);
-                    progressBarFill.Loaded += (s, e) =>
-                    {
-                        if (progressBarGrid.ActualWidth > 0)
-                            progressBarFill.Width = progressBarGrid.ActualWidth * (progress / 100.0);
-                        else
-                            progressBarFill.Width = 280 * (progress / 100.0);
-                    };
-                    progressBarGrid.SizeChanged += (s, e) =>
-                    {
-                        if (e.NewSize.Width > 0)
-                            progressBarFill.Width = e.NewSize.Width * (progress / 100.0);
-                    };
-
-                    Grid.SetColumn(progressBarGrid, 0);
-                    progressRow.Children.Add(progressBarGrid);
-
-                    // Progress percentage text
-                    var progressText = new TextBlock
-                    {
-                        Text = $"{progress:F0}%",
-                        FontSize = 10,
-                        Foreground = new SolidColorBrush(Microsoft.UI.Colors.Gray),
-                        Margin = new Thickness(6, -2, 0, 0),
-                        VerticalAlignment = VerticalAlignment.Center
-                    };
-                    Grid.SetColumn(progressText, 1);
-                    progressRow.Children.Add(progressText);
-
-                    contentPanel.Children.Add(progressRow);
-                }
-                
-                string tooltipText = recent.Path + (string.IsNullOrEmpty(posString) ? "" : $"\n{posString.Trim(' ', '(', ')')}");
-                if (recent.IsWebDav && !string.IsNullOrEmpty(recent.WebDavServerName))
-                {
-                    tooltipText = $"[{recent.WebDavServerName}] {tooltipText}";
-                }
-                if (recent.Type != "Folder" && !isImageFile)
-                    tooltipText += $"\n{Strings.ProgressLabel}: {recent.Progress:F1}%";
-                ToolTipService.SetToolTip(contentPanel, tooltipText);
-
-                // Create a transparent button overlay for clicking
-                var nameButton = new Button
-                {
-                    Background = new SolidColorBrush(Microsoft.UI.Colors.Transparent),
-                    BorderThickness = new Thickness(0, 0, 0, 0),
-                    Padding = new Thickness(0, 0, 0, 0),
-                    HorizontalAlignment = HorizontalAlignment.Stretch,
-                    VerticalAlignment = VerticalAlignment.Stretch
-                };
-                ToolTipService.SetToolTip(nameButton, tooltipText); // Tooltip on button
-                
-                nameButton.Click += async (s, e) =>
-                {
-                    RecentFlyout?.Hide();
-                    SidebarRecentFlyout?.Hide();
-                    await NavigateToRecentAsync(currentRecent);
-                };
-
-                // Add both to a container grid in the first column
-                var nameContainer = new Grid();
-                nameContainer.Children.Add(contentPanel);
-                nameContainer.Children.Add(nameButton);
-
-                Grid.SetColumn(nameContainer, 0);
-                itemGrid.Children.Add(nameContainer);
-
-                // Create delete button with X icon - right aligned
-                var deleteButton = new Button
-                {
-                    Content = new FontIcon { Glyph = "\uE711", FontSize = 14 }, // X icon
-                    Width = 32,
-                    Height = 32,
-                    Background = new SolidColorBrush(Microsoft.UI.Colors.Transparent),
-                    BorderThickness = new Thickness(0, 0, 0, 0),
-                    Padding = new Thickness(0, 0, 0, 0),
-                    Margin = new Thickness(0, 0, 4, 0),
-                    VerticalAlignment = VerticalAlignment.Center,
-                    HorizontalAlignment = HorizontalAlignment.Right
-                };
-                ToolTipService.SetToolTip(deleteButton, "삭제");
-                deleteButton.Click += async (s, e) =>
-                {
-                    System.Diagnostics.Debug.WriteLine($"Delete button clicked for recent: {currentRecent.Name}");
-                    await RemoveRecentAsync(currentRecent);
-                };
-                Grid.SetColumn(deleteButton, 1);
-                itemGrid.Children.Add(deleteButton);
-
-                panel.Children.Add(itemGrid);
-            }
+            SidebarRecentList.ItemsSource = _recentItemsList;
+            SidebarRecentList.EmptyMessage = Strings.NoRecentFiles;
         }
+
 
         /// <summary>
         /// 최근 항목에 추가하거나 갱신합니다.
