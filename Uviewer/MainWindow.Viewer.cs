@@ -605,7 +605,9 @@ namespace Uviewer
 
                     if (token.IsCancellationRequested)
                     {
-                        if (leftBitmap != null && !IsBitmapInCache(leftBitmap)) leftBitmap.Dispose();
+                        // [수정] 직접 Dispose() 대신 SafeDisposeBitmap 사용
+                        if (leftBitmap != null && !IsBitmapInCache(leftBitmap)) 
+                            _imageCache.SafeDisposeBitmap(leftBitmap);
                         return; // 취소 확인
                     }
 
@@ -636,7 +638,9 @@ namespace Uviewer
 
                     if (token.IsCancellationRequested)
                     {
-                        if (leftBitmap != null && !IsBitmapInCache(leftBitmap)) leftBitmap.Dispose();
+                        // [수정] 직접 Dispose() 대신 SafeDisposeBitmap 사용
+                        if (leftBitmap != null && !IsBitmapInCache(leftBitmap)) 
+                            _imageCache.SafeDisposeBitmap(leftBitmap);
                         return; // 취소 확인
                     }
 

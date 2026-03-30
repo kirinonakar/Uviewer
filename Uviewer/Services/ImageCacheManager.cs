@@ -217,9 +217,12 @@ namespace Uviewer.Services
         public bool IsBitmapInCache(CanvasBitmap bitmap)
         {
             if (bitmap == null) return false;
-            // lock (_lockObject)는 호출하는 쪽에서 이미 락을 걸고 있으므로 교착 상태 방지를 위해 락을 유지하지만
-            // 딕셔너리 내부 검색으로 충분히 빠릅니다.
-            return _preloadedImages.ContainsValue(bitmap) || _sharpenedImageCache.ContainsValue(bitmap);
+            
+            // [수정] 외부에서 호출될 때의 스레드 안전성을 위해 Lock 추가
+            lock (_lockObject)
+            {
+                return _preloadedImages.ContainsValue(bitmap) || _sharpenedImageCache.ContainsValue(bitmap);
+            }
         }
 
         public void ClearSharpenedCache(params CanvasBitmap?[] activeBitmaps)
