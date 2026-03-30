@@ -289,9 +289,17 @@ namespace Uviewer
                 else
                 {
                     // Already in text mode and same file: update UI
-                    if (_isVerticalMode) VerticalTextCanvas?.Invalidate();
-                    else if (_isAozoraMode) AozoraTextCanvas?.Invalidate();
-                    else TextScrollViewer?.InvalidateArrange(); // Or similar refresh
+                    if (_aozoraPendingTargetLine != 0)
+                    {
+                        string fileName = System.IO.Path.GetFileName(_currentTextFilePath ?? "");
+                        await ReloadTextDisplayFromCacheAsync(fileName, _aozoraPendingTargetLine);
+                    }
+                    else
+                    {
+                        if (_isVerticalMode) VerticalTextCanvas?.Invalidate();
+                        else if (_isAozoraMode) AozoraTextCanvas?.Invalidate();
+                        else TextScrollViewer?.InvalidateArrange(); // Or similar refresh
+                    }
                 }
                 await AddToRecentAsync(false);
             }
@@ -304,9 +312,23 @@ namespace Uviewer
                 else
                 {
                     // Already in EPUB mode and same file: update UI
-                    if (_isVerticalMode) VerticalTextCanvas?.Invalidate();
-                    else if (CurrentEpubWin2DPage?.IsImagePage == true) ShowEpubImagePage(CurrentEpubWin2DPage);
-                    else EpubTextCanvas?.Invalidate();
+                    if (PendingEpubChapterIndex >= 0 || _aozoraPendingTargetLine != 0)
+                    {
+                        int targetCh = (PendingEpubChapterIndex >= 0) ? PendingEpubChapterIndex : _currentEpubChapterIndex;
+                        await LoadEpubChapterAsync(targetCh, targetLine: _aozoraPendingTargetLine, targetBlockIndex: _pendingEpubStartBlockIndex, targetPage: PendingEpubPageIndex, token: token);
+                        
+                        // Reset pending values
+                        PendingEpubChapterIndex = -1;
+                        PendingEpubPageIndex = -1;
+                        _aozoraPendingTargetLine = 0;
+                        _pendingEpubStartBlockIndex = -1;
+                    }
+                    else
+                    {
+                        if (_isVerticalMode) VerticalTextCanvas?.Invalidate();
+                        else if (CurrentEpubWin2DPage?.IsImagePage == true) ShowEpubImagePage(CurrentEpubWin2DPage);
+                        else EpubTextCanvas?.Invalidate();
+                    }
                 }
                 await AddToRecentAsync(false);
             }

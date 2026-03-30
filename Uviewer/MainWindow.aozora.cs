@@ -336,10 +336,20 @@ namespace Uviewer
                 CancelAndResetGlobalTextCts();
                 var token = _globalTextCts!.Token;
 
-                if (_isAozoraMode)
+                if (_isVerticalMode)
+                {
+                    if (TextScrollViewer != null) TextScrollViewer.Visibility = Visibility.Collapsed;
+                    if (AozoraTextCanvas != null) AozoraTextCanvas.Visibility = Visibility.Collapsed;
+                    if (VerticalTextCanvas != null) VerticalTextCanvas.Visibility = Visibility.Visible;
+
+                    await PrepareVerticalTextAsync(targetLine, -1, token);
+                    FileNameText.Text = FileExplorerService.GetFormattedDisplayName(fileName, _currentTextArchiveEntryKey != null, _currentArchivePath);
+                }
+                else if (_isAozoraMode)
                 {
                     if (TextScrollViewer != null) TextScrollViewer.Visibility = Visibility.Collapsed;
                     if (AozoraTextCanvas != null) AozoraTextCanvas.Visibility = Visibility.Visible;
+                    if (VerticalTextCanvas != null) VerticalTextCanvas.Visibility = Visibility.Collapsed;
 
                     await PrepareAozoraDisplayAsync(_currentTextContent, targetLine, -1, token);
                     FileNameText.Text = FileExplorerService.GetFormattedDisplayName(fileName, _currentTextArchiveEntryKey != null, _currentArchivePath);
@@ -348,6 +358,7 @@ namespace Uviewer
                 {
                     if (TextScrollViewer != null) TextScrollViewer.Visibility = Visibility.Visible;
                     if (AozoraTextCanvas != null) AozoraTextCanvas.Visibility = Visibility.Collapsed;
+                    if (VerticalTextCanvas != null) VerticalTextCanvas.Visibility = Visibility.Collapsed;
 
                     if (TextItemsRepeater != null && RootGrid.Resources.TryGetValue("TextItemTemplate", out var template))
                     {
