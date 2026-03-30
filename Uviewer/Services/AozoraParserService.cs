@@ -419,7 +419,7 @@ namespace Uviewer.Services
             return result;
         }
 
-        public static List<AozoraBindingModel> ParseMarkdownContent(string text)
+        public static (List<AozoraBindingModel> Blocks, int SourceLineCount) ParseMarkdownContent(string text)
         {
             var blocks = new List<AozoraBindingModel>();
             var lines = text.Replace("\r\n", "\n").Replace("\r", "\n").Split('\n');
@@ -505,11 +505,12 @@ namespace Uviewer.Services
 
                 if (string.IsNullOrEmpty(content))
                 {
-                    blocks.Add(new AozoraBindingModel { Inlines = { "" }, Margin = new Thickness(0), IsBlankLine = true });
+                    blocks.Add(new AozoraBindingModel { Inlines = { "" }, Margin = new Thickness(0), IsBlankLine = true, SourceLineNumber = sourceLine });
                     continue;
                 }
 
                 var blockModel = new AozoraBindingModel();
+                blockModel.SourceLineNumber = sourceLine;
                 blockModel.Margin = new Thickness(0);
 
                 int leadingIndent = 0;
@@ -638,7 +639,13 @@ namespace Uviewer.Services
                 blocks.Add(blockModel);
             }
 
-            return blocks;
+            var splitBlocks = new List<AozoraBindingModel>();
+            foreach (var block in blocks)
+            {
+                splitBlocks.AddRange(SplitBlockBySentences(block));
+            }
+
+            return (splitBlocks, lines.Length);
         }
 
         private static double ConvertFullWidthToDouble(string input)

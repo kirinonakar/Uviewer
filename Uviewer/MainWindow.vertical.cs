@@ -316,8 +316,9 @@ namespace Uviewer
 
                         if (_isMarkdownRenderMode)
                         {
-                            blocks = AozoraParserService.ParseMarkdownContent(_currentTextContent);
-                            lineCount = blocks.Count;
+                            var result = AozoraParserService.ParseMarkdownContent(_currentTextContent);
+                            blocks = result.Blocks;
+                            lineCount = result.SourceLineCount;
                         }
                         else
                         {
