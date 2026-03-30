@@ -341,6 +341,7 @@ namespace Uviewer
             _isEpubMode = true;
             _isTextMode = false;
             _isAozoraMode = false;
+            _isMarkdownRenderMode = false; // [추가] EPUB 모드에서는 마크다운 하이드 로직 해제
             _aozoraBlocks.Clear(); // Clear text/aozora cache
             _currentTextContent = ""; // Clear raw text
 
@@ -361,6 +362,8 @@ namespace Uviewer
             
             ImageToolbarPanel.Visibility = Visibility.Collapsed;
             TextToolbarPanel.Visibility = Visibility.Visible; // Reuse text toolbar for now
+            if (VerticalToggleButton != null) VerticalToggleButton.IsEnabled = true; // [추가] 버튼 활성화 확인
+            
             SideBySideToolbarPanel.Visibility = Visibility.Visible;
             SharpenButton.Visibility = Visibility.Visible;
             SharpenSeparator.Visibility = Visibility.Visible;
