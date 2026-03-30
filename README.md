@@ -12,7 +12,7 @@
 - **Broad Format Support**: PDF, JPEG, PNG, GIF, BMP, TIFF, ICO, SVG, WebP, AVIF (AV1 Video Extension required), JXL (JPEG XL Image Extension required) and **Animated WebP**.
 - **High-Performance Rendering**: Powered by **Win2D** (Direct2D) for smooth zooming and panning.
 - **Smart Scaling**: Customizable zoom levels (0.1x to 10x), fit-to-window, and actual size.
-- **Tools**: Sharpening filter, Side-by-Side view mode, **Auto Side-by-Side in Archive**, **Match Control Direction** (R-to-L navigation support), and Fast Navigation overlay.
+- **Tools**: Sharpening filter (Right-click for settings), Side-by-Side view mode, **Auto Side-by-Side in Archive**, **Match Control Direction** (R-to-L navigation support), and Fast Navigation overlay.
 
 ### 📝 Text & Novel Viewing
 - **Advanced Text Engine**: 
@@ -56,7 +56,16 @@
 #### 🖼️ Image Viewing Options
 - **Auto Side-by-Side in Archive**: When enabled, the viewer automatically applies side-by-side (2-page) view for portrait-oriented images (height > width * 1.2) when browsing archives.
   - Toggle via Settings menu (Settings icon → Auto Side-by-Side in Archive)
+  - Toggle via Settings menu (Settings icon → Auto Side-by-Side in Archive)
   - Setting persists across sessions.
+
+#### 🎨 Image Sharpening & Upscaling
+- **Advanced Sharpening Control**: Right-click the **Sharpening (S)** button to open the settings flyout.
+  - **Upscale Factor**: Adjust the internal rendering scale for clearer details on high-resolution displays.
+  - **Sharpening Amount & Threshold**: Fine-tune the basic sharpening intensity and the edge detection threshold.
+  - **Unsharp Mask (USM)**: Apply high-quality unsharp mask sharpening with adjustable strength and radius for professional-grade results.
+  - **Luminosity Blending**: Sharpening is applied only to the luminance channel to prevent color artifacts and maintain natural colors.
+  - Settings are saved and persist across sessions.
 
 ### 🌍 Localization
 - **Multi-language Support**: Automatically detects and switches between **English**, **Korean**, and **Japanese** based on system settings.
@@ -97,7 +106,7 @@
 | | PDF | Go to Page |
 | **Space** | Image / EPUB | Toggle 2-Page View (Side-by-Side) |
 | **V** | Text / EPUB | Toggle Vertical Mode (Tategaki) |
-| **S** | Image | Toggle Sharpening |
+| **S** | Image | Toggle Sharpening (Right-click for settings) |
 | **A** | Text | Toggle Simple text / Advanced rendering (Aozora, Markdown) mode |
 | **B** | Text | Change Background Theme |
 | **F** | Text | Change Font |
