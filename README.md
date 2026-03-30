@@ -64,7 +64,6 @@
   - **Upscale Factor**: Adjust the internal rendering scale for clearer details on high-resolution displays.
   - **Sharpening Amount & Threshold**: Fine-tune the basic sharpening intensity and the edge detection threshold.
   - **Unsharp Mask (USM)**: Apply high-quality unsharp mask sharpening with adjustable strength and radius for professional-grade results.
-  - **Luminosity Blending**: Sharpening is applied only to the luminance channel to prevent color artifacts and maintain natural colors.
   - Settings are saved and persist across sessions.
 
 ### 🌍 Localization
