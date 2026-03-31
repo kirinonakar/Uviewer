@@ -864,95 +864,15 @@ namespace Uviewer
             _currentExplorerPath = path;
             CurrentPathText.Text = path;
 
-            // Gather folder contents in background
-            _ = Task.Run(() =>
+            _ = Task.Run(async () =>
             {
                 try
                 {
-                    var newItems = new List<FileItem>();
+                    // [리팩토링] 서비스에 모든 데이터 처리 위임
+                    var newItems = await FileExplorerService.GetFolderContentsAsync(path, _explorerSortMode);
 
-                    // Add parent directory entry
-                    var parentDir = Directory.GetParent(path);
-                    if (parentDir != null)
-                    {
-                        newItems.Add(new FileItem
-                        {
-                            Name = "..",
-                            FullPath = parentDir.FullName,
-                            IsDirectory = true,
-                            IsParentDirectory = true
-                        });
-                    }
-
-                    // Get directory and file infos for sorting
-                    var di = new DirectoryInfo(path);
-                    var allDirs = di.GetDirectories();
-                    var allFiles = di.GetFiles();
-
-                    IEnumerable<DirectoryInfo> sortedDirs;
-                    IEnumerable<FileInfo> sortedFiles;
-
-                    switch (_explorerSortMode)
-                    {
-                        case ExplorerSortMode.DateDesc:
-                            sortedDirs = allDirs.OrderByDescending(d => d.LastWriteTime);
-                            sortedFiles = allFiles.OrderByDescending(f => f.LastWriteTime);
-                            break;
-                        case ExplorerSortMode.DateAsc:
-                            sortedDirs = allDirs.OrderBy(d => d.LastWriteTime);
-                            sortedFiles = allFiles.OrderBy(f => f.LastWriteTime);
-                            break;
-                        default: // Name (Natural Sort)
-                            sortedDirs = allDirs.OrderBy(d => d.Name, NaturalSortComparer.Default);
-                            sortedFiles = allFiles.OrderBy(f => f.Name, NaturalSortComparer.Default);
-                            break;
-                    }
-
-                    // Add directories
-                    foreach (var dir in sortedDirs)
-                    {
-                        var name = dir.Name;
-                        if (!name.StartsWith(".")) // Hide hidden folders
-                        {
-                            newItems.Add(new FileItem
-                            {
-                                Name = name,
-                                FullPath = dir.FullName,
-                                IsDirectory = true
-                            });
-                        }
-                    }
-
-                    // Add files (images and archives)
-                    foreach (var file in sortedFiles)
-                    {
-                        var ext = file.Extension.ToLowerInvariant();
-                        var isImage = FileExplorerService.SupportedImageExtensions.Contains(ext);
-                        var isArchive = FileExplorerService.SupportedArchiveExtensions.Contains(ext);
-                        var isText = FileExplorerService.SupportedTextExtensions.Contains(ext);
-                        var isEpub = FileExplorerService.SupportedEpubExtensions.Contains(ext);
-                        var isPdf = FileExplorerService.SupportedPdfExtensions.Contains(ext);
-
-                        if (isImage || isArchive || isText || isEpub || isPdf)
-                        {
-                            newItems.Add(new FileItem
-                            {
-                                Name = file.Name,
-                                FullPath = file.FullName,
-                                IsDirectory = false,
-                                IsImage = isImage,
-                                IsArchive = isArchive,
-                                IsText = isText,
-                                IsEpub = isEpub,
-                                IsPdf = isPdf
-                            });
-                        }
-                    }
-
-                    // Finalize on UI thread
                     DispatcherQueue.TryEnqueue(() =>
                     {
-                        // Protect against late updates if path changed
                         if (_currentExplorerPath != path) return;
 
                         _fileItems.Clear();

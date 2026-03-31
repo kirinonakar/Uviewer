@@ -37,13 +37,6 @@ namespace Uviewer
         private bool _isExplorerGrid = false;
         private ExplorerSortMode _explorerSortMode = ExplorerSortMode.Name;
 
-        private enum ExplorerSortMode
-        {
-            Name,
-            DateDesc,
-            DateAsc
-        }
-
         // Fullscreen
         private FullscreenOverlayManager _overlayManager = null!;
 
@@ -1359,21 +1352,7 @@ namespace Uviewer
                 bool isFast = !isManualClick && _fastNavigationService.DetectFastNavigation(ResetFastNavigation);
 
                 int step = (_isCurrentViewSideBySide && _currentPdfDocument == null) ? 2 : 1;
-                int newIndex = _currentIndex;
-                for (int i = 0; i < step; i++)
-                {
-                    int searchIdx = newIndex;
-                    while (searchIdx > 0)
-                    {
-                        searchIdx--;
-                        if (FileExplorerService.IsNavigableImage(_imageEntries[searchIdx]))
-                        {
-                            newIndex = searchIdx;
-                            break;
-                        }
-                    }
-                }
-                _currentIndex = newIndex;
+                _currentIndex = FileExplorerService.GetNextImageIndex(_imageEntries, _currentIndex, step, false);
 
                 if (isFast)
                 {
@@ -1489,21 +1468,7 @@ namespace Uviewer
                 bool isFast = !isManualClick && _fastNavigationService.DetectFastNavigation(ResetFastNavigation);
 
                 int step = (_isCurrentViewSideBySide && _currentPdfDocument == null) ? 2 : 1;
-                int newIndex = _currentIndex;
-                for (int i = 0; i < step; i++)
-                {
-                    int searchIdx = newIndex;
-                    while (searchIdx < _imageEntries.Count - 1)
-                    {
-                        searchIdx++;
-                        if (FileExplorerService.IsNavigableImage(_imageEntries[searchIdx]))
-                        {
-                            newIndex = searchIdx;
-                            break;
-                        }
-                    }
-                }
-                _currentIndex = newIndex;
+                _currentIndex = FileExplorerService.GetNextImageIndex(_imageEntries, _currentIndex, step, true);
 
                 if (isFast)
                 {
@@ -1541,137 +1506,30 @@ namespace Uviewer
             RootGrid.Focus(FocusState.Programmatic);
         }
 
+        private string? GetCurrentNavigatingPath()
+        {
+            if (_isWebDavMode) return _currentWebDavItemPath;
+            if ((_currentArchive != null || _current7zArchive != null) && !string.IsNullOrEmpty(_currentArchivePath)) return _currentArchivePath;
+            if (_isEpubMode && !string.IsNullOrEmpty(_currentEpubFilePath)) return _currentEpubFilePath;
+            if (_isTextMode && !string.IsNullOrEmpty(_currentTextFilePath)) return _currentTextFilePath;
+            if (_imageEntries != null && _imageEntries.Count > 0 && _currentIndex >= 0 && _currentIndex < _imageEntries.Count) return _imageEntries[_currentIndex].FilePath;
+            return null;
+        }
+
         private async Task NavigateToFileAsync(bool isNext)
         {
-            // Save current position before navigating away
             await AddToRecentAsync(true);
+            string? currentPath = GetCurrentNavigatingPath();
+            if (string.IsNullOrEmpty(currentPath)) return;
 
-            // Find current file/archive in the list
-            string? currentPath = null;
-            if (_isWebDavMode)
+            var nextItem = FileExplorerService.GetNextNavigableFile(_fileItems, currentPath, isNext, _isWebDavMode);
+            
+            if (nextItem != null)
             {
-                currentPath = _currentWebDavItemPath;
+                await HandleFileSelectionAsync(nextItem);
+                SyncExplorerSelection(nextItem);
             }
-            else if ((_currentArchive != null || _current7zArchive != null) && !string.IsNullOrEmpty(_currentArchivePath))
-            {
-                currentPath = _currentArchivePath;
-            }
-            else if (_isEpubMode && !string.IsNullOrEmpty(_currentEpubFilePath))
-            {
-                currentPath = _currentEpubFilePath;
-            }
-            else if (_isTextMode && !string.IsNullOrEmpty(_currentTextFilePath))
-            {
-                currentPath = _currentTextFilePath;
-            }
-            else if (_imageEntries != null && _imageEntries.Count > 0 && _currentIndex >= 0 && _currentIndex < _imageEntries.Count)
-            {
-                currentPath = _imageEntries[_currentIndex].FilePath;
-            }
-
-            if (string.IsNullOrEmpty(currentPath))
-                return;
-
-            if (!_isWebDavMode)
-            {
-                // Ensure explorer path is set if missing (e.g. opened from Recent Files)
-                if (string.IsNullOrEmpty(_currentExplorerPath))
-                {
-                    _currentExplorerPath = Path.GetDirectoryName(currentPath);
-                }
-
-                if (string.IsNullOrEmpty(_currentExplorerPath))
-                    return;
-
-                // Ensure file list is loaded and contains the current path
-                // [Optimization] If file is not in list but we have an explorer path, it might be background loading.
-                if (_fileItems.Count <= 1 && !string.IsNullOrEmpty(_currentExplorerPath))
-                {
-                    // Check if it's the initial fast-load single entry
-                    if (_fileItems.Count == 0 || !_fileItems.Any(f => f.FullPath.Equals(currentPath, StringComparison.OrdinalIgnoreCase)))
-                    {
-                        LoadExplorerFolder(_currentExplorerPath);
-                    }
-                }
-            }
-
-            if (string.IsNullOrEmpty(currentPath))
-                return;
-
-            var currentItemIndex = -1;
-            for (int i = 0; i < _fileItems.Count; i++)
-            {
-                if (_isWebDavMode)
-                {
-                    if (_fileItems[i].WebDavPath == currentPath)
-                    {
-                        currentItemIndex = i;
-                        break;
-                    }
-                }
-                else
-                {
-                    if (_fileItems[i].FullPath.Equals(currentPath, StringComparison.OrdinalIgnoreCase))
-                    {
-                        currentItemIndex = i;
-                        break;
-                    }
-                }
-            }
-
-            if (currentItemIndex == -1) return;
-
-            // Find next/prev navigable file
-            int newIndex = currentItemIndex;
-            while (true)
-            {
-                newIndex = isNext ? newIndex + 1 : newIndex - 1;
-
-                if (newIndex < 0 || newIndex >= _fileItems.Count)
-                    break; // End of list
-
-                var item = _fileItems[newIndex];
-                if (item.IsDirectory || item.IsParentDirectory)
-                    continue; // Skip directories
-
-                try
-                {
-                    if (_isWebDavMode && item.IsWebDav)
-                    {
-                        await AddToRecentAsync(true);
-                        await HandleWebDavFileSelectionAsync(item);
-                        SyncExplorerSelection(item);
-                        return;
-                    }
-                    else if (item.IsArchive)
-                    {
-                        await AddToRecentAsync(true); // Save current before switching
-                        await LoadImagesFromArchiveAsync(item.FullPath);
-                        SyncExplorerSelection(item);
-                        return;
-                    }
-                    else if (item.IsPdf)
-                    {
-                        await AddToRecentAsync(true);
-                        await LoadImagesFromPdfAsync(item.FullPath);
-                        SyncExplorerSelection(item);
-                        return;
-                    }
-                    else if (item.IsImage || item.IsText || item.IsEpub)
-                    {
-                        await AddToRecentAsync(true); // Save current before switching
-                        var file = await StorageFile.GetFileFromPathAsync(item.FullPath);
-                        await LoadImageFromFileAsync(file);
-                        SyncExplorerSelection(item);
-                        return;
-                    }
-                }
-                catch (Exception ex)
-                {
-                    System.Diagnostics.Debug.WriteLine($"Error navigating to file: {ex.Message}");
-                    // Continue to next file on error
-                }
-            }
+            
             RootGrid.Focus(FocusState.Programmatic);
         }
 
