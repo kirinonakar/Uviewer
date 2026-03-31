@@ -22,28 +22,44 @@ namespace Uviewer
 
         #region Fast Navigation
 
-        private void ShowFastNavigationOverlay()
+        private void UpdateFastNavigationUI()
         {
-            if (_currentIndex < 0 || _imageEntries.Count == 0)
+            if (_currentIndex < 0 || _imageEntries == null || _imageEntries.Count == 0)
                 return;
 
+            var currentEntry = _imageEntries[_currentIndex];
+            string displayName = FileExplorerService.GetFormattedDisplayName(currentEntry.DisplayName, currentEntry.IsArchiveEntry);
+
+            _fastNavigationService.UpdateState(_currentIndex, _imageEntries.Count, displayName, _isCurrentViewSideBySide);
+
+            Signal7zJump(); // 빠른 탐색 중에도 추출 위치를 계속 업데이트
+
             _fastNavigationService.ShowOverlay(
-                showCallback: () => 
+                showCallback: () =>
                 {
-                    FastNavText.Text = $"빠른 탐색 중... ({_currentIndex + 1}/{_imageEntries.Count})";
+                    FastNavText.Text = _fastNavigationService.GetOverlayMessage();
                     FastNavOverlay.Visibility = Visibility.Visible;
                 },
-                hideCallback: () => 
+                hideCallback: () =>
                 {
                     FastNavOverlay.Visibility = Visibility.Collapsed;
                 }
             );
+
+            // Don't hide images during fast navigation - just update text
+            // Images will stay visible showing the last loaded image
+
+            // Update the UI via service formatted messages
+            FileNameText.Text = _fastNavigationService.DisplayName;
+            ImageIndexText.Text = _fastNavigationService.GetImageIndexMessage();
+            TextProgressText.Text = ""; // Clear for image mode
+            ImageInfoText.Text = "빠르게 넘어가는 중...";
         }
 
         private async Task ResetFastNavigation()
         {
             _fastNavigationService.StopOverlayTimer();
-            if (_currentIndex >= 0 && _currentIndex < _imageEntries.Count)
+            if (_currentIndex >= 0 && _currentIndex < (_imageEntries?.Count ?? 0))
             {
                 Signal7zJump(); // Fast Navigation 종료 시 해당 위치로 추출 순위 재조정
                 await DisplayCurrentImageAsync();
@@ -51,38 +67,6 @@ namespace Uviewer
             // 화면 로딩이 완전히 끝난 후 오버레이를 닫고 그리기 허용
             FastNavOverlay.Visibility = Visibility.Collapsed;
             MainCanvas?.Invalidate();
-        }
-
-        private void ShowFilenameOnly()
-        {
-            if (_currentIndex < 0 || _currentIndex >= _imageEntries.Count)
-                return;
-
-            Signal7zJump(); // 빠른 탐색 중에도 추출 위치를 계속 업데이트
-            ShowFastNavigationOverlay();
-
-            var currentEntry = _imageEntries[_currentIndex];
-
-            // Don't hide images during fast navigation - just update text
-            // Images will stay visible showing the last loaded image
-
-            // Update the filename text directly
-            FileNameText.Text = FileExplorerService.GetFormattedDisplayName(currentEntry.DisplayName, currentEntry.IsArchiveEntry);
-
-            // Update status bar with filename and index
-            TextProgressText.Text = ""; // Clear for image mode
-            if (_isCurrentViewSideBySide)
-            {
-                int displayIndex = (_currentIndex / 2) + 1;
-                int totalPairs = (_imageEntries.Count + 1) / 2;
-                ImageIndexText.Text = $"{displayIndex} / {totalPairs} (B)";
-            }
-            else
-            {
-                ImageIndexText.Text = $"{_currentIndex + 1} / {_imageEntries.Count}";
-            }
-
-            ImageInfoText.Text = "빠르게 넘어가는 중...";
         }
 
         #endregion

@@ -13,9 +13,39 @@ namespace Uviewer.Services
         private CancellationTokenSource? _fastNavigationResetCts;
         private DispatcherQueueTimer? _fastNavOverlayTimer;
 
+        // State for UI updates during fast navigation
+        public int CurrentIndex { get; private set; }
+        public int TotalCount { get; private set; }
+        public string DisplayName { get; private set; } = string.Empty;
+        public bool IsSideBySide { get; private set; }
+
         public FastNavigationService(DispatcherQueue dispatcherQueue)
         {
             _dispatcherQueue = dispatcherQueue;
+        }
+
+        public string GetOverlayMessage() => $"빠른 탐색 중... ({CurrentIndex + 1}/{TotalCount})";
+
+        public string GetImageIndexMessage()
+        {
+            if (IsSideBySide)
+            {
+                int displayIndex = (CurrentIndex / 2) + 1;
+                int totalPairs = (TotalCount + 1) / 2;
+                return $"{displayIndex} / {totalPairs} (B)";
+            }
+            else
+            {
+                return $"{CurrentIndex + 1} / {TotalCount}";
+            }
+        }
+
+        public void UpdateState(int currentIndex, int totalCount, string displayName, bool isSideBySide)
+        {
+            CurrentIndex = currentIndex;
+            TotalCount = totalCount;
+            DisplayName = displayName;
+            IsSideBySide = isSideBySide;
         }
 
         public bool DetectFastNavigation(Func<Task> onResetCallback)

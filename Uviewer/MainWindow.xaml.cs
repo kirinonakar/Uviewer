@@ -1431,7 +1431,7 @@ var image = new Microsoft.UI.Xaml.Controls.Image
 
                 if (isFast)
                 {
-                    ShowFilenameOnly();
+                    UpdateFastNavigationUI();
                     return;
                 }
 
@@ -1571,7 +1571,7 @@ var image = new Microsoft.UI.Xaml.Controls.Image
 
                 if (isFast)
                 {
-                    ShowFilenameOnly();
+                    UpdateFastNavigationUI();
                     return;
                 }
 
