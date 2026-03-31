@@ -928,67 +928,13 @@ namespace Uviewer
         {
             try
             {
-                var assembly = typeof(MainWindow).Assembly;
-                var version = assembly.GetName().Version;
-                var versionString = version != null ? $"{version.Major}.{version.Minor}.{version.Build}.{version.Revision}" : "0.0.0.0";
-
-                var stackPanel = new StackPanel { Spacing = 12, Width = 320, HorizontalAlignment = HorizontalAlignment.Center };
-
-// 절대 경로를 구하는 대신 ms-appx 스키마 사용
-var image = new Microsoft.UI.Xaml.Controls.Image
-{
-    // 패키지 앱 내부 자산에 접근하는 올바른 URI 스키마
-    Source = new Microsoft.UI.Xaml.Media.Imaging.BitmapImage(new Uri("ms-appx:///Assets/Uviewer2.png")),
-    Width = 100,
-    Height = 100,
-    Margin = new Microsoft.UI.Xaml.Thickness(0, 10, 0, 10),
-    HorizontalAlignment = HorizontalAlignment.Center
-};
-                stackPanel.Children.Add(image);
-
-                // Title and version string
-                var titleText = new Microsoft.UI.Xaml.Controls.TextBlock
+                var dialog = new AboutDialog
                 {
-                    Text = $"Uviewer ({versionString})",
-                    FontSize = 24,
-                    FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
-                    HorizontalAlignment = HorizontalAlignment.Center,
-                    Margin = new Microsoft.UI.Xaml.Thickness(0, 0, 0, 8),
-                    TextAlignment = Microsoft.UI.Xaml.TextAlignment.Center
-                };
-                stackPanel.Children.Add(titleText);
-
-                // External project link
-                var linkButton = new Microsoft.UI.Xaml.Controls.HyperlinkButton
-                {
-                    Content = "Project GitHub",
-                    NavigateUri = new Uri("https://github.com/kirinonakar/Uviewer"),
-                    HorizontalAlignment = HorizontalAlignment.Center,
-                    Margin = new Microsoft.UI.Xaml.Thickness(0, 0, 0, 10)
-                };
-                stackPanel.Children.Add(linkButton);
-
-                var dialog = new Microsoft.UI.Xaml.Controls.ContentDialog
-                {
-                    Title = Strings.AboutTitle,
-                    Content = stackPanel,
                     XamlRoot = RootGrid.XamlRoot,
                     RequestedTheme = RootGrid.ActualTheme
                 };
 
                 _aboutDialog = dialog;
-
-                // Centered Close Button inside the stack panel
-                var closeButton = new Microsoft.UI.Xaml.Controls.Button
-                {
-                    Content = Strings.Close,
-                    HorizontalAlignment = HorizontalAlignment.Center,
-                    Margin = new Microsoft.UI.Xaml.Thickness(0, 10, 0, 0),
-                    Width = 100
-                };
-                closeButton.Click += (s, e) => dialog.Hide();
-                stackPanel.Children.Add(closeButton);
-
                 await dialog.ShowAsync();
                 _aboutDialog = null;
             }
