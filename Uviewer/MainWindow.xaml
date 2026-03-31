@@ -341,7 +341,7 @@
 
                 <AppBarSeparator x:Name="SharpenSeparator"/>
 
-                <ToggleButton x:Name="SharpenButton" Click="SharpenButton_Click" ToolTipService.ToolTip="{x:Bind local:Strings.SharpenTooltip, Mode=OneWay}">
+                <ToggleButton x:Name="SharpenButton" Width="36" Height="32" Click="SharpenButton_Click" ToolTipService.ToolTip="{x:Bind local:Strings.SharpenTooltip, Mode=OneWay}">
                     <ToggleButton.ContextFlyout>
                         <Flyout>
                             <StackPanel Width="250" Spacing="8" Padding="10">
