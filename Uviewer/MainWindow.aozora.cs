@@ -507,6 +507,10 @@ namespace Uviewer
                 _aozoraTotalLineCountInSource = sourceLineCount;
                 _textTotalLineCountInSource = sourceLineCount;
 
+                // Update TOC with parsed blocks
+                _tocService.SetProvider(new TextTocProvider(_currentTextContent, _aozoraBlocks));
+                _ = _tocService.LoadTocAsync(token);
+
                 // 목표 라인(TargetLine) 또는 블록 인덱스 탐색
                 int startIdx = 0;
                 if (targetBlockIndex >= 0)
@@ -1318,55 +1322,10 @@ namespace Uviewer
             try
             {
                 byte[]? bytes = null;
+                string targetKey = relativePath.Replace('\\', '/').TrimStart('/');
 
-                if (_isWebDavMode && !string.IsNullOrEmpty(_currentWebDavItemPath))
+                if (_currentArchive != null || _current7zArchive != null)
                 {
-                    string? fullRemotePath = ResolveWebDavImagePath(relativePath);
-                    if (fullRemotePath != null)
-                    {
-                        var tempPath = await _webDavService.DownloadToTempFileAsync(fullRemotePath);
-                        if (!string.IsNullOrEmpty(tempPath) && System.IO.File.Exists(tempPath))
-                        {
-                            bytes = await System.IO.File.ReadAllBytesAsync(tempPath);
-                        }
-                        else
-                        {
-                            // Mark as missing to prevent empty page on re-calculation
-                            _knownMissingAozoraImages.Add(relativePath);
-                            
-                            // Re-calculate pages to remove the blank page
-                            DispatcherQueue.TryEnqueue(() => 
-                            {
-                                int currentLine = 1;
-                                if (_aozoraBlocks.Count > 0 && _currentAozoraStartBlockIndex >= 0 && _currentAozoraStartBlockIndex < _aozoraBlocks.Count)
-                                    currentLine = _aozoraBlocks[_currentAozoraStartBlockIndex].SourceLineNumber;
-                                
-                                _ = PrepareAozoraDisplayAsync(_currentTextContent, currentLine, -1, _globalTextCts?.Token ?? default);
-                            });
-                        }
-                    }
-                }
-                else if (!string.IsNullOrEmpty(_currentTextFilePath) && _currentTextArchiveEntryKey == null)
-                {
-                    // Local File
-                    string fullPath = System.IO.Path.Combine(System.IO.Path.GetDirectoryName(_currentTextFilePath)!, relativePath);
-                    if (System.IO.File.Exists(fullPath))
-                    {
-                        bytes = await System.IO.File.ReadAllBytesAsync(fullPath);
-                    }
-                }
-                else if ((_currentArchive != null || _current7zArchive != null) && !string.IsNullOrEmpty(_currentTextArchiveEntryKey))
-                {
-                    // Archive
-                    string normKey = _currentTextArchiveEntryKey.Replace('\\', '/');
-                    string? baseDir = "";
-                    int lastSlash = normKey.LastIndexOf('/');
-                    if (lastSlash >= 0) baseDir = normKey.Substring(0, lastSlash);
-
-                    string subPath = relativePath.Replace('\\', '/').TrimStart('/');
-                    string targetKey = string.IsNullOrEmpty(baseDir) ? subPath : (baseDir.TrimEnd('/') + "/" + subPath);
-                    targetKey = targetKey.Replace("/./", "/");
-
                     await _archiveLock.WaitAsync();
                     try
                     {
@@ -1438,17 +1397,8 @@ namespace Uviewer
                 System.Diagnostics.Debug.WriteLine($"LoadAozoraImageAsync failed: {ex.Message}");
             }
         }
-		
-		 // TOC Handlers
 
-        public class TocItem
-        {
-            public string HeadingText { get; set; } = "";
-            public int SourceLineNumber { get; set; }
-            public Thickness Margin => new Thickness((HeadingLevel - 1) * 16, 0, 0, 0);
-            public int HeadingLevel { get; set; }
-            public object? Tag { get; set; }
-        }
+        // TOC Handlers
 
         private async void TocButton_Click(object sender, RoutedEventArgs e)
         {
@@ -1460,75 +1410,7 @@ namespace Uviewer
                 tb.Text = Strings.TocTitle;
             }
 
-            List<TocItem> items = new();
-
-            if (_currentPdfDocument != null && _pdfToc.Count > 0)
-            {
-                items = _pdfToc.ToList();
-            }
-            else if (_isEpubMode)
-            {
-                // EPUB Mode
-                if (_epubToc != null && _epubToc.Count > 0)
-                {
-                    items = _epubToc.Select(t => new TocItem
-                    {
-                        HeadingText = t.Title,
-                        HeadingLevel = t.Level > 0 ? t.Level : 1,
-                        SourceLineNumber = -1,
-                        Tag = t
-                    }).ToList();
-                }
-            }
-            else if ((_isAozoraMode || _isVerticalMode) && _aozoraBlocks.Count > 0)
-            {
-                items = _aozoraBlocks
-                    .Where(b => b.HeadingLevel > 0)
-                    .Select(b => new TocItem
-                    {
-                        HeadingText = b.HeadingText,
-                        SourceLineNumber = b.SourceLineNumber,
-                        HeadingLevel = b.HeadingLevel
-                    })
-                    .ToList();
-            }
-            else if (!string.IsNullOrEmpty(_currentTextContent))
-            {
-                // Scan raw text on demand for Normal Mode or if blocks are empty
-                items = await Task.Run(() =>
-                {
-                    var list = new List<TocItem>();
-                    var lines = _textLines.Count > 0 ? _textLines : SplitTextToLines(_currentTextContent); // Prefer split lines if available
-
-                    // In standard mode, finding exact source line number might be tricky if _textLines is wrapped.
-                    // But _textLines usually stores 1:1 if no wrap? No, MainWindow.text.cs implementation of SplitTextToLines:
-                    // Wait, SplitTextToLines splits by wrapping width? 
-                    // Let's check SplitTextToLines implementation in MainWindow.text.cs.
-                    // If SplitTextToLines wraps connected lines, SourceLineNumber logic is complex.
-                    // A safe bet is scanning the raw source lines.
-                    var rawLines = _currentTextContent.Replace("\r\n", "\n").Replace("\r", "\n").Split('\n');
-
-                    for (int i = 0; i < rawLines.Length; i++)
-                    {
-                        var line = rawLines[i].Trim();
-                        int level = 0;
-                        string text = "";
-
-                        // Check Aozora
-                        if (line.Contains("［＃大見出し］") || line.StartsWith("# ")) { level = 1; text = line.Replace("［＃大見出し］", "").TrimStart('#', ' '); }
-                        else if (line.Contains("［＃中見出し］") || line.StartsWith("## ")) { level = 2; text = line.Replace("［＃中見出し］", "").TrimStart('#', ' '); }
-                        else if (line.Contains("［＃小見出し］") || line.StartsWith("### ")) { level = 3; text = line.Replace("［＃小見出し］", "").TrimStart('#', ' '); }
-
-                        if (level > 0)
-                        {
-                            // Clean tags
-                            text = Regex.Replace(text, @"［＃[^］]+］|\[.*?\]|[#]", "").Trim();
-                            list.Add(new TocItem { HeadingText = text, SourceLineNumber = i + 1, HeadingLevel = level });
-                        }
-                    }
-                    return list;
-                });
-            }
+            var items = _tocService.CurrentToc;
 
             // Highlight current item and scroll
             int currentIndex = -1;
@@ -1540,29 +1422,18 @@ namespace Uviewer
                     string currentSpinePath = _epubSpine[_currentEpubChapterIndex];
                     for (int i = 0; i < items.Count; i++)
                     {
-                        if (items[i].Tag is EpubTocItem epi)
-                        {
-                            string linkPath = epi.Link;
-                            int hashIndex = linkPath.IndexOf('#');
-                            if (hashIndex >= 0) linkPath = linkPath.Substring(0, hashIndex);
+                        string linkPath = items[i].EpubLink;
+                        if (string.IsNullOrEmpty(linkPath)) continue;
 
-                            if (string.Equals(linkPath, currentSpinePath, StringComparison.OrdinalIgnoreCase))
-                            {
-                                currentIndex = i;
-                                break;
-                            }
+                        int hashIndex = linkPath.IndexOf('#');
+                        if (hashIndex >= 0) linkPath = linkPath.Substring(0, hashIndex);
+
+                        if (string.Equals(linkPath, currentSpinePath, StringComparison.OrdinalIgnoreCase))
+                        {
+                            currentIndex = i;
+                            break;
                         }
                     }
-                }
-            }
-            else if (_currentPdfDocument != null && items.Count > 0)
-            {
-                for (int i = 0; i < items.Count; i++)
-                {
-                    if (items[i].SourceLineNumber <= _currentIndex)
-                        currentIndex = i;
-                    else
-                        break;
                 }
             }
             else
@@ -1585,24 +1456,34 @@ namespace Uviewer
 
                 for (int i = 0; i < items.Count; i++)
                 {
-                    if (items[i].SourceLineNumber <= currentLine)
+                    if (items[i].SourceLineNumber > 0 && items[i].SourceLineNumber <= currentLine)
                         currentIndex = i;
-                    else
+                    else if (items[i].SourceLineNumber > currentLine)
                         break;
                 }
             }
 
-            if (currentIndex >= 0 && currentIndex < items.Count)
+            // Create a display-only list to avoid modifying the original service list
+            var displayItems = items.Select(item => new TocItem 
+            { 
+                HeadingText = item.HeadingText, 
+                HeadingLevel = item.HeadingLevel, 
+                SourceLineNumber = item.SourceLineNumber,
+                EpubLink = item.EpubLink,
+                Tag = item.Tag
+            }).ToList();
+
+            if (currentIndex >= 0 && currentIndex < displayItems.Count)
             {
-                items[currentIndex].HeadingText = "⮕ " + items[currentIndex].HeadingText;
+                displayItems[currentIndex].HeadingText = "⮕ " + displayItems[currentIndex].HeadingText;
             }
 
-            if (items.Count == 0)
+            if (displayItems.Count == 0)
             {
-                items.Add(new TocItem { HeadingText = Strings.NoTocContent, SourceLineNumber = -1 });
+                displayItems.Add(new TocItem { HeadingText = Strings.NoTocContent, SourceLineNumber = -1 });
             }
 
-            TocListView.ItemsSource = items;
+            TocListView.ItemsSource = displayItems;
 
             if (currentIndex >= 0)
             {
@@ -1611,7 +1492,7 @@ namespace Uviewer
                 {
                     try
                     {
-                        TocListView.ScrollIntoView(items[currentIndex], ScrollIntoViewAlignment.Leading);
+                        TocListView.ScrollIntoView(displayItems[currentIndex], ScrollIntoViewAlignment.Leading);
                     }
                     catch { }
                 });
@@ -1626,9 +1507,9 @@ namespace Uviewer
 
                 if (_isEpubMode)
                 {
-                    if (item.Tag is EpubTocItem epubItem)
+                    if (!string.IsNullOrEmpty(item.EpubLink))
                     {
-                        JumpToEpubTocItem(epubItem);
+                        JumpToEpubTocItem(new EpubTocItem { Title = item.HeadingText, Link = item.EpubLink });
                     }
                 }
                 else if (item.Tag?.ToString() == "PDF")

@@ -10,8 +10,6 @@ using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Windows.Data.Pdf;
 using Windows.Storage;
-using UglyToad.PdfPig;
-using UglyToad.PdfPig.Outline;
 using Uviewer.Models;
 using Uviewer.Services;
 
@@ -20,7 +18,6 @@ namespace Uviewer
     public sealed partial class MainWindow
     {
         private Windows.Data.Pdf.PdfDocument? _currentPdfDocument;
-        private List<TocItem> _pdfToc = new();
         private string? _currentPdfPath;
         private readonly SemaphoreSlim _pdfLock = new(1, 1);
 
@@ -72,20 +69,15 @@ namespace Uviewer
                     _imageEntries = newEntries;
 
                     // Load TOC with PdfPig in background
-                    _ = Task.Run(() =>
+                    _ = Task.Run(async () =>
                     {
                         try
                         {
-                            var tempToc = new List<TocItem>();
-                            using var pdfPigDocument = UglyToad.PdfPig.PdfDocument.Open(pdfPath);
-                            if (pdfPigDocument.TryGetBookmarks(out var bookmarks))
-                            {
-                                ParsePdfBookmarks(bookmarks.GetNodes().ToList(), 1, tempToc);
-                            }
+                            _tocService.SetProvider(new PdfTocProvider(pdfPath));
+                            await _tocService.LoadTocAsync();
                             
                             DispatcherQueue.TryEnqueue(() =>
                             {
-                                _pdfToc = tempToc;
                                 if (PdfTocButton != null)
                                 {
                                     PdfTocButton.Visibility = Visibility.Visible;
@@ -176,7 +168,7 @@ namespace Uviewer
             _currentPdfPath = null;
             var oldDoc = _currentPdfDocument;
             _currentPdfDocument = null;
-            _pdfToc.Clear();
+            _tocService.Clear();
 
             // UI 스레드에서 버튼 가리기
             DispatcherQueue.TryEnqueue(() =>
@@ -315,33 +307,6 @@ namespace Uviewer
             }
         }
 
-        private void ParsePdfBookmarks(IReadOnlyList<BookmarkNode> nodes, int level, List<TocItem> targetList)
-        {
-            foreach (var node in nodes)
-            {
-                int pageIndex = -1;
-                
-                if (node is DocumentBookmarkNode docNode)
-                {
-                    // PdfPig uses 1-based page numbers
-                    pageIndex = docNode.PageNumber - 1;
-                }
-
-                targetList.Add(new TocItem 
-                { 
-                    HeadingText = node.Title, 
-                    HeadingLevel = level, 
-                    SourceLineNumber = pageIndex, // We'll repurpose SourceLineNumber for page index in PDF context
-                    Tag = "PDF"
-                });
-
-                if (node.Children != null && node.Children.Count > 0)
-                {
-                    ParsePdfBookmarks(node.Children, level + 1, targetList);
-                }
-            }
-        }
-
         private void PdfTocButton_Click(object sender, RoutedEventArgs e)
         {
             if (_currentPdfDocument == null) return;
@@ -352,7 +317,7 @@ namespace Uviewer
                 tb.Text = Strings.TocTitle;
             }
 
-            List<TocItem> items = _pdfToc.ToList();
+            var items = _tocService.CurrentToc;
 
             // Highlight current item and scroll
             int currentIndex = -1;
@@ -368,17 +333,26 @@ namespace Uviewer
                 }
             }
 
-            if (currentIndex >= 0 && currentIndex < items.Count)
+            // Create a display-only list
+            var displayItems = items.Select(item => new TocItem 
+            { 
+                HeadingText = item.HeadingText, 
+                HeadingLevel = item.HeadingLevel, 
+                SourceLineNumber = item.SourceLineNumber,
+                Tag = item.Tag
+            }).ToList();
+
+            if (currentIndex >= 0 && currentIndex < displayItems.Count)
             {
-                items[currentIndex].HeadingText = "⮕ " + items[currentIndex].HeadingText;
+                displayItems[currentIndex].HeadingText = "⮕ " + displayItems[currentIndex].HeadingText;
             }
 
-            if (items.Count == 0)
+            if (displayItems.Count == 0)
             {
-                items.Add(new TocItem { HeadingText = Strings.NoTocContent, SourceLineNumber = -1 });
+                displayItems.Add(new TocItem { HeadingText = Strings.NoTocContent, SourceLineNumber = -1 });
             }
 
-            PdfTocListView.ItemsSource = items;
+            PdfTocListView.ItemsSource = displayItems;
             
             if (currentIndex >= 0)
             {
@@ -387,7 +361,7 @@ namespace Uviewer
                 {
                     try
                     {
-                        PdfTocListView.ScrollIntoView(items[currentIndex], ScrollIntoViewAlignment.Leading);
+                        PdfTocListView.ScrollIntoView(displayItems[currentIndex], ScrollIntoViewAlignment.Leading);
                     }
                     catch { }
                 });

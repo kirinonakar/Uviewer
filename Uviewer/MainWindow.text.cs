@@ -231,6 +231,9 @@ namespace Uviewer
         private async Task DisplayLoadedText(string content, string name, string? uniquePath = null, CancellationToken token = default)
         {
             _currentTextContent = content; // Save for reload
+            _tocService.SetProvider(new TextTocProvider(content));
+            _ = _tocService.LoadTocAsync(token);
+
             _aozoraBlocks.Clear(); // [핵심 수정] 새 파일을 로드할 때 이전 파일의 블록 캐시를 제거합니다.
             _knownMissingAozoraImages.Clear();
             _knownMissingVerticalImages.Clear();

@@ -116,6 +116,7 @@ namespace Uviewer
         private Services.FastNavigationService _fastNavigationService = null!;
         private readonly IAnimatedWebpService _animatedWebpService = null!;
         private readonly IKeyboardShortcutService _keyboardShortcutService = new KeyboardShortcutService();
+        private readonly Services.TocService _tocService = new();
 
         // Loading and navigation state
         private CancellationTokenSource? _imageLoadingCts;

@@ -87,23 +87,10 @@ namespace Uviewer
         private static readonly Regex RxEpubRt = new Regex(@"<rt[^>]*>(.*?)</rt>", RegexOptions.IgnoreCase | RegexOptions.Singleline | RegexOptions.Compiled);
         private static readonly Regex RxEpubRubySplit = new Regex(@"(\{\{RUBY\|.*?\}\})", RegexOptions.Compiled);
         private static readonly Regex RxEpubXmlns = new Regex("xmlns=\"[^\"]*\"", RegexOptions.Compiled);
-        private static readonly Regex RxEpubNcxNav = new Regex("<navPoint[^>]*>([\\s\\S]*?)</navPoint>", RegexOptions.Compiled);
-        private static readonly Regex RxEpubNcxText = new Regex("<text[^>]*>(.*?)</text>", RegexOptions.IgnoreCase | RegexOptions.Singleline | RegexOptions.Compiled);
-        private static readonly Regex RxEpubNcxContent = new Regex("<content[^>]*src=[\"']([^\"']+)[\"']", RegexOptions.IgnoreCase | RegexOptions.Compiled);
-        private static readonly Regex RxEpubNavAnchor = new Regex("<a[^>]*href=[\"']([^\"']+)[\"'][^>]*>([\\s\\S]*?)</a>", RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
 
 
-        public class EpubTocItem
-        {
-            public string Title { get; set; } = "";
-            public string Link { get; set; } = "";
-            public int Level { get; set; } = 0;
-            public string HeadingText => Title;
-            public Thickness Margin => new Thickness(Level * 12, 0, 0, 0);
-        }
 
-        private List<EpubTocItem> _epubToc = new();
 
 
         public int CurrentEpubChapterIndex => _currentEpubChapterIndex;
@@ -286,7 +273,13 @@ namespace Uviewer
                  _epubChapterHasText.Clear();
                  
                  // 4. Load TOC (Background)
-                 _ = ParseEpubTocAsync();
+                _ = Task.Run(async () => {
+                    if (_currentEpubArchive != null && !string.IsNullOrEmpty(_epubTocPath))
+                    {
+                        _tocService.SetProvider(new EpubTocProvider(_currentEpubArchive, _epubTocPath, _epubSpine));
+                        await _tocService.LoadTocAsync();
+                    }
+                });
 
                  FileNameText.Text = FileExplorerService.GetFormattedDisplayName(entry?.DisplayName ?? file.Name, false);
                  SyncSidebarSelection(entry ?? new ImageEntry { FilePath = file.Path, DisplayName = file.Name });
@@ -1497,118 +1490,7 @@ namespace Uviewer
              if (_settingsManager.ThemeIndex == 3 && _settingsManager.CustomBackgroundColor.HasValue) return new SolidColorBrush(_settingsManager.CustomBackgroundColor.Value);
              return new SolidColorBrush(Microsoft.UI.ColorHelper.FromArgb(255, 30, 30, 30)); // Dark
         }
-
-        private async Task ParseEpubTocAsync()
-        {
-             _epubToc.Clear();
-             
-             // Try parsing explicit TOC
-             if (!string.IsNullOrEmpty(_epubTocPath))
-             {
-                 try
-                 {
-                     var entry = _currentEpubArchive?.GetEntry(_epubTocPath);
-                     if (entry != null)
-                     {
-                     string content;
-                     await _epubArchiveLock.WaitAsync();
-                     try
-                     {
-                         using var stream = entry.Open();
-                         using var reader = new StreamReader(stream);
-                         content = await reader.ReadToEndAsync();
-                     }
-                     finally
-                     {
-                         _epubArchiveLock.Release();
-                     }
-                         
-                         string ext = Path.GetExtension(_epubTocPath).ToLower();
-                         if (ext == ".ncx")
-                         {
-                             ParseNcxToc(content);
-                         }
-                         else if (ext == ".html" || ext == ".xhtml" || ext == ".htm")
-                         {
-                             ParseNavToc(content);
-                         }
-                     }
-                 }
-                 catch (Exception ex)
-                 {
-                     System.Diagnostics.Debug.WriteLine($"TOC Parse Error: {ex.Message}");
-                 }
-             }
-
-             // Fallback if empty
-             if (_epubToc.Count == 0 && _epubSpine.Count > 0)
-             {
-                 for (int i = 0; i < _epubSpine.Count; i++)
-                 {
-                     _epubToc.Add(new EpubTocItem 
-                     { 
-                         Title = $"Chapter {i + 1}", 
-                         Link = _epubSpine[i],
-                         Level = 1
-                     });
-                 }
-             }
-
-             // [수정] 목차 로딩 완료 후 현재 열려있는 TOC UI가 있다면 즉시 갱신
-             DispatcherQueue.TryEnqueue(() => 
-             {
-                 if (_isEpubMode && TocFlyout != null && TocFlyout.IsOpen)
-                 {
-                     // TocButton_Click을 수동으로 호출하여 UI 갱신
-                     TocButton_Click(null!, null!); 
-                 }
-                 UpdateEpubStatus();
-             });
-        }
-
-
-        private void ParseNcxToc(string xml)
-        {
-            // Simple Regex parsing for NCX
-            xml = RxEpubXmlns.Replace(xml, "");
-            
-            var matches = RxEpubNcxNav.Matches(xml);
-            foreach (Match m in matches)
-            {
-                string inner = m.Groups[1].Value;
-                
-                string title = "";
-                var tm = RxEpubNcxText.Match(inner);
-                if (tm.Success) title = RxEpubAnyTag.Replace(tm.Groups[1].Value, "").Trim();
-                
-                string src = "";
-                var cm = RxEpubNcxContent.Match(inner);
-                if (cm.Success) src = cm.Groups[1].Value;
-                
-                if (!string.IsNullOrEmpty(title) && !string.IsNullOrEmpty(src))
-                {
-                    string fullSrc = ResolveRelativePath(_epubTocPath!, src);
-                    _epubToc.Add(new EpubTocItem { Title = title, Link = fullSrc });
-                }
-            }
-        }
         
-        private void ParseNavToc(string html)
-        {
-            // Extract <a> tags with href
-            var matches = RxEpubNavAnchor.Matches(html);
-            foreach (Match m in matches)
-            {
-                string src = m.Groups[1].Value;
-                string title = RxEpubAnyTag.Replace(m.Groups[2].Value, "").Trim();
-                
-                if (!string.IsNullOrEmpty(title) && !string.IsNullOrEmpty(src))
-                {
-                    string fullSrc = ResolveRelativePath(_epubTocPath!, src);
-                    _epubToc.Add(new EpubTocItem { Title = title, Link = fullSrc });
-                }
-            }
-        }
 
         public async void JumpToEpubTocItem(EpubTocItem item)
         {
