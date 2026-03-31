@@ -106,7 +106,7 @@ namespace Uviewer
         // Image preloading for faster navigation
         private Services.ImageCacheManager _imageCache = null!;
         private WindowStateManager _windowState = null!;
-        private readonly SemaphoreSlim _thumbnailSemaphore = new(4); // Limit concurrent thumbnail loads (archives)
+        private readonly Services.IThumbnailService _thumbnailService = new Services.ThumbnailService();
         private Services.PreloadManager _preloadManager = null!;
 
         // Refactored Services
@@ -464,7 +464,6 @@ namespace Uviewer
 
                     // Dispose semaphores
                     _archiveLock.Dispose();
-                    _thumbnailSemaphore.Dispose();
 
                     // Cleanup WebDAV
                     _webDavService?.Dispose();
