@@ -105,28 +105,37 @@ namespace Uviewer.Services
                         entry.Extract(memStream);
                         memStream.Position = 0;
 
-                        var tcs = new TaskCompletionSource();
-                        bool enqueued = dispatcher.TryEnqueue(DispatcherQueuePriority.Low, async () =>
+                        // 비동기 연속 실행 옵션 부여 및 제네릭 타입 사용
+                        var tcs = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+                        
+                        // Cancellation Token을 TCS에 연결하여 Deadlock 방지
+                        using var registration = ct.Register(() => tcs.TrySetCanceled());
+
+                        bool enqueued = dispatcher.TryEnqueue(DispatcherQueuePriority.Normal, async () =>
                         {
                             try
                             {
-                                if (ct.IsCancellationRequested) return;
+                                if (ct.IsCancellationRequested)
+                                {
+                                    tcs.TrySetCanceled();
+                                    return;
+                                }
                                 
                                 var bitmap = new BitmapImage();
                                 bitmap.DecodePixelWidth = 200;
                                 await bitmap.SetSourceAsync(memStream.AsRandomAccessStream());
                                 item.Thumbnail = bitmap;
+                                tcs.TrySetResult(true);
                             }
-                            catch { }
-                            finally
+                            catch
                             {
-                                tcs.SetResult();
+                                tcs.TrySetResult(false);
                             }
                         });
 
                         if (enqueued)
                         {
-                            await tcs.Task;
+                            try { await tcs.Task; } catch (OperationCanceledException) { }
                         }
                     }
                     finally
@@ -162,28 +171,34 @@ namespace Uviewer.Services
                         await entryStream.CopyToAsync(memStream, ct);
                         memStream.Position = 0;
 
-                        var tcs = new TaskCompletionSource();
-                        bool enqueued = dispatcher.TryEnqueue(DispatcherQueuePriority.Low, async () =>
+                        var tcs = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+                        using var registration = ct.Register(() => tcs.TrySetCanceled());
+
+                        bool enqueued = dispatcher.TryEnqueue(DispatcherQueuePriority.Normal, async () =>
                         {
                             try
                             {
-                                if (ct.IsCancellationRequested) return;
+                                if (ct.IsCancellationRequested)
+                                {
+                                    tcs.TrySetCanceled();
+                                    return;
+                                }
 
                                 var bitmap = new BitmapImage();
                                 bitmap.DecodePixelWidth = 200;
                                 await bitmap.SetSourceAsync(memStream.AsRandomAccessStream());
                                 item.Thumbnail = bitmap;
+                                tcs.TrySetResult(true);
                             }
-                            catch { }
-                            finally
+                            catch
                             {
-                                tcs.SetResult();
+                                tcs.TrySetResult(false);
                             }
                         });
 
                         if (enqueued)
                         {
-                            await tcs.Task;
+                            try { await tcs.Task; } catch (OperationCanceledException) { }
                         }
                     }
                     finally
@@ -207,27 +222,34 @@ namespace Uviewer.Services
 
                 if (thumbnail != null && !ct.IsCancellationRequested)
                 {
-                    var tcs = new TaskCompletionSource();
-                    bool enqueued = dispatcher.TryEnqueue(DispatcherQueuePriority.Low, async () =>
+                    var tcs = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+                    using var registration = ct.Register(() => tcs.TrySetCanceled());
+
+                    bool enqueued = dispatcher.TryEnqueue(DispatcherQueuePriority.Normal, async () =>
                     {
                         try
                         {
-                            if (ct.IsCancellationRequested) return;
+                            if (ct.IsCancellationRequested)
+                            {
+                                tcs.TrySetCanceled();
+                                return;
+                            }
+
                             var bitmap = new BitmapImage();
                             bitmap.DecodePixelWidth = 200;
                             await bitmap.SetSourceAsync(thumbnail);
                             item.Thumbnail = bitmap;
+                            tcs.TrySetResult(true);
                         }
-                        catch { }
-                        finally
+                        catch
                         {
-                            tcs.SetResult();
+                            tcs.TrySetResult(false);
                         }
                     });
 
                     if (enqueued)
                     {
-                        await tcs.Task;
+                        try { await tcs.Task; } catch (OperationCanceledException) { }
                     }
                 }
             }

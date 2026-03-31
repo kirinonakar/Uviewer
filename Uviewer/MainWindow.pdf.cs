@@ -36,7 +36,6 @@ namespace Uviewer
             _currentPdfPath = pdfPath;
             _preloadManager.CancelAll();
             _imageLoadingCts?.Cancel(); // Cancel any ongoing image load
-            _thumbnailLoadingCts?.Cancel(); // Cancel thumbnail loading
             
             SwitchToImageMode(); // Force UI to image mode immediately
 

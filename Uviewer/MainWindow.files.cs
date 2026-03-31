@@ -262,7 +262,6 @@ namespace Uviewer
             // 이전 작업 즉시 중단
             _7zExtractCts?.Cancel();
             _imageLoadingCts?.Cancel();
-            _thumbnailLoadingCts?.Cancel();
             _preloadManager.CancelAll();
             _globalTextCts?.Cancel();
 
@@ -401,7 +400,6 @@ namespace Uviewer
             _7zExtractCts?.Cancel();
             _preloadManager.CancelAll();
             _imageLoadingCts?.Cancel();
-            _thumbnailLoadingCts?.Cancel();
             _globalTextCts?.Cancel();
 
             // Close other formats first
@@ -501,7 +499,6 @@ namespace Uviewer
             // [Immediate Stop] 락을 기다리기 전에 추출 작업 즉시 취소
             _7zExtractCts?.Cancel();
             _preloadManager.CancelAll();
-            _thumbnailLoadingCts?.Cancel();
 
             // 외부에서 호출될 때 Lock 대기 (타임아웃 설정으로 데드락 방지)
             if (_archiveLock.Wait(TimeSpan.FromSeconds(2)))
