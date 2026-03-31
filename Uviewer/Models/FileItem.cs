@@ -19,6 +19,7 @@ namespace Uviewer.Models
         public bool IsParentDirectory { get; set; }
         public bool IsWebDav { get; set; }
         public string? WebDavPath { get; set; }
+        public bool IsThumbnailLoading { get; set; }
 
         private ImageSource? _thumbnail;
         public ImageSource? Thumbnail

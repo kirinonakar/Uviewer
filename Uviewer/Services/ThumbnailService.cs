@@ -21,22 +21,29 @@ namespace Uviewer.Services
         {
             try
             {
-                var itemList = items.ToList();
+                // Filter items that actually need loading
+                var itemList = items.Where(i => i.Thumbnail == null && 
+                                              !i.IsThumbnailLoading && 
+                                              (i.IsImage || i.IsArchive || i.IsEpub)).ToList();
+
+                if (itemList.Count == 0) return;
 
                 var parallelOptions = new ParallelOptions
                 {
-                    MaxDegreeOfParallelism = 2,
+                    MaxDegreeOfParallelism = 4,
                     CancellationToken = token
                 };
 
                 await Parallel.ForEachAsync(itemList, parallelOptions, async (item, ct) =>
                 {
-                    if (!item.IsImage && !item.IsArchive && !item.IsEpub) return;
+                    if (ct.IsCancellationRequested) return;
 
-                    await Task.Delay(10, ct);
-
+                    item.IsThumbnailLoading = true;
                     try
                     {
+                        // Add a small jitter to stagger heavy operations
+                        await Task.Delay(5, ct);
+
                         if (item.IsArchive || item.IsEpub)
                         {
                             await LoadArchiveThumbnailAsync(item, dispatcher, ct);
@@ -46,19 +53,21 @@ namespace Uviewer.Services
                             await LoadImageThumbnailAsync(item, dispatcher, ct);
                         }
                     }
-                    catch
+                    catch (OperationCanceledException) { }
+                    catch (Exception ex)
                     {
-                        // Ignore individual failures
+                        System.Diagnostics.Debug.WriteLine($"Failed to load thumbnail for {item.Name}: {ex.Message}");
+                    }
+                    finally
+                    {
+                        item.IsThumbnailLoading = false;
                     }
                 });
             }
-            catch (OperationCanceledException)
-            {
-                // Normal termination on cancellation
-            }
+            catch (OperationCanceledException) { }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"Thumbnail load error: {ex.Message}");
+                System.Diagnostics.Debug.WriteLine($"Thumbnail load loop error: {ex.Message}");
             }
         }
 
@@ -91,29 +100,39 @@ namespace Uviewer.Services
                 if (entry != null)
                 {
                     var memStream = new MemoryStream();
-                    entry.Extract(memStream);
-                    memStream.Position = 0;
-
-                    dispatcher.TryEnqueue(DispatcherQueuePriority.Low, async () =>
+                    try
                     {
-                        if (ct.IsCancellationRequested)
-                        {
-                            memStream.Dispose();
-                            return;
-                        }
+                        entry.Extract(memStream);
+                        memStream.Position = 0;
 
-                        try
+                        var tcs = new TaskCompletionSource();
+                        bool enqueued = dispatcher.TryEnqueue(DispatcherQueuePriority.Low, async () =>
                         {
-                            var bitmap = new BitmapImage();
-                            bitmap.DecodePixelWidth = 200;
-                            await bitmap.SetSourceAsync(memStream.AsRandomAccessStream());
-                            item.Thumbnail = bitmap;
-                        }
-                        catch
+                            try
+                            {
+                                if (ct.IsCancellationRequested) return;
+                                
+                                var bitmap = new BitmapImage();
+                                bitmap.DecodePixelWidth = 200;
+                                await bitmap.SetSourceAsync(memStream.AsRandomAccessStream());
+                                item.Thumbnail = bitmap;
+                            }
+                            catch { }
+                            finally
+                            {
+                                tcs.SetResult();
+                            }
+                        });
+
+                        if (enqueued)
                         {
-                            memStream.Dispose();
+                            await tcs.Task;
                         }
-                    });
+                    }
+                    finally
+                    {
+                        memStream.Dispose();
+                    }
                 }
             }
             finally
@@ -138,29 +157,39 @@ namespace Uviewer.Services
                 {
                     using var entryStream = entry.OpenEntryStream();
                     var memStream = new MemoryStream();
-                    await entryStream.CopyToAsync(memStream, ct);
-                    memStream.Position = 0;
-
-                    dispatcher.TryEnqueue(DispatcherQueuePriority.Low, async () =>
+                    try
                     {
-                        if (ct.IsCancellationRequested)
-                        {
-                            memStream.Dispose();
-                            return;
-                        }
+                        await entryStream.CopyToAsync(memStream, ct);
+                        memStream.Position = 0;
 
-                        try
+                        var tcs = new TaskCompletionSource();
+                        bool enqueued = dispatcher.TryEnqueue(DispatcherQueuePriority.Low, async () =>
                         {
-                            var bitmap = new BitmapImage();
-                            bitmap.DecodePixelWidth = 200;
-                            await bitmap.SetSourceAsync(memStream.AsRandomAccessStream());
-                            item.Thumbnail = bitmap;
-                        }
-                        catch
+                            try
+                            {
+                                if (ct.IsCancellationRequested) return;
+
+                                var bitmap = new BitmapImage();
+                                bitmap.DecodePixelWidth = 200;
+                                await bitmap.SetSourceAsync(memStream.AsRandomAccessStream());
+                                item.Thumbnail = bitmap;
+                            }
+                            catch { }
+                            finally
+                            {
+                                tcs.SetResult();
+                            }
+                        });
+
+                        if (enqueued)
                         {
-                            memStream.Dispose();
+                            await tcs.Task;
                         }
-                    });
+                    }
+                    finally
+                    {
+                        memStream.Dispose();
+                    }
                 }
             }
             finally
@@ -174,24 +203,35 @@ namespace Uviewer.Services
             try
             {
                 var file = await StorageFile.GetFileFromPathAsync(item.FullPath);
-                var thumbnail = await file.GetThumbnailAsync(Windows.Storage.FileProperties.ThumbnailMode.SingleItem, 200);
+                using var thumbnail = await file.GetThumbnailAsync(Windows.Storage.FileProperties.ThumbnailMode.SingleItem, 200);
 
-                if (thumbnail != null)
+                if (thumbnail != null && !ct.IsCancellationRequested)
                 {
-                    dispatcher.TryEnqueue(DispatcherQueuePriority.Low, async () =>
+                    var tcs = new TaskCompletionSource();
+                    bool enqueued = dispatcher.TryEnqueue(DispatcherQueuePriority.Low, async () =>
                     {
-                        if (ct.IsCancellationRequested) return;
-                        var bitmap = new BitmapImage();
-                        bitmap.DecodePixelWidth = 200;
-                        await bitmap.SetSourceAsync(thumbnail);
-                        item.Thumbnail = bitmap;
+                        try
+                        {
+                            if (ct.IsCancellationRequested) return;
+                            var bitmap = new BitmapImage();
+                            bitmap.DecodePixelWidth = 200;
+                            await bitmap.SetSourceAsync(thumbnail);
+                            item.Thumbnail = bitmap;
+                        }
+                        catch { }
+                        finally
+                        {
+                            tcs.SetResult();
+                        }
                     });
+
+                    if (enqueued)
+                    {
+                        await tcs.Task;
+                    }
                 }
             }
-            catch
-            {
-                // Handle or ignore specific image load failures
-            }
+            catch { }
         }
     }
 }
