@@ -1,20 +1,20 @@
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
+using System;
+using System.Linq;
+using System.Threading.Tasks;
 
-namespace Uviewer
+namespace Uviewer.Services
 {
-    public sealed partial class MainWindow : Window
+    public class KeyboardShortcutService : IKeyboardShortcutService
     {
-
-        #region Keyboard Shortcuts
-
-        private void RootGrid_PreviewKeyDown(object sender, KeyRoutedEventArgs e)
+        public Task HandlePreviewKeyDownAsync(object sender, KeyRoutedEventArgs e, IKeyboardShortcutActions actions)
         {
-            if (_isColorPickerOpen && e.Key == Windows.System.VirtualKey.Escape) return;
+            if (actions.IsColorPickerOpen && e.Key == Windows.System.VirtualKey.Escape) return Task.CompletedTask;
 
             // Allow text input controls to function normally (e.g. WebDAV dialog)
-            if (e.OriginalSource is TextBox || e.OriginalSource is PasswordBox || e.OriginalSource is NumberBox) return;
+            if (e.OriginalSource is TextBox || e.OriginalSource is PasswordBox || e.OriginalSource is NumberBox) return Task.CompletedTask;
 
             var ctrlPressed = Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(
                 Windows.System.VirtualKey.Control).HasFlag(Windows.UI.Core.CoreVirtualKeyStates.Down);
@@ -24,99 +24,95 @@ namespace Uviewer
             if (e.Key == Windows.System.VirtualKey.Escape)
             {
                 e.Handled = true;
-                if (_aboutDialog != null)
+                if (actions.IsAboutDialogActive)
                 {
-                    _aboutDialog.Hide();
-                    _aboutDialog = null;
+                    actions.HideAboutDialog();
                 }
-                else if (_windowState.IsFullscreen) ToggleFullscreen();
-                else CloseWindowButton_Click(sender, new RoutedEventArgs());
-                return;
+                else if (actions.IsFullscreen) actions.ToggleFullscreen();
+                else actions.CloseApp();
+                return Task.CompletedTask;
             }
 
             if (e.Key == Windows.System.VirtualKey.F11)
             {
                 e.Handled = true;
-                ToggleFullscreen();
-                return;
+                actions.ToggleFullscreen();
+                return Task.CompletedTask;
             }
 
             // --- EPUB/Vertical Mode Handling ---
-            if (_isEpubMode)
+            if (actions.IsEpubMode)
             {
                 if (e.Key == Windows.System.VirtualKey.Left)
                 {
                     e.Handled = true;
-                    if (_isVerticalMode) NavigateVerticalPage(1);
-                    else _ = NavigateEpubAsync(-1);
-                    return;
+                    if (actions.IsVerticalMode) actions.NavigateVerticalPage(1);
+                    else _ = actions.NavigateEpubAsync(-1);
+                    return Task.CompletedTask;
                 }
                 else if (e.Key == Windows.System.VirtualKey.Right)
                 {
                     e.Handled = true;
-                    if (_isVerticalMode) NavigateVerticalPage(-1);
-                    else _ = NavigateEpubAsync(1);
-                    return;
+                    if (actions.IsVerticalMode) actions.NavigateVerticalPage(-1);
+                    else _ = actions.NavigateEpubAsync(1);
+                    return Task.CompletedTask;
                 }
                 else if (e.Key == Windows.System.VirtualKey.G)
                 {
                     e.Handled = true;
-                    _ = ShowEpubGoToLineDialog();
-                    return;
+                    _ = actions.ShowEpubGoToLineDialog();
+                    return Task.CompletedTask;
                 }
                 else if (e.Key == Windows.System.VirtualKey.F)
                 {
                     e.Handled = true;
-                    ToggleFont();
-                    return;
+                    actions.ToggleFont();
+                    return Task.CompletedTask;
                 }
                 else if (e.Key == Windows.System.VirtualKey.V)
                 {
                     e.Handled = true;
-                    _isVerticalMode = !_isVerticalMode;
-                    if (VerticalToggleButton != null) VerticalToggleButton.IsChecked = _isVerticalMode;
-                    SaveTextSettings();
-                    ToggleVerticalMode();
-                    return;
+                    actions.ToggleVerticalMode();
+                    return Task.CompletedTask;
                 }
                 else if (e.Key == Windows.System.VirtualKey.Subtract || e.Key == (Windows.System.VirtualKey)189) // - key
                 {
                     e.Handled = true;
-                    DecreaseTextSize();
-                    return;
+                    actions.DecreaseTextSize();
+                    return Task.CompletedTask;
                 }
                 else if (e.Key == Windows.System.VirtualKey.Add || e.Key == (Windows.System.VirtualKey)187) // + key
                 {
                     e.Handled = true;
-                    IncreaseTextSize();
-                    return;
+                    actions.IncreaseTextSize();
+                    return Task.CompletedTask;
                 }
                 else if (e.Key == Windows.System.VirtualKey.B)
                 {
                     e.Handled = true;
-                    if (ctrlPressed) ToggleSidebar();
-                    else ToggleTheme();
-                    return;
+                    if (ctrlPressed) actions.ToggleSidebar();
+                    else actions.ToggleTheme();
+                    return Task.CompletedTask;
                 }
                 else if (e.Key == Windows.System.VirtualKey.Home)
                 {
                     e.Handled = true;
-                    if (_currentEpubChapterIndex > 0)
+                    if (actions.CurrentEpubChapterIndex > 0)
                     {
-                        _currentEpubChapterIndex--;
-                        _ = LoadEpubChapterAsync(_currentEpubChapterIndex);
+                        actions.CurrentEpubChapterIndex--;
+                        _ = actions.LoadEpubChapterAsync(actions.CurrentEpubChapterIndex);
                     }
-                    return;
+                    return Task.CompletedTask;
                 }
                 else if (e.Key == Windows.System.VirtualKey.End)
                 {
                     e.Handled = true;
-                    if (_currentEpubChapterIndex < _epubSpine.Count - 1)
+                    if (actions.CurrentEpubChapterIndex < actions.EpubSpineCount - 1)
                     {
-                        _currentEpubChapterIndex++;
-                        _ = LoadEpubChapterAsync(_currentEpubChapterIndex);
+                        actions.CurrentEpubChapterIndex++;
+                        _ = actions.LoadEpubChapterAsync(actions.CurrentEpubChapterIndex);
                     }
-                    return;
+                    return Task.CompletedTask;
                 }
             }
 
@@ -124,14 +120,14 @@ namespace Uviewer
             if (e.Key == Windows.System.VirtualKey.Space)
             {
                 e.Handled = true;
-                if (_isTextMode) return; // Block and ignore in text mode
-                SideBySideButton_Click(sender, new RoutedEventArgs());
-                return;
+                if (actions.IsTextMode) return Task.CompletedTask; // Block and ignore in text mode
+                actions.ToggleSideBySide();
+                return Task.CompletedTask;
             }
 
             // --- Async Actions (Fire and Forget with Handled = true) ---
 
-            if (!_isTextMode && !_isEpubMode)
+            if (!actions.IsTextMode && !actions.IsEpubMode)
             {
                 // Intercept Left/Right for Archive/Image internal navigation
                 if (e.Key == Windows.System.VirtualKey.Left || e.Key == Windows.System.VirtualKey.Right)
@@ -139,39 +135,39 @@ namespace Uviewer
                     e.Handled = true;
                     if (e.Key == Windows.System.VirtualKey.Left)
                     {
-                        if (ShouldInvertControls) _ = NavigateToNextAsync(false);
-                        else _ = NavigateToPreviousAsync(false);
+                        if (actions.ShouldInvertControls) _ = actions.NavigateToNextAsync(false);
+                        else _ = actions.NavigateToPreviousAsync(false);
                     }
                     else
                     {
-                        if (ShouldInvertControls) _ = NavigateToPreviousAsync(false);
-                        else _ = NavigateToNextAsync(false);
+                        if (actions.ShouldInvertControls) _ = actions.NavigateToPreviousAsync(false);
+                        else _ = actions.NavigateToNextAsync(false);
                     }
-                    return;
+                    return Task.CompletedTask;
                 }
 
                 // Intercept Home/End for first/last image
-                if (_imageEntries != null && _imageEntries.Count > 0)
+                if (actions.ImageEntriesCount > 0)
                 {
                     if (e.Key == Windows.System.VirtualKey.Home)
                     {
                         e.Handled = true;
-                        if (_currentIndex != 0)
+                        if (actions.CurrentImageIndex != 0)
                         {
-                            _currentIndex = 0;
-                            _ = DisplayCurrentImageAsync();
+                            actions.CurrentImageIndex = 0;
+                            _ = actions.DisplayCurrentImageAsync();
                         }
-                        return;
+                        return Task.CompletedTask;
                     }
                     else if (e.Key == Windows.System.VirtualKey.End)
                     {
                         e.Handled = true;
-                        if (_currentIndex != _imageEntries.Count - 1)
+                        if (actions.CurrentImageIndex != actions.ImageEntriesCount - 1)
                         {
-                            _currentIndex = _imageEntries.Count - 1;
-                            _ = DisplayCurrentImageAsync();
+                            actions.CurrentImageIndex = actions.ImageEntriesCount - 1;
+                            _ = actions.DisplayCurrentImageAsync();
                         }
-                        return;
+                        return Task.CompletedTask;
                     }
                 }
             }
@@ -180,18 +176,20 @@ namespace Uviewer
             if (e.Key == Windows.System.VirtualKey.Up || e.Key == Windows.System.VirtualKey.PageUp)
             {
                 e.Handled = true;
-                _ = NavigateToFileAsync(false);
-                return;
+                _ = actions.NavigateToFileAsync(false);
+                return Task.CompletedTask;
             }
             if (e.Key == Windows.System.VirtualKey.Down || e.Key == Windows.System.VirtualKey.PageDown)
             {
                 e.Handled = true;
-                _ = NavigateToFileAsync(true);
-                return;
+                _ = actions.NavigateToFileAsync(true);
+                return Task.CompletedTask;
             }
+
+            return Task.CompletedTask;
         }
 
-        private async void RootGrid_KeyDown(object sender, KeyRoutedEventArgs e)
+        public async Task HandleKeyDownAsync(object sender, KeyRoutedEventArgs e, IKeyboardShortcutActions actions)
         {
             if (e.Handled) return;
             // Allow text input controls to function normally
@@ -203,47 +201,46 @@ namespace Uviewer
             switch (e.Key)
             {
                 case Windows.System.VirtualKey.S:
-                    if (ctrlPressed) _ = AddToFavoritesAsync();
-                    else if (!_isTextMode) // Enable in EPUB mode, keep disabled in raw text mode
+                    if (ctrlPressed) await actions.AddToFavoritesAsync();
+                    else if (!actions.IsTextMode) // Enable in EPUB mode, keep disabled in raw text mode
                     {
-                        SharpenButton.IsChecked = !(SharpenButton.IsChecked ?? false);
-                        SharpenButton_Click(SharpenButton, new RoutedEventArgs());
+                        actions.ToggleSharpening();
                     }
                     e.Handled = true;
                     break;
 
                 case Windows.System.VirtualKey.G:
-                    if (!_isTextMode && !_isEpubMode && _currentPdfDocument != null)
+                    if (!actions.IsTextMode && !actions.IsEpubMode && actions.HasPdfDocument)
                     {
-                        _ = ShowGoToLineDialog();
+                        await actions.ShowGoToLineDialog();
                         e.Handled = true;
                     }
                     break;
 
                 case Windows.System.VirtualKey.Back:
-                    await NavigateToParentFolderAsync();
+                    await actions.NavigateToParentFolderAsync();
                     e.Handled = true;
                     break;
 
                 case Windows.System.VirtualKey.O when ctrlPressed:
-                    await OpenFileAsync();
+                    await actions.OpenFileAsync();
                     e.Handled = true;
                     break;
 
                 case Windows.System.VirtualKey.B when ctrlPressed:
-                    ToggleSidebar();
+                    actions.ToggleSidebar();
                     e.Handled = true;
                     break;
 
                 case Windows.System.VirtualKey.Add:
                 case (Windows.System.VirtualKey)187: // Main keyboard Plus/Equal
-                    ZoomIn();
+                    actions.ZoomIn();
                     e.Handled = true;
                     break;
 
                 case Windows.System.VirtualKey.Subtract:
                 case (Windows.System.VirtualKey)189: // Main keyboard Minus
-                    ZoomOut();
+                    actions.ZoomOut();
                     e.Handled = true;
                     break;
 
@@ -251,7 +248,7 @@ namespace Uviewer
                 case Windows.System.VirtualKey.NumberPad0:
                     if (!ctrlPressed)
                     {
-                        FitToWindow();
+                        actions.FitToWindow();
                         e.Handled = true;
                     }
                     break;
@@ -260,26 +257,24 @@ namespace Uviewer
                 case Windows.System.VirtualKey.NumberPad1:
                     if (!ctrlPressed)
                     {
-                        ZoomActualButton_Click(sender, new RoutedEventArgs());
+                        actions.ZoomActual();
                         e.Handled = true;
                     }
                     break;
 
                 case Windows.System.VirtualKey.T when !ctrlPressed:
-                    ToggleAlwaysOnTop();
+                    actions.ToggleAlwaysOnTop();
                     e.Handled = true;
                     break;
                 case Windows.System.VirtualKey.D when !ctrlPressed:
-                    GlobalThemeToggleButton_Click(sender, new RoutedEventArgs());
+                    actions.ToggleGlobalTheme();
                     e.Handled = true;
                     break;
                 case (Windows.System.VirtualKey)192: // ` (backtick / OEM_3)
-                    TogglePin();
+                    actions.TogglePin();
                     e.Handled = true;
                     break;
             }
         }
-
-        #endregion
     }
 }
