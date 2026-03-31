@@ -183,7 +183,7 @@ namespace Uviewer
                 _lastIndexFor7zJump = _currentIndex;
             }
 
-            StopAnimatedWebp();
+            _animatedWebpService.Stop();
 
             var entry = _imageEntries[_currentIndex];
 
@@ -423,7 +423,7 @@ namespace Uviewer
             if (_currentIndex < 0 || _currentIndex >= _imageEntries.Count) return;
 
             var entry = _imageEntries[_currentIndex];
-            StopAnimatedWebp(); // 기존 애니메이션 중단
+            _animatedWebpService.Stop(); // 기존 애니메이션 중단
 
             try
             {
@@ -490,7 +490,7 @@ namespace Uviewer
                 }
 
                 // [애니메이션 WebP 처리 부분] 헤더만 읽어서 애니메이션 여부 확인 후 필요시 로드
-                if (IsAnimationSupported(entry))
+                if (_animatedWebpService.IsAnimationSupported(entry))
                 {
                     // 로딩 표시 추가
                     FileNameText.Text += Strings.Loading;
@@ -500,65 +500,15 @@ namespace Uviewer
                         try
                         {
                             if (token.IsCancellationRequested) return;
-
-                            byte[]? imageBytes = null;
-                            if (entry.IsArchiveEntry && entry.ArchiveEntryKey != null)
+                            await _animatedWebpService.StartAsync(entry, MainCanvas, token, _upscaleFactor, _sharpenAmountParam, _sharpenThresholdParam, _unsharpAmount, _unsharpRadius, _sharpenEnabled);
+                            
+                            DispatcherQueue.TryEnqueue(() =>
                             {
-                                imageBytes = await LoadBytesFromArchiveEntryAsync(entry.ArchiveEntryKey, token);
-                            }
-                            else if (entry.FilePath != null)
-                            {
-                                imageBytes = await File.ReadAllBytesAsync(entry.FilePath, token);
-                            }
-
-                            if (imageBytes == null || token.IsCancellationRequested) return;
-
-                            // 애니메이션 프레임 초기화 (Win2D GPU 합성 및 바이트 캐싱 방식)
-                            var (framePixels, delaysMs, w, h) = await TryLoadAnimatedImageFramesNativeAsync(imageBytes);
-                            bool success = framePixels != null;
-
-                            if (token.IsCancellationRequested) return;
-
-                            if (success)
-                            {
-                                _animatedWebpFramePixels = framePixels;
-                                _animatedWebpDelaysMs = delaysMs;
-                                _animatedWebpWidth = w;
-                                _animatedWebpHeight = h;
-
-                                DispatcherQueue.TryEnqueue(() =>
+                                if (!token.IsCancellationRequested)
                                 {
-                                    if (token.IsCancellationRequested) return;
-
-                                    // 현재 인덱스가 일치하는지 확인 (다른 파일로 넘어갔을 경우 방지)
-                                    bool isStillCurrent = false;
-                                    if (entry.IsArchiveEntry)
-                                        isStillCurrent = _currentIndex < _imageEntries.Count && _imageEntries[_currentIndex].ArchiveEntryKey == entry.ArchiveEntryKey;
-                                    else
-                                        isStillCurrent = _currentIndex < _imageEntries.Count && _imageEntries[_currentIndex].FilePath == entry.FilePath;
-
-                                    if (isStillCurrent)
-                                    {
-                                        // 로딩 완료 후 상태바 복구
-                                        UpdateStatusBar(entry, _currentBitmap!);
-                                        StartAnimatedWebpTimer();
-                                    }
-                                    else
-                                    {
-                                        // 이미 다른 이미지로 넘어갔다면 리소스 해제
-                                        StopAnimatedWebp();
-                                    }
-                                });
-                            }
-                            else
-                            {
-                                // 애니메이션이 아니거나 로드 실패 시 상태바 복구
-                                DispatcherQueue.TryEnqueue(() =>
-                                {
-                                    if (token.IsCancellationRequested) return;
                                     UpdateStatusBar(entry, _currentBitmap!);
-                                });
-                            }
+                                }
+                            });
                         }
                         catch
                         {
@@ -586,11 +536,21 @@ namespace Uviewer
 
             if (_imageCache.IsBitmapInCache(bitmap)) return true;
 
-            lock (_animatedWebpSharpenedCache)
-            {
-                if (_animatedWebpSharpenedCache.ContainsValue(bitmap)) return true;
-            }
+            if (_animatedWebpService.IsBitmapInCache(bitmap)) return true;
             return false;
+        }
+
+        private void OnAnimatedWebpFrameUpdated(object? sender, CanvasBitmap newBitmap)
+        {
+            var oldBitmap = _currentBitmap;
+            _currentBitmap = newBitmap;
+
+            if (oldBitmap != null && oldBitmap != newBitmap && !IsBitmapInCache(oldBitmap))
+            {
+                _imageCache.SafeDisposeBitmap(oldBitmap);
+            }
+
+            MainCanvas.Invalidate();
         }
 
         private async Task DisplaySideBySideImagesAsync(CancellationToken token)
@@ -831,17 +791,7 @@ namespace Uviewer
             // [추가] 샤픈 옵션을 바꿀 때 캐시를 초기화하여 충돌 방지
             _imageCache.ClearSharpenedCache(_currentBitmap, _leftBitmap, _rightBitmap);
 
-            lock (_animatedWebpSharpenedCache)
-            {
-                foreach (var bmp in _animatedWebpSharpenedCache.Values)
-                {
-                    if (bmp != _currentBitmap && bmp != _leftBitmap && bmp != _rightBitmap)
-                    {
-                        _imageCache.SafeDisposeBitmap(bmp);
-                    }
-                }
-                _animatedWebpSharpenedCache.Clear();
-            }
+            _animatedWebpService.Stop();
 
             // EPUB 및 텍스트 모드 이미지 캐시 초기화
             foreach (var bmp in _epubImageCache.Values)
@@ -1564,17 +1514,12 @@ namespace Uviewer
 
             _imageCache?.ClearAll();
 
-            lock (_animatedWebpSharpenedCache)
-            {
-                foreach (var bmp in _animatedWebpSharpenedCache.Values) _imageCache?.SafeDisposeBitmap(bmp);
-                _animatedWebpSharpenedCache.Clear();
-            }
+            _animatedWebpService.Stop();
 
             _currentBitmap = null;
             _leftBitmap = null;
             _rightBitmap = null;
 
-            StopAnimatedWebp();
 
             if (MainCanvas != null) MainCanvas.Invalidate();
             if (LeftCanvas != null) LeftCanvas.Invalidate();

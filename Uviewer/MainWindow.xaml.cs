@@ -121,6 +121,7 @@ namespace Uviewer
         private readonly Services.ZoomService _zoomService = new();
         private readonly Services.ISharpeningService _sharpeningService = new Services.SharpeningService();
         private Services.FastNavigationService _fastNavigationService = null!;
+        private readonly IAnimatedWebpService _animatedWebpService = null!;
 
         // Loading and navigation state
         private CancellationTokenSource? _imageLoadingCts;
@@ -316,6 +317,8 @@ namespace Uviewer
                 appWindow2.Changed += AppWindow_Changed;
 
                 _fastNavigationService = new Services.FastNavigationService(DispatcherQueue);
+                _animatedWebpService = new Services.AnimatedWebpService(_sharpeningService, DispatcherQueue);
+                _animatedWebpService.FrameUpdated += OnAnimatedWebpFrameUpdated;
 
                 // Load saved window position, size and maximized state
                 bool hasLoadedSettings = ApplyWindowSettings(appWindow2);
@@ -420,7 +423,7 @@ namespace Uviewer
                 {
                     // Stop all timers
                     _overlayManager.StopAll();
-                    _animatedWebpTimer?.Stop();
+                    _animatedWebpService.Stop();
 
 
                     // Cancel any ongoing operations
@@ -475,6 +478,7 @@ namespace Uviewer
 
                     // Dispose cancellation tokens
                     _imageLoadingCts?.Dispose();
+                    _animatedWebpService.Dispose();
                 }
                 catch (Exception ex)
                 {
@@ -482,11 +486,6 @@ namespace Uviewer
                 }
             };
 
-
-            // Initialize animated WebP timer
-            _animatedWebpTimer = DispatcherQueue.GetForCurrentThread().CreateTimer();
-            _animatedWebpTimer.Interval = TimeSpan.FromMilliseconds(100);
-            _animatedWebpTimer.Tick += AnimatedWebpTimer_Tick;
 
             // Initialize notification timer
             _notificationTimer = DispatcherQueue.GetForCurrentThread().CreateTimer();
@@ -1488,17 +1487,7 @@ var image = new Microsoft.UI.Xaml.Controls.Image
             {
                 _imageCache?.ClearSharpenedCache(_currentBitmap, _leftBitmap, _rightBitmap);
                 
-                lock (_animatedWebpSharpenedCache)
-                {
-                    foreach (var bmp in _animatedWebpSharpenedCache.Values)
-                    {
-                        if (bmp != _currentBitmap && bmp != _leftBitmap && bmp != _rightBitmap)
-                        {
-                            _imageCache?.SafeDisposeBitmap(bmp);
-                        }
-                    }
-                    _animatedWebpSharpenedCache.Clear();
-                }
+            _animatedWebpService.Stop();
 
                 // EPUB 및 텍스트 모드 이미지 캐시 초기화
                 foreach (var bmp in _epubImageCache.Values)

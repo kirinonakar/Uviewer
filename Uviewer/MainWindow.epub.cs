@@ -196,7 +196,7 @@ namespace Uviewer
              try
              {
                  InitializeEpub();
-                 StopAnimatedWebp();
+                 _animatedWebpService.Stop();
 
                  // Ensure navigation token is fresh for vertical mode
                  CancelAndResetGlobalTextCts();
