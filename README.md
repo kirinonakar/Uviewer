@@ -55,8 +55,7 @@
 
 #### 🖼️ Image Viewing Options
 - **Auto Side-by-Side in Archive**: When enabled, the viewer automatically applies side-by-side (2-page) view for portrait-oriented images (height > width * 1.2) when browsing archives.
-  - Toggle via Settings menu (Settings icon → Auto Side-by-Side in Archive)
-  - Toggle via Settings menu (Settings icon → Auto Side-by-Side in Archive)
+  - Toggle via Settings menu
   - Setting persists across sessions.
 
 #### 🎨 Image Sharpening & Upscaling
