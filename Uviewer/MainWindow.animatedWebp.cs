@@ -30,91 +30,6 @@ namespace Uviewer
 
         private readonly Dictionary<int, CanvasBitmap> _animatedWebpSharpenedCache = new();
 
-        #region Sharpened Image Caching
-
-        private async Task<CanvasBitmap?> ApplySharpenToBitmapAsync(CanvasBitmap originalBitmap, CanvasControl canvas, bool skipUpscale = false)
-        {
-            try
-            {
-                var device = originalBitmap.Device;
-                if (device == null)
-                    return originalBitmap;
-
-                // 1. skipUpscale이 아닐 때만 슬라이더에 지정된 비율 적용
-                float currentUpscale = (!skipUpscale && _upscaleFactor > 1.0f) ? _upscaleFactor : 1.0f;
-
-                float finalWidth = (float)originalBitmap.Size.Width * currentUpscale;
-                float finalHeight = (float)originalBitmap.Size.Height * currentUpscale;
-
-                ICanvasImage currentEffect = originalBitmap;
-
-                // 1. 업스케일 (ScaleEffect 사용 - 기본적으로 HighQualityCubic 적용됨)
-                if (currentUpscale > 1.0f)
-                {
-                    currentEffect = new ScaleEffect
-                    {
-                        Source = currentEffect,
-                        Scale = new System.Numerics.Vector2(currentUpscale, currentUpscale),
-                        InterpolationMode = CanvasImageInterpolation.HighQualityCubic
-                    };
-                }
-
-                // 2. 샤프닝 (SharpenEffect)
-                if (_sharpenAmountParam > 0.0f)
-                {
-                    currentEffect = new SharpenEffect
-                    {
-                        Source = currentEffect,
-                        Amount = _sharpenAmountParam,
-                        Threshold = _sharpenThresholdParam
-                    };
-                }
-
-                // 3. 언샵 마스크 (Manual Implementation using GaussianBlur + ArithmeticComposite)
-                if (_unsharpAmount > 0.0f)
-                {
-                    var blurred = new GaussianBlurEffect
-                    {
-                        Source = currentEffect,
-                        BlurAmount = _unsharpRadius,
-                        Optimization = EffectOptimization.Speed
-                    };
-
-                    currentEffect = new ArithmeticCompositeEffect
-                    {
-                        Source1 = currentEffect,
-                        Source2 = blurred,
-                        MultiplyAmount = 0.0f,
-                        Source1Amount = 1.0f + _unsharpAmount,
-                        Source2Amount = -_unsharpAmount,
-                        Offset = 0.0f
-                    };
-                }
-
-                // 4. 최종 결과물 렌더링
-                var finalTarget = new CanvasRenderTarget(device, finalWidth, finalHeight, originalBitmap.Dpi);
-                using (var ds = finalTarget.CreateDrawingSession())
-                {
-                    ds.Antialiasing = CanvasAntialiasing.Antialiased;
-                    ds.DrawImage(currentEffect);
-                }
-
-                // 메모리 관리 (업스케일이 진행되었다면 중간 파이프라인에서 생성된 리소스들은 GC가 수거)
-                return finalTarget;
-            }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"Error in Processing: {ex.Message}");
-                return originalBitmap;
-            }
-        }
-
-        private void CacheSharpenedImage(int index, CanvasBitmap sharpenedBitmap)
-        {
-            _imageCache.CacheSharpenedImage(index, sharpenedBitmap, _currentIndex);
-        }
-
-        #endregion
 
 
         private bool IsAnimationSupported(ImageEntry entry)
@@ -227,7 +142,7 @@ namespace Uviewer
                             _animatedWebpHeight,
                             DirectXPixelFormat.B8G8R8A8UIntNormalized);
 
-                        newBitmap = await ApplySharpenToBitmapAsync(originalBitmap, MainCanvas, skipUpscale: false);
+                        newBitmap = await _sharpeningService.ApplySharpenToBitmapAsync(originalBitmap, _upscaleFactor, _sharpenAmountParam, _sharpenThresholdParam, _unsharpAmount, _unsharpRadius, skipUpscale: false);
 
                         if (_animatedWebpFramePixels == null || MainCanvas.Device == null)
                         {

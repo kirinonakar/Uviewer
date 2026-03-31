@@ -119,6 +119,7 @@ namespace Uviewer
         // Refactored Services
         private readonly Services.AppSettingsService _appSettingsService = new();
         private readonly Services.ZoomService _zoomService = new();
+        private readonly Services.ISharpeningService _sharpeningService = new Services.SharpeningService();
         private Services.FastNavigationService _fastNavigationService = null!;
 
         // Loading and navigation state

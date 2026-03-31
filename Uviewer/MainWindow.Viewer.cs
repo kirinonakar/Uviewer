@@ -767,7 +767,7 @@ namespace Uviewer
                             var sharpenedBitmap = _imageCache.GetSharpenedImage(entryIndex);
                             if (sharpenedBitmap != null) return sharpenedBitmap;
 
-                            var sharpened = await ApplySharpenToBitmapAsync(cachedBitmap, canvas, skipUpscale: false);
+                            var sharpened = await _sharpeningService.ApplySharpenToBitmapAsync(cachedBitmap, _upscaleFactor, _sharpenAmountParam, _sharpenThresholdParam, _unsharpAmount, _unsharpRadius, skipUpscale: false);
                             if (sharpened != null)
                             {
                                 _imageCache.CacheSharpenedImage(entryIndex, sharpened, _currentIndex);
@@ -822,7 +822,7 @@ namespace Uviewer
                     var sharpened = _imageCache.GetSharpenedImage(entryIndex);
                     if (sharpened != null) return sharpened;
 
-                    sharpened = await ApplySharpenToBitmapAsync(originalBitmap, canvas, skipUpscale: false);
+                    sharpened = await _sharpeningService.ApplySharpenToBitmapAsync(originalBitmap, _upscaleFactor, _sharpenAmountParam, _sharpenThresholdParam, _unsharpAmount, _unsharpRadius, skipUpscale: false);
                     if (sharpened != null && sharpened != originalBitmap)
                     {
                         _imageCache.CacheSharpenedImage(entryIndex, sharpened, _currentIndex);
