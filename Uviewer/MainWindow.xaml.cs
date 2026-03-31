@@ -1526,6 +1526,22 @@ namespace Uviewer
             
             if (nextItem != null)
             {
+                // [Optimization] If the next file is already in our loaded image list (same folder), 
+                // just jump to its index instead of re-scanning the folder.
+                if (_imageEntries != null && _imageEntries.Count > 0 && !nextItem.IsDirectory && !nextItem.IsArchive && !nextItem.IsPdf)
+                {
+                    int index = _imageEntries.FindIndex(e => e.FilePath == nextItem.FullPath);
+                    if (index != -1)
+                    {
+                        _currentIndex = index;
+                        await DisplayCurrentImageAsync();
+                        SyncExplorerSelection(nextItem);
+                        RootGrid.Focus(FocusState.Programmatic);
+                        return;
+                    }
+                }
+
+                // If it's a different folder, archive, or not in the current list, handle normally (this re-scans if needed)
                 await HandleFileSelectionAsync(nextItem);
                 SyncExplorerSelection(nextItem);
             }
