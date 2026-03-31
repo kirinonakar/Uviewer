@@ -202,7 +202,7 @@ namespace Uviewer.Services
             {
                 case Windows.System.VirtualKey.S:
                     if (ctrlPressed) await actions.AddToFavoritesAsync();
-                    else if (!actions.IsTextMode) // Enable in EPUB mode, keep disabled in raw text mode
+                    else if (!actions.IsTextMode || actions.IsAozoraMode || actions.IsVerticalMode) // Enable in EPUB, Aozora, and Vertical modes, keep disabled in raw text mode
                     {
                         actions.ToggleSharpening();
                     }

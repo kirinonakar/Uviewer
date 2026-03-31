@@ -1852,6 +1852,7 @@ namespace Uviewer
             }
         }
         bool IKeyboardShortcutActions.IsTextMode => _isTextMode;
+        bool IKeyboardShortcutActions.IsAozoraMode => _isAozoraMode;
         bool IKeyboardShortcutActions.ShouldInvertControls => this.ShouldInvertControls;
         int IKeyboardShortcutActions.CurrentEpubChapterIndex 
         { 

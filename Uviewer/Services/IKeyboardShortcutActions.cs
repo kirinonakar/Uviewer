@@ -7,8 +7,9 @@ namespace Uviewer.Services
         bool IsColorPickerOpen { get; }
         bool IsFullscreen { get; }
         bool IsEpubMode { get; }
-        bool IsVerticalMode { get; set; }
         bool IsTextMode { get; }
+        bool IsAozoraMode { get; }
+        bool IsVerticalMode { get; set; }
         bool ShouldInvertControls { get; }
         int CurrentEpubChapterIndex { get; set; }
         int EpubSpineCount { get; }
