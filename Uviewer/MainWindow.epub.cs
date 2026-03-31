@@ -36,6 +36,7 @@ namespace Uviewer
         private string? _epubTocPath;
         private object _epubLock = new object();
         private SemaphoreSlim _epubArchiveLock = new SemaphoreSlim(1, 1);
+        private SemaphoreSlim _epubNavigationLock = new SemaphoreSlim(1, 1);
 
         private bool _isEpubMode = false;
         public int PendingEpubChapterIndex { get; set; } = -1;
@@ -784,10 +785,14 @@ namespace Uviewer
         private void DrawEpubCanvasInternal(CanvasControl sender, CanvasDrawEventArgs args, string? imagePath, HorizontalAlignment align = HorizontalAlignment.Center)
         {
             if (string.IsNullOrEmpty(imagePath)) return;
-            if (!_epubImageCache.TryGetValue(imagePath, out var bitmap) || bitmap == null)
+            CanvasBitmap? bitmap = null;
+            lock (_epubLock)
             {
-                // 로딩 중이면 표시하지 않음 (LoadEpubImageForWin2DAsync가 완료 시 Invalidate 호출)
-                return;
+                if (!_epubImageCache.TryGetValue(imagePath, out bitmap) || bitmap == null)
+                {
+                    // 로딩 중이면 표시하지 않음 (LoadEpubImageForWin2DAsync가 완료 시 Invalidate 호출)
+                    return;
+                }
             }
 
             var ds = args.DrawingSession;
@@ -865,7 +870,8 @@ namespace Uviewer
         private void EpubTouchOverlay_PointerWheelChanged(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
         {
             if (!_isEpubMode) return;
-            DispatcherQueue.TryEnqueue(() => EpubTextCanvas?.Focus(Microsoft.UI.Xaml.FocusState.Programmatic));
+            // [수정] 세로 모드와 동일하게 RootGrid에 포커스 (EpubTextCanvas 포커스 시 잔상/깜박임 방지)
+            RootGrid.Focus(Microsoft.UI.Xaml.FocusState.Programmatic);
             var delta = e.GetCurrentPoint(EpubTouchOverlay).Properties.MouseWheelDelta;
             if (delta > 0) 
             {
@@ -931,9 +937,13 @@ namespace Uviewer
                     }
                 }
 
-                this.DispatcherQueue.TryEnqueue(() =>
+                lock (_epubLock)
                 {
                     _epubImageCache[imagePath] = finalBitmap;
+                }
+
+                this.DispatcherQueue.TryEnqueue(() =>
+                {
                     if (_isEpubMode && CurrentEpubWin2DPage?.IsImagePage == true)
                     {
                          EpubCanvasDisplay?.Invalidate();
@@ -951,15 +961,18 @@ namespace Uviewer
         private void ShowEpubImagePage(EpubWin2DPage page)
         {
             if (page == null || !page.IsImagePage) return;
-            EpubTextCanvas.Visibility = Visibility.Collapsed;
-            EpubImageHost.Visibility = Visibility.Visible;
+            
+            // [추가] 가시성 상태가 이미 동일하면 변경하지 않음 (불필요한 레이아웃 갱신 방지)
+            if (EpubTextCanvas.Visibility != Visibility.Collapsed) EpubTextCanvas.Visibility = Visibility.Collapsed;
+            if (EpubImageHost.Visibility != Visibility.Visible) EpubImageHost.Visibility = Visibility.Visible;
 
             if (!_isSideBySideMode || !_isEpubShowingTwoPages)
             {
                 // Single image mode
-                EpubCanvasDisplay.Visibility = Visibility.Visible;
-                EpubCanvasDisplayLeft.Visibility = Visibility.Collapsed;
-                EpubCanvasDisplayRight.Visibility = Visibility.Collapsed;
+                if (EpubCanvasDisplay.Visibility != Visibility.Visible) EpubCanvasDisplay.Visibility = Visibility.Visible;
+                if (EpubCanvasDisplayLeft.Visibility != Visibility.Collapsed) EpubCanvasDisplayLeft.Visibility = Visibility.Collapsed;
+                if (EpubCanvasDisplayRight.Visibility != Visibility.Collapsed) EpubCanvasDisplayRight.Visibility = Visibility.Collapsed;
+                
                 EpubImageLeftColumn.Width = new GridLength(1, GridUnitType.Star);
                 EpubImageRightColumn.Width = new GridLength(0);
 
@@ -969,9 +982,10 @@ namespace Uviewer
             else
             {
                 // Side-by-side mode
-                EpubCanvasDisplay.Visibility = Visibility.Collapsed;
-                EpubCanvasDisplayLeft.Visibility = Visibility.Visible;
-                EpubCanvasDisplayRight.Visibility = Visibility.Visible;
+                if (EpubCanvasDisplay.Visibility != Visibility.Collapsed) EpubCanvasDisplay.Visibility = Visibility.Collapsed;
+                if (EpubCanvasDisplayLeft.Visibility != Visibility.Visible) EpubCanvasDisplayLeft.Visibility = Visibility.Visible;
+                if (EpubCanvasDisplayRight.Visibility != Visibility.Visible) EpubCanvasDisplayRight.Visibility = Visibility.Visible;
+                
                 EpubImageLeftColumn.Width = new GridLength(1, GridUnitType.Star);
                 EpubImageRightColumn.Width = new GridLength(1, GridUnitType.Star);
 
@@ -1119,49 +1133,77 @@ namespace Uviewer
         public async Task NavigateEpubAsync(int direction)
         {
             if (!_isEpubMode) return;
+            if (!await _epubNavigationLock.WaitAsync(0)) return;
 
-            int step = direction;
-            if (_isSideBySideMode && _isEpubShowingTwoPages) step = direction * 2;
-
-            int targetChapter = _currentEpubChapterIndex;
-            int targetPage = _currentEpubPageIndex + step;
-
-            while (true)
+            try
             {
-                int currentLimit = (targetChapter == _currentEpubChapterIndex)
-                    ? _epubWin2DPages.Count
-                    : (_epubPreloadCache.TryGetValue(targetChapter, out var cached) ? cached.Count : 0);
+                int step = direction;
+                if (_isSideBySideMode && _isEpubShowingTwoPages) step = direction * 2;
 
-                if (targetPage >= currentLimit && targetChapter < _epubSpine.Count - 1)
-                {
-                    targetPage -= currentLimit;
-                    targetChapter++;
-                    await ForceLoadChapterPagesAsync(targetChapter);
-                    continue;
-                }
+                int targetChapter = _currentEpubChapterIndex;
+                int targetPage = _currentEpubPageIndex + step;
 
-                if (targetPage < 0 && targetChapter > 0)
+                while (true)
                 {
-                    targetChapter--;
-                    await ForceLoadChapterPagesAsync(targetChapter);
-                    int prevLimit = (targetChapter == _currentEpubChapterIndex)
+                    int currentLimit = (targetChapter == _currentEpubChapterIndex)
                         ? _epubWin2DPages.Count
-                        : (_epubPreloadCache.TryGetValue(targetChapter, out var cachedPrev) ? cachedPrev.Count : 0);
-                    targetPage += prevLimit;
-                    continue;
-                }
-                break;
-            }
+                        : (_epubPreloadCache.TryGetValue(targetChapter, out var cached) ? cached.Count : 0);
 
-            if (targetChapter != _currentEpubChapterIndex)
-            {
-                _currentEpubChapterIndex = targetChapter;
-                await LoadEpubChapterAsync(targetChapter, targetPage: targetPage);
+                    if (targetPage >= currentLimit && targetChapter < _epubSpine.Count - 1)
+                    {
+                        targetPage -= currentLimit;
+                        targetChapter++;
+                        await ForceLoadChapterPagesAsync(targetChapter);
+                        continue;
+                    }
+
+                    if (targetPage < 0 && targetChapter > 0)
+                    {
+                        targetChapter--;
+                        await ForceLoadChapterPagesAsync(targetChapter);
+                        int prevLimit = (targetChapter == _currentEpubChapterIndex)
+                            ? _epubWin2DPages.Count
+                            : (_epubPreloadCache.TryGetValue(targetChapter, out var cachedPrev) ? cachedPrev.Count : 0);
+                        targetPage += prevLimit;
+                        continue;
+                    }
+                    break;
+                }
+
+                // [추가] 이미지 미리 로드 - 세로 모드 로직 참고 (깜박임 방지)
+                var targetPgObj = GetEpubWin2DPage(targetChapter, targetPage);
+                if (targetPgObj != null && targetPgObj.IsImagePage)
+                {
+                    await LoadEpubImageForWin2DAsync(targetPgObj.ImagePath);
+                    if (_isSideBySideMode)
+                    {
+                        var pg2 = GetEpubWin2DPage(targetChapter, targetPage + 1);
+                        if (pg2 == null && targetChapter < _epubSpine.Count - 1 && targetPage + 1 >= (targetChapter == _currentEpubChapterIndex ? _epubWin2DPages.Count : _epubPreloadCache[targetChapter].Count))
+                        {
+                            // 다음 챕터의 첫 페이지 확인
+                            pg2 = GetEpubWin2DPage(targetChapter + 1, 0);
+                        }
+                        if (pg2 != null && pg2.IsImagePage)
+                        {
+                            await LoadEpubImageForWin2DAsync(pg2.ImagePath);
+                        }
+                    }
+                }
+
+                if (targetChapter != _currentEpubChapterIndex)
+                {
+                    _currentEpubChapterIndex = targetChapter;
+                    await LoadEpubChapterAsync(targetChapter, targetPage: targetPage);
+                }
+                else
+                {
+                    int finalIndex = Math.Clamp(targetPage, 0, _epubWin2DPages.Count - 1);
+                    SetEpubPageIndex(finalIndex);
+                }
             }
-            else
+            finally
             {
-                int finalIndex = Math.Clamp(targetPage, 0, _epubWin2DPages.Count - 1);
-                SetEpubPageIndex(finalIndex);
+                _epubNavigationLock.Release();
             }
         }
 
@@ -1297,9 +1339,7 @@ namespace Uviewer
                     }
                 }
 
-                // 가로 모드: Win2D 캔버스 활성화
-                EpubTextCanvas.Visibility = Visibility.Visible;
-                EpubImageHost.Visibility = Visibility.Collapsed;
+                // 가로 모드: SetEpubPageIndex에서 가시성을 결정하므로 여기서 직접 호출하지 않음
 
                 int finalTargetPage = 0;
 
@@ -1386,7 +1426,9 @@ namespace Uviewer
                 }
 
                 _isEpubShowingTwoPages = nextIsImage;
-                EpubTextCanvas.Visibility = Visibility.Collapsed;
+                
+                if (EpubTextCanvas.Visibility != Visibility.Collapsed) EpubTextCanvas.Visibility = Visibility.Collapsed;
+                
                 // 연속 이미지 SBS 처리
                 if (_isSideBySideMode)
                 {
@@ -1397,8 +1439,9 @@ namespace Uviewer
             else
             {
                 // 텍스트 페이지: Win2D 캐단스
-                EpubImageHost.Visibility = Visibility.Collapsed;
-                EpubTextCanvas.Visibility = Visibility.Visible;
+                if (EpubImageHost.Visibility != Visibility.Collapsed) EpubImageHost.Visibility = Visibility.Collapsed;
+                if (EpubTextCanvas.Visibility != Visibility.Visible) EpubTextCanvas.Visibility = Visibility.Visible;
+                
                 EpubTextCanvas.Invalidate();
 
                 _isEpubShowingTwoPages = false;
