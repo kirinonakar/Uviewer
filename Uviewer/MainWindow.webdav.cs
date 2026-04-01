@@ -67,7 +67,7 @@ namespace Uviewer
                 Value = 443,
                 Minimum = 1,
                 Maximum = 65535,
-                SpinButtonPlacementMode = NumberBoxSpinButtonPlacementMode.Compact,
+                SpinButtonPlacementMode = NumberBoxSpinButtonPlacementMode.Hidden,
                 Margin = new Thickness(0, 0, 0, 8)
             };
             var idBox = new TextBox
