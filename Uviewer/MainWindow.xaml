@@ -44,8 +44,8 @@
                     <Setter Property="BorderThickness" Value="0" />
                     <Setter Property="Padding" Value="4" />
                     <Setter Property="CornerRadius" Value="4" />
-                    <Setter Property="MinWidth" Value="32" />
-                    <Setter Property="MinHeight" Value="32" />
+                    <Setter Property="MinWidth" Value="36" />
+                    <Setter Property="MinHeight" Value="36" />
                 </Style>
 
                 <Style x:Key="ToolbarToggleButtonStyle" TargetType="ToggleButton">
@@ -53,8 +53,8 @@
                     <Setter Property="BorderThickness" Value="0" />
                     <Setter Property="Padding" Value="4" />
                     <Setter Property="CornerRadius" Value="4" />
-                    <Setter Property="MinWidth" Value="32" />
-                    <Setter Property="MinHeight" Value="32" />
+                    <Setter Property="MinWidth" Value="36" />
+                    <Setter Property="MinHeight" Value="36" />
                 </Style>
 
                 <DataTemplate x:Key="TextItemTemplate">
