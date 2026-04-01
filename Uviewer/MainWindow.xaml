@@ -476,6 +476,8 @@
                     <FontIcon Glyph="&#xE761;" FontSize="14"/>
                 </Button>
 
+                <AppBarSeparator/>
+
                 <Button x:Name="FullscreenButton" Click="FullscreenButton_Click" ToolTipService.ToolTip="전체화면(F11)">
                     <FontIcon x:Name="FullscreenIcon" Glyph="&#xE740;" FontSize="14"/>
                 </Button>
