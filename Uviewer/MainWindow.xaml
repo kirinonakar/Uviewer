@@ -23,26 +23,47 @@
               PointerExited="RootGrid_PointerExited"
               PointerPressed="RootGrid_PointerPressed">
         <Grid.Resources>
-            <Style x:Key="ToolbarButtonStyle" TargetType="Button">
-                <Setter Property="Background" Value="Transparent" />
-                <Setter Property="BorderThickness" Value="0" />
-                <Setter Property="Padding" Value="4" />
-                <Setter Property="CornerRadius" Value="4" />
-            </Style>
+            <ResourceDictionary>
+                <ResourceDictionary.ThemeDictionaries>
+                    <ResourceDictionary x:Key="Light">
+                        <SolidColorBrush x:Key="ButtonBackgroundPointerOver" Color="#15000000" />
+                        <SolidColorBrush x:Key="ButtonBackgroundPressed" Color="#25000000" />
+                        <SolidColorBrush x:Key="ToggleButtonBackgroundPointerOver" Color="#15000000" />
+                        <SolidColorBrush x:Key="ToggleButtonBackgroundPressed" Color="#25000000" />
+                    </ResourceDictionary>
+                    <ResourceDictionary x:Key="Dark">
+                        <SolidColorBrush x:Key="ButtonBackgroundPointerOver" Color="#15FFFFFF" />
+                        <SolidColorBrush x:Key="ButtonBackgroundPressed" Color="#25FFFFFF" />
+                        <SolidColorBrush x:Key="ToggleButtonBackgroundPointerOver" Color="#15FFFFFF" />
+                        <SolidColorBrush x:Key="ToggleButtonBackgroundPressed" Color="#25FFFFFF" />
+                    </ResourceDictionary>
+                </ResourceDictionary.ThemeDictionaries>
 
-            <Style x:Key="ToolbarToggleButtonStyle" TargetType="ToggleButton">
-                <Setter Property="Background" Value="Transparent" />
-                <Setter Property="BorderThickness" Value="0" />
-                <Setter Property="Padding" Value="4" />
-                <Setter Property="CornerRadius" Value="4" />
-            </Style>
+                <Style x:Key="ToolbarButtonStyle" TargetType="Button">
+                    <Setter Property="Background" Value="Transparent" />
+                    <Setter Property="BorderThickness" Value="0" />
+                    <Setter Property="Padding" Value="4" />
+                    <Setter Property="CornerRadius" Value="4" />
+                    <Setter Property="MinWidth" Value="32" />
+                    <Setter Property="MinHeight" Value="32" />
+                </Style>
 
-            <DataTemplate x:Key="TextItemTemplate">
-                <TextBlock TextWrapping="Wrap" HorizontalAlignment="Left" />
-            </DataTemplate>
-            <DataTemplate x:Key="AozoraItemTemplate">
-                <RichTextBlock IsTextSelectionEnabled="False" TextWrapping="Wrap" HorizontalAlignment="Left" Margin="0,0,0,10" />
-            </DataTemplate>
+                <Style x:Key="ToolbarToggleButtonStyle" TargetType="ToggleButton">
+                    <Setter Property="Background" Value="Transparent" />
+                    <Setter Property="BorderThickness" Value="0" />
+                    <Setter Property="Padding" Value="4" />
+                    <Setter Property="CornerRadius" Value="4" />
+                    <Setter Property="MinWidth" Value="32" />
+                    <Setter Property="MinHeight" Value="32" />
+                </Style>
+
+                <DataTemplate x:Key="TextItemTemplate">
+                    <TextBlock TextWrapping="Wrap" HorizontalAlignment="Left" />
+                </DataTemplate>
+                <DataTemplate x:Key="AozoraItemTemplate">
+                    <RichTextBlock IsTextSelectionEnabled="False" TextWrapping="Wrap" HorizontalAlignment="Left" Margin="0,0,0,10" />
+                </DataTemplate>
+            </ResourceDictionary>
         </Grid.Resources>
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
@@ -64,6 +85,10 @@
               Background="{ThemeResource LayerFillColorDefaultBrush}"
               BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="0,0,0,1"
               IsTabStop="False">
+            <Grid.Resources>
+                <Style TargetType="Button" BasedOn="{StaticResource ToolbarButtonStyle}" />
+                <Style TargetType="ToggleButton" BasedOn="{StaticResource ToolbarToggleButtonStyle}" />
+            </Grid.Resources>
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="Auto"/>
                 <ColumnDefinition Width="*"/>
@@ -71,24 +96,6 @@
             </Grid.ColumnDefinitions>
 
             <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="0" VerticalAlignment="Center">
-                <StackPanel.Resources>
-                    <ResourceDictionary>
-                        <ResourceDictionary.ThemeDictionaries>
-                            <ResourceDictionary x:Key="Light">
-                                <SolidColorBrush x:Key="ButtonBackgroundPointerOver" Color="#15000000" />
-                                <SolidColorBrush x:Key="ButtonBackgroundPressed" Color="#25000000" />
-                                <SolidColorBrush x:Key="ToggleButtonBackgroundPointerOver" Color="#15000000" />
-                                <SolidColorBrush x:Key="ToggleButtonBackgroundPressed" Color="#25000000" />
-                            </ResourceDictionary>
-                            <ResourceDictionary x:Key="Dark">
-                                <SolidColorBrush x:Key="ButtonBackgroundPointerOver" Color="#15FFFFFF" />
-                                <SolidColorBrush x:Key="ButtonBackgroundPressed" Color="#25FFFFFF" />
-                                <SolidColorBrush x:Key="ToggleButtonBackgroundPointerOver" Color="#15FFFFFF" />
-                                <SolidColorBrush x:Key="ToggleButtonBackgroundPressed" Color="#25FFFFFF" />
-                            </ResourceDictionary>
-                        </ResourceDictionary.ThemeDictionaries>
-                    </ResourceDictionary>
-                </StackPanel.Resources>
                 <Button x:Name="SettingsButton" Style="{StaticResource ToolbarButtonStyle}" Margin="0,0,0,0" ToolTipService.ToolTip="설정">
                     <FontIcon Glyph="&#xE713;" FontSize="18"/>
                     <Button.Flyout>
@@ -463,6 +470,10 @@
                 </Grid.RowDefinitions>
 
                 <Grid Grid.Row="0" Padding="12,8" Background="{ThemeResource CardBackgroundFillColorSecondaryBrush}">
+                    <Grid.Resources>
+                        <Style TargetType="Button" BasedOn="{StaticResource ToolbarButtonStyle}" />
+                        <Style TargetType="ToggleButton" BasedOn="{StaticResource ToolbarToggleButtonStyle}" />
+                    </Grid.Resources>
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="Auto"/>
                         <ColumnDefinition Width="Auto"/>
