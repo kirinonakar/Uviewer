@@ -23,9 +23,24 @@
               PointerExited="RootGrid_PointerExited"
               PointerPressed="RootGrid_PointerPressed">
         <Grid.Resources>
+            <Style x:Key="ToolbarButtonStyle" TargetType="Button">
+                <Setter Property="Background" Value="Transparent" />
+                <Setter Property="BorderThickness" Value="0" />
+                <Setter Property="Padding" Value="4" />
+                <Setter Property="CornerRadius" Value="4" />
+            </Style>
+
+            <Style x:Key="ToolbarToggleButtonStyle" TargetType="ToggleButton">
+                <Setter Property="Background" Value="Transparent" />
+                <Setter Property="BorderThickness" Value="0" />
+                <Setter Property="Padding" Value="4" />
+                <Setter Property="CornerRadius" Value="4" />
+            </Style>
+
             <DataTemplate x:Key="TextItemTemplate">
                 <TextBlock TextWrapping="Wrap" HorizontalAlignment="Left" />
-            </DataTemplate>            <DataTemplate x:Key="AozoraItemTemplate">
+            </DataTemplate>
+            <DataTemplate x:Key="AozoraItemTemplate">
                 <RichTextBlock IsTextSelectionEnabled="False" TextWrapping="Wrap" HorizontalAlignment="Left" Margin="0,0,0,10" />
             </DataTemplate>
         </Grid.Resources>
@@ -56,7 +71,25 @@
             </Grid.ColumnDefinitions>
 
             <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="0" VerticalAlignment="Center">
-                <Button x:Name="SettingsButton" Background="Transparent" BorderThickness="0" Padding="4" Margin="0,0,0,0" ToolTipService.ToolTip="설정">
+                <StackPanel.Resources>
+                    <ResourceDictionary>
+                        <ResourceDictionary.ThemeDictionaries>
+                            <ResourceDictionary x:Key="Light">
+                                <SolidColorBrush x:Key="ButtonBackgroundPointerOver" Color="#15000000" />
+                                <SolidColorBrush x:Key="ButtonBackgroundPressed" Color="#25000000" />
+                                <SolidColorBrush x:Key="ToggleButtonBackgroundPointerOver" Color="#15000000" />
+                                <SolidColorBrush x:Key="ToggleButtonBackgroundPressed" Color="#25000000" />
+                            </ResourceDictionary>
+                            <ResourceDictionary x:Key="Dark">
+                                <SolidColorBrush x:Key="ButtonBackgroundPointerOver" Color="#15FFFFFF" />
+                                <SolidColorBrush x:Key="ButtonBackgroundPressed" Color="#25FFFFFF" />
+                                <SolidColorBrush x:Key="ToggleButtonBackgroundPointerOver" Color="#15FFFFFF" />
+                                <SolidColorBrush x:Key="ToggleButtonBackgroundPressed" Color="#25FFFFFF" />
+                            </ResourceDictionary>
+                        </ResourceDictionary.ThemeDictionaries>
+                    </ResourceDictionary>
+                </StackPanel.Resources>
+                <Button x:Name="SettingsButton" Style="{StaticResource ToolbarButtonStyle}" Margin="0,0,0,0" ToolTipService.ToolTip="설정">
                     <FontIcon Glyph="&#xE713;" FontSize="18"/>
                     <Button.Flyout>
                         <MenuFlyout Placement="Bottom">
@@ -119,14 +152,14 @@
                         </MenuFlyout>
                     </Button.Flyout>
                 </Button>
-                <ToggleButton x:Name="GlobalThemeToggleButton" Click="GlobalThemeToggleButton_Click" Background="Transparent" BorderThickness="0" Padding="4" Margin="4,0,0,0">
+                <ToggleButton x:Name="GlobalThemeToggleButton" Click="GlobalThemeToggleButton_Click" Style="{StaticResource ToolbarToggleButtonStyle}" Margin="4,0,0,0">
                     <FontIcon x:Name="ThemeIcon" Glyph="&#xE708;" FontSize="18"/>
                 </ToggleButton>
-                <ToggleButton x:Name="PinButton" Click="PinButton_Click" IsChecked="True" Background="Transparent" BorderThickness="0" Padding="4" Margin="4,0,0,0"
+                <ToggleButton x:Name="PinButton" Click="PinButton_Click" IsChecked="True" Style="{StaticResource ToolbarToggleButtonStyle}" Margin="4,0,0,0"
                               ToolTipService.ToolTip="UI 고정/자동숨김 (`)">
                     <FontIcon x:Name="PinIcon" Glyph="&#xE890;" FontSize="18"/>
                 </ToggleButton>
-                <ToggleButton x:Name="AlwaysOnTopButton" Click="AlwaysOnTopButton_Click" Background="Transparent" BorderThickness="0" Padding="4" Margin="4,0,0,0"
+                <ToggleButton x:Name="AlwaysOnTopButton" Click="AlwaysOnTopButton_Click" Style="{StaticResource ToolbarToggleButtonStyle}" Margin="4,0,0,0"
                               ToolTipService.ToolTip="항상 위 (T)">
                     <FontIcon x:Name="AlwaysOnTopIcon" Glyph="&#xE718;" FontSize="18"/>
                 </ToggleButton>
