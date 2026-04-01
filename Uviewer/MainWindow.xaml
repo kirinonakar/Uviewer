@@ -97,7 +97,7 @@
 
             <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="0" VerticalAlignment="Center">
                 <Button x:Name="SettingsButton" Style="{StaticResource ToolbarButtonStyle}" Margin="0,0,0,0" ToolTipService.ToolTip="설정">
-                    <FontIcon Glyph="&#xE713;" FontSize="18"/>
+                    <FontIcon Glyph="&#xE713;" FontSize="14"/>
                     <Button.Flyout>
                         <MenuFlyout Placement="Bottom">
                             <MenuFlyoutItem x:Name="ChangeFontMenuItem" Text="폰트 변경" Click="FontMenu_Click">
@@ -160,15 +160,15 @@
                     </Button.Flyout>
                 </Button>
                 <ToggleButton x:Name="GlobalThemeToggleButton" Click="GlobalThemeToggleButton_Click" Style="{StaticResource ToolbarToggleButtonStyle}" Margin="4,0,0,0">
-                    <FontIcon x:Name="ThemeIcon" Glyph="&#xE708;" FontSize="18"/>
+                    <FontIcon x:Name="ThemeIcon" Glyph="&#xE708;" FontSize="14"/>
                 </ToggleButton>
                 <ToggleButton x:Name="PinButton" Click="PinButton_Click" IsChecked="True" Style="{StaticResource ToolbarToggleButtonStyle}" Margin="4,0,0,0"
                               ToolTipService.ToolTip="UI 고정/자동숨김 (`)">
-                    <FontIcon x:Name="PinIcon" Glyph="&#xE890;" FontSize="18"/>
+                    <FontIcon x:Name="PinIcon" Glyph="&#xE890;" FontSize="14"/>
                 </ToggleButton>
                 <ToggleButton x:Name="AlwaysOnTopButton" Click="AlwaysOnTopButton_Click" Style="{StaticResource ToolbarToggleButtonStyle}" Margin="4,0,0,0"
                               ToolTipService.ToolTip="항상 위 (T)">
-                    <FontIcon x:Name="AlwaysOnTopIcon" Glyph="&#xE718;" FontSize="18"/>
+                    <FontIcon x:Name="AlwaysOnTopIcon" Glyph="&#xE718;" FontSize="14"/>
                 </ToggleButton>
             </StackPanel>
 
@@ -444,11 +444,11 @@
                 </Button>
 
                 <Button x:Name="FullscreenButton" Click="FullscreenButton_Click" ToolTipService.ToolTip="전체화면(F11)">
-                    <FontIcon x:Name="FullscreenIcon" Glyph="&#xE740;" FontSize="18"/>
+                    <FontIcon x:Name="FullscreenIcon" Glyph="&#xE740;" FontSize="14"/>
                 </Button>
 
                 <Button x:Name="CloseWindowButton" Click="CloseWindowButton_Click" ToolTipService.ToolTip="닫기(Esc)">
-                    <FontIcon Glyph="&#xE711;" FontSize="18"/>
+                    <FontIcon Glyph="&#xE711;" FontSize="14"/>
                 </Button>
             </StackPanel>
         </Grid>
@@ -487,17 +487,17 @@
 
                     <Button Grid.Column="0" x:Name="ToggleViewButton" Click="ToggleExplorerViewButton_Click"
                             ToolTipService.ToolTip="썸네일 보기" Padding="6" Margin="0,0,8,0">
-                        <FontIcon Glyph="&#xE80A;" FontSize="16"/>
+                        <FontIcon Glyph="&#xE80A;" FontSize="14"/>
                     </Button>
 
                     <Button Grid.Column="1" x:Name="ParentFolderButton" Click="ParentFolderButton_Click"
                             ToolTipService.ToolTip="상위 폴더로 가기(Backspace)" Padding="6" Margin="0,0,8,0">
-                        <FontIcon Glyph="&#xE72B;" FontSize="16"/>
+                        <FontIcon Glyph="&#xE72B;" FontSize="14"/>
                     </Button>
 
                     <Button Grid.Column="2" x:Name="SidebarFavoritesButton" Click="SidebarFavoritesButton_Click" 
                             ToolTipService.ToolTip="즐겨찾기" Padding="6" Margin="0,0,8,0">
-                        <FontIcon Glyph="&#xE734;" FontSize="16"/>
+                        <FontIcon Glyph="&#xE734;" FontSize="14"/>
                         <Button.Flyout>
                             <Flyout x:Name="SidebarFavoritesFlyout" Placement="Bottom">
                                 <StackPanel Width="400" MaxHeight="500">
@@ -539,7 +539,7 @@
                     
                     <Button Grid.Column="3" x:Name="SidebarRecentButton" Click="SidebarRecentButton_Click" 
                             ToolTipService.ToolTip="최근 이미지" Padding="6" Margin="0,0,8,0">
-                        <FontIcon Glyph="&#xE823;" FontSize="16"/>
+                        <FontIcon Glyph="&#xE823;" FontSize="14"/>
                         <Button.Flyout>
                             <Flyout x:Name="SidebarRecentFlyout" Placement="Bottom">
                                 <ScrollViewer MaxHeight="600" Width="400" 
@@ -555,11 +555,11 @@
 
                     <Button Grid.Column="4" x:Name="BrowseFolderButton" Click="BrowseFolderButton_Click" 
                             ToolTipService.ToolTip="폴더 열기" Padding="6" Margin="0,0,8,0">
-                        <FontIcon Glyph="&#xED25;" FontSize="16"/>
+                        <FontIcon Glyph="&#xED25;" FontSize="14"/>
                     </Button>
 
                     <Button Grid.Column="5" x:Name="SortByDateButton" Padding="6">
-                        <FontIcon x:Name="SortIcon" Glyph="&#xE174;" FontSize="16"/>
+                        <FontIcon x:Name="SortIcon" Glyph="&#xE174;" FontSize="14"/>
                         <Button.Flyout>
                             <MenuFlyout Placement="Bottom">
                                 <RadioMenuFlyoutItem x:Name="SortByNameMenu" 
@@ -575,7 +575,7 @@
                     <Button Grid.Column="7" x:Name="WebDavButton"
                             ToolTipService.ToolTip="webdav 연결" Padding="6"
                             HorizontalAlignment="Right">
-                        <FontIcon Glyph="&#xE774;" FontSize="16"/>
+                        <FontIcon Glyph="&#xE774;" FontSize="14"/>
                         <Button.Flyout>
                             <Flyout x:Name="WebDavFlyout" Placement="Bottom" Opened="WebDavFlyout_Opened">
                                 <ScrollViewer MaxHeight="400" Width="300"
