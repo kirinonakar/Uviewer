@@ -183,9 +183,42 @@
                     <Button.Flyout>
                         <Flyout x:Name="FavoritesFlyout" Placement="Bottom">
                             <StackPanel Width="400" MaxHeight="500">
+                                <StackPanel.Resources>
+                                    <ResourceDictionary>
+                                        <ResourceDictionary.ThemeDictionaries>
+                                            <ResourceDictionary x:Key="Light">
+                                                <SolidColorBrush x:Key="ButtonBackgroundPointerOver" Color="#15000000"/>
+                                                <SolidColorBrush x:Key="ButtonBackgroundPressed" Color="#25000000"/>
+                                                <SolidColorBrush x:Key="ListViewItemBackgroundPointerOver" Color="#15000000"/>
+                                                <SolidColorBrush x:Key="ListViewItemBackgroundPressed" Color="#25000000"/>
+                                            </ResourceDictionary>
+                                            <ResourceDictionary x:Key="Dark">
+                                                <SolidColorBrush x:Key="ButtonBackgroundPointerOver" Color="#15FFFFFF"/>
+                                                <SolidColorBrush x:Key="ButtonBackgroundPressed" Color="#25FFFFFF"/>
+                                                <SolidColorBrush x:Key="ListViewItemBackgroundPointerOver" Color="#15FFFFFF"/>
+                                                <SolidColorBrush x:Key="ListViewItemBackgroundPressed" Color="#25FFFFFF"/>
+                                            </ResourceDictionary>
+                                        </ResourceDictionary.ThemeDictionaries>
+                                    </ResourceDictionary>
+                                </StackPanel.Resources>
                                 <Button x:Name="AddToFavoritesButton" Content="➕ 즐겨찾기 추가" Click="AddToFavoritesMenuItem_Click" 
                                         HorizontalAlignment="Stretch" HorizontalContentAlignment="Left"
-                                        Background="Transparent" BorderThickness="0"/>
+                                        Background="Transparent" BorderThickness="0">
+                                    <Button.Resources>
+                                        <ResourceDictionary>
+                                            <ResourceDictionary.ThemeDictionaries>
+                                                <ResourceDictionary x:Key="Light">
+                                                    <SolidColorBrush x:Key="ButtonBackgroundPointerOver" Color="#15000000"/>
+                                                    <SolidColorBrush x:Key="ButtonBackgroundPressed" Color="#25000000"/>
+                                                </ResourceDictionary>
+                                                <ResourceDictionary x:Key="Dark">
+                                                    <SolidColorBrush x:Key="ButtonBackgroundPointerOver" Color="#15FFFFFF"/>
+                                                    <SolidColorBrush x:Key="ButtonBackgroundPressed" Color="#25FFFFFF"/>
+                                                </ResourceDictionary>
+                                            </ResourceDictionary.ThemeDictionaries>
+                                        </ResourceDictionary>
+                                    </Button.Resources>
+                                </Button>
                                 <Border Height="1" Background="{ThemeResource DividerStrokeColorDefaultBrush}" Margin="0,4"/>
                                 <Pivot x:Name="FavoritesPivot">
                                     <Pivot.HeaderTemplate>
@@ -501,9 +534,42 @@
                         <Button.Flyout>
                             <Flyout x:Name="SidebarFavoritesFlyout" Placement="Bottom">
                                 <StackPanel Width="400" MaxHeight="500">
+                                    <StackPanel.Resources>
+                                        <ResourceDictionary>
+                                            <ResourceDictionary.ThemeDictionaries>
+                                                <ResourceDictionary x:Key="Light">
+                                                    <SolidColorBrush x:Key="ButtonBackgroundPointerOver" Color="#15000000"/>
+                                                    <SolidColorBrush x:Key="ButtonBackgroundPressed" Color="#25000000"/>
+                                                    <SolidColorBrush x:Key="ListViewItemBackgroundPointerOver" Color="#15000000"/>
+                                                    <SolidColorBrush x:Key="ListViewItemBackgroundPressed" Color="#25000000"/>
+                                                </ResourceDictionary>
+                                                <ResourceDictionary x:Key="Dark">
+                                                    <SolidColorBrush x:Key="ButtonBackgroundPointerOver" Color="#15FFFFFF"/>
+                                                    <SolidColorBrush x:Key="ButtonBackgroundPressed" Color="#25FFFFFF"/>
+                                                    <SolidColorBrush x:Key="ListViewItemBackgroundPointerOver" Color="#15FFFFFF"/>
+                                                    <SolidColorBrush x:Key="ListViewItemBackgroundPressed" Color="#25FFFFFF"/>
+                                                </ResourceDictionary>
+                                            </ResourceDictionary.ThemeDictionaries>
+                                        </ResourceDictionary>
+                                    </StackPanel.Resources>
                                     <Button x:Name="SidebarAddToFavoritesButton" Content="➕ 즐겨찾기 추가" Click="AddToFavoritesMenuItem_Click" 
                                             HorizontalAlignment="Stretch" HorizontalContentAlignment="Left"
-                                            Background="Transparent" BorderThickness="0"/>
+                                            Background="Transparent" BorderThickness="0">
+                                        <Button.Resources>
+                                            <ResourceDictionary>
+                                                <ResourceDictionary.ThemeDictionaries>
+                                                    <ResourceDictionary x:Key="Light">
+                                                        <SolidColorBrush x:Key="ButtonBackgroundPointerOver" Color="#15000000"/>
+                                                        <SolidColorBrush x:Key="ButtonBackgroundPressed" Color="#25000000"/>
+                                                    </ResourceDictionary>
+                                                    <ResourceDictionary x:Key="Dark">
+                                                        <SolidColorBrush x:Key="ButtonBackgroundPointerOver" Color="#15FFFFFF"/>
+                                                        <SolidColorBrush x:Key="ButtonBackgroundPressed" Color="#25FFFFFF"/>
+                                                    </ResourceDictionary>
+                                                </ResourceDictionary.ThemeDictionaries>
+                                            </ResourceDictionary>
+                                        </Button.Resources>
+                                    </Button>
                                     <Border Height="1" Background="{ThemeResource DividerStrokeColorDefaultBrush}" Margin="0,4"/>
                                     <Pivot x:Name="SidebarFavoritesPivot">
                                         <Pivot.HeaderTemplate>
@@ -582,9 +648,42 @@
                                              HorizontalScrollBarVisibility="Disabled"
                                              VerticalScrollBarVisibility="Auto">
                                     <StackPanel x:Name="WebDavPanel" Spacing="2">
+                                        <StackPanel.Resources>
+                                            <ResourceDictionary>
+                                                <ResourceDictionary.ThemeDictionaries>
+                                                    <ResourceDictionary x:Key="Light">
+                                                        <SolidColorBrush x:Key="ButtonBackgroundPointerOver" Color="#15000000"/>
+                                                        <SolidColorBrush x:Key="ButtonBackgroundPressed" Color="#25000000"/>
+                                                        <SolidColorBrush x:Key="ListViewItemBackgroundPointerOver" Color="#15000000"/>
+                                                        <SolidColorBrush x:Key="ListViewItemBackgroundPressed" Color="#25000000"/>
+                                                    </ResourceDictionary>
+                                                    <ResourceDictionary x:Key="Dark">
+                                                        <SolidColorBrush x:Key="ButtonBackgroundPointerOver" Color="#15FFFFFF"/>
+                                                        <SolidColorBrush x:Key="ButtonBackgroundPressed" Color="#25FFFFFF"/>
+                                                        <SolidColorBrush x:Key="ListViewItemBackgroundPointerOver" Color="#15FFFFFF"/>
+                                                        <SolidColorBrush x:Key="ListViewItemBackgroundPressed" Color="#25FFFFFF"/>
+                                                    </ResourceDictionary>
+                                                </ResourceDictionary.ThemeDictionaries>
+                                            </ResourceDictionary>
+                                        </StackPanel.Resources>
                                         <Button x:Name="AddWebDavButton" Content="➕ webdav 서버 추가" Click="AddWebDavButton_Click"
                                                 HorizontalAlignment="Stretch" HorizontalContentAlignment="Left"
-                                                Background="Transparent" BorderThickness="0"/>
+                                                Background="Transparent" BorderThickness="0">
+                                            <Button.Resources>
+                                                <ResourceDictionary>
+                                                    <ResourceDictionary.ThemeDictionaries>
+                                                        <ResourceDictionary x:Key="Light">
+                                                            <SolidColorBrush x:Key="ButtonBackgroundPointerOver" Color="#15000000"/>
+                                                            <SolidColorBrush x:Key="ButtonBackgroundPressed" Color="#25000000"/>
+                                                        </ResourceDictionary>
+                                                        <ResourceDictionary x:Key="Dark">
+                                                            <SolidColorBrush x:Key="ButtonBackgroundPointerOver" Color="#15FFFFFF"/>
+                                                            <SolidColorBrush x:Key="ButtonBackgroundPressed" Color="#25FFFFFF"/>
+                                                        </ResourceDictionary>
+                                                    </ResourceDictionary.ThemeDictionaries>
+                                                </ResourceDictionary>
+                                            </Button.Resources>
+                                        </Button>
                                         <Border Height="1" Background="{ThemeResource DividerStrokeColorDefaultBrush}" Margin="0,4"/>
                                         <!-- Saved WebDAV servers will be added dynamically -->
                                     </StackPanel>
