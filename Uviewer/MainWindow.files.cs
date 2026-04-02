@@ -1328,7 +1328,7 @@ namespace Uviewer
                 SplitterGrid.Visibility = _windowState.IsSidebarVisible ? Visibility.Visible : Visibility.Collapsed;
             }
             SidebarColumn.Width = _windowState.IsSidebarVisible ? new GridLength(_windowState.SidebarWidth) : new GridLength(0);
-            SaveWindowSettings();
+            _windowSettingsCoordinator.SaveWindowSettings();
         }
 
         #endregion

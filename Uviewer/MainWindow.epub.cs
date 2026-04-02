@@ -922,7 +922,7 @@ namespace Uviewer
 
                 if (_sharpenEnabled)
                 {
-                    var sharpened = await _sharpeningService.ApplySharpenToBitmapAsync(originalBitmap, _upscaleFactor, _sharpenAmountParam, _sharpenThresholdParam, _unsharpAmount, _unsharpRadius, skipUpscale: false);
+                    var sharpened = await _sharpeningService.ApplySharpenToBitmapAsync(originalBitmap, (float)ImageOptions.UpscaleFactor, (float)ImageOptions.SharpenAmount, (float)ImageOptions.SharpenThreshold, (float)ImageOptions.UnsharpAmount, (float)ImageOptions.UnsharpRadius, skipUpscale: false);
                     if (sharpened != null && sharpened != originalBitmap)
                     {
                         finalBitmap = sharpened;

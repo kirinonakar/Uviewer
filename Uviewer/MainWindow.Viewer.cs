@@ -500,7 +500,7 @@ namespace Uviewer
                         try
                         {
                             if (token.IsCancellationRequested) return;
-                            await _animatedWebpService.StartAsync(entry, MainCanvas, token, _upscaleFactor, _sharpenAmountParam, _sharpenThresholdParam, _unsharpAmount, _unsharpRadius, _sharpenEnabled);
+                            await _animatedWebpService.StartAsync(entry, MainCanvas, token, (float)ImageOptions.UpscaleFactor, (float)ImageOptions.SharpenAmount, (float)ImageOptions.SharpenThreshold, (float)ImageOptions.UnsharpAmount, (float)ImageOptions.UnsharpRadius, _sharpenEnabled);
                             
                             DispatcherQueue.TryEnqueue(() =>
                             {
@@ -711,7 +711,7 @@ namespace Uviewer
                             var sharpenedBitmap = _imageCache.GetSharpenedImage(entryIndex);
                             if (sharpenedBitmap != null) return sharpenedBitmap;
 
-                            var sharpened = await _sharpeningService.ApplySharpenToBitmapAsync(cachedBitmap, _upscaleFactor, _sharpenAmountParam, _sharpenThresholdParam, _unsharpAmount, _unsharpRadius, skipUpscale: false);
+                            var sharpened = await _sharpeningService.ApplySharpenToBitmapAsync(cachedBitmap, (float)ImageOptions.UpscaleFactor, (float)ImageOptions.SharpenAmount, (float)ImageOptions.SharpenThreshold, (float)ImageOptions.UnsharpAmount, (float)ImageOptions.UnsharpRadius, skipUpscale: false);
                             if (sharpened != null)
                             {
                                 _imageCache.CacheSharpenedImage(entryIndex, sharpened, _currentIndex);
@@ -766,7 +766,7 @@ namespace Uviewer
                     var sharpened = _imageCache.GetSharpenedImage(entryIndex);
                     if (sharpened != null) return sharpened;
 
-                    sharpened = await _sharpeningService.ApplySharpenToBitmapAsync(originalBitmap, _upscaleFactor, _sharpenAmountParam, _sharpenThresholdParam, _unsharpAmount, _unsharpRadius, skipUpscale: false);
+                    sharpened = await _sharpeningService.ApplySharpenToBitmapAsync(originalBitmap, (float)ImageOptions.UpscaleFactor, (float)ImageOptions.SharpenAmount, (float)ImageOptions.SharpenThreshold, (float)ImageOptions.UnsharpAmount, (float)ImageOptions.UnsharpRadius, skipUpscale: false);
                     if (sharpened != null && sharpened != originalBitmap)
                     {
                         _imageCache.CacheSharpenedImage(entryIndex, sharpened, _currentIndex);
@@ -822,13 +822,13 @@ namespace Uviewer
             if (_isAozoraMode) AozoraTextCanvas?.Invalidate();
 
             UpdateSharpenButtonState();
-            SaveWindowSettings();
+            _windowSettingsCoordinator.SaveWindowSettings();
 
             // 이미지 다시 로드
             _ = DisplayCurrentImageAsync();
         }
 
-        private void UpdateSharpenButtonState()
+        internal void UpdateSharpenButtonState()
         {
             // UI 동기화
             SharpenButton.IsChecked = _sharpenEnabled;
@@ -861,7 +861,7 @@ namespace Uviewer
             _isSideBySideMode = !_isSideBySideMode;
 
             UpdateSideBySideButtonState();
-            SaveWindowSettings();
+            _windowSettingsCoordinator.SaveWindowSettings();
 
             if (_isVerticalMode)
             {
@@ -889,7 +889,7 @@ namespace Uviewer
         {
             _nextImageOnRight = !_nextImageOnRight;
             UpdateNextImageSideButtonState();
-            SaveWindowSettings();
+            _windowSettingsCoordinator.SaveWindowSettings();
 
             if (_isVerticalMode)
             {
@@ -906,7 +906,7 @@ namespace Uviewer
             }
         }
 
-        private void UpdateSideBySideButtonState()
+        internal void UpdateSideBySideButtonState()
         {
             if (_isSideBySideMode)
             {
@@ -921,7 +921,7 @@ namespace Uviewer
             }
         }
 
-        private void UpdateNextImageSideButtonState()
+        internal void UpdateNextImageSideButtonState()
         {
             if (_nextImageOnRight)
             {
@@ -936,19 +936,19 @@ namespace Uviewer
         private void MatchControlDirectionMenuItem_Click(object sender, RoutedEventArgs e)
         {
             _matchControlDirection = MatchControlDirectionMenuItem.IsChecked;
-            SaveWindowSettings();
+            _windowSettingsCoordinator.SaveWindowSettings();
         }
 
         private void AllowMultipleInstancesMenuItem_Click(object sender, RoutedEventArgs e)
         {
             _allowMultipleInstances = AllowMultipleInstancesMenuItem.IsChecked;
-            SaveWindowSettings();
+            _windowSettingsCoordinator.SaveWindowSettings();
         }
 
         private void AutoDoublePageForArchiveMenuItem_Click(object sender, RoutedEventArgs e)
         {
             _autoDoublePageForArchive = AutoDoublePageForArchiveMenuItem.IsChecked;
-            SaveWindowSettings();
+            _windowSettingsCoordinator.SaveWindowSettings();
             _ = DisplayCurrentImageAsync();
         }
 

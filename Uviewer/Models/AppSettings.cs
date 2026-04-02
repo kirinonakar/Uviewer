@@ -18,10 +18,10 @@ namespace Uviewer.Models
         public bool IsAlwaysOnTop { get; set; } = false;
         public bool AutoDoublePageForArchive { get; set; } = false;
         public bool IsRegistered { get; set; } = false;
-        public float UpscaleFactor { get; set; } = 2.0f;
-        public float SharpenAmount { get; set; } = 1.0f;
-        public float SharpenThreshold { get; set; } = 0.01f;
-        public float UnsharpAmount { get; set; } = 2.0f;
-        public float UnsharpRadius { get; set; } = 1.0f;
+        public double UpscaleFactor { get; set; } = 2.0;
+        public double SharpenAmount { get; set; } = 1.0;
+        public double SharpenThreshold { get; set; } = 0.01;
+        public double UnsharpAmount { get; set; } = 2.0;
+        public double UnsharpRadius { get; set; } = 1.0;
     }
 }

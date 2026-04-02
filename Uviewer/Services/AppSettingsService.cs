@@ -74,11 +74,11 @@ namespace Uviewer.Services
                         if (lines.Length >= 14 && lines[13].Trim() == "1") settings.IsAlwaysOnTop = true;
                         if (lines.Length >= 15 && lines[14].Trim() == "1") settings.AutoDoublePageForArchive = true;
                         if (lines.Length >= 16 && lines[15].Trim() == "1") settings.IsRegistered = true;
-                        if (lines.Length >= 17 && float.TryParse(lines[16], out float uFactor)) settings.UpscaleFactor = uFactor;
-                        if (lines.Length >= 18 && float.TryParse(lines[17], out float sAmount)) settings.SharpenAmount = sAmount;
-                        if (lines.Length >= 19 && float.TryParse(lines[18], out float unAmount)) settings.UnsharpAmount = unAmount;
-                        if (lines.Length >= 20 && float.TryParse(lines[19], out float unRadius)) settings.UnsharpRadius = unRadius;
-                        if (lines.Length >= 21 && float.TryParse(lines[20], out float sThreshold)) settings.SharpenThreshold = sThreshold;
+                        if (lines.Length >= 17 && double.TryParse(lines[16], out double uFactor)) settings.UpscaleFactor = uFactor;
+                        if (lines.Length >= 18 && double.TryParse(lines[17], out double sAmount)) settings.SharpenAmount = sAmount;
+                        if (lines.Length >= 19 && double.TryParse(lines[18], out double unAmount)) settings.UnsharpAmount = unAmount;
+                        if (lines.Length >= 20 && double.TryParse(lines[19], out double unRadius)) settings.UnsharpRadius = unRadius;
+                        if (lines.Length >= 21 && double.TryParse(lines[20], out double sThreshold)) settings.SharpenThreshold = sThreshold;
                         
                         return settings;
                     }

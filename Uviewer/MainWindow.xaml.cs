@@ -55,11 +55,7 @@ namespace Uviewer
 
         // Sharpen & Upscale Parameters
         private bool _sharpenEnabled;
-        private float _upscaleFactor = 2.0f;
-        private float _sharpenAmountParam = 1.0f;
-        private float _sharpenThresholdParam = 0.01f;
-        private float _unsharpAmount = 2.0f;
-        private float _unsharpRadius = 1.0f;
+        public ImageProcessingViewModel ImageOptions { get; } = new();
 
         private double _pdfPanY = 0;
         private double _pdfPanX = 0;
@@ -110,6 +106,7 @@ namespace Uviewer
         private Services.PreloadManager _preloadManager = null!;
 
         // Refactored Services
+        private Services.WindowSettingsCoordinator _windowSettingsCoordinator = null!;
         private readonly Services.AppSettingsService _appSettingsService = new();
         private readonly Services.ZoomService _zoomService = new();
         private readonly Services.ISharpeningService _sharpeningService = new Services.SharpeningService();
@@ -315,8 +312,10 @@ namespace Uviewer
                 _animatedWebpService = new Services.AnimatedWebpService(_sharpeningService, DispatcherQueue);
                 _animatedWebpService.FrameUpdated += OnAnimatedWebpFrameUpdated;
 
+                _windowSettingsCoordinator = new Services.WindowSettingsCoordinator(this, _appSettingsService);
+                
                 // Load saved window position, size and maximized state
-                bool hasLoadedSettings = ApplyWindowSettings(appWindow2);
+                bool hasLoadedSettings = _windowSettingsCoordinator.ApplyWindowSettings(appWindow2);
                 if (!hasLoadedSettings)
                 {
                     // 설정 파일이 없으면 기본 사이즈 적용 및 중앙 정렬
@@ -455,7 +454,7 @@ namespace Uviewer
                     WebDavService.CleanupTempFiles();
 
                     // Save settings
-                    SaveWindowSettings();
+                    _windowSettingsCoordinator.SaveWindowSettings();
                     // Save current position before closing
                     await AddToRecentAsync(true);
 
@@ -480,16 +479,24 @@ namespace Uviewer
                 }
             };
 
+                // Initialize notification timer
+                _notificationTimer = DispatcherQueue.GetForCurrentThread().CreateTimer();
+                _notificationTimer.Interval = TimeSpan.FromSeconds(2);
+                _notificationTimer.IsRepeating = false;
+                _notificationTimer.Tick += (s, e) =>
+                {
+                    NotificationOverlay.Visibility = Visibility.Collapsed;
+                };
 
-            // Initialize notification timer
-            _notificationTimer = DispatcherQueue.GetForCurrentThread().CreateTimer();
-            _notificationTimer.Interval = TimeSpan.FromSeconds(2);
-            _notificationTimer.IsRepeating = false;
-            _notificationTimer.Tick += (s, e) =>
-            {
-                NotificationOverlay.Visibility = Visibility.Collapsed;
-            };
-        }
+                // Subscribe to sharpening parameter changes
+                ImageOptions.PropertyChanged += (s, e) =>
+                {
+                    if (e.PropertyName != null && !e.PropertyName.EndsWith("Text"))
+                    {
+                        OnSharpenParamsChanged();
+                    }
+                };
+            }
 
         private void ApplyLocalization()
         {
@@ -759,146 +766,40 @@ namespace Uviewer
             }
         }
 
-        #region Window Settings
-        private bool ApplyWindowSettings(AppWindow appWindow)
+        #region Window Settings Proxy Methods
+        // This region provides internal access for WindowSettingsCoordinator
+        internal WindowStateManager GetWindowState() => _windowState;
+        internal void SetSharpenEnabled(bool enabled) => _sharpenEnabled = enabled;
+        internal bool IsSharpenEnabled() => _sharpenEnabled;
+        internal void SetSideBySideMode(bool enabled) => _isSideBySideMode = enabled;
+        internal bool IsSideBySideMode() => _isSideBySideMode;
+        internal void SetNextImageOnRight(bool nextOnRight) => _nextImageOnRight = nextOnRight;
+        internal bool IsNextImageOnRight() => _nextImageOnRight;
+        internal ElementTheme GetCurrentTheme() => _currentTheme;
+        internal void SetMatchControlDirection(bool match) => _matchControlDirection = match;
+        internal bool IsMatchControlDirection() => _matchControlDirection;
+        internal void SetAllowMultipleInstances(bool allow) => _allowMultipleInstances = allow;
+        internal bool IsAllowMultipleInstances() => _allowMultipleInstances;
+        internal void SetAutoDoublePageForArchive(bool auto) => _autoDoublePageForArchive = auto;
+        internal bool IsAutoDoublePageForArchive() => _autoDoublePageForArchive;
+        internal void SetIsRegistered(bool registered) => _isRegistered = registered;
+        internal bool IsRegistered() => _isRegistered;
+
+        internal void ApplyInitialUIState()
         {
-            var primaryArea = Microsoft.UI.Windowing.DisplayArea.Primary;
-            var settings = _appSettingsService.LoadSettings(primaryArea);
+            UpdateSharpenButtonState();
+            UpdateSideBySideButtonState();
+            UpdateNextImageSideButtonState();
             
-            // Check if settings file actually had data (assuming fallback values if file missing)
-            if (settings.LastNonMaximizedRect.Width == (int)(primaryArea.WorkArea.Width * 0.7) && 
-                settings.LastNonMaximizedRect.Height == (int)(primaryArea.WorkArea.Height * 0.7) &&
-                !File.Exists(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "Uviewer", "window_settings.txt")))
-            {
-                return false;
-            }
-
-            _windowState.LastNonMaximizedRect = settings.LastNonMaximizedRect;
-            appWindow.MoveAndResize(_windowState.LastNonMaximizedRect);
-
-            if (settings.IsMaximized)
-            {
-                Activated += RestoreMaximizedStateOnce;
-            }
-
-            _sharpenEnabled = settings.SharpenEnabled;
-            _isSideBySideMode = settings.IsSideBySideMode;
-            _nextImageOnRight = settings.NextImageOnRight;
-            SetTheme(settings.Theme);
-            _matchControlDirection = settings.MatchControlDirection;
-            _allowMultipleInstances = settings.AllowMultipleInstances;
-            _windowState.IsSidebarVisible = settings.IsSidebarVisible;
-            _windowState.IsPinned = settings.IsPinned;
-            _windowState.IsAlwaysOnTop = settings.IsAlwaysOnTop;
-            _autoDoublePageForArchive = settings.AutoDoublePageForArchive;
-            _isRegistered = settings.IsRegistered;
-
-            // Load Sharpen & Upscale Parameters
-            _upscaleFactor = settings.UpscaleFactor;
-            _sharpenAmountParam = settings.SharpenAmount;
-            _sharpenThresholdParam = settings.SharpenThreshold;
-            _unsharpAmount = settings.UnsharpAmount;
-            _unsharpRadius = settings.UnsharpRadius;
-
-            // Sync Sliders and Text
-            if (UpscaleSlider != null) UpscaleSlider.Value = _upscaleFactor;
-            if (SharpenSlider != null) SharpenSlider.Value = _sharpenAmountParam;
-            if (SharpenThresholdSlider != null) SharpenThresholdSlider.Value = _sharpenThresholdParam;
-            if (UnsharpAmountSlider != null) UnsharpAmountSlider.Value = _unsharpAmount;
-            if (UnsharpRadiusSlider != null) UnsharpRadiusSlider.Value = _unsharpRadius;
-            
-            if (UpscaleValueText != null) UpscaleValueText.Text = $"{_upscaleFactor:F1}x";
-            if (SharpenValueText != null) SharpenValueText.Text = $"{_sharpenAmountParam:F1}";
-            if (SharpenThresholdValueText != null) SharpenThresholdValueText.Text = $"{_sharpenThresholdParam:F3}";
-            if (UnsharpAmountValueText != null) UnsharpAmountValueText.Text = $"{_unsharpAmount:F1}";
-            if (UnsharpRadiusValueText != null) UnsharpRadiusValueText.Text = $"{_unsharpRadius:F1}";
-
-            // Attach events after setting initial values
-            if (UpscaleSlider != null) UpscaleSlider.ValueChanged += SharpenParams_ValueChanged;
-            if (SharpenSlider != null) SharpenSlider.ValueChanged += SharpenParams_ValueChanged;
-            if (SharpenThresholdSlider != null) SharpenThresholdSlider.ValueChanged += SharpenParams_ValueChanged;
-            if (UnsharpAmountSlider != null) UnsharpAmountSlider.ValueChanged += SharpenParams_ValueChanged;
-            if (UnsharpRadiusSlider != null) UnsharpRadiusSlider.ValueChanged += SharpenParams_ValueChanged;
-
             if (MatchControlDirectionMenuItem != null) MatchControlDirectionMenuItem.IsChecked = _matchControlDirection;
             if (AllowMultipleInstancesMenuItem != null) AllowMultipleInstancesMenuItem.IsChecked = _allowMultipleInstances;
             if (AutoDoublePageForArchiveMenuItem != null) AutoDoublePageForArchiveMenuItem.IsChecked = _autoDoublePageForArchive;
             if (AlwaysOnTopButton != null) AlwaysOnTopButton.IsChecked = _windowState.IsAlwaysOnTop;
-            if (appWindow != null && appWindow.Presenter is OverlappedPresenter op)
+            
+            if (AppWindow.Presenter is OverlappedPresenter op)
             {
                 op.IsAlwaysOnTop = _windowState.IsAlwaysOnTop;
             }
-            UpdateSharpenButtonState();
-            UpdateSideBySideButtonState();
-            UpdateNextImageSideButtonState();
-
-            return true;
-        }
-
-        private void RestoreMaximizedStateOnce(object sender, WindowActivatedEventArgs e)
-        {
-            // Only restore when window is activated (not deactivated)
-            if (e.WindowActivationState == WindowActivationState.Deactivated)
-                return;
-
-            Activated -= RestoreMaximizedStateOnce;
-            try
-            {
-                if (_windowState.IsFullscreen) return;
-                var appWindow = this.AppWindow;
-                if (appWindow.Presenter is OverlappedPresenter overlapped)
-                {
-                    overlapped.Maximize();
-                }
-                else
-                {
-                    appWindow.SetPresenter(OverlappedPresenter.Create());
-                    (appWindow.Presenter as OverlappedPresenter)?.Maximize();
-                }
-            }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"Error restoring maximized state: {ex.Message}");
-            }
-        }
-
-        private void SaveWindowSettings()
-        {
-            var appWindow = this.AppWindow;
-            bool isMaximized = false;
-
-            if (_windowState.IsFullscreen)
-            {
-                isMaximized = _windowState.WasMaximizedBeforeFullscreen;
-            }
-            else if (appWindow.Presenter is OverlappedPresenter overlapped)
-            {
-                isMaximized = overlapped.State == OverlappedPresenterState.Maximized;
-            }
-
-            var settings = new AppSettings
-            {
-                LastNonMaximizedRect = _windowState.LastNonMaximizedRect,
-                IsMaximized = isMaximized,
-                SharpenEnabled = _sharpenEnabled,
-                IsSideBySideMode = _isSideBySideMode,
-                NextImageOnRight = _nextImageOnRight,
-                Theme = _currentTheme,
-                MatchControlDirection = _matchControlDirection,
-                AllowMultipleInstances = _allowMultipleInstances,
-                IsSidebarVisible = _windowState.IsSidebarVisible,
-                IsPinned = _windowState.IsPinned,
-                IsAlwaysOnTop = _windowState.IsAlwaysOnTop,
-                AutoDoublePageForArchive = _autoDoublePageForArchive,
-                IsRegistered = _isRegistered,
-                UpscaleFactor = _upscaleFactor,
-                SharpenAmount = _sharpenAmountParam,
-                SharpenThreshold = _sharpenThresholdParam,
-                UnsharpAmount = _unsharpAmount,
-                UnsharpRadius = _unsharpRadius
-            };
-
-            _appSettingsService.SaveSettings(settings);
         }
         #endregion
 
@@ -1189,7 +1090,7 @@ namespace Uviewer
                 SidebarColumn.Width = new GridLength(0);
             }
 
-            SaveWindowSettings();
+            _windowSettingsCoordinator.SaveWindowSettings();
         }
 
         private void SetCaptionButtonsVisibility(bool isVisible)
@@ -1206,7 +1107,7 @@ namespace Uviewer
         {
             _windowState.ToggleAlwaysOnTop();
             if (AlwaysOnTopButton != null) AlwaysOnTopButton.IsChecked = _windowState.IsAlwaysOnTop;
-            SaveWindowSettings();
+            _windowSettingsCoordinator.SaveWindowSettings();
         }
 
         private void GlobalThemeToggleButton_Click(object sender, RoutedEventArgs e)
@@ -1233,7 +1134,7 @@ namespace Uviewer
             }
         }
 
-        private void SetTheme(ElementTheme theme)
+        internal void SetTheme(ElementTheme theme)
         {
             _currentTheme = theme;
 
@@ -1392,30 +1293,14 @@ namespace Uviewer
             RootGrid.Focus(FocusState.Programmatic);
         }
 
-        private void SharpenParams_ValueChanged(object sender, Microsoft.UI.Xaml.Controls.Primitives.RangeBaseValueChangedEventArgs e)
+        private void OnSharpenParamsChanged()
         {
-            if (UpscaleSlider == null) return; // UI가 완전히 초기화되기 전이면 무시
-
-            // 슬라이더 값 동기화
-            _upscaleFactor = (float)UpscaleSlider.Value;
-            _sharpenAmountParam = (float)SharpenSlider.Value;
-            _sharpenThresholdParam = (float)SharpenThresholdSlider.Value;
-            _unsharpAmount = (float)UnsharpAmountSlider.Value;
-            _unsharpRadius = (float)UnsharpRadiusSlider.Value;
-
-            // 텍스트 업데이트
-            if (UpscaleValueText != null) UpscaleValueText.Text = $"{_upscaleFactor:F1}x";
-            if (SharpenValueText != null) SharpenValueText.Text = $"{_sharpenAmountParam:F1}";
-            if (SharpenThresholdValueText != null) SharpenThresholdValueText.Text = $"{_sharpenThresholdParam:F3}";
-            if (UnsharpAmountValueText != null) UnsharpAmountValueText.Text = $"{_unsharpAmount:F1}";
-            if (UnsharpRadiusValueText != null) UnsharpRadiusValueText.Text = $"{_unsharpRadius:F1}";
-
             // 샤프닝이 켜져있다면 즉시 캐시 지우고 화면 리렌더링
             if (_sharpenEnabled)
             {
                 _imageCache?.ClearSharpenedCache(_currentBitmap, _leftBitmap, _rightBitmap);
                 
-            _animatedWebpService.Stop();
+                _animatedWebpService.Stop();
 
                 // EPUB 및 텍스트 모드 이미지 캐시 초기화
                 foreach (var bmp in _epubImageCache.Values)
@@ -1450,16 +1335,12 @@ namespace Uviewer
             }
             
             // 변경사항 저장
-            SaveWindowSettings();
+            _windowSettingsCoordinator.SaveWindowSettings();
         }
 
         private void SharpenParams_Reset_Click(object sender, RoutedEventArgs e)
         {
-            if (UpscaleSlider != null) UpscaleSlider.Value = 2.0;
-            if (SharpenSlider != null) SharpenSlider.Value = 1.0;
-            if (SharpenThresholdSlider != null) SharpenThresholdSlider.Value = 0.01;
-            if (UnsharpAmountSlider != null) UnsharpAmountSlider.Value = 2.0;
-            if (UnsharpRadiusSlider != null) UnsharpRadiusSlider.Value = 1.0;
+            ImageOptions.Reset();
         }
 
         private async Task NavigateToNextAsync(bool isManualClick = false)
