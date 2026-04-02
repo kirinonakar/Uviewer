@@ -456,16 +456,31 @@ namespace Uviewer
                     // 3. UI 갱신 요청
                     if (_currentPdfDocument == null)
                     {
-                        _zoomLevel = 1.0;
+                        // 확대 상태가 아니라면 FitToWindow()를 수행하여 초기 상태로 맞춤
+                        if (_zoomLevel <= 1.01)
+                        {
+                            _zoomLevel = 1.0;
+                            FitToWindow();
+                        }
+
+                        // 일반 이미지: PDF와 동일하게 연속 스크롤 위치 초기화 로직 적용
+                        var canvasSize = MainCanvas.Size;
+                        var imageSize = bitmap.Size;
+                        var fitRatio = Math.Min(canvasSize.Width / imageSize.Width, canvasSize.Height / imageSize.Height);
+                        var scaledHeight = imageSize.Height * fitRatio * _zoomLevel;
+
+                        // 이미지 비율에 따라 최대 패닝 가능 범위 계산
+                        double maxPan = (scaledHeight > canvasSize.Height) ? (scaledHeight - canvasSize.Height) / 2 : 0;
+
+                        // 스크롤 방향에 따라 시작 위치를 상단(maxPan) 또는 하단(-maxPan)으로 설정
+                        _pdfPanY = (_pdfScrollDirection == 1) ? maxPan : -maxPan;
                         _pdfPanX = 0;
-                        _pdfPanY = 0;
-                        FitToWindow();
                     }
                     else
                     {
                         // PDF: Handle initial pan state (handled in DisplayCurrentImageAsync now)
                         _pdfPanX = 0;
-                        _pdfPanY = 0;
+                        _pdfPanY = (_pdfScrollDirection == 1) ? 0 : 0; // Will be set correctly in PDF transition logic
                         _isPdfTransitioning = false;
                     }
                     ShowImageUI();
@@ -1166,10 +1181,16 @@ namespace Uviewer
                 return;
             }
 
-            // 일반 이미지 내비게이션 (단일 이미지 모드)
-            // 터치패드의 미세한 움직임에 의해 페이지가 너무 훅훅 넘어가는 것을 막기 위한 안전장치(Threshold)
             if (Math.Abs(wheelDelta) >= 40)
             {
+                // [수정] 1장 보기 상태에서 확대된 경우 PDF처럼 연속 스크롤 처리
+                if (_zoomLevel > 1.01 && !_isCurrentViewSideBySide && _currentBitmap != null)
+                {
+                    await HandlePdfScrollAsync(0, wheelDelta);
+                    e.Handled = true;
+                    return;
+                }
+
                 if (wheelDelta < 0) await NavigateToNextAsync();
                 else await NavigateToPreviousAsync();
             }
@@ -1294,7 +1315,8 @@ namespace Uviewer
         private async Task HandlePdfScrollAsync(double deltaX, double deltaY)
         {
             var bitmap = _currentBitmap;
-            if (_currentPdfDocument == null || bitmap == null || bitmap.Device == null || _isPdfTransitioning) return;
+            // PDF가 아니어도 확대된 일반 이미지라면 연속 스크롤 지원
+            if ((_currentPdfDocument == null && _zoomLevel <= 1.01) || bitmap == null || bitmap.Device == null || _isPdfTransitioning) return;
 
             try
             {
@@ -1363,7 +1385,16 @@ namespace Uviewer
                             try
                             {
                                 var token = _imageLoadingCts?.Token ?? default;
-                                prev = await LoadPdfPageBitmapAsync((uint)targetPrevIndex, MainCanvas, token);
+                                if (_currentPdfDocument != null)
+                                {
+                                    prev = await LoadPdfPageBitmapAsync((uint)targetPrevIndex, MainCanvas, token);
+                                }
+                                else
+                                {
+                                    var entry = _imageEntries[targetPrevIndex];
+                                    prev = await LoadImageBitmapAsync(entry, MainCanvas, token);
+                                }
+
                                 if (prev != null)
                                 {
                                     _imageCache.UpdateCache(targetPrevIndex, prev, true, _zoomLevel, false, _currentBitmap);
@@ -1441,7 +1472,16 @@ namespace Uviewer
                             try
                             {
                                 var token = _imageLoadingCts?.Token ?? default;
-                                next = await LoadPdfPageBitmapAsync((uint)targetNextIndex, MainCanvas, token);
+                                if (_currentPdfDocument != null)
+                                {
+                                    next = await LoadPdfPageBitmapAsync((uint)targetNextIndex, MainCanvas, token);
+                                }
+                                else
+                                {
+                                    var entry = _imageEntries[targetNextIndex];
+                                    next = await LoadImageBitmapAsync(entry, MainCanvas, token);
+                                }
+
                                 if (next != null)
                                 {
                                     _imageCache.UpdateCache(targetNextIndex, next, true, _zoomLevel, false, _currentBitmap);

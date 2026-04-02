@@ -1510,16 +1510,16 @@ namespace Uviewer
                         (canvasSize.Width - scaledSize.Width) / 2,
                         (canvasSize.Height - scaledSize.Height) / 2);
 
-                    if (_currentPdfDocument != null)
+                    if (_currentPdfDocument != null || (_zoomLevel > 1.01 && !_isCurrentViewSideBySide))
                     {
-                        // PDF는 항상 연속 스크롤 모드 지원
+                        // PDF 또는 확대된 단일 이미지는 항상 연속 스크롤 모드 지원
                         double maxPan = Math.Max(0, (scaledSize.Height - canvasSize.Height) / 2);
                         double clampMargin = canvasSize.Height + 500; // 화면 높이 기반으로 제한 값 확장
                         if (_pdfPanY > maxPan + clampMargin) _pdfPanY = maxPan + clampMargin;
                         if (_pdfPanY < -maxPan - clampMargin) _pdfPanY = -maxPan - clampMargin;
 
 
-                        // PDF Drawing with pan (X, Y)
+                        // Drawing with pan (X, Y)
                         position.X = (canvasSize.Width - scaledSize.Width) / 2 + _pdfPanX;
                         position.Y = (canvasSize.Height - scaledSize.Height) / 2 + _pdfPanY;
                         var destRect = new Windows.Foundation.Rect(position, scaledSize);
@@ -1531,14 +1531,14 @@ namespace Uviewer
 
                         double gap = 20 * _zoomLevel;
 
-                        // Draw previous pages (up to 5)
+                        // Draw previous images/pages (up to 5)
                         double currentY_top = position.Y;
                         for (int i = 1; i <= 5; i++)
                         {
                             int prevIdx = _currentIndex - i;
                             if (prevIdx < 0) break;
 
-                            CanvasBitmap? prev = _imageCache.GetPreloadedImage(prevIdx);
+                            CanvasBitmap? prev = _imageCache.GetPreloadedImage(prevIdx, _zoomLevel);
                             if (prev != null && prev.Device != null && prev != _currentBitmap)
                             {
                                 var pFit = Math.Min(canvasSize.Width / prev.Size.Width, canvasSize.Height / prev.Size.Height);
@@ -1554,14 +1554,14 @@ namespace Uviewer
                             else break; // Missing preload, can't draw further
                         }
 
-                        // Draw next pages (up to 5)
+                        // Draw next images/pages (up to 5)
                         double currentY_bottom = position.Y + scaledSize.Height;
                         for (int i = 1; i <= 5; i++)
                         {
                             int nextIdx = _currentIndex + i;
                             if (nextIdx >= _imageEntries.Count) break;
 
-                            CanvasBitmap? next = _imageCache.GetPreloadedImage(nextIdx);
+                            CanvasBitmap? next = _imageCache.GetPreloadedImage(nextIdx, _zoomLevel);
                             if (next != null && next.Device != null && next != _currentBitmap)
                             {
                                 var nFit = Math.Min(canvasSize.Width / next.Size.Width, canvasSize.Height / next.Size.Height);
