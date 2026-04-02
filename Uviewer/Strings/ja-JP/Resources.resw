@@ -104,7 +104,7 @@
     <value>青空文庫/md (A)</value>
   </data>
   <data name="FontTooltip" xml:space="preserve">
-    <value>フォント変更(F)</value>
+    <value>フォント変更(F) - 右クリックで設定</value>
   </data>
   <data name="GoToPageTooltip" xml:space="preserve">
     <value>行移動(G)</value>

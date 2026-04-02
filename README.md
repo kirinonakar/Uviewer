@@ -21,7 +21,7 @@
   - **Markdown Support**: Custom-built Markdown rendering including tables, code blocks, and inline formatting.
   - **Smart Encoding Detection**: Automatically detects and handles various encodings (UTF-8, Unicode, **EUC-KR**, **Shift-JIS**, **Johab**).
 - **Reading Comfort**: 
-  - **Adjustable Styling**: Change font size, font family (Yu Gothic Medium/Yu Mincho/Custom), and background themes (Light/Beige/Dark). (Recommendation: We suggest installing and using [**Noto Sans/Serif CJK**](https://fonts.google.com/noto) for the best multilingual reading experience.)
+  - **Adjustable Styling**: Change font size, font family (toggle between two user-defined defaults), and background themes (Light/Beige/Dark). (Recommendation: We suggest installing and using [**Noto Sans/Serif CJK**](https://fonts.google.com/noto) for the best multilingual reading experience.)
   - **Vertical Mode (Tategaki)**: Comprehensive support for vertical text rendering with pixel-accurate layout.
 - **Go to Line**: Jump directly to a specific line (G).
 - **Table of Contents (TOC)**: Automatically extracts headings from textual documents (Markdown `#` or Aozora `［＃...］` tags) and **PDF Bookmarks** for quick navigation.
@@ -63,6 +63,13 @@
   - **Upscale Factor**: Adjust the internal rendering scale for clearer details on high-resolution displays.
   - **Sharpening Amount & Threshold**: Fine-tune the basic sharpening intensity and the edge detection threshold.
   - **Unsharp Mask (USM)**: Apply high-quality unsharp mask sharpening with adjustable strength and radius for professional-grade results.
+  - Settings are saved and persist across sessions.
+
+#### 📝 Default Font Settings
+- **Customizable Font Toggle**: Right-click the **Font (F)** button in the text toolbar to set your two preferred fonts (default fonts - Yu Gothic Medium/Yu Mincho).
+  - **Font 1 & 2**: Choose any system font for each slot (e.g., one for Sans-serif and one for Serif).
+  - Left-clicking the **F** button (or pressing **F**) will instantly toggle between these two selections.
+  - **Reset**: Quickly restore to system defaults.
   - Settings are saved and persist across sessions.
 
 ### 🌍 Localization
@@ -107,7 +114,7 @@
 | **S** | Image | Toggle Sharpening (Right-click for settings) |
 | **A** | Text | Toggle Simple text / Advanced rendering (Aozora, Markdown) mode |
 | **B** | Text | Change Background Theme |
-| **F** | Text | Change Font |
+| **F** | Text | Toggle Default Fonts (Right-click for settings) |
 
 ## Mouse & Touch Navigation
 - **Click/Touch Left Side**: Previous Page / Image

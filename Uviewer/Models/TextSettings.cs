@@ -12,6 +12,8 @@ namespace Uviewer.Models
         public string? CustomForegroundColor { get; set; }
         public string? Language { get; set; } // "ko-KR", "en-US", "ja-JP" or null for auto
         public string? UIFontFamily { get; set; }
+        public string DefaultFont1 { get; set; } = "Yu Gothic";
+        public string DefaultFont2 { get; set; } = "Yu Mincho";
     }
 
     [JsonSerializable(typeof(TextSettings))]

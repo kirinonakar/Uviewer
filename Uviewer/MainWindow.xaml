@@ -349,6 +349,26 @@
                     </ToggleButton>
                     
                     <Button x:Name="FontToggleButton" Click="FontToggleButton_Click" ToolTipService.ToolTip="폰트 변경(F)">
+                        <Button.ContextFlyout>
+                            <MenuFlyout>
+                                <MenuFlyoutItem x:Name="SetDefaultFont1MenuItem" Click="SetDefaultFont1MenuItem_Click">
+                                    <MenuFlyoutItem.Icon>
+                                        <FontIcon Glyph="&#xE8D2;"/>
+                                    </MenuFlyoutItem.Icon>
+                                </MenuFlyoutItem>
+                                <MenuFlyoutItem x:Name="SetDefaultFont2MenuItem" Click="SetDefaultFont2MenuItem_Click">
+                                    <MenuFlyoutItem.Icon>
+                                        <FontIcon Glyph="&#xE8D2;"/>
+                                    </MenuFlyoutItem.Icon>
+                                </MenuFlyoutItem>
+                                <MenuFlyoutSeparator/>
+                                <MenuFlyoutItem x:Name="ResetDefaultFontsMenuItem" Click="ResetDefaultFontsMenuItem_Click">
+                                    <MenuFlyoutItem.Icon>
+                                        <FontIcon Glyph="&#xE777;"/>
+                                    </MenuFlyoutItem.Icon>
+                                </MenuFlyoutItem>
+                            </MenuFlyout>
+                        </Button.ContextFlyout>
                         <TextBlock Text="F" FontSize="14" FontWeight="Bold"/>
                     </Button>
                     

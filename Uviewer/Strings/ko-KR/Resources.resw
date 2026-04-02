@@ -104,7 +104,7 @@
     <value>Aozora/md (A)</value>
   </data>
   <data name="FontTooltip" xml:space="preserve">
-    <value>폰트 변경(F)</value>
+    <value>폰트 변경(F) - 우클릭으로 설정</value>
   </data>
   <data name="GoToPageTooltip" xml:space="preserve">
     <value>줄 이동(G)</value>

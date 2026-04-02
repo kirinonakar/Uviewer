@@ -21,6 +21,8 @@ namespace Uviewer.Services
         public bool IsVerticalMode { get; set; } = false;
         public Color? CustomBackgroundColor { get; set; }
         public Color? CustomForegroundColor { get; set; }
+        public string DefaultFont1 { get; set; } = "Yu Gothic";
+        public string DefaultFont2 { get; set; } = "Yu Mincho";
         public string EncodingName { get; set; } = "Auto";
 
         public TextSettingsManager(string settingsFilePath)
@@ -46,6 +48,8 @@ namespace Uviewer.Services
                         IsVerticalMode = settings.IsVerticalMode;
                         Language = settings.Language ?? "Auto";
                         UIFontFamily = settings.UIFontFamily ?? "";
+                        DefaultFont1 = settings.DefaultFont1 ?? "Yu Gothic";
+                        DefaultFont2 = settings.DefaultFont2 ?? "Yu Mincho";
 
                         if (!string.IsNullOrEmpty(settings.CustomBackgroundColor))
                             CustomBackgroundColor = ParseHexColor(settings.CustomBackgroundColor);
@@ -73,7 +77,9 @@ namespace Uviewer.Services
                     CustomBackgroundColor = CustomBackgroundColor?.ToString(),
                     CustomForegroundColor = CustomForegroundColor?.ToString(),
                     Language = Language,
-                    UIFontFamily = UIFontFamily
+                    UIFontFamily = UIFontFamily,
+                    DefaultFont1 = DefaultFont1,
+                    DefaultFont2 = DefaultFont2
                 };
 
                 var settingsDir = Path.GetDirectoryName(_settingsFilePath);

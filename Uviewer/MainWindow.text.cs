@@ -493,6 +493,7 @@ namespace Uviewer
                     Strings.Reload();
                     ApplyLocalization();
                     UpdateLanguageMenuCheckmark();
+                    UpdateFontSettingsMenu();
                 });
             }
             catch (Exception ex)
@@ -1283,13 +1284,119 @@ namespace Uviewer
 
         private async void ToggleFont()
         {
-            if (_settingsManager.FontFamily.Contains("Yu Gothic"))
-                _settingsManager.FontFamily = "Yu Mincho";
+            if (_settingsManager.FontFamily == _settingsManager.DefaultFont1)
+                _settingsManager.FontFamily = _settingsManager.DefaultFont2;
             else
-                _settingsManager.FontFamily = "Yu Gothic";
+                _settingsManager.FontFamily = _settingsManager.DefaultFont1;
 
             SaveTextSettings();
             await RefreshTextDisplay();
+        }
+
+        private void UpdateFontSettingsMenu()
+        {
+            if (SetDefaultFont1MenuItem != null) SetDefaultFont1MenuItem.Text = $"폰트 1: {_settingsManager.DefaultFont1}";
+            if (SetDefaultFont2MenuItem != null) SetDefaultFont2MenuItem.Text = $"폰트 2: {_settingsManager.DefaultFont2}";
+            if (ResetDefaultFontsMenuItem != null) ResetDefaultFontsMenuItem.Text = Strings.ResetButton;
+        }
+
+        private void SetDefaultFont1MenuItem_Click(object sender, RoutedEventArgs e)
+        {
+            _ = ShowFontPickerDialogForDefault(1);
+        }
+
+        private void SetDefaultFont2MenuItem_Click(object sender, RoutedEventArgs e)
+        {
+            _ = ShowFontPickerDialogForDefault(2);
+        }
+
+        private async void ResetDefaultFontsMenuItem_Click(object sender, RoutedEventArgs e)
+        {
+            _settingsManager.DefaultFont1 = "Yu Gothic";
+            _settingsManager.DefaultFont2 = "Yu Mincho";
+            UpdateFontSettingsMenu();
+            SaveTextSettings();
+        }
+
+        private async Task ShowFontPickerDialogForDefault(int slot)
+        {
+            try
+            {
+                var fonts = CanvasTextFormat.GetSystemFontFamilies()
+                    .OrderBy(f => f)
+                    .ToList();
+
+                var searchBox = new AutoSuggestBox
+                {
+                    PlaceholderText = Strings.FontSearchPlaceholder,
+                    QueryIcon = new SymbolIcon(Symbol.Find),
+                    Margin = new Thickness(0, 0, 0, 10),
+                    Width = 300
+                };
+
+                var fontList = new ListView
+                {
+                    ItemsSource = fonts,
+                    SelectionMode = ListViewSelectionMode.Single,
+                    MaxHeight = 400,
+                    Width = 300,
+                    ItemTemplate = (DataTemplate)Microsoft.UI.Xaml.Markup.XamlReader.Load(
+                        @"<DataTemplate xmlns='http://schemas.microsoft.com/winfx/2006/xaml/presentation'>
+                            <TextBlock Text='{Binding}' FontFamily='{Binding}' FontSize='16' VerticalAlignment='Center' Padding='4'/>
+                        </DataTemplate>")
+                };
+
+                // Pre-select current default font
+                string currentFont = (slot == 1) ? _settingsManager.DefaultFont1 : _settingsManager.DefaultFont2;
+                fontList.SelectedItem = fonts.FirstOrDefault(f => f.Equals(currentFont, StringComparison.OrdinalIgnoreCase));
+                if (fontList.SelectedItem != null) fontList.ScrollIntoView(fontList.SelectedItem);
+
+                searchBox.TextChanged += (s, e) =>
+                {
+                    if (e.Reason == AutoSuggestionBoxTextChangeReason.UserInput)
+                    {
+                        var filtered = fonts.Where(f => f.Contains(s.Text, StringComparison.OrdinalIgnoreCase)).ToList();
+                        fontList.ItemsSource = filtered;
+                    }
+                };
+
+                var stackPanel = new StackPanel();
+                stackPanel.Children.Add(searchBox);
+                stackPanel.Children.Add(fontList);
+
+                var dialog = new ContentDialog
+                {
+                    Title = $"폰트 {slot} 선택",
+                    Content = stackPanel,
+                    PrimaryButtonText = Strings.DialogPrimary,
+                    CloseButtonText = Strings.DialogClose,
+                    XamlRoot = this.Content.XamlRoot,
+                    DefaultButton = ContentDialogButton.Primary,
+                    RequestedTheme = RootGrid.ActualTheme
+                };
+
+                stackPanel.PreviewKeyDown += (s, e) =>
+                {
+                    if (e.Key == Windows.System.VirtualKey.Escape)
+                    {
+                        dialog.Hide();
+                        e.Handled = true;
+                    }
+                };
+
+                if (await dialog.ShowAsync() == ContentDialogResult.Primary && fontList.SelectedItem is string selectedFont)
+                {
+                    if (slot == 1) _settingsManager.DefaultFont1 = selectedFont;
+                    else _settingsManager.DefaultFont2 = selectedFont;
+                    
+                    UpdateFontSettingsMenu();
+                    SaveTextSettings();
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error showing font picker for default: {ex.Message}");
+            }
         }
 
         private void TextSizeUpButton_Click(object sender, RoutedEventArgs e)
