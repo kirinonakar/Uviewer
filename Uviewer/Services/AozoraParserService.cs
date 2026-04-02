@@ -306,7 +306,7 @@ namespace Uviewer.Services
 
             char[] openBrackets = { '「', '『', '(', '<', '《', '〈', '【', '［', '“', '‘' };
             char[] closeBrackets = { '」', '』', ')', '>', '》', '〉', '】', '］', '”', '’' };
-            char[] terminators = { '。', '！', '？', '.', '!', '?', '、', ',', ' ', '　' };
+            char[] terminators = { '。', '！', '？', '.', '!', '?', '、', ',' };
 
             var result = new List<AozoraBindingModel>();
             var currentBlock = CloneBlockProperties(originalBlock);
@@ -349,7 +349,7 @@ namespace Uviewer.Services
                                 splitPos = j + 1;
                             }
                         }
-                        else if (j - start + 1 >= 15)
+                        else if (j - start + 1 >= 20)
                         {
                             if (j + 1 < text.Length)
                             {
