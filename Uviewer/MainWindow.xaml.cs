@@ -619,6 +619,8 @@ namespace Uviewer
             if (UnsharpAmountLabel != null) UnsharpAmountLabel.Text = Strings.UnsharpAmountLabel;
             if (UnsharpRadiusLabel != null) UnsharpRadiusLabel.Text = Strings.UnsharpRadiusLabel;
             if (SharpenParamsResetButton != null) SharpenParamsResetButton.Content = Strings.ResetButton;
+            
+            UpdateFontSettingsMenu();
 
             // Trigger x:Bind Refresh
             this.Bindings.Update();

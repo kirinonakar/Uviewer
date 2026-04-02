@@ -1295,8 +1295,8 @@ namespace Uviewer
 
         private void UpdateFontSettingsMenu()
         {
-            if (SetDefaultFont1MenuItem != null) SetDefaultFont1MenuItem.Text = $"폰트 1: {_settingsManager.DefaultFont1}";
-            if (SetDefaultFont2MenuItem != null) SetDefaultFont2MenuItem.Text = $"폰트 2: {_settingsManager.DefaultFont2}";
+            if (SetDefaultFont1MenuItem != null) SetDefaultFont1MenuItem.Text = $"{Strings.DefaultFont1Label}: {_settingsManager.DefaultFont1}";
+            if (SetDefaultFont2MenuItem != null) SetDefaultFont2MenuItem.Text = $"{Strings.DefaultFont2Label}: {_settingsManager.DefaultFont2}";
             if (ResetDefaultFontsMenuItem != null) ResetDefaultFontsMenuItem.Text = Strings.ResetButton;
         }
 
@@ -1366,7 +1366,7 @@ namespace Uviewer
 
                 var dialog = new ContentDialog
                 {
-                    Title = $"폰트 {slot} 선택",
+                    Title = Strings.FontSelectionSlotTitle(slot),
                     Content = stackPanel,
                     PrimaryButtonText = Strings.DialogPrimary,
                     CloseButtonText = Strings.DialogClose,

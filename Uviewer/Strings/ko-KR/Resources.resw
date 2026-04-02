@@ -416,4 +416,13 @@
   <data name="ResetButton" xml:space="preserve">
     <value>초기화</value>
   </data>
+  <data name="DefaultFont1Label" xml:space="preserve">
+    <value>폰트 1</value>
+  </data>
+  <data name="DefaultFont2Label" xml:space="preserve">
+    <value>폰트 2</value>
+  </data>
+  <data name="FontSelectionSlotTitle" xml:space="preserve">
+    <value>폰트 {0} 선택</value>
+  </data>
 </root>

@@ -416,4 +416,13 @@
   <data name="ResetButton" xml:space="preserve">
     <value>Reset</value>
   </data>
+  <data name="DefaultFont1Label" xml:space="preserve">
+    <value>Font 1</value>
+  </data>
+  <data name="DefaultFont2Label" xml:space="preserve">
+    <value>Font 2</value>
+  </data>
+  <data name="FontSelectionSlotTitle" xml:space="preserve">
+    <value>Select Font {0}</value>
+  </data>
 </root>

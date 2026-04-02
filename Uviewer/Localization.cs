@@ -139,6 +139,10 @@ namespace Uviewer
         public static string UnsharpRadiusLabel => GetString("UnsharpRadiusLabel");
         public static string ResetButton => GetString("ResetButton");
 
+        public static string DefaultFont1Label => GetString("DefaultFont1Label");
+        public static string DefaultFont2Label => GetString("DefaultFont2Label");
+        public static string FontSelectionSlotTitle(int slot) => string.Format(GetString("FontSelectionSlotTitle"), slot);
+
         public static void Reload()
         {
             try
