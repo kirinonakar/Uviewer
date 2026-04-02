@@ -799,7 +799,7 @@ namespace Uviewer
             }
         }
 
-        private void SharpenButton_Click(object sender, RoutedEventArgs e)
+        private async void SharpenButton_Click(object sender, RoutedEventArgs e)
         {
             _sharpenEnabled = !_sharpenEnabled;
 
@@ -840,7 +840,19 @@ namespace Uviewer
             _windowSettingsCoordinator.SaveWindowSettings();
 
             // 이미지 다시 로드
-            _ = DisplayCurrentImageAsync();
+            await DisplayCurrentImageAsync();
+
+            // [추가] 샤프닝 토글 시 주변 이미지들도 즉시 샤프닝 작업 시작 (스크롤 시 부분적으로 보이는 이미지용)
+            if (_imageEntries != null && _imageEntries.Count > 0)
+            {
+                _ = _preloadManager.StartPreloadAsync(
+                    _currentIndex, _imageEntries, _currentPdfDocument != null, _zoomLevel,
+                    _currentBitmap, _leftBitmap, _rightBitmap,
+                    LoadBitmapForPreloadAsync,
+                    () => MainCanvas?.Invalidate(),
+                    prioritizeNext: true,
+                    requireSharpening: _sharpenEnabled);
+            }
         }
 
         internal void UpdateSharpenButtonState()
@@ -1346,7 +1358,8 @@ namespace Uviewer
                     {
                         _isPdfTransitioning = true;
                         int targetPrevIndex = _currentIndex - 1;
-                        CanvasBitmap? prev = _imageCache.GetPreloadedImage(targetPrevIndex, _zoomLevel);
+                        CanvasBitmap? prev = (_sharpenEnabled && _currentPdfDocument == null) ? _imageCache.GetSharpenedImage(targetPrevIndex) : null;
+                        if (prev == null) prev = _imageCache.GetPreloadedImage(targetPrevIndex, _zoomLevel);
 
                         var oldPosNextTop = (canvasSize.Height - scaledSize.Height) / 2 + _pdfPanY;
                         int oldIndex = _currentIndex;
@@ -1372,7 +1385,8 @@ namespace Uviewer
                                     _currentBitmap, _leftBitmap, _rightBitmap,
                                     LoadBitmapForPreloadAsync,
                                     () => MainCanvas?.Invalidate(),
-                                    prioritizeNext: false);
+                                    prioritizeNext: false,
+                                    requireSharpening: _sharpenEnabled);
                             }
                             catch
                             {
@@ -1413,7 +1427,8 @@ namespace Uviewer
                                         _currentBitmap, _leftBitmap, _rightBitmap,
                                         LoadBitmapForPreloadAsync,
                                         () => MainCanvas?.Invalidate(),
-                                        prioritizeNext: false);
+                                        prioritizeNext: false,
+                                        requireSharpening: _sharpenEnabled);
                                 }
                             }
                             catch { }
@@ -1433,7 +1448,8 @@ namespace Uviewer
                     {
                         _isPdfTransitioning = true;
                         int targetNextIndex = _currentIndex + 1;
-                        CanvasBitmap? next = _imageCache.GetPreloadedImage(targetNextIndex, _zoomLevel);
+                        CanvasBitmap? next = (_sharpenEnabled && _currentPdfDocument == null) ? _imageCache.GetSharpenedImage(targetNextIndex) : null;
+                        if (next == null) next = _imageCache.GetPreloadedImage(targetNextIndex, _zoomLevel);
 
                         var oldPosPrevBottom = (canvasSize.Height - scaledSize.Height) / 2 + _pdfPanY + scaledSize.Height;
                         int oldIndex = _currentIndex;
@@ -1459,7 +1475,8 @@ namespace Uviewer
                                     _currentBitmap, _leftBitmap, _rightBitmap,
                                     LoadBitmapForPreloadAsync,
                                     () => MainCanvas?.Invalidate(),
-                                    prioritizeNext: true);
+                                    prioritizeNext: true,
+                                    requireSharpening: _sharpenEnabled);
                             }
                             catch
                             {
@@ -1500,7 +1517,8 @@ namespace Uviewer
                                         _currentBitmap, _leftBitmap, _rightBitmap,
                                         LoadBitmapForPreloadAsync,
                                         () => MainCanvas?.Invalidate(),
-                                        prioritizeNext: true);
+                                        prioritizeNext: true,
+                                        requireSharpening: _sharpenEnabled);
                                 }
                             }
                             catch { }

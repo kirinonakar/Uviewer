@@ -529,7 +529,8 @@ namespace Uviewer
                         _currentBitmap, _leftBitmap, _rightBitmap,
                         LoadBitmapForPreloadAsync,
                         () => MainCanvas?.Invalidate(),
-                        prioritizeNext: true);
+                        prioritizeNext: true,
+                        requireSharpening: _sharpenEnabled);
                 }
             }
             catch (OperationCanceledException) { }
@@ -603,7 +604,8 @@ namespace Uviewer
                         _currentBitmap, _leftBitmap, _rightBitmap,
                         LoadBitmapForPreloadAsync,
                         () => MainCanvas?.Invalidate(),
-                        prioritizeNext: true);
+                        prioritizeNext: true,
+                        requireSharpening: _sharpenEnabled);
                 }
                 else
                 {

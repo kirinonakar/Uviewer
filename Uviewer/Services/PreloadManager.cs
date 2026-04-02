@@ -47,7 +47,8 @@ namespace Uviewer.Services
             CanvasBitmap? rightBitmap,
             Func<ImageEntry, bool, CancellationToken, Task<CanvasBitmap?>> loadBitmapFunc,
             Action invalidateCanvasAction,
-            bool prioritizeNext = true)
+            bool prioritizeNext = true,
+            bool requireSharpening = false)
         {
             CancelAll();
 
@@ -83,7 +84,7 @@ namespace Uviewer.Services
                     bool isPdfEntry = entries[index].IsPdfEntry && isPdfMode;
                     bool isPreviewQuality = isPdfEntry && d >= 3;
 
-                    if (_imageCache.ShouldSkipPreload(index, isPdfEntry, zoomLevel, isPreviewQuality)) continue;
+                    if (_imageCache.ShouldSkipPreload(index, isPdfEntry, zoomLevel, isPreviewQuality, requireSharpening)) continue;
                     if (!_imageCache.TryMarkForLoading(index)) continue;
 
                     var entry = entries[index];

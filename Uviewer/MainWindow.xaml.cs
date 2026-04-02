@@ -1287,13 +1287,14 @@ namespace Uviewer
                         _currentBitmap, _leftBitmap, _rightBitmap,
                         LoadBitmapForPreloadAsync,
                         () => MainCanvas?.Invalidate(),
-                        prioritizeNext: false);
+                        prioritizeNext: false,
+                        requireSharpening: _sharpenEnabled);
                 }
             }
             RootGrid.Focus(FocusState.Programmatic);
         }
 
-        private void OnSharpenParamsChanged()
+        private async void OnSharpenParamsChanged()
         {
             // 샤프닝이 켜져있다면 즉시 캐시 지우고 화면 리렌더링
             if (_sharpenEnabled)
@@ -1331,7 +1332,19 @@ namespace Uviewer
                 if (_isAozoraMode) AozoraTextCanvas?.Invalidate();
 
                 // 현재 이미지 다시 그리기
-                _ = DisplayCurrentImageAsync();
+                await DisplayCurrentImageAsync();
+                
+                // [추가] 샤프닝 옵션 변경 시 주변 이미지들도 즉시 새 설정으로 샤프닝 다시 시작
+                if (_imageEntries != null && _imageEntries.Count > 0)
+                {
+                    _ = _preloadManager.StartPreloadAsync(
+                        _currentIndex, _imageEntries, _currentPdfDocument != null, _zoomLevel,
+                        _currentBitmap, _leftBitmap, _rightBitmap,
+                        LoadBitmapForPreloadAsync,
+                        () => MainCanvas?.Invalidate(),
+                        prioritizeNext: true,
+                        requireSharpening: _sharpenEnabled);
+                }
             }
             
             // 변경사항 저장
@@ -1383,7 +1396,8 @@ namespace Uviewer
                         _currentBitmap, _leftBitmap, _rightBitmap,
                         LoadBitmapForPreloadAsync,
                         () => MainCanvas?.Invalidate(),
-                        prioritizeNext: true);
+                        prioritizeNext: true,
+                        requireSharpening: _sharpenEnabled);
                 }
             }
             RootGrid.Focus(FocusState.Programmatic);
@@ -1448,32 +1462,77 @@ namespace Uviewer
 
         private async Task<CanvasBitmap?> LoadBitmapForPreloadAsync(ImageEntry entry, bool isPreview, CancellationToken token)
         {
-            if (entry.IsPdfEntry && _currentPdfDocument != null)
+            CanvasBitmap? bitmap = null;
+            try
             {
-                return await LoadPdfPageBitmapAsync(entry.PdfPageIndex, MainCanvas, token, isPreload: true, isPreview: isPreview);
-            }
-            else if (entry.FilePath != null)
-            {
-                return await LoadImageFromPathAsync(entry.FilePath, MainCanvas);
-            }
-            else if (entry.IsArchiveEntry && (_currentArchive != null || _current7zArchive != null))
-            {
-                return await LoadImageFromArchiveEntryAsync(entry.ArchiveEntryKey!, MainCanvas, token);
-            }
-            else if (entry.IsWebDavEntry && _isWebDavMode && !token.IsCancellationRequested)
-            {
-                try
+                // [수정] 이미 프리로드된 경우 중복 로드를 피하기 위해 메모리에서 가져옴
+                var entryIndex = _imageEntries.IndexOf(entry);
+                if (entryIndex >= 0)
                 {
-                    var tempPath = await _webDavService.DownloadToTempFileAsync(entry.WebDavPath!, token);
-                    if (!string.IsNullOrEmpty(tempPath) && !token.IsCancellationRequested)
+                    bitmap = _imageCache.GetPreloadedImage(entryIndex);
+                }
+
+                if (bitmap == null)
+                {
+                    if (entry.IsPdfEntry && _currentPdfDocument != null)
                     {
-                        entry.FilePath = tempPath;
-                        return await LoadImageFromPathAsync(tempPath, MainCanvas);
+                        bitmap = await LoadPdfPageBitmapAsync(entry.PdfPageIndex, MainCanvas, token, isPreload: true, isPreview: isPreview);
+                    }
+                    else if (entry.FilePath != null)
+                    {
+                        bitmap = await LoadImageFromPathAsync(entry.FilePath, MainCanvas);
+                    }
+                    else if (entry.IsArchiveEntry && (_currentArchive != null || _current7zArchive != null))
+                    {
+                        bitmap = await LoadImageFromArchiveEntryAsync(entry.ArchiveEntryKey!, MainCanvas, token);
+                    }
+                    else if (entry.IsWebDavEntry && _isWebDavMode && !token.IsCancellationRequested)
+                    {
+                        var tempPath = await _webDavService.DownloadToTempFileAsync(entry.WebDavPath!, token);
+                        if (!string.IsNullOrEmpty(tempPath) && !token.IsCancellationRequested)
+                        {
+                            entry.FilePath = tempPath;
+                            bitmap = await LoadImageFromPathAsync(tempPath, MainCanvas);
+                        }
                     }
                 }
-                catch { }
+
+                // [수정] 프리로드된 이미지에도 샤프닝 사전 적용 (확대 스크롤 시 샤프닝 유지용)
+                if (bitmap != null && _sharpenEnabled && !entry.IsPdfEntry && !isPreview && !token.IsCancellationRequested)
+                {
+                    if (entryIndex >= 0)
+                    {
+                        var capturedBitmap = bitmap;
+                        _ = Task.Run(async () =>
+                        {
+                            try
+                            {
+                                if (token.IsCancellationRequested) return;
+                                if (_imageCache.GetSharpenedImage(entryIndex) != null) return;
+
+                                var sharpened = await _sharpeningService.ApplySharpenToBitmapAsync(
+                                    capturedBitmap,
+                                    (float)ImageOptions.UpscaleFactor,
+                                    (float)ImageOptions.SharpenAmount,
+                                    (float)ImageOptions.SharpenThreshold,
+                                    (float)ImageOptions.UnsharpAmount,
+                                    (float)ImageOptions.UnsharpRadius,
+                                    skipUpscale: false);
+
+                                if (sharpened != null && sharpened != capturedBitmap && !token.IsCancellationRequested)
+                                {
+                                    _imageCache.CacheSharpenedImage(entryIndex, sharpened, _currentIndex);
+                                    DispatcherQueue.TryEnqueue(() => MainCanvas?.Invalidate());
+                                }
+                            }
+                            catch { }
+                        }, token);
+                    }
+                }
             }
-            return null;
+            catch { }
+
+            return bitmap;
         }
 
         #endregion
@@ -1538,7 +1597,8 @@ namespace Uviewer
                             int prevIdx = _currentIndex - i;
                             if (prevIdx < 0) break;
 
-                            CanvasBitmap? prev = _imageCache.GetPreloadedImage(prevIdx, _zoomLevel);
+                            CanvasBitmap? prev = (_sharpenEnabled && _currentPdfDocument == null) ? _imageCache.GetSharpenedImage(prevIdx) : null;
+                            if (prev == null) prev = _imageCache.GetPreloadedImage(prevIdx, _zoomLevel);
                             if (prev != null && prev.Device != null && prev != _currentBitmap)
                             {
                                 var pFit = Math.Min(canvasSize.Width / prev.Size.Width, canvasSize.Height / prev.Size.Height);
@@ -1561,7 +1621,8 @@ namespace Uviewer
                             int nextIdx = _currentIndex + i;
                             if (nextIdx >= _imageEntries.Count) break;
 
-                            CanvasBitmap? next = _imageCache.GetPreloadedImage(nextIdx, _zoomLevel);
+                            CanvasBitmap? next = (_sharpenEnabled && _currentPdfDocument == null) ? _imageCache.GetSharpenedImage(nextIdx) : null;
+                            if (next == null) next = _imageCache.GetPreloadedImage(nextIdx, _zoomLevel);
                             if (next != null && next.Device != null && next != _currentBitmap)
                             {
                                 var nFit = Math.Min(canvasSize.Width / next.Size.Width, canvasSize.Height / next.Size.Height);

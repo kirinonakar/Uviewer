@@ -475,7 +475,8 @@ namespace Uviewer
                         _currentBitmap, _leftBitmap, _rightBitmap,
                         LoadBitmapForPreloadAsync,
                         () => MainCanvas?.Invalidate(),
-                        prioritizeNext: true);
+                        prioritizeNext: true,
+                        requireSharpening: _sharpenEnabled);
 
                     // Update title to show archive name
                     Title = "Uviewer - Image & Text Viewer";

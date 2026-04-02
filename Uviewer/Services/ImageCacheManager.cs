@@ -43,7 +43,7 @@ namespace Uviewer.Services
             }
         }
 
-        public bool ShouldSkipPreload(int index, bool isPdfEntry, double currentZoom, bool isPreviewQuality)
+        public bool ShouldSkipPreload(int index, bool isPdfEntry, double currentZoom, bool isPreviewQuality, bool requireSharpening = false)
         {
             lock (_lockObject)
             {
@@ -61,6 +61,11 @@ namespace Uviewer.Services
                     }
                     else
                     {
+                        // [추가] 일반 이미지의 경우 샤프닝이 필요한데 캐시에 없다면 스킵하지 않음
+                        if (requireSharpening)
+                        {
+                            if (!_sharpenedImageCache.ContainsKey(index)) return false;
+                        }
                         return true;
                     }
                 }
