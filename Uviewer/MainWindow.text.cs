@@ -1466,7 +1466,7 @@ namespace Uviewer
                 else if (_isAozoraMode && _aozoraBlocks.Count > 0)
                 {
                     _aozoraNavHistory.Clear();
-                    RenderAozoraDynamicPage(0);
+                    await RenderAozoraDynamicPage(0);
                     UpdateAozoraStatusBar();
                 }
                 else if (TextScrollViewer != null)
@@ -1488,7 +1488,7 @@ namespace Uviewer
                     _aozoraNavHistory.Clear();
                     // Start rendering from slightly before the end to fill the last page
                     int lastIdx = Math.Max(0, _aozoraBlocks.Count - 5);
-                    RenderAozoraDynamicPage(lastIdx);
+                    await RenderAozoraDynamicPage(lastIdx);
                     UpdateAozoraStatusBar();
                 }
                 else if (TextScrollViewer != null)
@@ -1643,22 +1643,22 @@ namespace Uviewer
                 RequestedTheme = RootGrid.ActualTheme
             };
 
-            input.KeyDown += (s, e) =>
+            input.KeyDown += async (s, e) =>
             {
                 if (e.Key == Windows.System.VirtualKey.Enter)
                 {
                     dialog.Hide();
-                    GoToLine(input.Text);
+                    await GoToLine(input.Text);
                 }
             };
 
             if (await dialog.ShowAsync() == ContentDialogResult.Primary)
             {
-                GoToLine(input.Text);
+                await GoToLine(input.Text);
             }
         }
 
-        private void GoToLine(string lineText)
+        private async Task GoToLine(string lineText)
         {
             if (!int.TryParse(lineText, out int line) || line < 1) return;
 
@@ -1668,14 +1668,14 @@ namespace Uviewer
                 if (pageIndex >= 0 && pageIndex < (int)_currentPdfDocument.PageCount)
                 {
                     _currentIndex = pageIndex;
-                    _ = DisplayCurrentImageAsync();
+                    await DisplayCurrentImageAsync();
                 }
                 return;
             }
 
             if (_isVerticalMode)
             {
-                _ = PrepareVerticalTextAsync(line);
+                await PrepareVerticalTextAsync(line);
                 return;
             }
 
@@ -1701,7 +1701,7 @@ namespace Uviewer
                 }
 
                 _aozoraNavHistory.Clear();
-                RenderAozoraDynamicPage(targetIdx);
+                await RenderAozoraDynamicPage(targetIdx);
                 UpdateAozoraStatusBar();
             }
             else if (TextScrollViewer != null)
@@ -1939,7 +1939,7 @@ namespace Uviewer
             if (!_isAozoraMode) return;
             if (AozoraTextCanvas != null)
             {
-                RenderAozoraDynamicPage(_currentAozoraStartBlockIndex);
+                _ = RenderAozoraDynamicPage(_currentAozoraStartBlockIndex);
                 StartAozoraPageCalculationAsync();
             }
         }

@@ -459,7 +459,7 @@ namespace Uviewer
                 }
             }
 
-            RenderAozoraDynamicPage(_currentAozoraStartBlockIndex);
+            await RenderAozoraDynamicPage(_currentAozoraStartBlockIndex);
             _aozoraPendingTargetLine = 0;
             StartAozoraPageCalculationAsync();
             UpdateAozoraStatusBar();
@@ -549,7 +549,7 @@ namespace Uviewer
                 // 현재 화면에 보이는 만큼만 가상화 렌더링
                 if (_aozoraBlocks.Count > 0)
                 {
-                    RenderAozoraDynamicPage(_currentAozoraStartBlockIndex);
+                    await RenderAozoraDynamicPage(_currentAozoraStartBlockIndex);
                 }
 
                 _aozoraPendingTargetLine = 0; // <--- 렌더링이 화면에 반영된 직후인 이 위치에서 초기화해 줍니다!
@@ -578,11 +578,11 @@ namespace Uviewer
 
             ClearBackwardCache(); // <-- 화면 크기 변경 시 캐시 지우기
             // 크기 변경 시 현재 위치 다시 렌더링
-            RenderAozoraDynamicPage(_currentAozoraStartBlockIndex);
+            _ = RenderAozoraDynamicPage(_currentAozoraStartBlockIndex);
             StartAozoraPageCalculationAsync();
         }
 
-        private void RenderAozoraDynamicPage(int startIdx)
+        private async Task RenderAozoraDynamicPage(int startIdx)
         {
             if (AozoraTextCanvas == null || _aozoraBlocks == null || _aozoraBlocks.Count == 0)
             {
@@ -613,6 +613,21 @@ namespace Uviewer
             var device = AozoraTextCanvas.Device ?? Microsoft.Graphics.Canvas.CanvasDevice.GetSharedDevice();
 
             var pageBlocks = PaginateHorizontalAozoraPage(ref index, _aozoraBlocks, maxWidth, availableHeight, device);
+
+            // [이미지 프리로딩] 깜박임 방지를 위해 렌더링 전 이미지를 미리 로드합니다.
+            if (pageBlocks.Any(b => b.HasImage))
+            {
+                var loadTasks = pageBlocks.Where(b => b.HasImage)
+                    .Select(async b =>
+                    {
+                        var src = b.Inlines.OfType<AozoraImage>().FirstOrDefault()?.Source;
+                        if (!string.IsNullOrEmpty(src) && !_aozoraImageCache.ContainsKey(src))
+                        {
+                            await LoadAozoraImageAsync(src);
+                        }
+                    }).ToList();
+                await Task.WhenAll(loadTasks);
+            }
 
             _currentAozoraEndBlockIndex = index > startIdx ? index - 1 : startIdx;
             _currentAozoraPageInfo = new AozoraPageInfo
@@ -1111,7 +1126,7 @@ namespace Uviewer
                 if (_currentAozoraEndBlockIndex < _aozoraBlocks.Count - 1)
                 {
                     // 💡 History Push 완전히 제거됨
-                    RenderAozoraDynamicPage(_currentAozoraEndBlockIndex + 1);
+                    _ = RenderAozoraDynamicPage(_currentAozoraEndBlockIndex + 1);
                     if (_isAozoraPageCalcCompleted) _aozoraCalculatedCurrentPage++; 
                     UpdateAozoraStatusBar();
                 }
@@ -1140,7 +1155,7 @@ namespace Uviewer
                         }
                     }
 
-                    RenderAozoraDynamicPage(bestStart);
+                    _ = RenderAozoraDynamicPage(bestStart);
                     if (_isAozoraPageCalcCompleted) _aozoraCalculatedCurrentPage = Math.Max(1, _aozoraCalculatedCurrentPage - 1); 
                     UpdateAozoraStatusBar();
                 }
@@ -1215,7 +1230,7 @@ namespace Uviewer
                 }
             }
 
-            RenderAozoraDynamicPage(startIdx);
+            _ = RenderAozoraDynamicPage(startIdx);
             StartAozoraPageCalculationAsync(); 
         }
 
@@ -1322,10 +1337,67 @@ namespace Uviewer
             try
             {
                 byte[]? bytes = null;
-                string targetKey = relativePath.Replace('\\', '/').TrimStart('/');
 
-                if (_currentArchive != null || _current7zArchive != null)
+                if (_isEpubMode && _currentEpubArchive != null)
                 {
+                    string normPath = relativePath.Replace('\\', '/');
+                    var entry = _currentEpubArchive.Entries.FirstOrDefault(e => e.FullName.Replace('\\', '/') == normPath)
+                             ?? _currentEpubArchive.Entries.FirstOrDefault(e => string.Equals(e.FullName.Replace('\\', '/'), normPath, StringComparison.OrdinalIgnoreCase));
+
+                    if (entry != null)
+                    {
+                        await _epubArchiveLock.WaitAsync();
+                        try
+                        {
+                            using var s = entry.Open();
+                            using var ms = new System.IO.MemoryStream();
+                            await s.CopyToAsync(ms);
+                            bytes = ms.ToArray();
+                        }
+                        finally { _epubArchiveLock.Release(); }
+                    }
+                }
+                else if (_isWebDavMode && !string.IsNullOrEmpty(_currentWebDavItemPath))
+                {
+                    string? fullRemotePath = ResolveWebDavImagePath(relativePath);
+                    if (fullRemotePath != null)
+                    {
+                        var tempPath = await _webDavService.DownloadToTempFileAsync(fullRemotePath);
+                        if (!string.IsNullOrEmpty(tempPath) && System.IO.File.Exists(tempPath))
+                        {
+                            bytes = await System.IO.File.ReadAllBytesAsync(tempPath);
+                        }
+                        else
+                        {
+                            _knownMissingAozoraImages.Add(relativePath);
+                            DispatcherQueue.TryEnqueue(() =>
+                            {
+                                _ = RenderAozoraDynamicPage(_currentAozoraStartBlockIndex);
+                            });
+                        }
+                    }
+                }
+                else if (!string.IsNullOrEmpty(_currentTextFilePath) && _currentTextArchiveEntryKey == null)
+                {
+                    // Local File
+                    string fullPath = System.IO.Path.Combine(System.IO.Path.GetDirectoryName(_currentTextFilePath)!, relativePath);
+                    if (System.IO.File.Exists(fullPath))
+                    {
+                        bytes = await System.IO.File.ReadAllBytesAsync(fullPath);
+                    }
+                }
+                else if ((_currentArchive != null || _current7zArchive != null) && !string.IsNullOrEmpty(_currentTextArchiveEntryKey))
+                {
+                    // Archive
+                    string normKey = _currentTextArchiveEntryKey.Replace('\\', '/');
+                    string? baseDir = "";
+                    int lastSlash = normKey.LastIndexOf('/');
+                    if (lastSlash >= 0) baseDir = normKey.Substring(0, lastSlash);
+
+                    string subPath = relativePath.Replace('\\', '/').TrimStart('/');
+                    string targetKey = string.IsNullOrEmpty(baseDir) ? subPath : (baseDir.TrimEnd('/') + "/" + subPath);
+                    targetKey = targetKey.Replace("/./", "/");
+
                     await _archiveLock.WaitAsync();
                     try
                     {
