@@ -1254,7 +1254,7 @@ namespace Uviewer
             {
                 bool isFast = !isManualClick && _fastNavigationService.DetectFastNavigation(ResetFastNavigation);
 
-                int step = (_isCurrentViewSideBySide && _currentPdfDocument == null) ? 2 : 1;
+                int step = _isCurrentViewSideBySide ? 2 : 1;
                 _currentIndex = FileExplorerService.GetNextImageIndex(_imageEntries, _currentIndex, step, false);
 
                 if (isFast)
@@ -1363,7 +1363,7 @@ namespace Uviewer
             {
                 bool isFast = !isManualClick && _fastNavigationService.DetectFastNavigation(ResetFastNavigation);
 
-                int step = (_isCurrentViewSideBySide && _currentPdfDocument == null) ? 2 : 1;
+                int step = _isCurrentViewSideBySide ? 2 : 1;
                 _currentIndex = FileExplorerService.GetNextImageIndex(_imageEntries, _currentIndex, step, true);
 
                 if (isFast)
@@ -1679,44 +1679,10 @@ namespace Uviewer
                         canvasSize.Width - scaledSize.Width,
                         (canvasSize.Height - scaledSize.Height) / 2);
 
-                    if (_currentPdfDocument != null && scaledSize.Height > canvasSize.Height)
-                    {
-                        double maxPan = (scaledSize.Height - canvasSize.Height) / 2;
-                        if (_pdfPanY > maxPan + 350) _pdfPanY = maxPan + 350;
-                        if (_pdfPanY < -maxPan - 350) _pdfPanY = -maxPan - 350;
-                        position.Y = (canvasSize.Height - scaledSize.Height) / 2 + _pdfPanY;
 
-                        // Seamless adjacent pages in side-by-side mode (Left Canvas: draw previous if exists)
-                        double gap = 20 * _zoomLevel;
-                        if (position.Y > 0 && _currentIndex >= 2)
-                        {
-                            CanvasBitmap? prevLeft = _imageCache.GetPreloadedImage(_currentIndex - 2);
-                            if (prevLeft != null)
-                            {
-                                var pFit = Math.Min(canvasSize.Width / prevLeft.Size.Width, canvasSize.Height / prevLeft.Size.Height);
-                                var pScaledH = prevLeft.Size.Height * pFit * _zoomLevel;
-                                var pPos = new Windows.Foundation.Point(canvasSize.Width - (prevLeft.Size.Width * pFit * _zoomLevel), position.Y - pScaledH - gap);
-                                ds.DrawImage(prevLeft, new Windows.Foundation.Rect(pPos, new Windows.Foundation.Size(prevLeft.Size.Width * pFit * _zoomLevel, pScaledH)));
-                            }
-                        }
-                        if (position.Y + scaledSize.Height < canvasSize.Height && _currentIndex + 2 < _imageEntries.Count)
-                        {
-                            CanvasBitmap? nextLeft = _imageCache.GetPreloadedImage(_currentIndex + 2);
-                            if (nextLeft != null)
-                            {
-                                var nFit = Math.Min(canvasSize.Width / nextLeft.Size.Width, canvasSize.Height / nextLeft.Size.Height);
-                                var nScaledH = nextLeft.Size.Height * nFit * _zoomLevel;
-                                var nPos = new Windows.Foundation.Point(canvasSize.Width - (nextLeft.Size.Width * nFit * _zoomLevel), position.Y + scaledSize.Height + gap);
-                                ds.DrawImage(nextLeft, new Windows.Foundation.Rect(nPos, new Windows.Foundation.Size(nextLeft.Size.Width * nFit * _zoomLevel, nScaledH)));
-                            }
-                        }
-                    }
 
                     var destRect = new Windows.Foundation.Rect(position, scaledSize);
-                    if (_currentPdfDocument == null)
-                        ds.DrawImage(_leftBitmap, destRect, _leftBitmap.Bounds, 1.0f, CanvasImageInterpolation.HighQualityCubic);
-                    else
-                        ds.DrawImage(_leftBitmap, destRect);
+                    ds.DrawImage(_leftBitmap, destRect, _leftBitmap.Bounds, 1.0f, CanvasImageInterpolation.HighQualityCubic);
                 }
                 catch (Exception) { }
             }
@@ -1750,46 +1716,10 @@ namespace Uviewer
                         0,
                         (canvasSize.Height - scaledSize.Height) / 2);
 
-                    if (_currentPdfDocument != null && scaledSize.Height > canvasSize.Height)
-                    {
-                        double maxPan = (scaledSize.Height - canvasSize.Height) / 2;
-                        if (_pdfPanY > maxPan + 350) _pdfPanY = maxPan + 350;
-                        if (_pdfPanY < -maxPan - 350) _pdfPanY = -maxPan - 350;
-                        position.Y = (canvasSize.Height - scaledSize.Height) / 2 + _pdfPanY;
-                        double gap = 20 * _zoomLevel;
-                        int prevRightIndex = _currentIndex - 1;
 
-                        if (position.Y > 0 && prevRightIndex >= 0)
-                        {
-                            CanvasBitmap? prevRight = _imageCache.GetPreloadedImage(prevRightIndex);
-                            if (prevRight != null)
-                            {
-                                var pFit = Math.Min(canvasSize.Width / prevRight.Size.Width, canvasSize.Height / prevRight.Size.Height);
-                                var pScaledH = prevRight.Size.Height * pFit * _zoomLevel;
-                                var pPos = new Windows.Foundation.Point(0, position.Y - pScaledH - gap);
-                                ds.DrawImage(prevRight, new Windows.Foundation.Rect(pPos, new Windows.Foundation.Size(prevRight.Size.Width * pFit * _zoomLevel, pScaledH)));
-                            }
-                        }
-
-                        int nextRightIndex = _currentIndex + 3;
-                        if (position.Y + scaledSize.Height < canvasSize.Height && nextRightIndex < _imageEntries.Count)
-                        {
-                            CanvasBitmap? nextRight = _imageCache.GetPreloadedImage(nextRightIndex);
-                            if (nextRight != null)
-                            {
-                                var nFit = Math.Min(canvasSize.Width / nextRight.Size.Width, canvasSize.Height / nextRight.Size.Height);
-                                var nScaledH = nextRight.Size.Height * nFit * _zoomLevel;
-                                var nPos = new Windows.Foundation.Point(0, position.Y + scaledSize.Height + gap);
-                                ds.DrawImage(nextRight, new Windows.Foundation.Rect(nPos, new Windows.Foundation.Size(nextRight.Size.Width * nFit * _zoomLevel, nScaledH)));
-                            }
-                        }
-                    }
 
                     var destRect = new Windows.Foundation.Rect(position, scaledSize);
-                    if (_currentPdfDocument == null)
-                        ds.DrawImage(_rightBitmap, destRect, _rightBitmap.Bounds, 1.0f, CanvasImageInterpolation.HighQualityCubic);
-                    else
-                        ds.DrawImage(_rightBitmap, destRect);
+                    ds.DrawImage(_rightBitmap, destRect, _rightBitmap.Bounds, 1.0f, CanvasImageInterpolation.HighQualityCubic);
                 }
                 catch (Exception) { }
             }

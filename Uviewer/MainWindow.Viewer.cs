@@ -127,7 +127,7 @@ namespace Uviewer
                 return;
 
             // Trigger canvas redraw for new zoom level
-            if (!_isCurrentViewSideBySide || _currentPdfDocument != null)
+            if (!_isCurrentViewSideBySide)
             {
                 MainCanvas?.Invalidate();
             }
@@ -454,35 +454,25 @@ namespace Uviewer
                     _currentBitmap = bitmap;
 
                     // 3. UI 갱신 요청
-                    if (_currentPdfDocument == null)
+                    // 확대 상태가 아니라면 FitToWindow()를 수행하여 초기 상태로 맞춤
+                    if (_zoomLevel <= 1.01)
                     {
-                        // 확대 상태가 아니라면 FitToWindow()를 수행하여 초기 상태로 맞춤
-                        if (_zoomLevel <= 1.01)
-                        {
-                            _zoomLevel = 1.0;
-                            FitToWindow();
-                        }
-
-                        // 일반 이미지: PDF와 동일하게 연속 스크롤 위치 초기화 로직 적용
-                        var canvasSize = MainCanvas.Size;
-                        var imageSize = bitmap.Size;
-                        var fitRatio = Math.Min(canvasSize.Width / imageSize.Width, canvasSize.Height / imageSize.Height);
-                        var scaledHeight = imageSize.Height * fitRatio * _zoomLevel;
-
-                        // 이미지 비율에 따라 최대 패닝 가능 범위 계산
-                        double maxPan = (scaledHeight > canvasSize.Height) ? (scaledHeight - canvasSize.Height) / 2 : 0;
-
-                        // 스크롤 방향에 따라 시작 위치를 상단(maxPan) 또는 하단(-maxPan)으로 설정
-                        _pdfPanY = (_pdfScrollDirection == 1) ? maxPan : -maxPan;
-                        _pdfPanX = 0;
+                        _zoomLevel = 1.0;
+                        FitToWindow();
                     }
-                    else
-                    {
-                        // PDF: Handle initial pan state (handled in DisplayCurrentImageAsync now)
-                        _pdfPanX = 0;
-                        _pdfPanY = (_pdfScrollDirection == 1) ? 0 : 0; // Will be set correctly in PDF transition logic
-                        _isPdfTransitioning = false;
-                    }
+
+                    // 일반 이미지: PDF와 동일하게 연속 스크롤 위치 초기화 로직 적용
+                    var canvasSize = MainCanvas.Size;
+                    var imageSize = bitmap.Size;
+                    var fitRatio = Math.Min(canvasSize.Width / imageSize.Width, canvasSize.Height / imageSize.Height);
+                    var scaledHeight = imageSize.Height * fitRatio * _zoomLevel;
+
+                    // 이미지 비율에 따라 최대 패닝 가능 범위 계산
+                    double maxPan = (scaledHeight > canvasSize.Height) ? (scaledHeight - canvasSize.Height) / 2 : 0;
+
+                    // 스크롤 방향에 따라 시작 위치를 상단(maxPan) 또는 하단(-maxPan)으로 설정
+                    _pdfPanY = (_pdfScrollDirection == 1) ? maxPan : -maxPan;
+                    _pdfPanX = 0;
                     ShowImageUI();
                     UpdateStatusBar(entry, _currentBitmap);
                     UpdateSharpenButtonState();
@@ -576,7 +566,6 @@ namespace Uviewer
                 ImageEntry leftEntry, rightEntry;
 
                 bool actualNextImageOnRight = _nextImageOnRight;
-                if (_currentPdfDocument != null) actualNextImageOnRight = true;
 
                 if (actualNextImageOnRight)
                 {
@@ -646,24 +635,8 @@ namespace Uviewer
                 _currentBitmap = rightBitmap ?? leftBitmap; // For zoom calculations
 
                 // 3. UI 갱신 요청
-                if (_currentPdfDocument == null)
-                {
-                    _zoomLevel = 1.0;
-                    FitToWindow();
-                }
-                else
-                {
-                    // PDF: Set initial pan state based on direction
-                    if (!_isSeamlessScroll && leftBitmap != null)
-                    {
-                        var canvasSize = LeftCanvas.Size;
-                        var imageSize = leftBitmap.Size;
-                        var fitRatio = Math.Min(canvasSize.Width / imageSize.Width, canvasSize.Height / imageSize.Height);
-                        var scaledH = imageSize.Height * fitRatio * _zoomLevel;
-                        double maxPan = (scaledH > canvasSize.Height) ? (scaledH - canvasSize.Height) / 2 : 0;
-                        _pdfPanY = (_pdfScrollDirection == 1) ? maxPan : -maxPan;
-                    }
-                }
+                _zoomLevel = 1.0;
+                FitToWindow();
 
                 ShowImageUI();
 
@@ -740,11 +713,7 @@ namespace Uviewer
                 CanvasBitmap? originalBitmap = null;
 
                 // 2. 이미지 소스에 따라 로드
-                if (entry.IsPdfEntry && _currentPdfDocument != null)
-                {
-                    originalBitmap = await LoadPdfPageBitmapAsync(entry.PdfPageIndex, canvas, token);
-                }
-                else if (entry.FilePath != null)
+                if (entry.FilePath != null)
                 {
                     // 로컬 파일 (애니메이션 WebP가 아닌 경우 여기로 옴)
                     originalBitmap = await LoadImageFromPathAsync(entry.FilePath, canvas);
