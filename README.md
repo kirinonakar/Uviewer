@@ -21,7 +21,7 @@
   - **Markdown Support**: Custom-built Markdown rendering including tables, code blocks, and inline formatting.
   - **Smart Encoding Detection**: Automatically detects and handles various encodings (UTF-8, Unicode, **EUC-KR**, **Shift-JIS**, **Johab**).
 - **Reading Comfort**: 
-  - **Adjustable Styling**: Change font size, font family (toggle between two user-defined defaults), and background themes (Light/Beige/Dark). (Recommendation: We suggest installing and using [**Noto Sans/Serif CJK**](https://fonts.google.com/noto) for the best multilingual reading experience.)
+  - **Adjustable Styling**: Change font size, font family (toggle between two user-defined defaults), and background themes (Light/Beige/Dark/Custom). (Recommendation: We suggest installing and using [**Noto Sans/Serif CJK**](https://fonts.google.com/noto) for the best multilingual reading experience.)
   - **Vertical Mode (Tategaki)**: Comprehensive support for vertical text rendering with pixel-accurate layout.
 - **Go to Line**: Jump directly to a specific line (G).
 - **Table of Contents (TOC)**: Automatically extracts headings from textual documents (Markdown `#` or Aozora `［＃...］` tags) and **PDF Bookmarks** for quick navigation.
@@ -32,6 +32,7 @@
 - **Table of Contents**: Support for Navigation via TOC.
 - **Customization**: Adjustable font settings (font family/size) and background colors.
 - **Vertical Support**: View EPUBs in vertical mode
+
 
 ### 📂 File Management
 - **Integrated Explorer**: Sidebar with Folder/Thumbnail views for easy navigation.
@@ -45,32 +46,23 @@
 - **Pin Toggle**: Pin or unpin the UI (title bar, toolbar, sidebar, status bar) using the pin button or the **`** (backtick) key.
   - **Pinned** (default): All UI elements are always visible.
   - **Unpinned**: All UI elements are hidden. Hover over the top edge to reveal the title bar, toolbar and status bar, or hover over the left edge to reveal the sidebar. UI auto-hides after 1 second when the mouse leaves.
-  - Setting persists across sessions.
 
 #### ⚙️ Multiple Instances
 - **Allow Multiple Instances**: When enabled, each file opens in a new window instance. When disabled, files open in the already running instance using inter-process communication (NamedPipe).
-  - Default: **Enabled** (`true`)
-  - Toggle via Settings menu
-  - Setting persists across sessions
 
 #### 🖼️ Image Viewing Options
 - **Auto Side-by-Side in Archive**: When enabled, the viewer automatically applies side-by-side (2-page) view for portrait-oriented images (height > width * 1.2) when browsing archives.
-  - Toggle via Settings menu
-  - Setting persists across sessions.
 
 #### 🎨 Image Sharpening & Upscaling
 - **Advanced Sharpening Control**: Right-click the **Sharpening (S)** button to open the settings flyout.
   - **Upscale Factor**: Adjust the internal rendering scale for clearer details on high-resolution displays.
   - **Sharpening Amount & Threshold**: Fine-tune the basic sharpening intensity and the edge detection threshold.
   - **Unsharp Mask (USM)**: Apply high-quality unsharp mask sharpening with adjustable strength and radius for professional-grade results.
-  - Settings are saved and persist across sessions.
 
-#### 📝 Default Font Settings
+#### 📝 Font Settings
 - **Customizable Font Toggle**: Right-click the **Font (F)** button in the text toolbar to set your two preferred fonts (default fonts - Yu Gothic Medium/Yu Mincho).
   - **Font 1 & 2**: Choose any system font for each slot (e.g., one for Sans-serif and one for Serif).
   - Left-clicking the **F** button (or pressing **F**) will instantly toggle between these two selections.
-  - **Reset**: Quickly restore to system defaults.
-  - Settings are saved and persist across sessions.
 
 ### 🌍 Localization
 - **Multi-language Support**: Automatically detects and switches between **English**, **Korean**, and **Japanese** based on system settings.
