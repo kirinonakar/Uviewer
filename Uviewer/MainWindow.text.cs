@@ -1434,7 +1434,9 @@ namespace Uviewer
 
         private async void ToggleTheme()
         {
-            _settingsManager.ThemeIndex = (_settingsManager.ThemeIndex + 1) % 3;
+            // [수정] 유저가 설정한 색(Custom: 3)이 있는 경우, 0(White) -> 1(Beige) -> 2(Dark) -> 3(Custom) 순으로 순환하도록 변경합니다.
+            int maxThemes = _settingsManager.CustomBackgroundColor.HasValue ? 4 : 3;
+            _settingsManager.ThemeIndex = (_settingsManager.ThemeIndex + 1) % maxThemes;
             SaveTextSettings();
             await RefreshTextDisplay();
         }
