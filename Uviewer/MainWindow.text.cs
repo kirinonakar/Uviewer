@@ -1,3 +1,4 @@
+using Microsoft.Graphics.Canvas;
 using Microsoft.Graphics.Canvas.Text;
 using Microsoft.UI;
 using Microsoft.UI.Text;
@@ -1947,152 +1948,148 @@ namespace Uviewer
         private double _calculatedTotalHeight = 0;
         private bool _isPageCalculationCompleted = false;
         private CancellationTokenSource? _pageCalcCts;
-        private FontFamily? _cachedFontFamily = null;
         private int[]? _textLinePages;
         private int _textTotalPages = 0;
 
         private async void StartPageCalculationAsync()
         {
-            // Early exit if in Aozora mode (use Aozora's own page calculation)
             if (_isAozoraMode) return;
+            if (TextScrollViewer == null) return;
 
             _pageCalcCts?.Cancel();
             _pageCalcCts = new CancellationTokenSource();
             var token = _pageCalcCts.Token;
 
             _isPageCalculationCompleted = false;
-            _calculatedTotalHeight = 0;
-            _cachedFontFamily = null;
-            UpdateTextStatusBar(); // Reset display to just %
+            _textTotalPages = 0;
+            _textLinePages = null;
+            UpdateTextStatusBar(); 
 
-            // Robust check for Viewport readiness
-            // Wait up to 5 seconds (50 * 100ms) for layout to settle
-            int retryCount = 0;
-            while (TextScrollViewer == null || TextScrollViewer.ViewportHeight <= 0 || TextScrollViewer.ViewportWidth <= 0)
+            // 초기 뷰포트 확보 및 레이아웃 대기
+            double viewportWidth = TextScrollViewer.ViewportWidth > 0 ? TextScrollViewer.ViewportWidth : TextScrollViewer.ActualWidth;
+            double viewportHeight = TextScrollViewer.ViewportHeight > 0 ? TextScrollViewer.ViewportHeight : TextScrollViewer.ActualHeight;
+
+            if (viewportWidth <= 0 || viewportHeight <= 0)
             {
-                if (retryCount++ > 50)
-                {
-                    // Timeout: Fallback to ExtentHeight
-                    if (TextScrollViewer != null)
-                    {
-                        _calculatedTotalHeight = TextScrollViewer.ExtentHeight;
-                        _isPageCalculationCompleted = true;
-                        UpdateTextStatusBar();
-                    }
-                    return;
-                }
                 try { await Task.Delay(100, token); } catch { return; }
+                viewportWidth = TextScrollViewer.ViewportWidth > 0 ? TextScrollViewer.ViewportWidth : TextScrollViewer.ActualWidth;
+                viewportHeight = TextScrollViewer.ViewportHeight > 0 ? TextScrollViewer.ViewportHeight : TextScrollViewer.ActualHeight;
+                if (viewportWidth <= 0 || viewportHeight <= 0) return;
             }
 
-            if (_textLines.Count == 0) return;
+            var linesToCalc = _textLines;
+            if (linesToCalc.Count == 0) return;
 
-            double viewportWidth = TextScrollViewer.ViewportWidth;
-            if (viewportWidth <= 0) viewportWidth = TextScrollViewer.ActualWidth; // Fallback
-            double viewportHeight = TextScrollViewer.ViewportHeight;
-            if (viewportHeight <= 0) viewportHeight = TextScrollViewer.ActualHeight; // Fallback
+            float fontSize = (float)_settingsManager.FontSize;
+            string fontFamily = _settingsManager.FontFamily ?? "Segoe UI";
 
             try
             {
-                // Dummy TextBlock for measurement
-                var dummy = new TextBlock
+                // [성능 개선] 백그라운드 스레드에서 정밀 계산 수행 (UI 스레드 차단 방지)
+                var result = await Task.Run(() =>
                 {
-                    TextWrapping = TextWrapping.Wrap,
-                    LineStackingStrategy = LineStackingStrategy.BlockLineHeight
-                };
+                    int count = linesToCalc.Count;
+                    int[] pages = new int[count];
+                    double totalH = 0;
+                    double currentPageHeight = 0;
+                    int currentPage = 1;
 
-                double totalH = 0;
-                double currentPageHeight = 0;
-                int currentPage = 1;
-
-                // Snapshot the list reference to iterate safely
-                var linesToCalc = _textLines;
-                int[] pages = new int[linesToCalc.Count]; // 각 줄의 페이지를 담을 배열
-
-                // Use Stopwatch for time slicing
-                var sw = System.Diagnostics.Stopwatch.StartNew();
-
-                // Cache the font family if it's common
-                if (!string.IsNullOrEmpty(_settingsManager.FontFamily))
-                {
-                    _cachedFontFamily = new FontFamily(_settingsManager.FontFamily);
-                }
-
-                for (int i = 0; i < linesToCalc.Count; i++)
-                {
-                    if (token.IsCancellationRequested) return;
-                    var line = linesToCalc[i];
-
-                    // Apply properties matching TextItemsRepeater_ElementPrepared logic
-                    dummy.FontSize = line.FontSize;
-                    if (_cachedFontFamily != null && line.FontFamily == _settingsManager.FontFamily)
-                        dummy.FontFamily = _cachedFontFamily;
-                    else
-                        dummy.FontFamily = new FontFamily(line.FontFamily);
-
-                    dummy.FontWeight = GetFontWeightForFamily(line.FontFamily);
-
-                    dummy.Text = line.Content;
-                    dummy.MaxWidth = line.MaxWidth;
-                    dummy.Margin = line.Margin;
-                    dummy.Padding = line.Padding;
-                    dummy.LineHeight = line.FontSize * 1.8;
-                    dummy.TextAlignment = line.TextAlignment;
-
-                    // Measure
-                    dummy.Measure(new Size(viewportWidth, double.PositiveInfinity));
-                    double lineH = dummy.DesiredSize.Height;
-
-                    // 화면 높이를 초과하면 페이지 증가
-                    if (currentPageHeight > 0 && currentPageHeight + lineH > viewportHeight) 
+                    // LineHeight 일관성 유지: Math.Ceiling(line.FontSize * 1.8)
+                    double lineHeight = Math.Ceiling(fontSize * 1.8);
+                    
+                    // Win2D 기반 정밀 측정을 위해 리소스 생성 (백그라운드 스레드에서 활용 가능)
+                    var device = CanvasDevice.GetSharedDevice();
+                    var format = new CanvasTextFormat
                     {
-                        currentPage++;
-                        currentPageHeight = 0;
+                        FontSize = fontSize,
+                        FontFamily = fontFamily,
+                        WordWrapping = CanvasWordWrapping.Wrap
+                    };
+
+                    for (int i = 0; i < count; i++)
+                    {
+                        if (token.IsCancellationRequested) return null;
+                        var line = linesToCalc[i];
+                        if (line == null) continue;
+
+                        double lineH = lineHeight;
+                        double maxWidth = line.MaxWidth > 0 ? line.MaxWidth : viewportWidth;
+
+                        // Fast Path: 확실히 한 줄인 경우(짧은 줄) 측정을 생략하여 속도를 획기적으로 개선
+                        bool mustMeasure = false;
+                        if (line.Content.Length > 0)
+                        {
+                            // 영문/기호 기반: 한 글자 너비 최소 임계치(0.5 font size) 기준 체크
+                            if (line.Content.Length * (fontSize * 0.5) > maxWidth)
+                            {
+                                mustMeasure = true;
+                            }
+                            // CJK 기반: 글자 너비가 크므로 별도 체크
+                            else if (ContainsCJK(line.Content) && line.Content.Length * fontSize > maxWidth)
+                            {
+                                mustMeasure = true;
+                            }
+                        }
+
+                        if (mustMeasure)
+                        {
+                            try
+                            {
+                                // Win2D 레이아웃 엔진으로 고속 정밀 측정 (TextBlock.Measure 대비 수십 배 빠름)
+                                using var layout = new CanvasTextLayout(device, line.Content, format, (float)maxWidth, 0);
+                                int lineCount = layout.LineCount;
+                                lineH = lineCount * lineHeight;
+                            }
+                            catch { /* Fallback to single line */ }
+                        }
+
+                        if (currentPageHeight > 0 && currentPageHeight + lineH > viewportHeight)
+                        {
+                            currentPage++;
+                            currentPageHeight = 0;
+                        }
+
+                        pages[i] = currentPage;
+                        currentPageHeight += lineH;
+                        totalH += lineH;
                     }
 
-                    pages[i] = currentPage;
-                    currentPageHeight += lineH;
-                    totalH += lineH;
+                    return new { Pages = pages, TotalPages = currentPage, TotalHeight = totalH };
+                }, token);
 
-                    // Yield if we've used up our time slice (e.g., 15ms to allow ~60fps)
-                    if (sw.ElapsedMilliseconds > 15)
-                    {
-                        await Task.Delay(1, token);
-                        sw.Restart();
-                    }
-                }
-
-                if (totalH > 0)
+                if (result != null)
                 {
-                    _calculatedTotalHeight = totalH;
-                    _textLinePages = pages;         // 계산된 페이지 맵 저장
-                    _textTotalPages = currentPage;  // 총 페이지 저장
+                    _textLinePages = result.Pages;
+                    _textTotalPages = result.TotalPages;
+                    _calculatedTotalHeight = result.TotalHeight;
+                    _isPageCalculationCompleted = true;
+                    
+                    DispatcherQueue.TryEnqueue(() => UpdateTextStatusBar());
                 }
-                else if (TextScrollViewer != null)
-                {
-                    // Fallback
-                    _calculatedTotalHeight = TextScrollViewer.ExtentHeight;
-                }
-
-                _isPageCalculationCompleted = true;
-
-                // 백그라운드 스레드에서 UI 스레드로 업데이트 명령
-                DispatcherQueue.TryEnqueue(() => UpdateTextStatusBar());
             }
-            catch (OperationCanceledException)
-            {
-                // Expected on new calculation start
-            }
+            catch (OperationCanceledException) { }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"Error calculating text pages: {ex.Message}");
-                // Fallback on error
+                System.Diagnostics.Debug.WriteLine($"Error calculating pages: {ex.Message}");
                 if (TextScrollViewer != null)
                 {
                     _calculatedTotalHeight = TextScrollViewer.ExtentHeight;
                     _isPageCalculationCompleted = true;
-                    UpdateTextStatusBar();
+                    DispatcherQueue.TryEnqueue(() => UpdateTextStatusBar());
                 }
             }
+        }
+
+        private bool ContainsCJK(string text)
+        {
+            if (string.IsNullOrEmpty(text)) return false;
+            foreach (char c in text)
+            {
+                if (c >= 0x2E80 && c <= 0x9FFF) return true; // Han
+                if (c >= 0xAC00 && c <= 0xD7AF) return true; // Hangul
+                if (c >= 0x3040 && c <= 0x30FF) return true; // Kana
+            }
+            return false;
         }
 
         private int GetTopVisibleLineIndex()
