@@ -367,7 +367,6 @@ namespace Uviewer.Services
                             if (!(isLastInText && isLastInline))
                             {
                                 string part = text.Substring(start, splitPos - start);
-                                if (currentBlock.Inlines.Count == 0 && !isFirst) part = part.TrimStart();
                                 if (!string.IsNullOrEmpty(part)) currentBlock.Inlines.Add(part);
 
                                 if (currentBlock.Inlines.Count > 0)
@@ -390,7 +389,6 @@ namespace Uviewer.Services
                     if (start < text.Length)
                     {
                         string left = text.Substring(start);
-                        if (currentBlock.Inlines.Count == 0 && !isFirst) left = left.TrimStart();
                         if (!string.IsNullOrEmpty(left)) currentBlock.Inlines.Add(left);
                     }
                 }
