@@ -16,7 +16,6 @@ namespace Uviewer.Services
         private const int DefaultPreloadCount = 5;
 
         private CancellationTokenSource? _preloadCts;
-        private CancellationTokenSource? _pdfCurrentPageUpgradeCts;
 
         public PreloadManager(ImageCacheManager imageCache, DispatcherQueue dispatcherQueue)
         {
@@ -24,16 +23,12 @@ namespace Uviewer.Services
             _dispatcherQueue = dispatcherQueue ?? throw new ArgumentNullException(nameof(dispatcherQueue));
         }
 
-        // 기존 프리로드 및 해상도 업그레이드 작업 취소
+        // 기존 프리로드 작업 취소
         public void CancelAll()
         {
             _preloadCts?.Cancel();
             _preloadCts?.Dispose();
             _preloadCts = null;
-
-            _pdfCurrentPageUpgradeCts?.Cancel();
-            _pdfCurrentPageUpgradeCts?.Dispose();
-            _pdfCurrentPageUpgradeCts = null;
         }
 
         // Next/Prev 방향을 통합한 프리로드 시작 메서드
@@ -45,7 +40,7 @@ namespace Uviewer.Services
             CanvasBitmap? currentBitmap,
             CanvasBitmap? leftBitmap,
             CanvasBitmap? rightBitmap,
-            Func<ImageEntry, bool, CancellationToken, Task<CanvasBitmap?>> loadBitmapFunc,
+            Func<ImageEntry, CancellationToken, Task<CanvasBitmap?>> loadBitmapFunc,
             Action invalidateCanvasAction,
             bool prioritizeNext = true,
             bool requireSharpening = false)
@@ -82,13 +77,11 @@ namespace Uviewer.Services
                     if (!FileExplorerService.IsNavigableImage(entries[index])) continue;
 
                     bool isPdfEntry = entries[index].IsPdfEntry && isPdfMode;
-                    bool isPreviewQuality = isPdfEntry && d >= 3;
 
-                    if (_imageCache.ShouldSkipPreload(index, isPdfEntry, zoomLevel, isPreviewQuality, requireSharpening)) continue;
+                    if (_imageCache.ShouldSkipPreload(index, isPdfEntry, zoomLevel, requireSharpening)) continue;
                     if (!_imageCache.TryMarkForLoading(index)) continue;
 
                     var entry = entries[index];
-                    var capturedIsPreview = isPreviewQuality;
                     var capturedIndex = index;
 
                     tasks.Add(Task.Run(async () =>
@@ -98,7 +91,7 @@ namespace Uviewer.Services
                             if (token.IsCancellationRequested) return;
 
                             // MainWindow에서 전달받은 디코딩 콜백 실행
-                            CanvasBitmap? bitmap = await loadBitmapFunc(entry, capturedIsPreview, token);
+                            CanvasBitmap? bitmap = await loadBitmapFunc(entry, token);
 
                             if (token.IsCancellationRequested)
                             {
@@ -108,7 +101,7 @@ namespace Uviewer.Services
 
                             if (bitmap != null)
                             {
-                                _imageCache.UpdateCache(capturedIndex, bitmap, isPdfEntry, zoomLevel, capturedIsPreview, currentBitmap);
+                                _imageCache.UpdateCache(capturedIndex, bitmap, isPdfEntry, zoomLevel, currentBitmap);
 
                                 _dispatcherQueue.TryEnqueue(DispatcherQueuePriority.Low, () =>
                                 {
@@ -131,62 +124,6 @@ namespace Uviewer.Services
             {
                 _imageCache.CleanupOldPreloadedImages(currentIndex, isPdfMode, DefaultPreloadCount, currentBitmap, leftBitmap, rightBitmap);
             }
-        }
-
-        // 저해상도 PDF 페이지 풀 해상도 업그레이드
-        public void ScheduleCurrentPageUpgradeIfNeeded(
-            int pageListIndex,
-            Func<int> getCurrentIndexFunc, // 현재 페이지 유지 여부 확인용 콜백
-            List<ImageEntry> entries,
-            double zoomLevel,
-            CanvasBitmap? currentBitmap,
-            Func<ImageEntry, CancellationToken, Task<CanvasBitmap?>> loadHighResBitmapFunc,
-            Action invalidateCanvasAction)
-        {
-            if (pageListIndex < 0 || pageListIndex >= entries.Count) return;
-            if (!_imageCache.NeedsHighResUpgrade(pageListIndex)) return;
-
-            var entry = entries[pageListIndex];
-            if (!entry.IsPdfEntry) return;
-
-            _pdfCurrentPageUpgradeCts?.Cancel();
-            _pdfCurrentPageUpgradeCts = new CancellationTokenSource();
-            var token = _pdfCurrentPageUpgradeCts.Token;
-
-            Task.Run(async () =>
-            {
-                try
-                {
-                    await Task.Delay(50, token);
-                    if (token.IsCancellationRequested) return;
-                    
-                    // 다른 페이지로 이미 이동했으면 중단
-                    if (getCurrentIndexFunc() != pageListIndex) return;
-
-                    CanvasBitmap? bitmap = await loadHighResBitmapFunc(entry, token);
-
-                    if (bitmap == null || token.IsCancellationRequested)
-                    {
-                        _imageCache.SafeDisposeBitmap(bitmap);
-                        return;
-                    }
-
-                    if (getCurrentIndexFunc() != pageListIndex)
-                    {
-                        _imageCache.SafeDisposeBitmap(bitmap);
-                        return;
-                    }
-
-                    _imageCache.UpdateCache(pageListIndex, bitmap, true, zoomLevel, false, currentBitmap);
-
-                    _dispatcherQueue.TryEnqueue(DispatcherQueuePriority.Normal, () =>
-                    {
-                        invalidateCanvasAction();
-                    });
-                }
-                catch (OperationCanceledException) { }
-                catch (Exception) { }
-            });
         }
 
         public void Dispose()

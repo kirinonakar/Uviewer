@@ -13,7 +13,6 @@ namespace Uviewer.Services
         private readonly Dictionary<int, CanvasBitmap> _preloadedImages = new();
         private readonly Dictionary<int, double> _pdfPreloadZoomLevels = new();
         private readonly HashSet<int> _loadingIndices = new();
-        private readonly HashSet<int> _pdfLowResPageIndices = new();
         private readonly Dictionary<int, CanvasBitmap> _sharpenedImageCache = new();
         private const int MaxSharpenedCacheSize = 20;
         
@@ -43,7 +42,7 @@ namespace Uviewer.Services
             }
         }
 
-        public bool ShouldSkipPreload(int index, bool isPdfEntry, double currentZoom, bool isPreviewQuality, bool requireSharpening = false)
+        public bool ShouldSkipPreload(int index, bool isPdfEntry, double currentZoom, bool requireSharpening = false)
         {
             lock (_lockObject)
             {
@@ -55,8 +54,7 @@ namespace Uviewer.Services
                         bool zoomMatches = Math.Abs(cachedZoom - currentZoom) <= 0.01;
                         if (zoomMatches)
                         {
-                            bool isLowRes = _pdfLowResPageIndices.Contains(index);
-                            if (!isLowRes || isPreviewQuality) return true;
+                             return true;
                         }
                     }
                     else
@@ -73,7 +71,7 @@ namespace Uviewer.Services
             }
         }
 
-        public void UpdateCache(int index, CanvasBitmap bitmap, bool isPdf, double currentZoom, bool isPreviewQuality, CanvasBitmap? currentDisplayingBitmap = null)
+        public void UpdateCache(int index, CanvasBitmap bitmap, bool isPdf, double currentZoom, CanvasBitmap? currentDisplayingBitmap = null)
         {
             lock (_lockObject)
             {
@@ -83,8 +81,6 @@ namespace Uviewer.Services
                 if (isPdf)
                 {
                     _pdfPreloadZoomLevels[index] = currentZoom;
-                    if (isPreviewQuality) _pdfLowResPageIndices.Add(index);
-                    else _pdfLowResPageIndices.Remove(index);
                 }
 
                 // 기존 이미지가 있고, 방금 새로 가져온 이미지와 다르고, 현재 화면에 보여지는 이미지가 아니라면
@@ -115,7 +111,6 @@ namespace Uviewer.Services
                         // [수정] IsBitmapInCache가 정상 작동하도록 컬렉션에서 먼저 제거
                         _preloadedImages.Remove(key);
                         _pdfPreloadZoomLevels.Remove(key);
-                        _pdfLowResPageIndices.Remove(key);
 
                         bool isActive = false;
                         foreach (var active in activeBitmaps)
@@ -134,14 +129,6 @@ namespace Uviewer.Services
                         }
                     }
                 }
-            }
-        }
-
-        public bool NeedsHighResUpgrade(int index)
-        {
-            lock (_lockObject)
-            {
-                return _pdfLowResPageIndices.Contains(index);
             }
         }
 
@@ -272,7 +259,6 @@ namespace Uviewer.Services
                 _preloadedImages.Clear();
                 _pdfPreloadZoomLevels.Clear();
                 _loadingIndices.Clear();
-                _pdfLowResPageIndices.Clear();
                 _sharpenedImageCache.Clear();
 
                 foreach (var img in allBitmaps) 

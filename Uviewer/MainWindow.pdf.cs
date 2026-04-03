@@ -203,8 +203,7 @@ namespace Uviewer
             uint pageIndex,
             CanvasControl canvas,
             CancellationToken token = default,
-            bool isPreload = false,
-            bool isPreview = false)
+            bool isPreload = false)
         {
             // 로컬 변수에 캡처하여 도중 _currentPdfDocument가 null이 되어도 크래시 방지
             var pdfDoc = _currentPdfDocument;
@@ -217,46 +216,37 @@ namespace Uviewer
                 using var pdfPage = pdfDoc.GetPage(pageIndex);
                 using var stream = new Windows.Storage.Streams.InMemoryRandomAccessStream();
 
-                // [최적화] 해상도 분기
-                // - isPreview(먼 프리로드): 물리 픽셀 약 1200px 타겟 (DIP로 변환)
-                // - 일반(가까운 프리로드 / 현재 페이지): 실제 모니터 표시 영역(DIP)에 맞춘 동적 해상도
+                // [최적화] 실제 모니터 표시 영역(DIP)에 맞춘 동적 해상도 결정
                 double targetWidth;
                 float currentDpiScale = canvas.Dpi / 96.0f;
                 if (currentDpiScale <= 0) currentDpiScale = 1.0f;
 
-                if (isPreview)
-                {
-                    targetWidth = 1200.0 / currentDpiScale;
-                }
+                // 실제 캔버스 크기와 줌 배율을 고려하여 렌더링 해상도(DIP) 결정
+                // [수정] WinUI 3 환경에서는 PdfPageRenderOptions 설정 시 시스템 DPI 배율이 자동으로 적용될 수 있으므로,
+                // 타겟 해상도를 물리 픽셀이 아닌 DIP 단위로 계산하여 중복 확대를 방지합니다.
+                double canvasWidth = canvas.Size.Width;
+                double canvasHeight = canvas.Size.Height;
+
+                // 캔버스 크기가 유효하지 않을 경우 기본값 사용
+                if (canvasWidth <= 0) canvasWidth = 1000;
+                if (canvasHeight <= 0) canvasHeight = 1000;
+
+                double pageAR = pdfPage.Size.Width / pdfPage.Size.Height;
+                double canvasAR = canvasWidth / canvasHeight;
+
+                double visibleWidthInDips;
+                if (pageAR > canvasAR)
+                    visibleWidthInDips = canvasWidth;
                 else
-                {
-                    // 실제 캔버스 크기와 줌 배율을 고려하여 렌더링 해상도(DIP) 결정
-                    // [수정] WinUI 3 환경에서는 PdfPageRenderOptions 설정 시 시스템 DPI 배율이 자동으로 적용될 수 있으므로,
-                    // 타겟 해상도를 물리 픽셀이 아닌 DIP 단위로 계산하여 중복 확대를 방지합니다.
-                    double canvasWidth = canvas.Size.Width;
-                    double canvasHeight = canvas.Size.Height;
+                    visibleWidthInDips = canvasHeight * pageAR;
 
-                    // 캔버스 크기가 유효하지 않을 경우 기본값 사용
-                    if (canvasWidth <= 0) canvasWidth = 1000;
-                    if (canvasHeight <= 0) canvasHeight = 1000;
+                // 화면에 표시되는 영역(DIP)만큼 렌더링 (줌 배율 반영)
+                targetWidth = visibleWidthInDips * _zoomLevel;
 
-                    double pageAR = pdfPage.Size.Width / pdfPage.Size.Height;
-                    double canvasAR = canvasWidth / canvasHeight;
-
-                    double visibleWidthInDips;
-                    if (pageAR > canvasAR)
-                        visibleWidthInDips = canvasWidth;
-                    else
-                        visibleWidthInDips = canvasHeight * pageAR;
-
-                    // 화면에 표시되는 영역(DIP)만큼 렌더링 (줌 배율 반영)
-                    targetWidth = visibleWidthInDips * _zoomLevel;
-
-                    // 품질과 메모리 사용량의 균형을 위해 임계값 적용 (물리 픽셀 기준 1920px~3840px을 DIP로 변환)
-                    double minDip = 1920.0 / currentDpiScale;
-                    double maxDip = 3840.0 / currentDpiScale;
-                    targetWidth = Math.Clamp(targetWidth, minDip, maxDip);
-                }
+                // 품질과 메모리 사용량의 균형을 위해 임계값 적용 (물리 픽셀 기준 1920px~3840px을 DIP로 변환)
+                double minDip = 1920.0 / currentDpiScale;
+                double maxDip = 3840.0 / currentDpiScale;
+                targetWidth = Math.Clamp(targetWidth, minDip, maxDip);
 
                 double scale = 1.0;
                 if (pdfPage.Size.Width > 0)
@@ -399,7 +389,7 @@ namespace Uviewer
 
             var canvas = MainCanvas;
             // [최적화] isPreload=false → _pdfCurrentPageSemaphore 사용으로 프리로드에 의해 블록되지 않음
-            var newBitmap = await LoadPdfPageBitmapAsync(entry.PdfPageIndex, canvas, token, isPreload: false, isPreview: false);
+            var newBitmap = await LoadPdfPageBitmapAsync(entry.PdfPageIndex, canvas, token, isPreload: false);
 
             if (token.IsCancellationRequested || newBitmap == null)
             {
@@ -416,7 +406,7 @@ namespace Uviewer
 
             var oldBitmap = _currentBitmap;
             _currentBitmap = newBitmap;
-            _imageCache.UpdateCache(capturedIndex, newBitmap, true, _zoomLevel, false, oldBitmap);
+            _imageCache.UpdateCache(capturedIndex, newBitmap, true, _zoomLevel, oldBitmap);
 
             MainCanvas.Invalidate();
             UpdateStatusBar(entry, _currentBitmap);

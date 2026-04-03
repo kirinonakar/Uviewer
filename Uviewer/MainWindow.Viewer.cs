@@ -221,11 +221,11 @@ namespace Uviewer
                             return;
                         }
 
-                        _imageCache.UpdateCache(capturedIndexAtStart, nextBitmap, true, _zoomLevel, false, _currentBitmap);
+                        _imageCache.UpdateCache(capturedIndexAtStart, nextBitmap, true, _zoomLevel, _currentBitmap);
                     }
                 }
 
-                // 3. 확보된 고해상도 이미지를 화면에 표시
+                // 3. 확보된 이미지를 화면에 표시
                 if (nextBitmap != null && !token.IsCancellationRequested && _currentIndex == capturedIndexAtStart)
                 {
                     var oldBitmap = _currentBitmap;
@@ -255,20 +255,6 @@ namespace Uviewer
                     if (oldBitmap != null && oldBitmap != nextBitmap && !IsBitmapInCache(oldBitmap))
                     {
                         _imageCache.SafeDisposeBitmap(oldBitmap);
-                    }
-                    // ====== [근본적 해결 1: 렌더링된 이미지의 실제 해상도 검증 및 자동 업그레이드] ======
-                    float dpiScale = MainCanvas.Dpi / 96.0f > 0 ? MainCanvas.Dpi / 96.0f : 1.0f;
-                    double canvasW = MainCanvas.Size.Width > 0 ? MainCanvas.Size.Width : 1000;
-                    double canvasH = MainCanvas.Size.Height > 0 ? MainCanvas.Size.Height : 1000;
-                    double pageAR = nextBitmap.Size.Height > 0 ? nextBitmap.Size.Width / nextBitmap.Size.Height : 1.0;
-                    double targetW = (pageAR > (canvasW / canvasH) ? canvasW : canvasH * pageAR) * _zoomLevel;
-                    targetW = Math.Clamp(targetW, 1920.0 / dpiScale, 3840.0 / dpiScale);
-
-                    // 현재 화면에 띄운 이미지가 목표 해상도의 90% 미만이거나, 1200px(저화질 프리뷰) 수준이라면
-                    if (nextBitmap.Size.Width < targetW * 0.9 || nextBitmap.Size.Width <= (1250 / dpiScale))
-                    {
-                        // 즉시 고해상도로 다시 그리고 캐시와 프리로드를 연쇄 갱신
-                        _ = RerenderPdfCurrentPageAsync();
                     }
                 }
                 
@@ -350,11 +336,11 @@ namespace Uviewer
                     
                     if (firstBitmap == null)
                     {
-                        firstBitmap = await LoadBitmapForPreloadAsync(entry, false, token);
+                        firstBitmap = await LoadBitmapForPreloadAsync(entry, token);
                         if (firstBitmap != null)
                         {
                             // 원본 이미지를 캐시에 넣어두어 나중에 다시 로드되는 것을 방지
-                            _imageCache.UpdateCache(_currentIndex, firstBitmap, false, _zoomLevel, false, _currentBitmap);
+                            _imageCache.UpdateCache(_currentIndex, firstBitmap, false, _zoomLevel, _currentBitmap);
                         }
                     }
 
@@ -1346,7 +1332,7 @@ namespace Uviewer
 
                         var oldPosNextTop = (canvasSize.Height - scaledSize.Height) / 2 + _pdfPanY;
                         int oldIndex = _currentIndex;
-                        _imageCache.UpdateCache(oldIndex, bitmap, true, _zoomLevel, false, _currentBitmap);
+                        _imageCache.UpdateCache(oldIndex, bitmap, true, _zoomLevel, _currentBitmap);
 
                         _currentIndex = targetPrevIndex;
 
@@ -1395,7 +1381,7 @@ namespace Uviewer
 
                                 if (prev != null)
                                 {
-                                    _imageCache.UpdateCache(targetPrevIndex, prev, true, _zoomLevel, false, _currentBitmap);
+                                    _imageCache.UpdateCache(targetPrevIndex, prev, true, _zoomLevel, _currentBitmap);
 
                                     var pFit = Math.Min(canvasSize.Width / prev.Size.Width, canvasSize.Height / prev.Size.Height);
                                     var pScaledH = prev.Size.Height * pFit * _zoomLevel;
@@ -1438,7 +1424,7 @@ namespace Uviewer
 
                         var oldPosPrevBottom = (canvasSize.Height - scaledSize.Height) / 2 + _pdfPanY + scaledSize.Height;
                         int oldIndex = _currentIndex;
-                        _imageCache.UpdateCache(oldIndex, bitmap, true, _zoomLevel, false, _currentBitmap);
+                        _imageCache.UpdateCache(oldIndex, bitmap, true, _zoomLevel, _currentBitmap);
 
                         _currentIndex = targetNextIndex;
 
@@ -1487,7 +1473,7 @@ namespace Uviewer
 
                                 if (next != null)
                                 {
-                                    _imageCache.UpdateCache(targetNextIndex, next, true, _zoomLevel, false, _currentBitmap);
+                                    _imageCache.UpdateCache(targetNextIndex, next, true, _zoomLevel, _currentBitmap);
 
                                     var nFit = Math.Min(canvasSize.Width / next.Size.Width, canvasSize.Height / next.Size.Height);
                                     var nScaledH = next.Size.Height * nFit * _zoomLevel;
