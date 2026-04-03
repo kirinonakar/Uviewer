@@ -268,6 +268,7 @@ namespace Uviewer
             CloseCurrentArchive();
             await CloseCurrentPdfAsync();
             CloseCurrentEpub();
+            CloseCurrentText();
 
             // Cancel any ongoing preloading and clear cache
             _preloadManager.CancelAll();

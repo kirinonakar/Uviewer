@@ -539,6 +539,15 @@ namespace Uviewer
             UpdateNextImageSideButtonState();
         }
 
+        private void CloseCurrentText()
+        {
+            _currentTextFilePath = null;
+            _currentTextArchiveEntryKey = null;
+            _currentTextContent = "";
+            _aozoraBlocks.Clear();
+            _textLines.Clear();
+        }
+
         /// <summary>
         /// Progressive loading for simple text mode - loads initial chunk first, then rest in background
         /// </summary>
