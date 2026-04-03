@@ -256,6 +256,20 @@ namespace Uviewer
                     {
                         _imageCache.SafeDisposeBitmap(oldBitmap);
                     }
+                    // ====== [근본적 해결 1: 렌더링된 이미지의 실제 해상도 검증 및 자동 업그레이드] ======
+                    float dpiScale = MainCanvas.Dpi / 96.0f > 0 ? MainCanvas.Dpi / 96.0f : 1.0f;
+                    double canvasW = MainCanvas.Size.Width > 0 ? MainCanvas.Size.Width : 1000;
+                    double canvasH = MainCanvas.Size.Height > 0 ? MainCanvas.Size.Height : 1000;
+                    double pageAR = nextBitmap.Size.Height > 0 ? nextBitmap.Size.Width / nextBitmap.Size.Height : 1.0;
+                    double targetW = (pageAR > (canvasW / canvasH) ? canvasW : canvasH * pageAR) * _zoomLevel;
+                    targetW = Math.Clamp(targetW, 1920.0 / dpiScale, 3840.0 / dpiScale);
+
+                    // 현재 화면에 띄운 이미지가 목표 해상도의 90% 미만이거나, 1200px(저화질 프리뷰) 수준이라면
+                    if (nextBitmap.Size.Width < targetW * 0.9 || nextBitmap.Size.Width <= (1250 / dpiScale))
+                    {
+                        // 즉시 고해상도로 다시 그리고 캐시와 프리로드를 연쇄 갱신
+                        _ = RerenderPdfCurrentPageAsync();
+                    }
                 }
                 
                 // 페이지 이동 정보 기록

@@ -1472,6 +1472,31 @@ namespace Uviewer
                     bitmap = _imageCache.GetPreloadedImage(entryIndex);
                 }
 
+// ====== [근본적 해결 2: 프리로드 캐시 오염 방지] ======
+                // 캐시에서 꺼낸 이미지가 우리가 요청한 품질(고화질/저화질)에 못 미치면 무시하고 새로 그림
+                if (bitmap != null && entry.IsPdfEntry && _currentPdfDocument != null)
+                {
+                    float dpiScale = MainCanvas.Dpi / 96.0f > 0 ? MainCanvas.Dpi / 96.0f : 1.0f;
+                    double targetW;
+                    
+                    if (isPreview)
+                    {
+                        targetW = 1200.0 / dpiScale;
+                    }
+                    else
+                    {
+                        double canvasW = MainCanvas.Size.Width > 0 ? MainCanvas.Size.Width : 1000;
+                        double canvasH = MainCanvas.Size.Height > 0 ? MainCanvas.Size.Height : 1000;
+                        double pageAR = bitmap.Size.Height > 0 ? bitmap.Size.Width / bitmap.Size.Height : 1.0;
+                        targetW = Math.Clamp((pageAR > (canvasW / canvasH) ? canvasW : canvasH * pageAR) * _zoomLevel, 1920.0 / dpiScale, 3840.0 / dpiScale);
+                    }
+
+                    // 캐시에 있던 해상도가 우리가 당장 필요한 목표치보다 현저히 작으면 버림
+                    if (bitmap.Size.Width < targetW * 0.9)
+                    {
+                        bitmap = null; // 조건 미달 시 새로 로드하도록 null 처리
+                    }
+                }
                 if (bitmap == null)
                 {
                     if (entry.IsPdfEntry && _currentPdfDocument != null)
