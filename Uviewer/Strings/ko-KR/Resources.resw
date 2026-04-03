@@ -425,4 +425,7 @@
   <data name="FontSelectionSlotTitle" xml:space="preserve">
     <value>폰트 {0} 선택</value>
   </data>
+  <data name="FileNotFound" xml:space="preserve">
+    <value>파일/폴더가 없습니다.</value>
+  </data>
 </root>

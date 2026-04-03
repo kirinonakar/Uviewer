@@ -1135,21 +1135,45 @@ namespace Uviewer
 
             if (item.IsDirectory)
             {
+                if (!Directory.Exists(item.FullPath))
+                {
+                    ShowNotification(Strings.FileNotFound, "\uE7BA", "Red");
+                    RefreshExplorer();
+                    return;
+                }
                 // Do not auto-navigate to folder on selection (Arrow keys/Single click)
                 // LoadExplorerFolder(item.FullPath);
             }
             else if (item.IsArchive)
             {
+                if (!File.Exists(item.FullPath))
+                {
+                    ShowNotification(Strings.FileNotFound, "\uE7BA", "Red");
+                    RefreshExplorer();
+                    return;
+                }
                 await AddToRecentAsync(true);
                 await LoadImagesFromArchiveAsync(item.FullPath);
             }
             else if (item.IsPdf)
             {
+                if (!File.Exists(item.FullPath))
+                {
+                    ShowNotification(Strings.FileNotFound, "\uE7BA", "Red");
+                    RefreshExplorer();
+                    return;
+                }
                 await AddToRecentAsync(true);
                 await LoadImagesFromPdfAsync(item.FullPath);
             }
             else if (item.IsImage || item.IsText || item.IsEpub)
             {
+                if (!File.Exists(item.FullPath))
+                {
+                    ShowNotification(Strings.FileNotFound, "\uE7BA", "Red");
+                    RefreshExplorer();
+                    return;
+                }
                 await AddToRecentAsync(true);
                 var file = await StorageFile.GetFileFromPathAsync(item.FullPath);
                 await LoadImageFromFileAsync(file);

@@ -129,6 +129,7 @@ namespace Uviewer
         public static string About => GetString("About");
         public static string AboutTitle => GetString("AboutTitle");
         public static string Close => GetString("CloseWindowTooltip").Replace("(Esc)", "").Trim();
+        public static string FileNotFound => GetString("FileNotFound");
 
         // Sharpen & Upscale
         public static string SharpenSettingsTitle => GetString("SharpenSettingsTitle");

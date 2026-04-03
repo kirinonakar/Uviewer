@@ -425,4 +425,7 @@
   <data name="FontSelectionSlotTitle" xml:space="preserve">
     <value>Select Font {0}</value>
   </data>
+  <data name="FileNotFound" xml:space="preserve">
+    <value>File/Folder not found.</value>
+  </data>
 </root>

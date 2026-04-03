@@ -554,6 +554,10 @@ namespace Uviewer
                         {
                             LoadExplorerFolder(favorite.Path);
                         }
+                        else
+                        {
+                            ShowNotification(Strings.FileNotFound, "\uE7BA", "Red");
+                        }
                         break;
                     case "File":
                         if (File.Exists(favorite.Path))
@@ -591,6 +595,10 @@ namespace Uviewer
                             {
                                 await LoadImageFromFileAsync(file);
                             }
+                        }
+                        else
+                        {
+                            ShowNotification(Strings.FileNotFound, "\uE7BA", "Red");
                         }
                         break;
                     case "Archive":
@@ -1180,6 +1188,10 @@ namespace Uviewer
                         {
                             LoadExplorerFolder(targetPath);
                         }
+                        else
+                        {
+                            ShowNotification(Strings.FileNotFound, "\uE7BA", "Red");
+                        }
                         break;
 
                     case "File":
@@ -1225,6 +1237,10 @@ namespace Uviewer
                             {
                                 await LoadImageFromFileAsync(file);
                             }
+                        }
+                        else
+                        {
+                            ShowNotification(Strings.FileNotFound, "\uE7BA", "Red");
                         }
                         break;
 

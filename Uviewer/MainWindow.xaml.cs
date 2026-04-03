@@ -479,24 +479,44 @@ namespace Uviewer
                 }
             };
 
-                // Initialize notification timer
-                _notificationTimer = DispatcherQueue.GetForCurrentThread().CreateTimer();
-                _notificationTimer.Interval = TimeSpan.FromSeconds(2);
-                _notificationTimer.IsRepeating = false;
-                _notificationTimer.Tick += (s, e) =>
-                {
-                    NotificationOverlay.Visibility = Visibility.Collapsed;
-                };
+            // Initialize notification timer
+            _notificationTimer = DispatcherQueue.GetForCurrentThread().CreateTimer();
+            _notificationTimer.Interval = TimeSpan.FromSeconds(2);
+            _notificationTimer.IsRepeating = false;
+            _notificationTimer.Tick += (s, e) =>
+            {
+                NotificationOverlay.Visibility = Visibility.Collapsed;
+            };
 
-                // Subscribe to sharpening parameter changes
-                ImageOptions.PropertyChanged += (s, e) =>
+            // Subscribe to sharpening parameter changes
+            ImageOptions.PropertyChanged += (s, e) =>
+            {
+                if (e.PropertyName != null && !e.PropertyName.EndsWith("Text"))
                 {
-                    if (e.PropertyName != null && !e.PropertyName.EndsWith("Text"))
-                    {
-                        OnSharpenParamsChanged();
-                    }
-                };
-            }
+                    OnSharpenParamsChanged();
+                }
+            };
+        }
+
+        public void ShowNotification(string message, string icon = "\uE735", string color = "Gold")
+        {
+            DispatcherQueue.TryEnqueue(() =>
+            {
+                NotificationText.Text = message;
+                NotificationIcon.Glyph = icon;
+
+                if (color == "Red")
+                    NotificationIcon.Foreground = new SolidColorBrush(Microsoft.UI.Colors.Red);
+                else if (color == "Gold")
+                    NotificationIcon.Foreground = new SolidColorBrush(Microsoft.UI.Colors.Gold);
+                else
+                    NotificationIcon.Foreground = new SolidColorBrush(Microsoft.UI.Colors.White);
+
+                NotificationOverlay.Visibility = Visibility.Visible;
+                _notificationTimer?.Stop();
+                _notificationTimer?.Start();
+            });
+        }
 
         private void ApplyLocalization()
         {
