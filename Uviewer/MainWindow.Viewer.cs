@@ -1347,6 +1347,7 @@ namespace Uviewer
                                 _currentBitmap = prev;
                                 var prevEntry = _imageEntries[_currentIndex];
                                 UpdateStatusBar(prevEntry, _currentBitmap);
+                                SyncSidebarSelection(prevEntry);
                                 MainCanvas.Invalidate();
 
                                 _ = _preloadManager.StartPreloadAsync(
@@ -1389,6 +1390,7 @@ namespace Uviewer
                                     _currentBitmap = prev;
                                     var prevEntry = _imageEntries[_currentIndex];
                                     UpdateStatusBar(prevEntry, _currentBitmap);
+                                    SyncSidebarSelection(prevEntry);
                                     MainCanvas.Invalidate();
 
                                     _ = _preloadManager.StartPreloadAsync(
@@ -1437,6 +1439,7 @@ namespace Uviewer
                                 _currentBitmap = next;
                                 var nextEntry = _imageEntries[_currentIndex];
                                 UpdateStatusBar(nextEntry, _currentBitmap);
+                                SyncSidebarSelection(nextEntry);
                                 MainCanvas.Invalidate();
 
                                 _ = _preloadManager.StartPreloadAsync(
@@ -1479,6 +1482,7 @@ namespace Uviewer
                                     _currentBitmap = next;
                                     var nextEntry = _imageEntries[_currentIndex];
                                     UpdateStatusBar(nextEntry, _currentBitmap);
+                                    SyncSidebarSelection(nextEntry);
                                     MainCanvas.Invalidate();
 
                                     _ = _preloadManager.StartPreloadAsync(
