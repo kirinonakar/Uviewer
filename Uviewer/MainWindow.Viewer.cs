@@ -252,6 +252,10 @@ namespace Uviewer
                     ShowImageUI();
                     UpdateStatusBar(entry, _currentBitmap);
 
+                    // [수정] PDF 페이지 이동 시 캐시된 이미지가 저해상도일 수 있으므로(예: 이전에 작은 창 크기에서 프리로드됨)
+                    // 현재 해상도와 줌 레벨에 맞춰 비동기로 한 번 더 고해상도 렌더링을 수행하여 항상 선명한 환경을 유지합니다.
+                    _ = RerenderPdfCurrentPageAsync();
+
                     if (oldBitmap != null && oldBitmap != nextBitmap && !IsBitmapInCache(oldBitmap))
                     {
                         _imageCache.SafeDisposeBitmap(oldBitmap);
