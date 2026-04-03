@@ -1585,7 +1585,10 @@ namespace Uviewer
 
                         if (_currentBitmap.Device != null)
                         {
-                            ds.DrawImage(_currentBitmap, destRect);
+                            if (_currentPdfDocument != null)
+                                ds.DrawImage(_currentBitmap, destRect);
+                            else
+                                ds.DrawImage(_currentBitmap, destRect, _currentBitmap.Bounds, 1.0f, CanvasImageInterpolation.HighQualityCubic);
                         }
 
                         double gap = 20 * _zoomLevel;
@@ -1604,7 +1607,10 @@ namespace Uviewer
                                 var pFit = Math.Min(canvasSize.Width / prev.Size.Width, canvasSize.Height / prev.Size.Height);
                                 var pScaledSize = new Windows.Foundation.Size(prev.Size.Width * pFit * _zoomLevel, prev.Size.Height * pFit * _zoomLevel);
                                 var pPos = new Windows.Foundation.Point((canvasSize.Width - pScaledSize.Width) / 2 + _pdfPanX, currentY_top - pScaledSize.Height - gap);
-                                ds.DrawImage(prev, new Windows.Foundation.Rect(pPos, pScaledSize));
+                                if (_currentPdfDocument != null)
+                                    ds.DrawImage(prev, new Windows.Foundation.Rect(pPos, pScaledSize));
+                                else
+                                    ds.DrawImage(prev, new Windows.Foundation.Rect(pPos, pScaledSize), prev.Bounds, 1.0f, CanvasImageInterpolation.HighQualityCubic);
                                 currentY_top = pPos.Y;
 
                                 // Stop if even this page is way above screen
@@ -1628,7 +1634,10 @@ namespace Uviewer
                                 var nFit = Math.Min(canvasSize.Width / next.Size.Width, canvasSize.Height / next.Size.Height);
                                 var nScaledSize = new Windows.Foundation.Size(next.Size.Width * nFit * _zoomLevel, next.Size.Height * nFit * _zoomLevel);
                                 var nPos = new Windows.Foundation.Point((canvasSize.Width - nScaledSize.Width) / 2 + _pdfPanX, currentY_bottom + gap);
-                                ds.DrawImage(next, new Windows.Foundation.Rect(nPos, nScaledSize));
+                                if (_currentPdfDocument != null)
+                                    ds.DrawImage(next, new Windows.Foundation.Rect(nPos, nScaledSize));
+                                else
+                                    ds.DrawImage(next, new Windows.Foundation.Rect(nPos, nScaledSize), next.Bounds, 1.0f, CanvasImageInterpolation.HighQualityCubic);
                                 currentY_bottom = nPos.Y + nScaledSize.Height;
 
                                 // Stop if even this page is way below screen
