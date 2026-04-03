@@ -397,7 +397,7 @@ namespace Uviewer
                     System.Diagnostics.Debug.WriteLine($"Added favorite: {favorite.Name}");
                     UpdateFavoritesMenu();
                     System.Diagnostics.Debug.WriteLine("Favorite added and saved successfully");
-                    ShowNotification(Strings.AddedToFavoritesNotification);
+                    ShowNotification(Strings.AddedToFavoritesNotification, "\uE735", "Gold");
                 }
                 else
                 {

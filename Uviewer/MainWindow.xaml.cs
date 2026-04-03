@@ -1054,15 +1054,6 @@ namespace Uviewer
 
         #endregion
 
-        public void ShowNotification(string message)
-        {
-            if (NotificationOverlay == null || NotificationText == null) return;
-
-            NotificationText.Text = message;
-            NotificationOverlay.Visibility = Visibility.Visible;
-            _notificationTimer?.Stop();
-            _notificationTimer?.Start();
-        }
 
         private void PinButton_Click(object sender, RoutedEventArgs e)
         {
