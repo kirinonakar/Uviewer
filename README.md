@@ -98,6 +98,7 @@
 | **Ctrl + B** | Global | Toggle Sidebar |
 | **Ctrl + S** | Global | Add to Favorites |
 | **+ / -**  | Global | Zoom In/Out / Font Size Up/Down (-/= also works) |
+| |  | Blocked in Side-by-Side (2 page) mode |
 | **0**  | Global | Fit to Window |
 | **1**  | Global | Zoom Actual Size (Fit to width in PDF) |
 | **G** | Text/EPUB | Go to Line |
