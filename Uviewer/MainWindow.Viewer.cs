@@ -90,6 +90,8 @@ namespace Uviewer
 
         private void ZoomActualButton_Click(object sender, RoutedEventArgs e)
         {
+            if (_isCurrentViewSideBySide && _currentPdfDocument == null) return;
+
             if (_currentBitmap != null && _currentBitmap.Device != null)
             {
                 var containerWidth = ImageArea.ActualWidth;
@@ -105,12 +107,14 @@ namespace Uviewer
 
         private void ZoomIn()
         {
+            if (_isCurrentViewSideBySide && _currentPdfDocument == null) return;
             _zoomService.ZoomIn();
             ApplyZoom();
         }
 
         private void ZoomOut()
         {
+            if (_isCurrentViewSideBySide && _currentPdfDocument == null) return;
             _zoomService.ZoomOut();
             ApplyZoom();
         }
@@ -1139,7 +1143,7 @@ namespace Uviewer
             var ctrl = Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(Windows.System.VirtualKey.Control);
             if (ctrl.HasFlag(Windows.UI.Core.CoreVirtualKeyStates.Down))
             {
-                if (_currentBitmap != null)
+                if (_currentBitmap != null && (!_isCurrentViewSideBySide || _currentPdfDocument != null))
                 {
                     // 마우스 휠이나 터치패드 핀치의 불연속적인 델타값을 스무스하게 보간하기 위해 애니메이션 사용
                     double zoomMultiplier = Math.Exp(wheelDelta * 0.001); 
@@ -1185,7 +1189,7 @@ namespace Uviewer
 
         private async void ImageArea_ManipulationDelta(object sender, Microsoft.UI.Xaml.Input.ManipulationDeltaRoutedEventArgs e)
         {
-            if (_currentBitmap == null) return;
+            if (_currentBitmap == null || (_isCurrentViewSideBySide && _currentPdfDocument == null)) return;
 
             // 1. 핀치 줌 처리
             if (e.Delta.Scale != 1.0f)
@@ -1326,11 +1330,11 @@ namespace Uviewer
                 {
                     _pdfPanY += deltaY;
 
+                    int targetPrevIndex = FileExplorerService.GetNextImageIndex(_imageEntries, _currentIndex, 1, false);
                     // 이전 페이지로 전환
-                    if (_pdfPanY > maxPanY + 1 && _currentIndex > 0)
+                    if (_pdfPanY > maxPanY + 1 && targetPrevIndex != _currentIndex)
                     {
                         _isPdfTransitioning = true;
-                        int targetPrevIndex = _currentIndex - 1;
                         CanvasBitmap? prev = (_sharpenEnabled && _currentPdfDocument == null) ? _imageCache.GetSharpenedImage(targetPrevIndex) : null;
                         if (prev == null) prev = _imageCache.GetPreloadedImage(targetPrevIndex, _zoomLevel);
 
@@ -1412,17 +1416,17 @@ namespace Uviewer
                         return;
                     }
 
-                    if (_currentIndex == 0 && _pdfPanY > maxPanY) _pdfPanY = maxPanY;
+                    if (targetPrevIndex == _currentIndex && _pdfPanY > maxPanY) _pdfPanY = maxPanY;
                 }
                 else if (deltaY < 0) // 아래로 스크롤 (다음 페이지로)
                 {
                     _pdfPanY += deltaY;
 
+                    int targetNextIndex = FileExplorerService.GetNextImageIndex(_imageEntries, _currentIndex, 1, true);
                     // 다음 페이지로 전환
-                    if (_pdfPanY < -maxPanY - 1 && _currentIndex < _imageEntries.Count - 1)
+                    if (_pdfPanY < -maxPanY - 1 && targetNextIndex != _currentIndex)
                     {
                         _isPdfTransitioning = true;
-                        int targetNextIndex = _currentIndex + 1;
                         CanvasBitmap? next = (_sharpenEnabled && _currentPdfDocument == null) ? _imageCache.GetSharpenedImage(targetNextIndex) : null;
                         if (next == null) next = _imageCache.GetPreloadedImage(targetNextIndex, _zoomLevel);
 
@@ -1504,7 +1508,7 @@ namespace Uviewer
                         return;
                     }
 
-                    if (_currentIndex >= _imageEntries.Count - 1 && _pdfPanY < -maxPanY) _pdfPanY = -maxPanY;
+                    if (targetNextIndex == _currentIndex && _pdfPanY < -maxPanY) _pdfPanY = -maxPanY;
                 }
 
                 ApplyZoom();
