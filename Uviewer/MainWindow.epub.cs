@@ -1387,7 +1387,31 @@ namespace Uviewer
                 {
                     finalTargetPage = pages.Count - 1;
                 }
+// 가로 모드: SetEpubPageIndex 호출 전, 타겟 페이지가 이미지인 경우 세로 모드처럼 미리 로드 대기 (첫 로딩 시 캔버스 갱신 누락 방지)
+                if (!_isVerticalMode && pages.Count > 0 && finalTargetPage >= 0 && finalTargetPage < pages.Count)
+                {
+                    var targetPg = pages[finalTargetPage];
+                    if (targetPg.IsImagePage)
+                    {
+                        // 현재 페이지 이미지 캐시에 확실히 로드
+                        await LoadEpubImageForWin2DAsync(targetPg.ImagePath);
 
+                        // SideBySide 모드일 경우 우측(다음) 페이지 이미지도 미리 로드
+                        if (_isSideBySideMode)
+                        {
+                            int nextChapIndex = index;
+                            int nextPgIndex = finalTargetPage + 1;
+                            if (nextPgIndex >= pages.Count) { nextChapIndex++; nextPgIndex = 0; }
+                            
+                            var pg2 = GetEpubWin2DPage(nextChapIndex, nextPgIndex);
+                            if (pg2 != null && pg2.IsImagePage)
+                            {
+                                await LoadEpubImageForWin2DAsync(pg2.ImagePath);
+                            }
+                        }
+                    }
+                }
+                
                 SetEpubPageIndex(finalTargetPage);
                 _ = PreloadEpubChaptersAsync(index);
             }
