@@ -1150,7 +1150,8 @@ namespace Uviewer
                 }
             }
 
-            if (_currentPdfDocument != null && _currentBitmap != null)
+            // [핵심] PDF이거나 1장 보기 상태에서 확대된 이미지는 터치패드의 세밀한 델타값을 그대로 반영하여 부드럽게 스크롤되게 합니다.
+            if (_currentBitmap != null && (_currentPdfDocument != null || (_zoomLevel > 1.01 && !_isCurrentViewSideBySide)))
             {
                 // [핵심] 강제로 80 단위로 움직이던 코드를 제거하고, 터치패드의 부드러운 실제 값을 그대로 전달합니다.
                 // 가로 스크롤(스와이프)도 함께 지원하도록 분기합니다.
@@ -1168,14 +1169,6 @@ namespace Uviewer
 
             if (Math.Abs(wheelDelta) >= 40)
             {
-                // [수정] 1장 보기 상태에서 확대된 경우 PDF처럼 연속 스크롤 처리
-                if (_zoomLevel > 1.01 && !_isCurrentViewSideBySide && _currentBitmap != null)
-                {
-                    await HandlePdfScrollAsync(0, wheelDelta);
-                    e.Handled = true;
-                    return;
-                }
-
                 if (wheelDelta < 0) await NavigateToNextAsync();
                 else await NavigateToPreviousAsync();
             }
