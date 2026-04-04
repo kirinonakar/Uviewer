@@ -336,7 +336,7 @@ namespace Uviewer
                                      _imageEntries.Count > 1;
 
 // [추가] 압축파일 자동 2장보기 옵션
-                if (!canSideBySide && _autoDoublePageForArchive && 
+                if (_autoDoublePageForArchive && 
                     (_currentArchivePath != null || _current7zArchive != null) &&
                     _currentPdfDocument == null && _imageEntries.Count > 1)
                 {
@@ -355,8 +355,14 @@ namespace Uviewer
 
                     if (firstBitmap != null)
                     {
-                        if (firstBitmap.Size.Height >= firstBitmap.Size.Width * 1.2)
+                        if (firstBitmap.Size.Width >= firstBitmap.Size.Height * 1.2)
                         {
+                            // 가로가 세로보다 1.2배 이상 길면 1장 보기로 강제 (2장 보기 무시)
+                            canSideBySide = false;
+                        }
+                        else if (firstBitmap.Size.Height >= firstBitmap.Size.Width * 1.2)
+                        {
+                            // 세로가 가로보다 1.2배 이상 길면 (세로형) 2장 보기 자동 활성화
                             canSideBySide = true;
                         }
                     }
