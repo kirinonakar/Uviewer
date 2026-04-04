@@ -127,7 +127,7 @@ namespace Uviewer
                 return;
 
             // Trigger canvas redraw for new zoom level
-            if (!_isCurrentViewSideBySide)
+            if (!_isCurrentViewSideBySide || _currentPdfDocument != null)
             {
                 MainCanvas?.Invalidate();
             }
@@ -191,6 +191,7 @@ namespace Uviewer
             if (entry.IsPdfEntry && _currentPdfDocument != null)
             {
                 SwitchToImageMode();
+                _isCurrentViewSideBySide = false;
                 CanvasBitmap? nextBitmap = null;
 
                 nextBitmap = _imageCache.GetPreloadedImage(_currentIndex, _zoomLevel);
