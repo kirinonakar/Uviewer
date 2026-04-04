@@ -1138,7 +1138,7 @@ namespace Uviewer
             var ctrl = Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(Windows.System.VirtualKey.Control);
             if (ctrl.HasFlag(Windows.UI.Core.CoreVirtualKeyStates.Down))
             {
-                if (_currentPdfDocument != null && _currentBitmap != null)
+                if (_currentBitmap != null)
                 {
                     // 마우스 휠이나 터치패드 핀치의 불연속적인 델타값을 스무스하게 보간하기 위해 애니메이션 사용
                     double zoomMultiplier = Math.Exp(wheelDelta * 0.001); 
@@ -1183,9 +1183,15 @@ namespace Uviewer
             e.Handled = true;
         }
 
+        private void ImageArea_ManipulationStarting(object sender, Microsoft.UI.Xaml.Input.ManipulationStartingRoutedEventArgs e)
+        {
+            e.Container = ImageArea;
+            e.Mode = Microsoft.UI.Xaml.Input.ManipulationModes.All;
+        }
+
         private async void ImageArea_ManipulationDelta(object sender, Microsoft.UI.Xaml.Input.ManipulationDeltaRoutedEventArgs e)
         {
-            if (_currentPdfDocument == null || _currentBitmap == null) return;
+            if (_currentBitmap == null) return;
 
             // 1. 핀치 줌 처리
             if (e.Delta.Scale != 1.0f)
@@ -1210,7 +1216,7 @@ namespace Uviewer
 
         private void ZoomPdfAtPosition(double zoomMultiplier, Windows.Foundation.Point position)
         {
-            if (_currentPdfDocument == null || _currentBitmap == null) return;
+            if (_currentBitmap == null) return;
             var canvasSize = MainCanvas.Size;
             var imageSize = _currentBitmap.Size;
             if (canvasSize.Width <= 0 || canvasSize.Height <= 0) return;
@@ -1278,7 +1284,7 @@ namespace Uviewer
 
         private void SmoothZoomTimer_Tick(object? sender, object e)
         {
-            if (_currentPdfDocument == null || _currentBitmap == null)
+            if (_currentBitmap == null)
             {
                 _smoothZoomTimer?.Stop();
                 return;
@@ -1288,7 +1294,7 @@ namespace Uviewer
             {
                 ZoomPdfAtPosition(_targetZoomLevel / _zoomLevel, _zoomPivot);
                 _smoothZoomTimer?.Stop();
-                _ = RerenderPdfCurrentPageAsync();
+                if (_currentPdfDocument != null) _ = RerenderPdfCurrentPageAsync();
                 return;
             }
 
@@ -1515,7 +1521,7 @@ namespace Uviewer
             }
         }
 
-        private async void ImageArea_PointerPressed(object sender, PointerRoutedEventArgs e)
+        private async void ImageArea_PointerPressed(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
         {
             if (_imageEntries.Count <= 1)
                 return;
@@ -1524,8 +1530,12 @@ namespace Uviewer
             if (!pt.Properties.IsLeftButtonPressed)
                 return;
 
-            if (_currentPdfDocument != null && e.Pointer.PointerDeviceType == Microsoft.UI.Input.PointerDeviceType.Touch)
-                return; // Prevent touch click from navigating pages in PDF (interferes with swipe)
+            if (e.Pointer.PointerDeviceType == Microsoft.UI.Input.PointerDeviceType.Touch)
+            {
+                // 확대된 상태이거나 PDF 모드인 경우에는 스와이프/팬 제스처를 방해하지 않도록 터치 클릭 내비게이션을 차단합니다.
+                if (_zoomLevel > 1.01 || _currentPdfDocument != null)
+                    return;
+            }
 
             double half = ImageArea.ActualWidth * 0.5;
             if (pt.Position.X < half)

@@ -532,8 +532,9 @@ namespace Uviewer
             SharpenButton.Visibility = (_currentPdfDocument != null) ? Visibility.Collapsed : Visibility.Visible;
             SharpenSeparator.Visibility = (_currentPdfDocument != null) ? Visibility.Collapsed : Visibility.Visible;
 
-            // PDF의 경우 핀치 줌과 스와이프 스크롤을 위해 조작 모드 활성화
-            ImageArea.ManipulationMode = (_currentPdfDocument != null) ? Microsoft.UI.Xaml.Input.ManipulationModes.All : Microsoft.UI.Xaml.Input.ManipulationModes.None;
+            // 핀치 줌과 스와이프를 위해 조작 모드 활성화 (PDF 및 일반 이미지 모두)
+            ImageArea.ManipulationMode = Microsoft.UI.Xaml.Input.ManipulationModes.All;
+            if (MainCanvas != null) MainCanvas.ManipulationMode = Microsoft.UI.Xaml.Input.ManipulationModes.All;
 
             UpdateSideBySideButtonState();
             UpdateNextImageSideButtonState();

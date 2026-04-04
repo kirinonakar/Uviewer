@@ -804,8 +804,9 @@
                   SizeChanged="ImageArea_SizeChanged"
                   PointerWheelChanged="ImageArea_PointerWheelChanged"
                   PointerPressed="ImageArea_PointerPressed"
-                  ManipulationMode="Scale, TranslateX, TranslateY"
+                  ManipulationMode="All"
                   ManipulationDelta="ImageArea_ManipulationDelta"
+                  ManipulationStarting="ImageArea_ManipulationStarting"
                   ManipulationCompleted="ImageArea_ManipulationCompleted">
                 <!-- Empty State -->
                 <StackPanel x:Name="EmptyStatePanel" HorizontalAlignment="Center" VerticalAlignment="Center" 
@@ -842,7 +843,11 @@
                                      Draw="MainCanvas_Draw"
                                      Visibility="Collapsed"
                                      IsTabStop="False"
-                                     CreateResources="MainCanvas_CreateResources"/>
+                                     CreateResources="MainCanvas_CreateResources"
+                                     ManipulationMode="All"
+                                     ManipulationDelta="ImageArea_ManipulationDelta"
+                                     ManipulationCompleted="ImageArea_ManipulationCompleted"
+                                     ManipulationStarting="ImageArea_ManipulationStarting"/>
 
                 <!-- Side-by-Side Image Display with Win2D -->
                 <Grid x:Name="SideBySideGrid" Visibility="Collapsed" ColumnSpacing="0">
