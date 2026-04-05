@@ -309,9 +309,11 @@ namespace Uviewer
 
                     int savedPage = 0;
                     int savedLine = 1;
+                    int savedBlockIndex = -1;
                     if (_isEpubMode)
                     {
                         savedPage = CurrentEpubPageIndex;
+                        savedBlockIndex = CurrentEpubWin2DPage?.StartBlockIndex ?? -1;
                         if (_isVerticalMode)
                         {
                             savedLine = _currentVerticalPageInfo.StartLine;
@@ -385,6 +387,7 @@ namespace Uviewer
                         ScrollOffset = (_isTextMode && TextScrollViewer != null) ? TextScrollViewer.VerticalOffset : null,
                         SavedPage = savedPage,
                         SavedLine = savedLine,
+                        SavedBlockIndex = savedBlockIndex,
                         ChapterIndex = chapterIndex,
                         IsWebDav = isWebDav,
                         WebDavServerName = webDavServerName,
@@ -521,6 +524,7 @@ namespace Uviewer
                              {
                                   PendingEpubChapterIndex = favorite.ChapterIndex;
                                   PendingEpubPageIndex = favorite.SavedPage;
+                                 _pendingEpubStartBlockIndex = favorite.SavedBlockIndex;
                                   // [추가] EPUB 모드에서도 저장된 정확한 줄 번호를 복구하도록 변수에 할당합니다.
                                   _aozoraPendingTargetLine = favorite.SavedLine > 1 ? favorite.SavedLine : 1;
                              }
@@ -567,6 +571,7 @@ namespace Uviewer
                             {
                                 PendingEpubChapterIndex = favorite.ChapterIndex;
                                 PendingEpubPageIndex = favorite.SavedPage;
+                                _pendingEpubStartBlockIndex = favorite.SavedBlockIndex;
                             }
                             else if (favorite.Path.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase))
                             {
@@ -898,6 +903,7 @@ namespace Uviewer
                 int targetPage = existing?.SavedPage ?? 0;
                 int targetChapter = existing?.ChapterIndex ?? 0;
                 int targetLine = existing?.SavedLine ?? 1;
+                int targetBlockIndex = existing?.SavedBlockIndex ?? -1;
                 double targetProgress = existing?.Progress ?? 0;
                 string? targetArchiveKey = existing?.ArchiveEntryKey;
 
@@ -919,6 +925,7 @@ namespace Uviewer
                             targetPage = existing.SavedPage;
                             targetChapter = existing.ChapterIndex;
                             targetLine = existing.SavedLine;
+                            targetBlockIndex = existing.SavedBlockIndex;
                             targetProgress = existing.Progress; // 진행률도 기존 값 복구
                             System.Diagnostics.Debug.WriteLine($"[SafeGuard] Epub reset state detected. Keeping previous position: Ch.{targetChapter} P.{targetPage}");
                         }
@@ -926,6 +933,7 @@ namespace Uviewer
                         {
                             targetPage = CurrentEpubPageIndex;
                             targetChapter = CurrentEpubChapterIndex;
+                            targetBlockIndex = CurrentEpubWin2DPage?.StartBlockIndex ?? -1;
                             
                             if (_isVerticalMode)
                             {
@@ -1031,6 +1039,7 @@ namespace Uviewer
                     SavedPage = targetPage,
                     ChapterIndex = targetChapter,
                     SavedLine = targetLine,
+                    SavedBlockIndex = targetBlockIndex,
                     IsWebDav = isWebDav,
                     WebDavServerName = webDavServerName,
                     IsVertical = _isVerticalMode,
@@ -1158,6 +1167,7 @@ namespace Uviewer
                             {
                                 PendingEpubChapterIndex = targetChapter;
                                 PendingEpubPageIndex = targetPage;
+                                _pendingEpubStartBlockIndex = recent.SavedBlockIndex;
                                 // [추가] EPUB 모드에서도 저장된 정확한 줄 번호를 복구하도록 변수에 할당합니다.
                                 _aozoraPendingTargetLine = targetLine > 1 ? targetLine : 1;
                             }
@@ -1202,6 +1212,7 @@ namespace Uviewer
                             {
                                 PendingEpubChapterIndex = targetChapter;
                                 PendingEpubPageIndex = targetPage;
+                                _pendingEpubStartBlockIndex = recent.SavedBlockIndex;
                             }
                             else if (targetPath.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase))
                             {
