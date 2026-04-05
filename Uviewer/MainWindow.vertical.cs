@@ -87,187 +87,123 @@ namespace Uviewer
                     RootGrid.PreviewKeyDown += RootGrid_Vertical_PreviewKeyDown;
                     _verticalKeyAttached = true;
                 }
-                if (VerticalTextCanvas != null) VerticalTextCanvas.Visibility = Visibility.Visible;
-                if (TextScrollViewer != null) TextScrollViewer.Visibility = Visibility.Collapsed;
-                if (AozoraTextCanvas != null) AozoraTextCanvas.Visibility = Visibility.Collapsed;
-                if (EpubArea != null) EpubArea.Visibility = Visibility.Collapsed;
-                if (TextArea != null) TextArea.Visibility = Visibility.Visible;
                 
-                int currentLine = 1;
-
-                // [핵심 수정] EPUB 모드 검사를 가장 먼저 수행하여, 전역 설정인 _isAozoraMode가 켜져 있더라도 
-                // 무조건 EPUB 챕터 파싱과 페이지 위치 비율 계산을 최우선으로 가져오도록 합니다.
                 if (_isEpubMode)
                 {
-                    var blocks = await GetEpubChapterAsAozoraBlocksAsync(_currentEpubChapterIndex);
-
-                    // [추가] 가로 모드와 동일하게 SideBySide 모드인 경우 다음 챕터의 이미지도 함께 가져옴
-                    if (_isSideBySideMode && blocks.Count > 0 && blocks.Any(b => b.HasImage))
-                    {
-                        int nextIdx = _currentEpubChapterIndex + 1;
-                        if (nextIdx < _epubSpine.Count)
-                        {
-                            var nextBlocks = await GetEpubChapterAsAozoraBlocksAsync(nextIdx);
-                            if (nextBlocks.Count > 0 && nextBlocks.Any(b => b.HasImage))
-                                blocks.AddRange(nextBlocks);
-                        }
-                    }
-                    _aozoraBlocks = blocks;
-
+                    if (VerticalTextCanvas != null) VerticalTextCanvas.Visibility = Visibility.Collapsed;
+                    if (TextScrollViewer != null) TextScrollViewer.Visibility = Visibility.Collapsed;
+                    if (AozoraTextCanvas != null) AozoraTextCanvas.Visibility = Visibility.Collapsed;
+                    if (TextArea != null) TextArea.Visibility = Visibility.Collapsed;
+                    if (EpubArea != null) EpubArea.Visibility = Visibility.Visible;
+                    
+                    int currentLine = 1;
+                    int currentBlockIdx = -1;
                     if (_epubWin2DPages != null && _currentEpubPageIndex >= 0 && _currentEpubPageIndex < _epubWin2DPages.Count)
                     {
                         var page = _epubWin2DPages[_currentEpubPageIndex];
-                        if (!page.IsImagePage)
-                        {
-                            // 텍스트 페이지면 해당 페이지의 시작 줄 번호를 그대로 사용
-                            currentLine = page.StartLine;
-                            // [추가] 블록 인덱스도 함께 전달하여 정확한 위치 고정
-                            _pendingEpubStartBlockIndex = page.StartBlockIndex;
-                        }
-                        else
-                        {
-                            // 이미지 페이지면 이미지 블록의 줄 번호를 사용
-                            if (_aozoraBlocks != null)
-                            {
-                                int targetIdx = -1;
-                                for (int i = 0; i < _aozoraBlocks.Count; i++)
-                                {
-                                    if (_aozoraBlocks[i].Inlines.OfType<AozoraImage>().Any(img => img.Source == page.ImagePath))
-                                    {
-                                        targetIdx = i;
-                                        break;
-                                    }
-                                }
-                                
-                                if (targetIdx >= 0)
-                                {
-                                    currentLine = _aozoraBlocks[targetIdx].SourceLineNumber;
-                                    // [추가] 이미지 페이지일 때도 블록 인덱스를 정확히 설정
-                                    _pendingEpubStartBlockIndex = targetIdx;
-                                }
-                            }
-                        }
+                        currentLine = page.StartLine;
+                        currentBlockIdx = page.StartBlockIndex;
                     }
-                }
-                // EPUB이 아닌 일반 텍스트 모드일 경우
-                else if (_isAozoraMode)
-                {
-                    // [수정] 진행 중인 렌더링이 있다면 해당 목표 라인을 우선 사용
-                    if (_aozoraPendingTargetLine > 0) 
-                    {
-                        currentLine = _aozoraPendingTargetLine;
-                        _aozoraPendingTargetLine = 0; // Reset after use
-                    }
-                    else if (_currentAozoraPageInfo.Blocks != null && _currentAozoraPageInfo.Blocks.Count > 0)
-                    {
-                        currentLine = _currentAozoraPageInfo.StartLine;
-                    }
-                    else if (_aozoraBlocks != null && _aozoraBlocks.Count > _currentAozoraStartBlockIndex)
-                    {
-                        currentLine = _aozoraBlocks[_currentAozoraStartBlockIndex].SourceLineNumber;
-                    }
-                    else 
-                    {
-                        currentLine = 1;
-                    }
-                }
-                else if (TextScrollViewer != null) 
-                {
-                    currentLine = GetTopVisibleLineIndex();
-                }
 
-                int targetBlockIdx = _isEpubMode ? _pendingEpubStartBlockIndex : (_isAozoraMode ? _currentAozoraStartBlockIndex : -1);
-                await PrepareVerticalTextAsync(currentLine, targetBlockIdx, _globalTextCts?.Token ?? default);
+                    _epubPreloadCache.Clear();
+                    await LoadEpubChapterAsync(_currentEpubChapterIndex, targetLine: currentLine, targetBlockIndex: currentBlockIdx);
+                }
+                else
+                {
+                    if (VerticalTextCanvas != null) VerticalTextCanvas.Visibility = Visibility.Visible;
+                    if (TextScrollViewer != null) TextScrollViewer.Visibility = Visibility.Collapsed;
+                    if (AozoraTextCanvas != null) AozoraTextCanvas.Visibility = Visibility.Collapsed;
+                    if (EpubArea != null) EpubArea.Visibility = Visibility.Collapsed;
+                    if (TextArea != null) TextArea.Visibility = Visibility.Visible;
+
+                    int currentLine = 1;
+                    if (_isAozoraMode)
+                    {
+                        if (_aozoraPendingTargetLine > 0) 
+                        {
+                            currentLine = _aozoraPendingTargetLine;
+                            _aozoraPendingTargetLine = 0;
+                        }
+                        else if (_currentAozoraPageInfo.Blocks != null && _currentAozoraPageInfo.Blocks.Count > 0)
+                        {
+                            currentLine = _currentAozoraPageInfo.StartLine;
+                        }
+                        else if (_aozoraBlocks != null && _aozoraBlocks.Count > _currentAozoraStartBlockIndex)
+                        {
+                            currentLine = _aozoraBlocks[_currentAozoraStartBlockIndex].SourceLineNumber;
+                        }
+                    }
+                    else if (TextScrollViewer != null) 
+                    {
+                        currentLine = GetTopVisibleLineIndex();
+                    }
+
+                    int targetBlockIdx = _isAozoraMode ? _currentAozoraStartBlockIndex : -1;
+                    await PrepareVerticalTextAsync(currentLine, targetBlockIdx, _globalTextCts?.Token ?? default);
+                }
             }
             else
             {
-                // [수정] _pendingVerticalScrollLine을 null로 초기화하기 전에 값을 먼저 구출합니다.
-                int currentLine = 1;
-                int currentBlockIdx = -1;
-                if (_pendingVerticalStartBlockIndex >= 0)
-                {
-                    currentBlockIdx = _pendingVerticalStartBlockIndex;
-                    if (_aozoraBlocks != null && currentBlockIdx < _aozoraBlocks.Count)
-                        currentLine = _aozoraBlocks[currentBlockIdx].SourceLineNumber;
-                }
-                else if (_pendingVerticalScrollLine.HasValue)
-                {
-                    currentLine = _pendingVerticalScrollLine.Value;
-                }
-                else if (_currentVerticalPageInfo.Blocks != null && _currentVerticalPageInfo.Blocks.Count > 0)
-                {
-                    currentLine = _currentVerticalPageInfo.StartLine;
-                    currentBlockIdx = _currentVerticalStartBlockIndex;
-                }
-
-                _pendingVerticalScrollLine = null; // 값을 구출한 뒤에 초기화
-                _pendingVerticalStartBlockIndex = -1;
-
-                // Detach vertical key handler
                 if (_verticalKeyAttached && RootGrid != null)
                 {
                     RootGrid.PreviewKeyDown -= RootGrid_Vertical_PreviewKeyDown;
                     _verticalKeyAttached = false;
                 }
                 
-                    if (VerticalTextCanvas != null) VerticalTextCanvas.Visibility = Visibility.Collapsed;
+                int currentLine = 1;
+                int currentBlockIdx = -1;
+
                 if (_isEpubMode)
                 {
-                    if (EpubArea != null) EpubArea.Visibility = Visibility.Visible;
+                    if (VerticalTextCanvas != null) VerticalTextCanvas.Visibility = Visibility.Collapsed;
                     if (TextArea != null) TextArea.Visibility = Visibility.Collapsed;
-                    
-                    // [추가] 세로 모드에서 여러 챕터가 섞여 있을 수 있으므로(SBS), 현재 보고 있는 블록의 챕터로 갱신
-                    if (_aozoraBlocks != null && currentBlockIdx >= 0 && currentBlockIdx < _aozoraBlocks.Count)
-                    {
-                        var targetBlock = _aozoraBlocks[currentBlockIdx];
-                        if (targetBlock.EpubChapterIndex >= 0)
-                        {
-                            // 만약 블록의 챕터가 현재 챕터와 다르다면 챕터 인덱스 갱신
-                            if (targetBlock.EpubChapterIndex != _currentEpubChapterIndex)
-                            {
-                                _currentEpubChapterIndex = targetBlock.EpubChapterIndex;
-                            }
+                    if (EpubArea != null) EpubArea.Visibility = Visibility.Visible;
 
-                            // LoadEpubChapterAsync가 챕터 내 상대 경로 블록 인덱스를 사용하도록 보정
-                            int chapterStartIdx = -1;
-                            for (int i = 0; i <= currentBlockIdx; i++)
-                            {
-                                if (_aozoraBlocks[i].EpubChapterIndex == _currentEpubChapterIndex)
-                                {
-                                    chapterStartIdx = i;
-                                    break;
-                                }
-                            }
-                            if (chapterStartIdx >= 0)
-                            {
-                                currentBlockIdx = currentBlockIdx - chapterStartIdx;
-                            }
-                        }
+                    if (_epubWin2DPages != null && _currentEpubPageIndex >= 0 && _currentEpubPageIndex < _epubWin2DPages.Count)
+                    {
+                        var page = _epubWin2DPages[_currentEpubPageIndex];
+                        currentLine = page.StartLine;
+                        currentBlockIdx = page.StartBlockIndex;
                     }
 
-                    double? progress = null;
-                    if (_aozoraBlocks != null && _aozoraBlocks.Count > 0)
-                    {
-                         // 현재 챕터 기준의 진행률을 구하도록 수정 (전체 combined 블록이 아님)
-                         var chapterBlocks = _aozoraBlocks.Where(b => b.EpubChapterIndex == _currentEpubChapterIndex).ToList();
-                         if (chapterBlocks.Count > 0)
-                         {
-                             int currentRelIdx = currentBlockIdx >= 0 ? Math.Min(currentBlockIdx, chapterBlocks.Count - 1) : 0;
-                             progress = (double)currentRelIdx / chapterBlocks.Count;
-                         }
-                    }
-
-                    await LoadEpubChapterAsync(_currentEpubChapterIndex, targetLine: currentLine, targetBlockIndex: currentBlockIdx, progress: progress);
-                }
-                else if (_isAozoraMode)
-                {
-                    if (AozoraTextCanvas != null) AozoraTextCanvas.Visibility = Visibility.Visible;
-                    await PrepareAozoraDisplayAsync(_currentTextContent, currentLine, currentBlockIdx, _globalTextCts?.Token ?? default);
+                    _epubPreloadCache.Clear();
+                    await LoadEpubChapterAsync(_currentEpubChapterIndex, targetLine: currentLine, targetBlockIndex: currentBlockIdx);
                 }
                 else
                 {
-                    if (TextScrollViewer != null) TextScrollViewer.Visibility = Visibility.Visible;
-                    await LoadTextLinesProgressivelyAsync(_currentTextContent, currentLine);
+                    if (_pendingVerticalStartBlockIndex >= 0)
+                    {
+                        currentBlockIdx = _pendingVerticalStartBlockIndex;
+                        if (_aozoraBlocks != null && currentBlockIdx < _aozoraBlocks.Count)
+                            currentLine = _aozoraBlocks[currentBlockIdx].SourceLineNumber;
+                    }
+                    else if (_pendingVerticalScrollLine.HasValue)
+                    {
+                        currentLine = _pendingVerticalScrollLine.Value;
+                    }
+                    else if (_currentVerticalPageInfo.Blocks != null && _currentVerticalPageInfo.Blocks.Count > 0)
+                    {
+                        currentLine = _currentVerticalPageInfo.StartLine;
+                        currentBlockIdx = _currentVerticalStartBlockIndex;
+                    }
+
+                    _pendingVerticalScrollLine = null;
+                    _pendingVerticalStartBlockIndex = -1;
+
+                    if (VerticalTextCanvas != null) VerticalTextCanvas.Visibility = Visibility.Collapsed;
+                    if (EpubArea != null) EpubArea.Visibility = Visibility.Collapsed;
+                    if (TextArea != null) TextArea.Visibility = Visibility.Visible;
+
+                    if (_isAozoraMode)
+                    {
+                        if (AozoraTextCanvas != null) AozoraTextCanvas.Visibility = Visibility.Visible;
+                        await PrepareAozoraDisplayAsync(_currentTextContent, currentLine, currentBlockIdx, _globalTextCts?.Token ?? default);
+                    }
+                    else
+                    {
+                        if (TextScrollViewer != null) TextScrollViewer.Visibility = Visibility.Visible;
+                        await LoadTextLinesProgressivelyAsync(_currentTextContent, currentLine);
+                    }
                 }
             }
             UpdateTextStatusBar();
@@ -1036,7 +972,13 @@ namespace Uviewer
 
         private void UpdateVerticalStatusBar()
         {
-            if (!_isVerticalMode || _currentVerticalPageInfo.Blocks == null) return;
+            if (!_isVerticalMode) return;
+            if (_isEpubMode)
+            {
+                UpdateEpubStatus();
+                return;
+            }
+            if (_currentVerticalPageInfo.Blocks == null) return;
 
             int totalPages = _isVerticalPageCalcCompleted ? _verticalTotalPages : 0;
             int currentPage = _isVerticalPageCalcCompleted ? _verticalCalculatedCurrentPage : 1;
@@ -1055,44 +997,27 @@ namespace Uviewer
                 _textTotalLineCountInSource = totalLines;
             }
             
-            if (_isEpubMode)
+            ImageInfoText.Text = Strings.LineInfo(currentLine, totalLines);
+
+            // Start-based line progress
+            double progress = totalLines > 1 ? (double)(currentLine - 1) / (totalLines - 1) * 100.0 : 100.0;
+            if (progress > 100) progress = 100;
+            if (progress < 0) progress = 0;
+            TextProgressText.Text = $"{progress:F1}%";
+
+            if (_isVerticalPageCalcCompleted)
             {
-                ImageInfoText.Text = Strings.LineInfo(currentLine, totalLines);
-                double totalProgress = 0;
-                if (_epubSpine.Count > 0)
+                // 점프(Home/End/이동) 시에도 페이지 번호 즉시 반영
+                if (_verticalBlockToPageMap != null && _verticalBlockToPageMap.TryGetValue(_currentVerticalStartBlockIndex, out int mappedPage))
                 {
-                    double chapterProgress = (double)_currentEpubChapterIndex / _epubSpine.Count;
-                    double pageProgressInChapter = totalPages > 0 ? (double)(currentPage - 1) / totalPages / _epubSpine.Count : 0;
-                    totalProgress = (chapterProgress + pageProgressInChapter) * 100.0;
-                    if (totalProgress > 100) totalProgress = 100;
+                    _verticalCalculatedCurrentPage = mappedPage;
                 }
-                TextProgressText.Text = $"{totalProgress:F1}%";
-                ImageIndexText.Text = totalPages > 0 ? $"{currentPage} / {totalPages} (Ch.{_currentEpubChapterIndex + 1})" : $"계산 중... (Ch.{_currentEpubChapterIndex + 1})";
+
+                ImageIndexText.Text = $"{_verticalCalculatedCurrentPage} / {totalPages}";
             }
             else
             {
-                ImageInfoText.Text = Strings.LineInfo(currentLine, totalLines);
-
-                // Start-based line progress
-                double progress = totalLines > 1 ? (double)(currentLine - 1) / (totalLines - 1) * 100.0 : 100.0;
-                if (progress > 100) progress = 100;
-                if (progress < 0) progress = 0;
-                TextProgressText.Text = $"{progress:F1}%";
-
-                if (_isVerticalPageCalcCompleted)
-                {
-                    // 점프(Home/End/이동) 시에도 페이지 번호 즉시 반영
-                    if (_verticalBlockToPageMap != null && _verticalBlockToPageMap.TryGetValue(_currentVerticalStartBlockIndex, out int mappedPage))
-                    {
-                        _verticalCalculatedCurrentPage = mappedPage;
-                    }
-
-                    ImageIndexText.Text = $"{_verticalCalculatedCurrentPage} / {totalPages}";
-                }
-                else
-                {
-                    ImageIndexText.Text = Strings.CalculatingPages.Trim().Replace("(", "").Replace(")", "");
-                }
+                ImageIndexText.Text = Strings.CalculatingPages.Trim().Replace("(", "").Replace(")", "");
             }
 
             if (currentLine != _lastRecentSaveLine)

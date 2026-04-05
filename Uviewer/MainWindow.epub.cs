@@ -812,8 +812,8 @@ namespace Uviewer
             var ds = args.DrawingSession;
             var size = sender.Size;
 
-            Color bgColor = GetVerticalBackgroundColor();
-            Color textColor = GetVerticalTextColor();
+            Color bgColor = _isVerticalMode ? GetVerticalBackgroundColor() : ((SolidColorBrush)GetEpubThemeBackground()).Color;
+            Color textColor = _isVerticalMode ? GetVerticalTextColor() : ((SolidColorBrush)GetEpubThemeForeground()).Color;
             ds.Clear(bgColor);
 
             var pg = CurrentEpubWin2DPage;
@@ -822,23 +822,46 @@ namespace Uviewer
             // 이미지 페이지는 EpubImageHost에서 처리하므로 넘김
             if (pg.IsImagePage) return;
 
-            float limitedWidth = (float)(_settingsManager.FontSize * 42);
-            float marginLeft = 40f; 
-            float contentWidth = Math.Min(limitedWidth, (float)size.Width - 80f);
-            float marginTop = 30f;
+            if (_isVerticalMode)
+            {
+                float marginTop = 20f;
+                float marginBottom = 20f;
+                float marginRight = 30f;
+                float marginLeft = 10f;
+                
+                VerticalRenderer.RenderBlocks(
+                    ds: ds,
+                    blocks: pg.Blocks,
+                    textColor: textColor,
+                    canvasSize: size,
+                    marginTop: marginTop,
+                    marginBottom: marginBottom,
+                    marginRight: marginRight,
+                    marginLeft: marginLeft,
+                    baseFontSize: _settingsManager.FontSize,
+                    defaultFontFamily: _settingsManager.FontFamily,
+                    getFontWeight: GetFontWeightForFamily
+                );
+            }
+            else
+            {
+                float limitedWidth = (float)(_settingsManager.FontSize * 42);
+                float marginLeft = 40f; 
+                float contentWidth = Math.Min(limitedWidth, (float)size.Width - 80f);
+                float marginTop = 30f;
 
-            // ⭐ 통합 렌더러 호출 (EPUB과 Aozora가 완벽히 동일한 품질로 렌더링됩니다!)
-            HorizontalRenderer.RenderBlocks(
-                ds: ds,
-                blocks: pg.Blocks,
-                textColor: textColor,
-                marginLeft: marginLeft,
-                marginTop: marginTop,
-                maxWidth: contentWidth,
-                baseFontSize: _settingsManager.FontSize,
-                defaultFontFamily: _settingsManager.FontFamily,
-                getFontWeight: GetFontWeightForFamily
-            );
+                HorizontalRenderer.RenderBlocks(
+                    ds: ds,
+                    blocks: pg.Blocks,
+                    textColor: textColor,
+                    marginLeft: marginLeft,
+                    marginTop: marginTop,
+                    maxWidth: contentWidth,
+                    baseFontSize: _settingsManager.FontSize,
+                    defaultFontFamily: _settingsManager.FontFamily,
+                    getFontWeight: GetFontWeightForFamily
+                );
+            }
         }
 
 
@@ -848,14 +871,17 @@ namespace Uviewer
             DispatcherQueue.TryEnqueue(() => EpubTextCanvas?.Focus(Microsoft.UI.Xaml.FocusState.Programmatic));
             var pt = e.GetCurrentPoint(EpubTouchOverlay);
             double half = EpubTouchOverlay.ActualWidth / 2;
-            if (pt.Position.X < half) 
+            
+            if (_isVerticalMode)
             {
-                if (_isVerticalMode) NavigateVerticalPage(-1); 
+                // Vertical (RTL): Left=Next, Right=Prev
+                if (pt.Position.X < half) _ = NavigateEpubAsync(1);
                 else _ = NavigateEpubAsync(-1);
             }
-            else 
+            else
             {
-                if (_isVerticalMode) NavigateVerticalPage(1);
+                // Horizontal (LTR): Left=Prev, Right=Next
+                if (pt.Position.X < half) _ = NavigateEpubAsync(-1);
                 else _ = NavigateEpubAsync(1);
             }
         }
@@ -868,13 +894,11 @@ namespace Uviewer
             var delta = e.GetCurrentPoint(EpubTouchOverlay).Properties.MouseWheelDelta;
             if (delta > 0) 
             {
-                if (_isVerticalMode) NavigateVerticalPage(-1);
-                else _ = NavigateEpubAsync(-1);
+                _ = NavigateEpubAsync(-1);
             }
             else 
             {
-                if (_isVerticalMode) NavigateVerticalPage(1);
-                else _ = NavigateEpubAsync(1);
+                _ = NavigateEpubAsync(1);
             }
         }
 
@@ -1287,28 +1311,7 @@ namespace Uviewer
 
                 _epubWin2DPages = pages;
                 _currentEpubPageIndex = -1;
-
-                if (_isVerticalMode)
-                {
-                    _currentEpubChapterIndex = index;
-                    var blocks = await GetEpubChapterAsAozoraBlocksAsync(index);
-                    if (_isSideBySideMode && blocks.Count > 0 && blocks.Any(b => b.HasImage))
-                    {
-                        // 이미지 챕터인 경우(혹은 이미지가 포함된 경우) 다음 챕터도 이미지면 가져옴
-                        int nextIdx = index + 1;
-                        if (nextIdx < _epubSpine.Count)
-                        {
-                            var nextBlocks = await GetEpubChapterAsAozoraBlocksAsync(nextIdx);
-                            if (nextBlocks.Count > 0 && nextBlocks.Any(b => b.HasImage))
-                                blocks.AddRange(nextBlocks);
-                        }
-                    }
-                    _aozoraBlocks = blocks;
-                    await PrepareVerticalTextAsync(fromEnd ? 999999 : (targetLine > 0 ? targetLine : 1), targetBlockIndex, token);
-                    return;
-                }
-
-                // [추가] 가로 모드에서도 SideBySide인 경우 다음 챕터가 연달아 이미지면 미리 렌더링해서 캐시에 넣음
+                // [추가] 가로, 세로 모드 모두에서 SideBySide인 경우 다음 챕터가 연달아 이미지면 미리 렌더링해서 캐시에 넣음
                 // 이렇게 해야 SetEpubPageIndex에서 다음 페이지(이미지)를 즉시 찾아 2페이지 모드를 유지할 수 있음
                 if (_isSideBySideMode && pages.Count > 0 && pages.Any(p => p.IsImagePage))
                 {
@@ -1387,8 +1390,8 @@ namespace Uviewer
                 {
                     finalTargetPage = pages.Count - 1;
                 }
-// 가로 모드: SetEpubPageIndex 호출 전, 타겟 페이지가 이미지인 경우 세로 모드처럼 미리 로드 대기 (첫 로딩 시 캔버스 갱신 누락 방지)
-                if (!_isVerticalMode && pages.Count > 0 && finalTargetPage >= 0 && finalTargetPage < pages.Count)
+// SetEpubPageIndex 호출 전, 타겟 페이지가 이미지인 경우 세로 모드처럼 미리 로드 대기 (첫 로딩 시 캔버스 갱신 누락 방지)
+                if (pages.Count > 0 && finalTargetPage >= 0 && finalTargetPage < pages.Count)
                 {
                     var targetPg = pages[finalTargetPage];
                     if (targetPg.IsImagePage)
