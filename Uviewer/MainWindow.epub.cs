@@ -630,20 +630,31 @@ namespace Uviewer
             if (allBlocks.Count == 0) return pages;
 
             // 페이지 분할 파라미터 계산
-            float availableWidth = (float)(EpubArea?.ActualWidth ?? 800);
-            if (availableWidth < 100) availableWidth = (float)(RootGrid.ActualWidth - (SidebarColumn?.ActualWidth ?? 320));
-            float availableHeight = (float)(EpubArea?.ActualHeight ?? 800);
-            if (availableHeight < 200) availableHeight = (float)(RootGrid.ActualHeight - 120);
+            float availableWidth = (float)(EpubArea?.ActualWidth ?? 0);
+            if (availableWidth < 100) availableWidth = (float)(RootGrid?.ActualWidth ?? AppWindow.Size.Width / (RootGrid?.XamlRoot?.RasterizationScale ?? 1.0));
+            if (availableWidth < 200) availableWidth = 800;
 
-            float marginH = 80f; // Left 40 + Right 40
-            float marginV = 30f; // 👉 Top 30 + Bottom 여백을 줄여 하단 공간 추가 확보
-            float limitedWidth = (float)(_settingsManager.FontSize * 42); 
-            float maxWidth = availableWidth - marginH;
-            if (maxWidth > limitedWidth) maxWidth = limitedWidth; // Limit to 42 characters
-            if (maxWidth < 200) maxWidth = 600;
+            float availableHeight = (float)(EpubArea?.ActualHeight ?? 0);
+            if (availableHeight < 100) availableHeight = (float)(RootGrid?.ActualHeight ?? AppWindow.Size.Height / (RootGrid?.XamlRoot?.RasterizationScale ?? 1.0));
+            if (availableHeight < 200) availableHeight = 800;
 
-            float pageHeight = availableHeight - marginV;
-            if (pageHeight < 200) pageHeight = 600;
+            // [핵심] 렌더링 시와 동일한 마진을 사용하여 페이지 분할
+            float marginTop = 20f, marginBottom = 20f;
+            float marginRight = 30f, marginLeft = 25f; // 세로모드 시 좌측 여백을 25로 늘려 잘림 방지
+            
+            float maxWidth = availableWidth - (marginRight + marginLeft);
+            float pageHeight = availableHeight - (marginTop + marginBottom);
+
+            // [수정] 세로 모드일 때는 42자 너비 제한을 풀어서 화면 전체를 줄(Column)로 채울 수 있게 함
+            if (!_isVerticalMode)
+            {
+                float limitedWidth = (float)(_settingsManager.FontSize * 42); 
+                if (maxWidth > limitedWidth) maxWidth = limitedWidth; 
+            }
+
+            // [주의] 화면 크기가 작더라도 강제로 크게 만들면 왼쪽이 잘립니다.
+            if (maxWidth < 100) maxWidth = 100;
+            if (pageHeight < 100) pageHeight = 100;
 
             var device = EpubTextCanvas?.Device ?? CanvasDevice.GetSharedDevice();
 
@@ -687,7 +698,15 @@ namespace Uviewer
                 var pageBlocks = new List<AozoraBindingModel>();
 
                 int ref_i = i;
-                pageBlocks = PaginateHorizontalAozoraPage(ref ref_i, allBlocks, maxWidth, pageHeight, device);
+                // [수정] 세로 모드 여부에 따라 적절한 페이지 분할 알고리즘 선택
+                if (_isVerticalMode)
+                {
+                    pageBlocks = PaginateAozoraPage(ref ref_i, allBlocks, maxWidth, pageHeight, device);
+                }
+                else
+                {
+                    pageBlocks = PaginateHorizontalAozoraPage(ref ref_i, allBlocks, maxWidth, pageHeight, device);
+                }
                 i = ref_i;
 
                 if (pageBlocks.Count == 0)
@@ -715,7 +734,8 @@ namespace Uviewer
 
         private void EpubArea_SizeChanged(object sender, SizeChangedEventArgs e)
         {
-            if (!_isEpubMode || _isVerticalMode) return;
+            if (!_isEpubMode) return;
+            // [수정] 세로모드에서도 창 크기가 바뀌면 페이지를 다시 계산하도록 함 (글자 잘림 방지)
             TriggerEpubResize();
         }
 
@@ -723,7 +743,8 @@ namespace Uviewer
 
         private void EpubTextCanvas_SizeChanged(object sender, SizeChangedEventArgs e)
         {
-            if (!_isEpubMode || _isVerticalMode) return;
+            if (!_isEpubMode) return;
+            // [수정] 세로모드에서도 캔버스 크기 변경 시 내용 갱신
             if (_epubWin2DPages.Count > 0)
                 EpubTextCanvas?.Invalidate();
         }
@@ -811,7 +832,7 @@ namespace Uviewer
                 float marginTop = 20f;
                 float marginBottom = 20f;
                 float marginRight = 30f;
-                float marginLeft = 10f;
+                float marginLeft = 25f; // 페이지 분할 시와 동일하게 25 사용
                 
                 VerticalRenderer.RenderBlocks(
                     ds: ds,
