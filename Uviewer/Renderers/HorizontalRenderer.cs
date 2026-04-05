@@ -148,8 +148,11 @@ namespace Uviewer.Renderers
                     bool isHeader = (r == 0);
                     bool isFirstOnPage = (i == 0) || !blocks[i - 1].IsTable;
 
-                    float tableIndent = (float)(block.BlockIndent > 0 ? block.BlockIndent : block.Margin.Left);
-                    float tableMaxWidth = maxWidth - tableIndent;
+                    float tableIndentChars = (float)(block.BlockIndentChars > 0 ? block.BlockIndentChars : (block.Margin.Left / baseFontSize));
+                    float tableIndent = (float)(tableIndentChars * fontSize);
+                    float tableRightMargin = (float)(block.RightMarginChars * fontSize);
+                    
+                    float tableMaxWidth = maxWidth - tableIndent - tableRightMargin;
                     float tableDrawX = marginLeft + tableIndent;
                     float colWidth = tableMaxWidth / colCount;
 
@@ -246,8 +249,10 @@ namespace Uviewer.Renderers
                 string blockText = sb.ToString();
                 if (string.IsNullOrEmpty(blockText)) blockText = " "; // 빈 블록 방어
 
-                float indent = (float)(block.BlockIndent > 0 ? block.BlockIndent : block.Margin.Left);
-                float actualMaxWidth = maxWidth - indent - (float)block.Margin.Right;
+                float blockIndentChars = (float)(block.BlockIndentChars > 0 ? block.BlockIndentChars : (block.Margin.Left / baseFontSize));
+                float indent = (float)(blockIndentChars * fontSize);
+                float rightMargin = (float)(block.RightMarginChars > 0 ? block.RightMarginChars * fontSize : block.Margin.Right);
+                float actualMaxWidth = maxWidth - indent - rightMargin;
                 if (actualMaxWidth < 100) actualMaxWidth = 100;
 
                 using var format = new CanvasTextFormat
@@ -273,7 +278,7 @@ namespace Uviewer.Renderers
                 var bounds = textLayout.LayoutBounds;
                 float drawX = marginLeft + indent;
                 if (block.Alignment == TextAlignment.Center) drawX = marginLeft + (maxWidth - (float)bounds.Width) / 2;
-                else if (block.Alignment == TextAlignment.Right) drawX = marginLeft + maxWidth - (float)bounds.Width - (float)block.Margin.Right;
+                else if (block.Alignment == TextAlignment.Right) drawX = marginLeft + maxWidth - (float)bounds.Width - rightMargin;
 
                 bool isKeigakomi = block.BorderThickness.Top > 0 && block.BorderThickness.Bottom > 0 && block.BorderThickness.Left > 0 && block.BorderThickness.Right > 0;
                 float currentW = (float)bounds.Width;

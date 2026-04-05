@@ -871,8 +871,12 @@ namespace Uviewer
                 VerticalAlignment = CanvasVerticalAlignment.Center
             };
 
+            float fontSizeBase = (float)(fontSize); // Assuming argument is already scaled
+            float indentY = (float)(block.BlockIndentChars * fontSizeBase);
+            float actualHeight = Math.Max(fontSizeBase, availableHeight - indentY);
+
             // Using same measureWidth (fontSize * 2f) as in Draw method
-            using var layout = new CanvasTextLayout(device, text, format, fontSize * 2.0f, availableHeight);
+            using var layout = new CanvasTextLayout(device, text, format, fontSize * 2.0f, actualHeight);
             
             if (block.IsBold) layout.SetFontWeight(0, text.Length, Microsoft.UI.Text.FontWeights.Bold);
             foreach (var r in boldRanges) layout.SetFontWeight(r.start, r.length, Microsoft.UI.Text.FontWeights.Bold);

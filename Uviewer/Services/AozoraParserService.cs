@@ -59,6 +59,7 @@ namespace Uviewer.Services
                         Margin = new Thickness(0),
                         SourceLineNumber = startLineOffset + i,
                         BlockIndent = currentIndentEm * baseFontSize,
+                        BlockIndentChars = currentIndentEm,
                         IsBlankLine = true
                     };
 
@@ -157,7 +158,8 @@ namespace Uviewer.Services
                 {
                     SourceLineNumber = startLineOffset + i,
                     IsPageBreak = isPageBreak,
-                    BlockIndent = currentIndentEm * baseFontSize
+                    BlockIndent = currentIndentEm * baseFontSize,
+                    BlockIndentChars = currentIndentEm
                 };
                 model.Margin = new Thickness(0);
 
@@ -200,6 +202,7 @@ namespace Uviewer.Services
                 {
                     model.Alignment = TextAlignment.Right;
                     model.Margin = new Thickness(0, 0, 3 * baseFontSize, 0);
+                    model.RightMarginChars = 3;
                     content = content.Replace("［＃地から３字上げ］", "");
                 }
 
@@ -378,6 +381,7 @@ namespace Uviewer.Services
 
                                 currentBlock = CloneBlockProperties(originalBlock);
                                 currentBlock.BlockIndent = 0;
+                                currentBlock.BlockIndentChars = 0;
                                 currentBlock.Margin = new Thickness(0);
 
                                 start = splitPos;
@@ -403,6 +407,7 @@ namespace Uviewer.Services
                         
                         currentBlock = CloneBlockProperties(originalBlock);
                         currentBlock.BlockIndent = 0;
+                        currentBlock.BlockIndentChars = 0;
                         currentBlock.Margin = new Thickness(0);
                     }
                 }
@@ -675,6 +680,8 @@ namespace Uviewer.Services
                 SourceLineNumber = source.SourceLineNumber,
                 IsBold = source.IsBold,
                 BlockIndent = source.BlockIndent,
+                BlockIndentChars = source.BlockIndentChars,
+                RightMarginChars = source.RightMarginChars,
                 HeadingLevel = source.HeadingLevel,
                 HeadingText = source.HeadingText,
                 IsTable = source.IsTable,

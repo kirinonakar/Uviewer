@@ -25,6 +25,8 @@ namespace Uviewer.Models
         public bool IsPageBreak { get; set; } = false;
         public bool IsBold { get; set; } = false;
         public double BlockIndent { get; set; } = 0;
+        public double BlockIndentChars { get; set; } = 0;
+        public double RightMarginChars { get; set; } = 0;
         public bool IsBlankLine { get; set; } = false;
         public bool IsParagraphContinuation { get; set; } = false;
         public int TableRowIndex { get; set; } = -1;

@@ -415,8 +415,8 @@ namespace Uviewer
 
         ClearBackwardCache(); // <-- 파일/챕터 변경 시 캐시 지우기 추가
 
-        // [핵심 추가] 이미 파싱된 블록이 존재하고, 스케일링 설정(FontSize)이 동일하다면 불필요한 재파싱을 생략하여 즉시 렌더링
-        if (_aozoraBlocks != null && _aozoraBlocks.Count > 0 && Math.Abs(_lastCacheFontSize - _settingsManager.FontSize) < 0.01)
+        // [핵심 추가] 이미 파싱된 블록이 존재한다면 불필요한 재파싱을 생략하여 즉시 렌더링 (폰트 크기가 달라도 블록은 재사용 가능)
+        if (_aozoraBlocks != null && _aozoraBlocks.Count > 0)
         {
             _lastCacheFontSize = _settingsManager.FontSize;
             if (targetBlockIndex >= 0)
@@ -942,8 +942,11 @@ namespace Uviewer
                 int colCount = row.Count;
                 if (colCount == 0) return fontSize * 2.0f;
 
-                float tableIndent = (float)(block.BlockIndent > 0 ? block.BlockIndent : block.Margin.Left);
-                float colWidth = (availableWidth - tableIndent) / colCount;
+                float tableIndentChars = (float)(block.BlockIndentChars > 0 ? block.BlockIndentChars : (block.Margin.Left / fontSize));
+                float tableIndent = tableIndentChars * fontSize;
+                float tableRightMarginChars = (float)block.RightMarginChars;
+                float tableRightMargin = tableRightMarginChars * fontSize;
+                float colWidth = (availableWidth - tableIndent - tableRightMargin) / colCount;
 
                 using var tableFormat = new CanvasTextFormat
                 {
@@ -1026,8 +1029,11 @@ namespace Uviewer
                    VerticalAlignment = CanvasVerticalAlignment.Top
             };
 
-            float indent = (float)(block.BlockIndent > 0 ? block.BlockIndent : block.Margin.Left);
-            float actualAvailableWidth = availableWidth - indent - (float)block.Margin.Right;
+            float blockIndentChars = (float)(block.BlockIndentChars > 0 ? block.BlockIndentChars : (block.Margin.Left / fontSize));
+            float indent = blockIndentChars * fontSize;
+            float rightMarginChars = (float)(block.RightMarginChars > 0 ? block.RightMarginChars : (block.Margin.Right / fontSize));
+            float rightMargin = rightMarginChars * fontSize;
+            float actualAvailableWidth = availableWidth - indent - rightMargin;
             if (actualAvailableWidth < 100) actualAvailableWidth = 100;
 
             using var layout = new CanvasTextLayout(device, text, format, actualAvailableWidth, 0.0f);

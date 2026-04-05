@@ -233,7 +233,9 @@ namespace Uviewer.Renderers
 
                 string blockText = sb.ToString();
 
-                using var textLayout = new CanvasTextLayout(ds, blockText, format, measureWidth, drawHeight);
+                float indentY = (float)(block.BlockIndentChars * fontSize);
+                float actualDrawHeight = Math.Max(fontSize, drawHeight - indentY);
+                using var textLayout = new CanvasTextLayout(ds, blockText, format, measureWidth, actualDrawHeight);
                 ApplyVerticalBracketSpacing(ds, format, textLayout, blockText, fontSize);
                 
                 if (block.IsBold) textLayout.SetFontWeight(0, blockText.Length, FontWeights.Bold);
@@ -246,9 +248,9 @@ namespace Uviewer.Renderers
 
                 bool isKeigakomi = block.BorderColor != null || block.BorderThickness.Top > 0;
                 
-                float drawY = startY + (float)block.Margin.Top;
-                if (block.Alignment == TextAlignment.Center) drawY = (float)((canvasSize.Height - bounds.Height) / 2);
-                else if (block.Alignment == TextAlignment.Right) drawY = (float)(canvasSize.Height - bounds.Height - marginBottom);
+                float drawY = startY + (float)block.Margin.Top + indentY;
+                if (block.Alignment == TextAlignment.Center) drawY = (float)((canvasSize.Height - (float)bounds.Height) / 2);
+                else if (block.Alignment == TextAlignment.Right) drawY = (float)(canvasSize.Height - (float)bounds.Height - marginBottom);
 
                 float currentH = (float)bounds.Height;
                 if (block.IsBlankLine && currentH < fontSize) currentH = fontSize;
