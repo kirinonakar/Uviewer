@@ -633,16 +633,28 @@ namespace Uviewer
 
             // 페이지 분할 파라미터 계산
             float availableWidth = (float)(EpubArea?.ActualWidth ?? 0);
-            if (availableWidth < 100) availableWidth = (float)(RootGrid?.ActualWidth ?? AppWindow.Size.Width / (RootGrid?.XamlRoot?.RasterizationScale ?? 1.0));
-            if (availableWidth < 200) availableWidth = 800;
+            if (availableWidth < 50) 
+            {
+                availableWidth = (float)(RootGrid?.ActualWidth ?? AppWindow.Size.Width / (RootGrid?.XamlRoot?.RasterizationScale ?? 1.0));
+                if (availableWidth < 50) availableWidth = 800; // Final safe fallback if hidden
+            }
 
             float availableHeight = (float)(EpubArea?.ActualHeight ?? 0);
-            if (availableHeight < 100) availableHeight = (float)(RootGrid?.ActualHeight ?? AppWindow.Size.Height / (RootGrid?.XamlRoot?.RasterizationScale ?? 1.0));
-            if (availableHeight < 200) availableHeight = 800;
+            if (availableHeight < 50) 
+            {
+                availableHeight = (float)(RootGrid?.ActualHeight ?? AppWindow.Size.Height / (RootGrid?.XamlRoot?.RasterizationScale ?? 1.0));
+                if (availableHeight < 50) availableHeight = 800;
+            }
 
             // [핵심] 렌더링 시와 동일한 마진을 사용하여 페이지 분할
-            float marginTop = 20f, marginBottom = 20f;
-            float marginRight = 30f, marginLeft = 25f; // 세로모드 시 좌측 여백을 25로 늘려 잘림 방지
+            float marginTop = 30f, marginBottom = 10f;
+            float marginRight = 40f, marginLeft = 40f; 
+            
+            if (_isVerticalMode)
+            {
+                marginTop = 20f; marginBottom = 20f;
+                marginRight = 30f; marginLeft = 25f; 
+            }
             
             float maxWidth = availableWidth - (marginRight + marginLeft);
             float pageHeight = availableHeight - (marginTop + marginBottom);

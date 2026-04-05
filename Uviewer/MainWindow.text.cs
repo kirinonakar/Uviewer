@@ -720,10 +720,19 @@ namespace Uviewer
 
         private double GetUrlMaxWidth()
         {
-            // "Text width max 42 chars"
-            // With Consolas/Monospace it is easy. With variable width, 42 * FontSize is approximation (em).
-            // Actually, for Japanese 'em' is full width.
-            return 42 * _settingsManager.FontSize;
+            // Container width based on the actual UI control, if available
+            double containerWidth = 800; // Default fallback
+            if (TextArea != null && TextArea.ActualWidth > 0)
+            {
+                // Align with HorizontalRenderer margins (~80px total)
+                containerWidth = TextArea.ActualWidth - 80;
+            }
+
+            // "Text width max 42 chars" limit for readability
+            double limitedWidth = 42 * _settingsManager.FontSize;
+
+            // Use whichever is smaller to prevent overflow on narrow screens
+            return Math.Max(100, Math.Min(containerWidth, limitedWidth));
         }
 
         private Windows.UI.Text.FontWeight GetFontWeightForFamily(string fontFamily)

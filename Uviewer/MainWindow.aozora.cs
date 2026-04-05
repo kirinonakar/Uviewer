@@ -166,8 +166,14 @@ namespace Uviewer
 
             if (currentStartIdx <= 0 || _aozoraBlocks == null || _aozoraBlocks.Count == 0) return;
 
-            float availWidth = isVertical ? (float)(VerticalTextCanvas?.ActualWidth ?? 1000) - 40 : (float)(AozoraTextCanvas?.ActualWidth ?? 1000) - 80;
-            float availHeight = isVertical ? (float)(VerticalTextCanvas?.ActualHeight ?? 800) - 40 : (float)(AozoraTextCanvas?.ActualHeight ?? 800) - 40;
+            float availWidth = isVertical ? (float)(VerticalTextCanvas?.ActualWidth ?? 0) : (float)(AozoraTextCanvas?.ActualWidth ?? 0);
+            if (availWidth < 100) availWidth = (float)(RootGrid?.ActualWidth ?? 800) - 80;
+            availWidth -= isVertical ? 40 : 80;
+
+            float availHeight = isVertical ? (float)(VerticalTextCanvas?.ActualHeight ?? 0) : (float)(AozoraTextCanvas?.ActualHeight ?? 0);
+            if (availHeight < 100) availHeight = (float)(RootGrid?.ActualHeight ?? 800) - 80;
+            availHeight -= 40;
+
             var device = isVertical ? VerticalTextCanvas?.Device : AozoraTextCanvas?.Device;
             device ??= Microsoft.Graphics.Canvas.CanvasDevice.GetSharedDevice();
             
@@ -603,8 +609,8 @@ namespace Uviewer
             availableHeight -= (marginTop + marginBottom);
 
             float availableWidth = (float)AozoraTextCanvas.ActualWidth;
-            if (availableWidth < 100) availableWidth = (float)RootGrid.ActualWidth - 100;
-            if (availableWidth < 100) availableWidth = 1000;
+            if (availableWidth < 50) availableWidth = (float)(RootGrid?.ActualWidth ?? 900) - 100;
+            if (availableWidth < 50) availableWidth = 800; // Final safe fallback
             availableWidth -= (marginRight + marginLeft);
 
             float maxWidth = _isMarkdownRenderMode ? availableWidth : Math.Min(availableWidth, (float)GetUrlMaxWidth());
