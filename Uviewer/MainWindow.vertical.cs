@@ -73,7 +73,7 @@ namespace Uviewer
                          }
                          
                          // [추가] Aozora 모드에서는 글자 크기에 따라 인덴트 등 블록 속성이 달라질 수 있으므로 블록 자체를 재파싱합니다.
-                         if (_isAozoraMode && !_isEpubMode) _aozoraBlocks = null; 
+                         if (_isAozoraMode && !_isEpubMode) _aozoraBlocks = new List<AozoraBindingModel>(); 
 
                          _ = PrepareVerticalTextAsync(currentLine, currentBlockIdx, _globalTextCts?.Token ?? default);
                      }

@@ -247,15 +247,8 @@ namespace Uviewer
                  _currentEpubChapterIndex = targetCh;
                  await LoadEpubChapterAsync(targetCh, targetLine: _aozoraPendingTargetLine, targetBlockIndex: _pendingEpubStartBlockIndex, targetPage: PendingEpubPageIndex, token: token);
 
-                 // Page navigation (wait for items to be populated)
-                 if (PendingEpubPageIndex > 0)
-                 {
-                     await Task.Delay(100, token);
-                     if (PendingEpubPageIndex < _epubWin2DPages.Count)
-                     {
-                         SetEpubPageIndex(PendingEpubPageIndex);
-                     }
-                 }
+                 // [수정] LoadEpubChapterAsync 내부에서 targetBlockIndex 기반으로 이미 최적의 페이지를 설정하므로,
+                 // 화면 크기에 종속적인 PendingEpubPageIndex를 여기서 다시 강제로 설정하지 않습니다.
                  
                  // Reset pending values
                  PendingEpubChapterIndex = -1;
@@ -1360,7 +1353,8 @@ namespace Uviewer
                 if (token.IsCancellationRequested) return;
 
                 List<EpubWin2DPage> pages;
-                if (_epubPreloadCache.TryGetValue(index, out var cachedPages))
+                // [수정] targetBlockIndex가 지정된 경우(북마크/리사이즈 등) 캐시를 무시하고 해당 블록을 기준으로 항상 다시 계산하여 위치 일관성 보장
+                if (targetBlockIndex < 0 && _epubPreloadCache.TryGetValue(index, out var cachedPages))
                 {
                     pages = cachedPages;
                 }
