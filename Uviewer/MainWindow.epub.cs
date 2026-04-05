@@ -1449,6 +1449,13 @@ namespace Uviewer
             _currentEpubPageIndex = index;
             var page = _epubWin2DPages[index];
 
+            // [추가] 텍스트 페이지와 이미지 페이지 간 배경색 전환 처리 (이미지 페이지는 투명하게 하여 기본 앱 배경 사용)
+            if (EpubArea != null)
+            {
+                if (page.IsImagePage) EpubArea.Background = new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.Transparent);
+                else EpubArea.Background = GetEpubThemeBackground();
+            }
+
             // 이미지 페이지 처리
             if (page.IsImagePage)
             {
@@ -1551,8 +1558,18 @@ namespace Uviewer
 
         private void UpdateEpubVisuals()
         {
-            var bg = GetEpubThemeBackground();
-            if (EpubArea != null) EpubArea.Background = bg;
+            if (EpubArea != null)
+            {
+                var currentPg = CurrentEpubWin2DPage;
+                if (currentPg != null && currentPg.IsImagePage)
+                {
+                    EpubArea.Background = new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.Transparent);
+                }
+                else
+                {
+                    EpubArea.Background = GetEpubThemeBackground();
+                }
+            }
             if (_isEpubMode && !_isVerticalMode)
             {
                 EpubTextCanvas?.Invalidate();

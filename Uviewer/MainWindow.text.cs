@@ -750,22 +750,13 @@ namespace Uviewer
         {
             if (_isEpubMode)
             {
-                int currentLine = 1;
-                if (!resetScroll && EpubSelectedItem is Grid g && g.Tag is EpubPageInfoTag tag)
-                {
-                    currentLine = tag.StartLine;
-                }
-
-                UpdateEpubVisuals();
-                ClearEpubCache();
-                _ = LoadEpubChapterAsync(_currentEpubChapterIndex, targetLine: currentLine);
+                TriggerEpubResize();
                 return;
             }
             if (_isVerticalMode)
             {
                 if (TextArea != null) TextArea.Background = _settingsManager.GetThemeBackground();
-                VerticalTextCanvas.Invalidate();
-                UpdateTextStatusBar();
+                TriggerVerticalResize();
                 return;
             }
 

@@ -47,6 +47,42 @@ namespace Uviewer
         private System.Threading.CancellationTokenSource? _verticalPageCalcCts;
         private int _verticalCalculatedCurrentPage = 1;
         private CancellationTokenSource? _currentVerticalRenderCts;
+        private Microsoft.UI.Dispatching.DispatcherQueueTimer? _verticalResizeTimer;
+
+        public void TriggerVerticalResize()
+        {
+            if (!_isVerticalMode) return;
+
+            if (_verticalResizeTimer == null)
+            {
+                _verticalResizeTimer = this.DispatcherQueue.CreateTimer();
+                _verticalResizeTimer.Interval = TimeSpan.FromMilliseconds(300);
+                _verticalResizeTimer.IsRepeating = false;
+                _verticalResizeTimer.Tick += (s, e) =>
+                {
+                     if (_isVerticalMode)
+                     {
+                         // [핵심] 글자 크기나 창 크기가 바뀌면 측정 캐시와 이전 페이지 캐시를 모두 비워야 정확한 재배치가 가능합니다.
+                         ClearBackwardCache(); 
+                         
+                         int currentLine = 1;
+                         int currentBlockIdx = _currentVerticalStartBlockIndex;
+                         if (_aozoraBlocks != null && currentBlockIdx >= 0 && currentBlockIdx < _aozoraBlocks.Count)
+                         {
+                             currentLine = _aozoraBlocks[currentBlockIdx].SourceLineNumber;
+                         }
+                         
+                         // [추가] Aozora 모드에서는 글자 크기에 따라 인덴트 등 블록 속성이 달라질 수 있으므로 블록 자체를 재파싱합니다.
+                         if (_isAozoraMode && !_isEpubMode) _aozoraBlocks = null; 
+
+                         _ = PrepareVerticalTextAsync(currentLine, currentBlockIdx, _globalTextCts?.Token ?? default);
+                     }
+                };
+            }
+
+            _verticalResizeTimer.Stop();
+            _verticalResizeTimer.Start();
+        }
         
         private void ClearVerticalDisplayState()
         {
@@ -1079,25 +1115,9 @@ namespace Uviewer
 
         private void VerticalTextCanvas_SizeChanged(object sender, SizeChangedEventArgs e)
         {
-            if (_isVerticalMode && (!string.IsNullOrEmpty(_currentTextContent) || _isEpubMode))
+            if (_isVerticalMode && e.NewSize.Width > 0 && e.NewSize.Height > 0)
             {
-                ClearBackwardCache(); // <-- 화면 크기 변경 시 캐시 지우기
-                var blocks = _aozoraBlocks;
-                if (_isEpubMode && (blocks == null || blocks.Count == 0)) return;
-
-                int currentLine = 1;
-                int currentBlockIdx = -1;
-                if (_pendingVerticalScrollLine.HasValue)
-                {
-                    currentLine = _pendingVerticalScrollLine.Value;
-                    currentBlockIdx = _pendingVerticalStartBlockIndex;
-                }
-                else if (_currentVerticalPageInfo.Blocks != null)
-                {
-                    currentLine = _currentVerticalPageInfo.StartLine;
-                    currentBlockIdx = _currentVerticalStartBlockIndex;
-                }
-                _ = PrepareVerticalTextAsync(currentLine, currentBlockIdx);
+                TriggerVerticalResize();
             }
         }
 
