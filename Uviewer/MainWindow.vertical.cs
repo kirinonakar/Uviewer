@@ -475,6 +475,49 @@ namespace Uviewer
                                 continue;
                             }
 
+                            // [추가] 2장보기 페어링 처리
+                            if (_isSideBySideMode || _autoDoublePageForArchive)
+                            {
+                                bool firstIsTall = true;
+                                if (_verticalImageCache.TryGetValue(aozoraImg!.Source, out var bmp1))
+                                {
+                                    if (bmp1.Size.Width >= bmp1.Size.Height * 1.2f) firstIsTall = false;
+                                }
+
+                                if (firstIsTall && i < _aozoraBlocks.Count - 1)
+                                {
+                                    // 다음 블록이 이미지인지 확인 (공백 무시 가능)
+                                    int nextI = i + 1;
+                                    while (nextI < _aozoraBlocks.Count)
+                                    {
+                                        var nextB = _aozoraBlocks[nextI];
+                                        if (nextB.HasImage)
+                                        {
+                                            var nextImg = nextB.Inlines.OfType<AozoraImage>().FirstOrDefault();
+                                            if (nextImg != null && DoesVerticalImageExist(nextImg.Source))
+                                            {
+                                                bool secondIsTall = true;
+                                                if (_verticalImageCache.TryGetValue(nextImg.Source, out var bmp2))
+                                                {
+                                                    if (bmp2.Size.Width >= bmp2.Size.Height * 1.2f) secondIsTall = false;
+                                                }
+
+                                                if (secondIsTall)
+                                                {
+                                                    blockToPageMap[nextI] = pageCount;
+                                                    i = nextI; // 해당 인덱스까지 소비함
+                                                }
+                                            }
+                                            break;
+                                        }
+                                        bool isWS = nextB.Inlines.All(inline => (inline is string s && string.IsNullOrWhiteSpace(s)) || (inline is AozoraLineBreak));
+                                        if (!isWS) break;
+                                        blockToPageMap[nextI] = pageCount; 
+                                        nextI++;
+                                    }
+                                }
+                            }
+
                             if (i < _aozoraBlocks.Count - 1)
                             {
                                 pageCount++;
@@ -608,26 +651,47 @@ namespace Uviewer
                     index++;
                     currentMergedBlock = null;
 
-                    if (_isEpubMode && _isSideBySideMode)
+                    if (_isSideBySideMode || _autoDoublePageForArchive)
                     {
-                        while (index < blocks.Count)
+                        // Check first image ratio
+                        bool firstIsTall = true;
+                        var firstImg = block.Inlines.OfType<AozoraImage>().FirstOrDefault();
+                        if (firstImg != null && _verticalImageCache.TryGetValue(firstImg.Source, out var bmp1))
                         {
-                            var nextBlock = blocks[index];
-                            if (nextBlock.HasImage)
+                            if (bmp1.Size.Width >= bmp1.Size.Height * 1.2f) firstIsTall = false; // Wide image -> force single
+                        }
+
+                        if (firstIsTall)
+                        {
+                            while (index < blocks.Count)
                             {
-                                var nextImg = nextBlock.Inlines.OfType<AozoraImage>().FirstOrDefault();
-                                if (nextImg != null && DoesVerticalImageExist(nextImg.Source))
+                                var nextBlock = blocks[index];
+                                if (nextBlock.HasImage)
                                 {
-                                    pageBlocks.Add(nextBlock);
-                                    index++;
-                                    break; 
+                                    var nextImg = nextBlock.Inlines.OfType<AozoraImage>().FirstOrDefault();
+                                    if (nextImg != null && DoesVerticalImageExist(nextImg.Source))
+                                    {
+                                        // Check second image ratio
+                                        bool secondIsTall = true;
+                                        if (_verticalImageCache.TryGetValue(nextImg.Source, out var bmp2))
+                                        {
+                                            if (bmp2.Size.Width >= bmp2.Size.Height * 1.2f) secondIsTall = false;
+                                        }
+
+                                        if (secondIsTall)
+                                        {
+                                            pageBlocks.Add(nextBlock);
+                                            index++;
+                                        }
+                                        break; 
+                                    }
                                 }
+                                bool isWhitespace = nextBlock.Inlines.All(inline => 
+                                    (inline is string s && string.IsNullOrWhiteSpace(s)) || (inline is AozoraLineBreak));
+                                
+                                if (isWhitespace) { index++; continue; }
+                                break; 
                             }
-                            bool isWhitespace = nextBlock.Inlines.All(inline => 
-                                (inline is string s && string.IsNullOrWhiteSpace(s)) || (inline is AozoraLineBreak));
-                            
-                            if (isWhitespace) { index++; continue; }
-                            break; 
                         }
                     }
                     break;
@@ -914,16 +978,8 @@ namespace Uviewer
                 }
                 else if (_isEpubMode)
                 {
-                    int maxChapterOnPage = _currentEpubChapterIndex;
-                    var pageBlocks = _currentVerticalPageInfo.Blocks;
-                    if (pageBlocks != null && pageBlocks.Count > 0)
-                        maxChapterOnPage = pageBlocks.Max(b => b.EpubChapterIndex);
-
-                    if (maxChapterOnPage < _epubSpine.Count - 1)
-                    {
-                        _currentEpubChapterIndex = maxChapterOnPage + 1;
-                        await LoadEpubChapterAsync(_currentEpubChapterIndex);
-                    }
+                    // [수정] EPUB 모드일 때는 세로 모드여도 NavigateEpubAsync를 통해 내부 페이지를 정교하게 이동 (2장보기 등 대응)
+                    await NavigateEpubAsync(direction);
                 }
             }
             else if (direction < 0) // 이전 페이지
@@ -952,20 +1008,10 @@ namespace Uviewer
                     await RenderVerticalDynamicPageAsync(bestStart);
                     if (_isVerticalPageCalcCompleted) { _verticalCalculatedCurrentPage = Math.Max(1, _verticalCalculatedCurrentPage - 1); UpdateVerticalStatusBar(); }
                 }
-                else if (_isEpubMode && _currentEpubChapterIndex > 0)
+                else if (_isEpubMode)
                 {
-                    // 👉 버그 수정: 현재 페이지에 여러 챕터가 섞여 있을 경우 가장 앞선 챕터 기준
-                    int minChapterOnPage = _currentEpubChapterIndex;
-                    var pageBlocks = _currentVerticalPageInfo.Blocks;
-                    if (pageBlocks != null && pageBlocks.Count > 0)
-                        minChapterOnPage = pageBlocks.Min(b => b.EpubChapterIndex);
-
-                    if (minChapterOnPage > 0)
-                    {
-                        // SideBySide 모드인 경우 2챕터 이전으로 이동하여 겹침 방지
-                        _currentEpubChapterIndex = _isSideBySideMode ? Math.Max(0, minChapterOnPage - 2) : minChapterOnPage - 1;
-                        await LoadEpubChapterAsync(_currentEpubChapterIndex, fromEnd: true);
-                    }
+                    // [수정] EPUB 모드일 때는 세로 모드여도 NavigateEpubAsync를 통해 내부 페이지를 정교하게 이동
+                    await NavigateEpubAsync(direction);
                 }
             }
         }

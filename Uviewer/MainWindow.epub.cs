@@ -223,45 +223,35 @@ namespace Uviewer
                      _currentIndex = 0;
                  }
 
+                 // [수정] EPUB 모드에서는 가로/세로 관계 없이 항상 EpubArea를 사용하며 TextArea는 닫음
+                 if (VerticalTextCanvas != null) VerticalTextCanvas.Visibility = Visibility.Collapsed;
+                 if (TextScrollViewer != null) TextScrollViewer.Visibility = Visibility.Collapsed;
+                 if (AozoraTextCanvas != null) AozoraTextCanvas.Visibility = Visibility.Collapsed;
+                 if (TextArea != null) TextArea.Visibility = Visibility.Collapsed;
+                 if (EpubArea != null) EpubArea.Visibility = Visibility.Visible;
+
                  if (_isVerticalMode)
                  {
                      if (VerticalToggleButton != null) VerticalToggleButton.IsChecked = true;
-                     if (VerticalTextCanvas != null) VerticalTextCanvas.Visibility = Visibility.Visible;
-                     if (TextScrollViewer != null) TextScrollViewer.Visibility = Visibility.Collapsed;
-                     if (AozoraTextCanvas != null) AozoraTextCanvas.Visibility = Visibility.Collapsed;
-                     
-                     if (TextArea != null) TextArea.Visibility = Visibility.Visible;
-                     if (EpubArea != null) EpubArea.Visibility = Visibility.Collapsed;
-
                      if (!_verticalKeyAttached && RootGrid != null)
                      {
                          RootGrid.PreviewKeyDown += RootGrid_Vertical_PreviewKeyDown;
                          _verticalKeyAttached = true;
                      }
-
-                     // [수정] 세로 모드에서도 위치 유지를 위해 챕터 로딩 및 페이지 준비가 필요함
-                     int targetCh = (PendingEpubChapterIndex >= 0) ? PendingEpubChapterIndex : 0;
-                     _currentEpubChapterIndex = targetCh;
-                     await LoadEpubChapterAsync(targetCh, targetLine: _aozoraPendingTargetLine, targetBlockIndex: _pendingEpubStartBlockIndex, token: token);
                  }
-                 else
-                 {
-                     if (TextArea != null) TextArea.Visibility = Visibility.Collapsed;
-                     if (EpubArea != null) EpubArea.Visibility = Visibility.Visible;
-                     
-                     // 3. Load Chapter (Updated to handle pending positions)
-                     int targetCh = (PendingEpubChapterIndex >= 0) ? PendingEpubChapterIndex : 0;
-                     _currentEpubChapterIndex = targetCh;
-                     await LoadEpubChapterAsync(targetCh, targetLine: _aozoraPendingTargetLine, targetBlockIndex: _pendingEpubStartBlockIndex, targetPage: PendingEpubPageIndex, token: token);
 
-                     // Page navigation (wait for items to be populated)
-                     if (PendingEpubPageIndex > 0)
+                 // 3. Load Chapter (Updated to handle pending positions)
+                 int targetCh = (PendingEpubChapterIndex >= 0) ? PendingEpubChapterIndex : 0;
+                 _currentEpubChapterIndex = targetCh;
+                 await LoadEpubChapterAsync(targetCh, targetLine: _aozoraPendingTargetLine, targetBlockIndex: _pendingEpubStartBlockIndex, targetPage: PendingEpubPageIndex, token: token);
+
+                 // Page navigation (wait for items to be populated)
+                 if (PendingEpubPageIndex > 0)
+                 {
+                     await Task.Delay(100, token);
+                     if (PendingEpubPageIndex < _epubWin2DPages.Count)
                      {
-                         await Task.Delay(100, token);
-                         if (PendingEpubPageIndex < _epubWin2DPages.Count)
-                         {
-                             SetEpubPageIndex(PendingEpubPageIndex);
-                         }
+                         SetEpubPageIndex(PendingEpubPageIndex);
                      }
                  }
                  
@@ -343,16 +333,10 @@ namespace Uviewer
             EnsureMinWindowSizeForText();
             
             ImageArea.Visibility = Visibility.Collapsed;
-            if (_isVerticalMode)
-            {
-                EpubArea.Visibility = Visibility.Collapsed;
-                TextArea.Visibility = Visibility.Visible;
-            }
-            else
-            {
-                EpubArea.Visibility = Visibility.Visible;
-                TextArea.Visibility = Visibility.Collapsed;
-            }
+            
+            // EPUB 가로/세로 모두 통합된 컨테이너(EpubArea) 사용
+            EpubArea.Visibility = Visibility.Visible;
+            TextArea.Visibility = Visibility.Collapsed;
             
             ImageToolbarPanel.Visibility = Visibility.Collapsed;
             TextToolbarPanel.Visibility = Visibility.Visible; // Reuse text toolbar for now
@@ -983,7 +967,7 @@ namespace Uviewer
             if (EpubTextCanvas.Visibility != Visibility.Collapsed) EpubTextCanvas.Visibility = Visibility.Collapsed;
             if (EpubImageHost.Visibility != Visibility.Visible) EpubImageHost.Visibility = Visibility.Visible;
 
-            if (!_isSideBySideMode || !_isEpubShowingTwoPages)
+            if (!_isEpubShowingTwoPages)
             {
                 // Single image mode
                 if (EpubCanvasDisplay.Visibility != Visibility.Visible) EpubCanvasDisplay.Visibility = Visibility.Visible;
@@ -1154,13 +1138,7 @@ namespace Uviewer
 
             try
             {
-                int step = direction;
-                if (_isSideBySideMode) 
-                {
-                    // [수정] 현재 표시 형태가 2장보기 상태일 때만 2페이지씩 건너뛰기
-                    // 1장만 표시 중일 때는 방향에 따라 1페이지만 이동
-                    step = _isEpubShowingTwoPages ? direction * 2 : direction;
-                }
+                int step = _isEpubShowingTwoPages ? direction * 2 : direction;
 
                 int targetChapter = _currentEpubChapterIndex;
                 int targetPage = _currentEpubPageIndex + step;
@@ -1197,7 +1175,7 @@ namespace Uviewer
                 if (targetPgObj != null && targetPgObj.IsImagePage)
                 {
                     await LoadEpubImageForWin2DAsync(targetPgObj.ImagePath);
-                    if (_isSideBySideMode)
+                    if (_isSideBySideMode || _autoDoublePageForArchive)
                     {
                         var pg2 = GetEpubWin2DPage(targetChapter, targetPage + 1);
                         if (pg2 == null && targetChapter < _epubSpine.Count - 1 && targetPage + 1 >= (targetChapter == _currentEpubChapterIndex ? _epubWin2DPages.Count : _epubPreloadCache[targetChapter].Count))
@@ -1318,7 +1296,7 @@ namespace Uviewer
                 _currentEpubPageIndex = -1;
                 // [추가] 가로, 세로 모드 모두에서 SideBySide인 경우 다음 챕터가 연달아 이미지면 미리 렌더링해서 캐시에 넣음
                 // 이렇게 해야 SetEpubPageIndex에서 다음 페이지(이미지)를 즉시 찾아 2페이지 모드를 유지할 수 있음
-                if (_isSideBySideMode && pages.Count > 0 && pages.Any(p => p.IsImagePage))
+                if ((_isSideBySideMode || _autoDoublePageForArchive) && pages.Count > 0 && pages.Any(p => p.IsImagePage))
                 {
                     int nextIdx = index + 1;
                     if (nextIdx < _epubSpine.Count && !_epubPreloadCache.ContainsKey(nextIdx))
@@ -1405,7 +1383,7 @@ namespace Uviewer
                         await LoadEpubImageForWin2DAsync(targetPg.ImagePath);
 
                         // SideBySide 모드일 경우 우측(다음) 페이지 이미지도 미리 로드
-                        if (_isSideBySideMode)
+                        if (_isSideBySideMode || _autoDoublePageForArchive)
                         {
                             int nextChapIndex = index;
                             int nextPgIndex = finalTargetPage + 1;
@@ -1440,8 +1418,7 @@ namespace Uviewer
             if (page.IsImagePage)
             {
                 bool nextIsImage = false;
-                bool shouldForceSingle = false;
-
+                bool canSideBySide = _isSideBySideMode;
                 // [추가] 자동 2장보기 옵션이 켜져 있는 경우 비율에 따른 자동 판단
                 if (_autoDoublePageForArchive)
                 {
@@ -1454,18 +1431,24 @@ namespace Uviewer
 
                             if (imgH >= imgW * 1.2f)
                             {
-                                // 세로가 가로의 1.2배 이상 (세로형 이미지) -> 2장 시도
+                                // 세로가 가로의 1.2배 이상 (세로형 이미지) -> 무조건 2장 보기 강제
+                                canSideBySide = true;
                             }
                             else if (imgW >= imgH * 1.2f)
                             {
-                                // 가로가 세로의 1.2배 이상 (가로형 이미지) -> 1장 강제
-                                shouldForceSingle = true;
+                                // 가로가 세로의 1.2배 이상 (가로형 이미지) -> 무조건 1장 보기 강제
+                                canSideBySide = false;
+                            }
+                            else
+                            {
+                                // 그 외의 경우 (정사각형 등) 설정된 기본 모드(SideBySide)를 따름
+                                canSideBySide = _isSideBySideMode;
                             }
                         }
                     }
                 }
 
-                if (_isSideBySideMode && !shouldForceSingle)
+                if (canSideBySide)
                 {
                     int nextChapIndex = _currentEpubChapterIndex;
                     int nextPgIndex = index + 1;
