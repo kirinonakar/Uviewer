@@ -1845,8 +1845,6 @@ namespace Uviewer
             var lines = html.Split('\n');
             bool isNewParagraph = true;
             
-            // 긴 문장을 분리하기 위한 정규식 (마침표, 쉼표, 느낌표, 물음표 등 + 뒤따르는 공백 캡처)
-            var splitRegex = new Regex(@"(。|、|！|？|，|\.(?=\s|$)|!(?=\s|$)|\?(?=\s|$)|,(?=\s|$))(\s*)");
 
             foreach (var line in lines)
             {
@@ -1884,37 +1882,7 @@ namespace Uviewer
                     }
                     else if (!string.IsNullOrEmpty(token))
                     {
-                        // 일반 텍스트는 구두점 단위로 분리하여 여러 블록으로 쪼갭니다.
-                        var parts = splitRegex.Split(token);
-                        for (int i = 0; i < parts.Length; i++)
-                        {
-                            string part = parts[i];
-                            if (!string.IsNullOrEmpty(part)) currentBlock.Inlines.Add(part);
-
-                            // 매칭된 구두점 (group 1)
-                            if (i % 3 == 1)
-                            {
-                                // 뒤따르는 공백 (group 2)
-                                if (i + 1 < parts.Length)
-                                {
-                                    if (!string.IsNullOrEmpty(parts[i + 1])) 
-                                        currentBlock.Inlines.Add(parts[i + 1]);
-                                    i++; 
-                                }
-                                
-                                // 구두점 처리가 완료되면 현재 블록을 리스트에 넣고 새로운 이어지는 블록을 시작합니다.
-                                if (currentBlock.Inlines.Count > 0)
-                                {
-                                    blocks.Add(currentBlock);
-                                    currentBlock = new AozoraBindingModel 
-                                    { 
-                                        SourceLineNumber = lineNum++, 
-                                        EpubChapterIndex = chapterIndex,
-                                        IsParagraphContinuation = true // 구두점 뒤에서 잘린 이어지는 문장임을 명시
-                                    };
-                                }
-                            }
-                        }
+                        currentBlock.Inlines.Add(token);
                     }
                 }
                 
