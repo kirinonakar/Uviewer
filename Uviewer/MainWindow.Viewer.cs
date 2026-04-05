@@ -1222,7 +1222,16 @@ namespace Uviewer
         {
             if (_currentBitmap == null) return;
             var canvasSize = MainCanvas.Size;
-            var imageSize = _currentBitmap.Size;
+            Windows.Foundation.Size imageSize;
+            try
+            {
+                if (_currentBitmap.Device == null) return;
+                imageSize = _currentBitmap.Size;
+            }
+            catch (Exception)
+            {
+                return;
+            }
             if (canvasSize.Width <= 0 || canvasSize.Height <= 0) return;
 
             var fitRatio = Math.Min(canvasSize.Width / imageSize.Width, canvasSize.Height / imageSize.Height);
@@ -1318,7 +1327,8 @@ namespace Uviewer
                 var canvasSize = MainCanvas.Size;
                 if (canvasSize.Width <= 0 || canvasSize.Height <= 0) return;
 
-                var imageSize = bitmap.Size;
+                Windows.Foundation.Size imageSize;
+                try { imageSize = bitmap.Size; } catch { return; }
                 var fitRatio = Math.Min(canvasSize.Width / imageSize.Width, canvasSize.Height / imageSize.Height);
                 var scaledSize = new Windows.Foundation.Size(imageSize.Width * fitRatio * _zoomLevel, imageSize.Height * fitRatio * _zoomLevel);
 
