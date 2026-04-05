@@ -1155,7 +1155,12 @@ namespace Uviewer
             try
             {
                 int step = direction;
-                if (_isSideBySideMode && _isEpubShowingTwoPages) step = direction * 2;
+                if (_isSideBySideMode) 
+                {
+                    // [수정] 현재 표시 형태가 2장보기 상태일 때만 2페이지씩 건너뛰기
+                    // 1장만 표시 중일 때는 방향에 따라 1페이지만 이동
+                    step = _isEpubShowingTwoPages ? direction * 2 : direction;
+                }
 
                 int targetChapter = _currentEpubChapterIndex;
                 int targetPage = _currentEpubPageIndex + step;
@@ -1434,26 +1439,59 @@ namespace Uviewer
             // 이미지 페이지 처리
             if (page.IsImagePage)
             {
-                // [수정] 무조건 false로 리셋하지 않고, SBS 모드가 아니거나 다음 장이 이미지가 아닐 때만 결과적으로 false가 되도록 함
                 bool nextIsImage = false;
-                if (_isSideBySideMode)
+                bool shouldForceSingle = false;
+
+                // [추가] 자동 2장보기 옵션이 켜져 있는 경우 비율에 따른 자동 판단
+                if (_autoDoublePageForArchive)
+                {
+                    lock (_epubLock)
+                    {
+                        if (_epubImageCache.TryGetValue(page.ImagePath, out var bmp) && bmp != null)
+                        {
+                            float imgW = (float)bmp.Size.Width;
+                            float imgH = (float)bmp.Size.Height;
+
+                            if (imgH >= imgW * 1.2f)
+                            {
+                                // 세로가 가로의 1.2배 이상 (세로형 이미지) -> 2장 시도
+                            }
+                            else if (imgW >= imgH * 1.2f)
+                            {
+                                // 가로가 세로의 1.2배 이상 (가로형 이미지) -> 1장 강제
+                                shouldForceSingle = true;
+                            }
+                        }
+                    }
+                }
+
+                if (_isSideBySideMode && !shouldForceSingle)
                 {
                     int nextChapIndex = _currentEpubChapterIndex;
                     int nextPgIndex = index + 1;
                     if (nextPgIndex >= _epubWin2DPages.Count) { nextChapIndex++; nextPgIndex = 0; }
                     var pg2 = GetEpubWin2DPage(nextChapIndex, nextPgIndex);
-                    if (pg2 != null && pg2.IsImagePage) nextIsImage = true;
+                    
+                    if (pg2 != null && pg2.IsImagePage)
+                    {
+                        bool nextShouldForceSingle = false;
+                        if (_autoDoublePageForArchive)
+                        {
+                            lock (_epubLock)
+                            {
+                                if (_epubImageCache.TryGetValue(pg2.ImagePath, out var bmp2) && bmp2 != null)
+                                {
+                                    if (bmp2.Size.Width >= bmp2.Size.Height * 1.2f) nextShouldForceSingle = true;
+                                }
+                            }
+                        }
+                        if (!nextShouldForceSingle) nextIsImage = true;
+                    }
                 }
 
                 _isEpubShowingTwoPages = nextIsImage;
                 
                 if (EpubTextCanvas.Visibility != Visibility.Collapsed) EpubTextCanvas.Visibility = Visibility.Collapsed;
-                
-                // 연속 이미지 SBS 처리
-                if (_isSideBySideMode)
-                {
-                    // 위에서 이미 검사했으므로 _isEpubShowingTwoPages 값을 그대로 따름
-                }
                 ShowEpubImagePage(page);
             }
             else
