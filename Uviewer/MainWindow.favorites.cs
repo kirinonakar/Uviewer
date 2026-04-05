@@ -316,7 +316,8 @@ namespace Uviewer
                         savedBlockIndex = CurrentEpubWin2DPage?.StartBlockIndex ?? -1;
                         if (_isVerticalMode)
                         {
-                            savedLine = _currentVerticalPageInfo.StartLine;
+                            // [수정] EPUB 세로 모드일 때는 텍스트 뷰어(CurrentVerticalPageInfo)가 아닌 EPUB 페이지를 참조해야 함
+                            savedLine = CurrentEpubWin2DPage?.StartLine ?? 1;
                             savedPage = 0; 
                         }
                         else if (_epubWin2DPages != null && CurrentEpubPageIndex >= 0 && CurrentEpubPageIndex < _epubWin2DPages.Count)
@@ -916,18 +917,18 @@ namespace Uviewer
                     if (_isEpubMode)
                     {
                         // 페이지가 0이거나 챕터가 0인 초기화 상태에서, 
-                        // 기존에 읽던 기록(페이지 > 0 OR 챕터 > 0)이 있다면 기존 값 유지
-                        bool isResetState = CurrentEpubPageIndex == 0 && CurrentEpubChapterIndex == 0;
-                        bool hasExistingProgress = existing != null && (existing.SavedPage > 0 || existing.ChapterIndex > 0);
+                        // 기존에 읽던 기록(페이지, 챕터, 혹은 블록, 라인 등)이 있다면 기존 값 유지
+                        bool isResetState = CurrentEpubPageIndex == 0 && CurrentEpubChapterIndex == 0 && (CurrentEpubWin2DPage?.StartBlockIndex ?? 0) == 0;
+                        bool hasExistingProgress = existing != null && (existing.SavedPage > 0 || existing.ChapterIndex > 0 || existing.SavedBlockIndex > 0 || existing.SavedLine > 1);
 
-                        if (isResetState && existing != null && (existing.SavedPage > 0 || existing.ChapterIndex > 0))
+                        if (isResetState && existing != null && hasExistingProgress)
                         {
                             targetPage = existing.SavedPage;
                             targetChapter = existing.ChapterIndex;
                             targetLine = existing.SavedLine;
                             targetBlockIndex = existing.SavedBlockIndex;
                             targetProgress = existing.Progress; // 진행률도 기존 값 복구
-                            System.Diagnostics.Debug.WriteLine($"[SafeGuard] Epub reset state detected. Keeping previous position: Ch.{targetChapter} P.{targetPage}");
+                            System.Diagnostics.Debug.WriteLine($"[SafeGuard] Epub reset state detected. Keeping previous position: Ch.{targetChapter} P.{targetPage} Block.{targetBlockIndex}");
                         }
                         else
                         {
@@ -937,7 +938,8 @@ namespace Uviewer
                             
                             if (_isVerticalMode)
                             {
-                                targetLine = _currentVerticalPageInfo.StartLine;
+                                // [수정] EPUB 세로 모드일 때는 텍스트 뷰어(CurrentVerticalPageInfo)가 아닌 EPUB 페이지를 참조해야 함
+                                targetLine = CurrentEpubWin2DPage?.StartLine ?? 1;
                                 targetPage = 0; // Use line for restoration in vertical mode
                             }
                             else if (_epubWin2DPages != null && targetPage >= 0 && targetPage < _epubWin2DPages.Count)
@@ -1075,11 +1077,13 @@ namespace Uviewer
         private async Task NavigateToRecentAsync(RecentItem recent)
         {
             // 1. 클릭한 시점의 위치/정보를 미리 캡처 (데이터 오염 방지)
+            // [수정] targetBlockIndex도 누락 없이 캡처하여 기존 위치 값을 안전하게 보존합니다.
             double? targetOffset = recent.ScrollOffset;
             int targetLine = recent.SavedLine;
             string targetType = recent.Type;
             string targetPath = recent.Path;
             int targetPage = recent.SavedPage;
+            int targetBlockIndex = recent.SavedBlockIndex; 
             string? targetArchiveKey = recent.ArchiveEntryKey;
             string targetName = recent.Name;
             int targetChapter = recent.ChapterIndex;
@@ -1167,7 +1171,7 @@ namespace Uviewer
                             {
                                 PendingEpubChapterIndex = targetChapter;
                                 PendingEpubPageIndex = targetPage;
-                                _pendingEpubStartBlockIndex = recent.SavedBlockIndex;
+                                _pendingEpubStartBlockIndex = targetBlockIndex; // [수정] 캡처된 변수 사용
                                 // [추가] EPUB 모드에서도 저장된 정확한 줄 번호를 복구하도록 변수에 할당합니다.
                                 _aozoraPendingTargetLine = targetLine > 1 ? targetLine : 1;
                             }
@@ -1212,7 +1216,7 @@ namespace Uviewer
                             {
                                 PendingEpubChapterIndex = targetChapter;
                                 PendingEpubPageIndex = targetPage;
-                                _pendingEpubStartBlockIndex = recent.SavedBlockIndex;
+                                _pendingEpubStartBlockIndex = targetBlockIndex; // [수정] 캡처된 블록 인덱스 보장
                             }
                             else if (targetPath.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase))
                             {
@@ -1285,23 +1289,6 @@ namespace Uviewer
                         }
                         break;
                 }
-
-                // 4. [복원] 일반 텍스트 파일 위치 복원은 이제 LoadTextLinesProgressivelyAsync 내의 ScrollToLine에서 처리함
-                // (이전 방식인 pixel offset 복원은 폰트 크기 변경 등에 취약하여 제거)
-                /*
-                if (targetType == "File")
-                {
-                    if (!targetPath.EndsWith(".epub", StringComparison.OrdinalIgnoreCase) && !_isAozoraMode)
-                    {
-                        if (targetOffset.HasValue && TextScrollViewer != null)
-                        {
-                            await Task.Delay(200);
-                            TextScrollViewer.ChangeView(null, targetOffset.Value, null);
-                            UpdateTextStatusBar();
-                        }
-                    }
-                }
-                */
             }
             catch (Exception ex)
             {

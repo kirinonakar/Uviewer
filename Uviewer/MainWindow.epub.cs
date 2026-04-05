@@ -89,10 +89,6 @@ namespace Uviewer
         private static readonly Regex RxEpubXmlns = new Regex("xmlns=\"[^\"]*\"", RegexOptions.Compiled);
 
 
-
-
-
-
         public int CurrentEpubChapterIndex => _currentEpubChapterIndex;
         public int CurrentEpubPageIndex => _currentEpubPageIndex;
 
@@ -111,9 +107,17 @@ namespace Uviewer
                 {
                      if (_isEpubMode)
                      {
+                         // [버그 수정] 로딩 중에 SizeChanged가 발생하면 _epubWin2DPages가 없어서 리사이즈가 취소되는 문제 해결.
+                         // 로딩 중이라면 타이머를 연장하여 로딩이 끝난 뒤에 반영되게 유도합니다.
+                         if (CurrentEpubWin2DPage == null || _epubWin2DPages == null || _epubWin2DPages.Count == 0) 
+                         {
+                             _epubResizeTimer?.Start();
+                             return;
+                         }
+
                          _epubPreloadCache.Clear();
                          _epubImageCache.Clear();
-                         ClearBackwardCache(); // Clear measurement cache for new layout
+                         // 참고: ClearBackwardCache()는 텍스트 모드 전용이므로 EPUB에서는 호출하지 않습니다.
                          
                          int currentLine = CurrentEpubWin2DPage?.StartLine ?? 1;
                          int currentBlockIdx = CurrentEpubWin2DPage?.StartBlockIndex ?? -1;
@@ -182,7 +186,7 @@ namespace Uviewer
         {
              await AddToRecentAsync(true);
 
-             _isNavigatingRecent = true; // [추가] 로드 및 위치 복원 완료 전까지 자동 저장 차단
+             _isNavigatingRecent = true; // 로드 및 위치 복원 완료 전까지 자동 저장 차단
              try
              {
                  InitializeEpub();
@@ -225,12 +229,20 @@ namespace Uviewer
                      _currentIndex = 0;
                  }
 
-                 // [수정] EPUB 모드에서는 가로/세로 관계 없이 항상 EpubArea를 사용하며 TextArea는 닫음
+                 // EPUB 모드에서는 가로/세로 관계 없이 항상 EpubArea를 사용하며 TextArea는 닫음
                  if (VerticalTextCanvas != null) VerticalTextCanvas.Visibility = Visibility.Collapsed;
                  if (TextScrollViewer != null) TextScrollViewer.Visibility = Visibility.Collapsed;
                  if (AozoraTextCanvas != null) AozoraTextCanvas.Visibility = Visibility.Collapsed;
                  if (TextArea != null) TextArea.Visibility = Visibility.Collapsed;
-                 if (EpubArea != null) EpubArea.Visibility = Visibility.Visible;
+                 
+                 if (EpubArea != null) 
+                 {
+                     EpubArea.Visibility = Visibility.Visible;
+                     // [버그 수정] Visibility 변경 즉시 레이아웃을 갱신하여 
+                     // 옛날에 닫혀있을 때의 작았던 ActualWidth 값을 쓰지 않도록 강제합니다.
+                     EpubArea.UpdateLayout();
+                 }
+                 RootGrid?.UpdateLayout(); // 전체 레이아웃도 동기화
 
                  if (_isVerticalMode)
                  {
@@ -247,7 +259,7 @@ namespace Uviewer
                  _currentEpubChapterIndex = targetCh;
                  await LoadEpubChapterAsync(targetCh, targetLine: _aozoraPendingTargetLine, targetBlockIndex: _pendingEpubStartBlockIndex, targetPage: PendingEpubPageIndex, token: token);
 
-                 // [수정] LoadEpubChapterAsync 내부에서 targetBlockIndex 기반으로 이미 최적의 페이지를 설정하므로,
+                 // LoadEpubChapterAsync 내부에서 targetBlockIndex 기반으로 이미 최적의 페이지를 설정하므로,
                  // 화면 크기에 종속적인 PendingEpubPageIndex를 여기서 다시 강제로 설정하지 않습니다.
                  
                  // Reset pending values
@@ -282,7 +294,6 @@ namespace Uviewer
 
         private void CloseCurrentEpub()
         {
-            // [수정] 아카이브가 이미 닫혀있더라도 잔상이나 캐시가 남아있을 수 있으므로 UI 상태 초기화는 항상 수행하도록 변경
             if (_epubArchiveLock.Wait(TimeSpan.FromSeconds(2)))
             {
                 try
@@ -320,11 +331,11 @@ namespace Uviewer
             _isEpubMode = true;
             _isTextMode = false;
             _isAozoraMode = false;
-            _isMarkdownRenderMode = false; // [추가] EPUB 모드에서는 마크다운 하이드 로직 해제
+            _isMarkdownRenderMode = false; // EPUB 모드에서는 마크다운 하이드 로직 해제
             _aozoraBlocks.Clear(); // Clear text/aozora cache
             _currentTextContent = ""; // Clear raw text
 
-            // [추가] EPUB 모드 진입 시 창 크기 검사 및 조정
+            // EPUB 모드 진입 시 창 크기 검사 및 조정
             EnsureMinWindowSizeForText();
             
             ImageArea.Visibility = Visibility.Collapsed;
@@ -332,10 +343,15 @@ namespace Uviewer
             // EPUB 가로/세로 모두 통합된 컨테이너(EpubArea) 사용
             EpubArea.Visibility = Visibility.Visible;
             TextArea.Visibility = Visibility.Collapsed;
+
+            // [버그 수정] 모드 스위칭 시에도 레이아웃을 즉시 갱신하여 
+            // EpubArea.ActualWidth/ActualHeight를 올바른 화면 크기로 재설정합니다.
+            EpubArea.UpdateLayout();
+            RootGrid?.UpdateLayout();
             
             ImageToolbarPanel.Visibility = Visibility.Collapsed;
             TextToolbarPanel.Visibility = Visibility.Visible; // Reuse text toolbar for now
-            if (VerticalToggleButton != null) VerticalToggleButton.IsEnabled = true; // [추가] 버튼 활성화 확인
+            if (VerticalToggleButton != null) VerticalToggleButton.IsEnabled = true; // 버튼 활성화 확인
             
             SideBySideToolbarPanel.Visibility = Visibility.Visible;
             SharpenButton.Visibility = Visibility.Visible;
@@ -575,8 +591,6 @@ namespace Uviewer
                 // Decoded URL chars (e.g. %20)
                 relativePath = Uri.UnescapeDataString(relativePath);
 
-                // Handle absolute paths (starting with /) relative to epub root?? 
-                // Usually in EPUB, / implies root of zip.
                 if (relativePath.StartsWith("/"))
                 {
                     return relativePath.TrimStart('/');
@@ -624,7 +638,7 @@ namespace Uviewer
 
             if (allBlocks.Count == 0) return pages;
 
-            // 페이지 분할 파라미터 계산
+            // 레이아웃 동기화로 정확해진 ActualWidth 사용
             float availableWidth = (float)(EpubArea?.ActualWidth ?? 0);
             if (availableWidth < 50) 
             {
@@ -639,7 +653,7 @@ namespace Uviewer
                 if (availableHeight < 50) availableHeight = 800;
             }
 
-            // [핵심] 렌더링 시와 동일한 마진을 사용하여 페이지 분할
+            // 렌더링 시와 동일한 마진을 사용하여 페이지 분할
             float marginTop = 30f, marginBottom = 10f;
             float marginRight = 40f, marginLeft = 40f; 
             
@@ -652,7 +666,7 @@ namespace Uviewer
             float maxWidth = availableWidth - (marginRight + marginLeft);
             float pageHeight = availableHeight - (marginTop + marginBottom);
 
-            // [수정] 세로 모드일 때는 42자 너비 제한을 풀어서 화면 전체를 줄(Column)로 채울 수 있게 함
+            // 세로 모드일 때는 42자 너비 제한을 풀어서 화면 전체를 줄(Column)로 채울 수 있게 함
             if (!_isVerticalMode)
             {
                 float limitedWidth = (float)(_settingsManager.FontSize * 42); 
@@ -666,7 +680,7 @@ namespace Uviewer
             int totalBlocks = allBlocks.Count;
             int maxSourceLine = allBlocks[allBlocks.Count - 1].SourceLineNumber;
 
-            // [수정] Aozora의 로직을 참고하여, 특정 블록을 페이지 시작점으로 고정(Pin)하는 방식 도입
+            // 특정 블록을 페이지 시작점으로 고정(Pin)하는 방식 도입
             if (pinBlockIndex >= 0 && pinBlockIndex < totalBlocks)
             {
                 // 1. Pin 지점부터 끝까지 정방향 계산
@@ -680,7 +694,7 @@ namespace Uviewer
                     if (forwardIdx % 100 == 0) await Task.Delay(1);
                 }
 
-                // 2. Pin 지점 이전은 역방향으로 거슬러 올라가며 계산 (Aozora의 FindPreviousPageStart 활용)
+                // 2. Pin 지점 이전은 역방향으로 거슬러 올라가며 계산
                 int backwardIdx = pinBlockIndex;
                 while (backwardIdx > 0)
                 {
@@ -800,7 +814,7 @@ namespace Uviewer
         private void EpubArea_SizeChanged(object sender, SizeChangedEventArgs e)
         {
             if (!_isEpubMode) return;
-            // [수정] 세로모드에서도 창 크기가 바뀌면 페이지를 다시 계산하도록 함 (글자 잘림 방지)
+            // 세로모드에서도 창 크기가 바뀌면 페이지를 다시 계산하도록 함 (글자 잘림 방지)
             TriggerEpubResize();
         }
 
@@ -809,7 +823,7 @@ namespace Uviewer
         private void EpubTextCanvas_SizeChanged(object sender, SizeChangedEventArgs e)
         {
             if (!_isEpubMode) return;
-            // [수정] 세로모드에서도 캔버스 크기 변경 시 내용 갱신
+            // 세로모드에서도 캔버스 크기 변경 시 내용 갱신
             if (_epubWin2DPages.Count > 0)
                 EpubTextCanvas?.Invalidate();
         }
@@ -959,7 +973,7 @@ namespace Uviewer
         private void EpubTouchOverlay_PointerWheelChanged(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
         {
             if (!_isEpubMode) return;
-            // [수정] 세로 모드와 동일하게 RootGrid에 포커스 (EpubTextCanvas 포커스 시 잔상/깜박임 방지)
+            // 세로 모드와 동일하게 RootGrid에 포커스 (EpubTextCanvas 포커스 시 잔상/깜박임 방지)
             RootGrid.Focus(Microsoft.UI.Xaml.FocusState.Programmatic);
             var delta = e.GetCurrentPoint(EpubTouchOverlay).Properties.MouseWheelDelta;
             if (delta > 0) 
@@ -1049,7 +1063,7 @@ namespace Uviewer
         {
             if (page == null || !page.IsImagePage) return;
             
-            // [추가] 가시성 상태가 이미 동일하면 변경하지 않음 (불필요한 레이아웃 갱신 방지)
+            // 가시성 상태가 이미 동일하면 변경하지 않음 (불필요한 레이아웃 갱신 방지)
             if (EpubTextCanvas.Visibility != Visibility.Collapsed) EpubTextCanvas.Visibility = Visibility.Collapsed;
             if (EpubImageHost.Visibility != Visibility.Visible) EpubImageHost.Visibility = Visibility.Visible;
 
@@ -1256,7 +1270,7 @@ namespace Uviewer
                     break;
                 }
 
-                // [추가] 이미지 미리 로드 - 세로 모드 로직 참고 (깜박임 방지)
+                // 이미지 미리 로드 - 세로 모드 로직 참고 (깜박임 방지)
                 var targetPgObj = GetEpubWin2DPage(targetChapter, targetPage);
                 if (targetPgObj != null && targetPgObj.IsImagePage)
                 {
@@ -1322,10 +1336,6 @@ namespace Uviewer
                     _epubPreloadCache[chapterIndex] = pages;
                 }
             }
-            
-            // Note: We don't update _epubPages yet, 
-            // the loop uses _epubPreloadCache or _epubPages based on targetChapter.
-            // Wait, let's fix the loop to use the correct source.
         }
 
         private EpubWin2DPage? GetEpubWin2DPage(int chapterIndex, int pageIndex)
@@ -1353,7 +1363,7 @@ namespace Uviewer
                 if (token.IsCancellationRequested) return;
 
                 List<EpubWin2DPage> pages;
-                // [수정] targetBlockIndex가 지정된 경우(북마크/리사이즈 등) 캐시를 무시하고 해당 블록을 기준으로 항상 다시 계산하여 위치 일관성 보장
+                // targetBlockIndex가 지정된 경우(북마크/리사이즈 등) 캐시를 무시하고 해당 블록을 기준으로 항상 다시 계산하여 위치 일관성 보장
                 if (targetBlockIndex < 0 && _epubPreloadCache.TryGetValue(index, out var cachedPages))
                 {
                     pages = cachedPages;
@@ -1381,7 +1391,7 @@ namespace Uviewer
 
                 _epubWin2DPages = pages;
                 _currentEpubPageIndex = -1;
-                // [추가] 가로, 세로 모드 모두에서 SideBySide인 경우 다음 챕터가 연달아 이미지면 미리 렌더링해서 캐시에 넣음
+                // 가로, 세로 모드 모두에서 SideBySide인 경우 다음 챕터가 연달아 이미지면 미리 렌더링해서 캐시에 넣음
                 // 이렇게 해야 SetEpubPageIndex에서 다음 페이지(이미지)를 즉시 찾아 2페이지 모드를 유지할 수 있음
                 if ((_isSideBySideMode || _autoDoublePageForArchive) && pages.Count > 0 && pages.Any(p => p.IsImagePage))
                 {
@@ -1404,8 +1414,6 @@ namespace Uviewer
                         }
                     }
                 }
-
-                // 가로 모드: SetEpubPageIndex에서 가시성을 결정하므로 여기서 직접 호출하지 않음
 
                 int finalTargetPage = 0;
 
@@ -1460,7 +1468,8 @@ namespace Uviewer
                 {
                     finalTargetPage = pages.Count - 1;
                 }
-// SetEpubPageIndex 호출 전, 타겟 페이지가 이미지인 경우 세로 모드처럼 미리 로드 대기 (첫 로딩 시 캔버스 갱신 누락 방지)
+                
+                // SetEpubPageIndex 호출 전, 타겟 페이지가 이미지인 경우 세로 모드처럼 미리 로드 대기 (첫 로딩 시 캔버스 갱신 누락 방지)
                 if (pages.Count > 0 && finalTargetPage >= 0 && finalTargetPage < pages.Count)
                 {
                     var targetPg = pages[finalTargetPage];
@@ -1501,7 +1510,7 @@ namespace Uviewer
             _currentEpubPageIndex = index;
             var page = _epubWin2DPages[index];
 
-            // [추가] 텍스트 페이지와 이미지 페이지 간 배경색 전환 처리 (이미지 페이지는 투명하게 하여 기본 앱 배경 사용)
+            // 텍스트 페이지와 이미지 페이지 간 배경색 전환 처리 (이미지 페이지는 투명하게 하여 기본 앱 배경 사용)
             if (EpubArea != null)
             {
                 if (page.IsImagePage) EpubArea.Background = new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.Transparent);
@@ -1513,7 +1522,7 @@ namespace Uviewer
             {
                 bool nextIsImage = false;
                 bool canSideBySide = _isSideBySideMode;
-                // [추가] 자동 2장보기 옵션이 켜져 있는 경우 비율에 따른 자동 판단
+                // 자동 2장보기 옵션이 켜져 있는 경우 비율에 따른 자동 판단
                 if (_autoDoublePageForArchive)
                 {
                     lock (_epubLock)
@@ -1573,7 +1582,7 @@ namespace Uviewer
             }
             else
             {
-                // 텍스트 페이지: Win2D 캐단스
+                // 텍스트 페이지: Win2D 캔버스
                 if (EpubImageHost.Visibility != Visibility.Collapsed) EpubImageHost.Visibility = Visibility.Collapsed;
                 if (EpubTextCanvas.Visibility != Visibility.Visible) EpubTextCanvas.Visibility = Visibility.Visible;
                 
@@ -1675,9 +1684,6 @@ namespace Uviewer
              {
                  _currentEpubChapterIndex = index;
                  await LoadEpubChapterAsync(index);
-                 // If hash exists, we could theoretically scroll to it, but our rendering is page based
-                 // so mapping hash to page is hard without DOM analysis.
-                 // For now, just jump to chapter.
              }
         }
 
@@ -1777,7 +1783,7 @@ namespace Uviewer
 
             _textTotalLineCountInSource = lineNum - 1;
 
-            // ===== [추가] 문단이 긴 경우 문장 단위로 블록 분리 (Aozora와 일치) =====
+            // 문단이 긴 경우 문장 단위로 블록 분리 (Aozora와 일치)
             var splitBlocks = new List<AozoraBindingModel>();
             foreach (var block in blocks)
             {
@@ -1787,143 +1793,142 @@ namespace Uviewer
         }
 
         private List<AozoraBindingModel> ParseHtmlToAozoraTextBlocks(string html, ref int lineNum, int chapterIndex)
-{
-    var blocks = new List<AozoraBindingModel>();
-
-    // --- Ruby Processing ---
-    html = RxEpubRuby.Replace(html, m => 
-    {
-        string rubyContent = m.Groups[1].Value;
-        rubyContent = RxEpubRp.Replace(rubyContent, "");
-        
-        StringBuilder sb = new StringBuilder();
-        var rtMatches = RxEpubRt.Matches(rubyContent);
-        
-        int lastIndex = 0;
-        foreach (Match rtMatch in rtMatches)
         {
-            string basePart = rubyContent.Substring(lastIndex, rtMatch.Index - lastIndex);
-            string rtPart = rtMatch.Groups[1].Value;
-            
-            string baseText = RxEpubAnyTag.Replace(basePart, "").Trim();
-            string rtText = RxEpubAnyTag.Replace(rtPart, "").Trim();
-            
-            if (!string.IsNullOrEmpty(baseText) || !string.IsNullOrEmpty(rtText))
+            var blocks = new List<AozoraBindingModel>();
+
+            // --- Ruby Processing ---
+            html = RxEpubRuby.Replace(html, m => 
             {
-                sb.Append($"{{{{RUBY|{baseText}|~|{rtText}}}}}");
-            }
-            lastIndex = rtMatch.Index + rtMatch.Length;
-        }
-        
-        if (lastIndex < rubyContent.Length)
-        {
-            string tailText = RxEpubAnyTag.Replace(rubyContent.Substring(lastIndex), "").Trim();
-            if (!string.IsNullOrEmpty(tailText)) sb.Append(tailText);
-        }
-        
-        return sb.ToString();
-    });
-    
-    // 💡 [버그 수정 & 개선] 블록 태그(p, div, h1~h6 등)를 이중 개행(\n\n)으로 치환하여 문단을 확실히 분리합니다.
-    html = Regex.Replace(html, @"</?(?:p|div|h[1-6]|li|blockquote|tr|table|ul|ol)[^>]*>", "\n\n", RegexOptions.IgnoreCase);
-
-    // Strip remaining tags
-    html = RxEpubAnyTag.Replace(html, ""); 
-    html = System.Net.WebUtility.HtmlDecode(html);
-    
-    html = html.Replace("\r\n", "\n").Replace("\r", "\n");
-    // 여러 개의 연속된 빈 줄을 2개(새 문단 기준)로 줄임
-    html = Regex.Replace(html, @"\n{3,}", "\n\n");
-    
-    var lines = html.Split('\n');
-    bool isNewParagraph = true;
-    
-    // 💡 [핵심] 긴 문장을 분리하기 위한 정규식 (마침표, 쉼표, 느낌표, 물음표 등 + 뒤따르는 공백 캡처)
-    // 영어 등에서 숫자(3.14)나 콤마(1,000)가 분리되지 않도록 공백이나 줄끝(?=\s|$)을 조건으로 줍니다.
-    var splitRegex = new Regex(@"(。|、|！|？|，|\.(?=\s|$)|!(?=\s|$)|\?(?=\s|$)|,(?=\s|$))(\s*)");
-
-    foreach (var line in lines)
-    {
-        if (string.IsNullOrWhiteSpace(line)) 
-        {
-            isNewParagraph = true;
-            continue;
-        }
-        
-        // 불필요한 공백 치환 (단일 띄어쓰기는 보존하여 Aozora 파서와 호환 유지)
-        string cleanLine = line.Replace('\u00A0', ' ').TrimEnd('\r', '\n', ' ');
-        if (isNewParagraph) cleanLine = cleanLine.TrimStart();
-        if (string.IsNullOrWhiteSpace(cleanLine)) continue;
-        
-        var tokens = RxEpubRubySplit.Split(cleanLine);
-        
-        AozoraBindingModel currentBlock = new AozoraBindingModel 
-        { 
-            SourceLineNumber = lineNum++, 
-            EpubChapterIndex = chapterIndex,
-            IsParagraphContinuation = !isNewParagraph
-        };
-
-        foreach (var token in tokens)
-        {
-            // 루비 텍스트인 경우 내부를 건드리지 않고 보호합니다.
-            if (token.StartsWith("{{RUBY|"))
-            {
-                var content = token.Substring(7, token.Length - 9);
-                var parts = content.Split(new[] { "|~|" }, StringSplitOptions.None);
-                if (parts.Length == 2)
+                string rubyContent = m.Groups[1].Value;
+                rubyContent = RxEpubRp.Replace(rubyContent, "");
+                
+                StringBuilder sb = new StringBuilder();
+                var rtMatches = RxEpubRt.Matches(rubyContent);
+                
+                int lastIndex = 0;
+                foreach (Match rtMatch in rtMatches)
                 {
-                    currentBlock.Inlines.Add(new AozoraRuby { BaseText = parts[0], RubyText = parts[1] });
-                }
-            }
-            else if (!string.IsNullOrEmpty(token))
-            {
-                // 일반 텍스트는 구두점 단위로 분리하여 여러 블록으로 쪼갭니다.
-                var parts = splitRegex.Split(token);
-                for (int i = 0; i < parts.Length; i++)
-                {
-                    string part = parts[i];
-                    if (!string.IsNullOrEmpty(part)) currentBlock.Inlines.Add(part);
-
-                    // 매칭된 구두점 (group 1)
-                    if (i % 3 == 1)
+                    string basePart = rubyContent.Substring(lastIndex, rtMatch.Index - lastIndex);
+                    string rtPart = rtMatch.Groups[1].Value;
+                    
+                    string baseText = RxEpubAnyTag.Replace(basePart, "").Trim();
+                    string rtText = RxEpubAnyTag.Replace(rtPart, "").Trim();
+                    
+                    if (!string.IsNullOrEmpty(baseText) || !string.IsNullOrEmpty(rtText))
                     {
-                        // 뒤따르는 공백 (group 2)
-                        if (i + 1 < parts.Length)
+                        sb.Append($"{{{{RUBY|{baseText}|~|{rtText}}}}}");
+                    }
+                    lastIndex = rtMatch.Index + rtMatch.Length;
+                }
+                
+                if (lastIndex < rubyContent.Length)
+                {
+                    string tailText = RxEpubAnyTag.Replace(rubyContent.Substring(lastIndex), "").Trim();
+                    if (!string.IsNullOrEmpty(tailText)) sb.Append(tailText);
+                }
+                
+                return sb.ToString();
+            });
+            
+            // 블록 태그(p, div, h1~h6 등)를 이중 개행(\n\n)으로 치환하여 문단을 확실히 분리합니다.
+            html = Regex.Replace(html, @"</?(?:p|div|h[1-6]|li|blockquote|tr|table|ul|ol)[^>]*>", "\n\n", RegexOptions.IgnoreCase);
+
+            // Strip remaining tags
+            html = RxEpubAnyTag.Replace(html, ""); 
+            html = System.Net.WebUtility.HtmlDecode(html);
+            
+            html = html.Replace("\r\n", "\n").Replace("\r", "\n");
+            // 여러 개의 연속된 빈 줄을 2개(새 문단 기준)로 줄임
+            html = Regex.Replace(html, @"\n{3,}", "\n\n");
+            
+            var lines = html.Split('\n');
+            bool isNewParagraph = true;
+            
+            // 긴 문장을 분리하기 위한 정규식 (마침표, 쉼표, 느낌표, 물음표 등 + 뒤따르는 공백 캡처)
+            var splitRegex = new Regex(@"(。|、|！|？|，|\.(?=\s|$)|!(?=\s|$)|\?(?=\s|$)|,(?=\s|$))(\s*)");
+
+            foreach (var line in lines)
+            {
+                if (string.IsNullOrWhiteSpace(line)) 
+                {
+                    isNewParagraph = true;
+                    continue;
+                }
+                
+                // 불필요한 공백 치환 (단일 띄어쓰기는 보존하여 Aozora 파서와 호환 유지)
+                string cleanLine = line.Replace('\u00A0', ' ').TrimEnd('\r', '\n', ' ');
+                if (isNewParagraph) cleanLine = cleanLine.TrimStart();
+                if (string.IsNullOrWhiteSpace(cleanLine)) continue;
+                
+                var tokens = RxEpubRubySplit.Split(cleanLine);
+                
+                AozoraBindingModel currentBlock = new AozoraBindingModel 
+                { 
+                    SourceLineNumber = lineNum++, 
+                    EpubChapterIndex = chapterIndex,
+                    IsParagraphContinuation = !isNewParagraph
+                };
+
+                foreach (var token in tokens)
+                {
+                    // 루비 텍스트인 경우 내부를 건드리지 않고 보호합니다.
+                    if (token.StartsWith("{{RUBY|"))
+                    {
+                        var content = token.Substring(7, token.Length - 9);
+                        var parts = content.Split(new[] { "|~|" }, StringSplitOptions.None);
+                        if (parts.Length == 2)
                         {
-                            if (!string.IsNullOrEmpty(parts[i + 1])) 
-                                currentBlock.Inlines.Add(parts[i + 1]);
-                            i++; 
+                            currentBlock.Inlines.Add(new AozoraRuby { BaseText = parts[0], RubyText = parts[1] });
                         }
-                        
-                        // 구두점 처리가 완료되면 현재 블록을 리스트에 넣고 새로운 이어지는 블록을 시작합니다.
-                        if (currentBlock.Inlines.Count > 0)
+                    }
+                    else if (!string.IsNullOrEmpty(token))
+                    {
+                        // 일반 텍스트는 구두점 단위로 분리하여 여러 블록으로 쪼갭니다.
+                        var parts = splitRegex.Split(token);
+                        for (int i = 0; i < parts.Length; i++)
                         {
-                            blocks.Add(currentBlock);
-                            currentBlock = new AozoraBindingModel 
-                            { 
-                                SourceLineNumber = lineNum++, 
-                                EpubChapterIndex = chapterIndex,
-                                IsParagraphContinuation = true // 구두점 뒤에서 잘린 이어지는 문장임을 명시
-                            };
+                            string part = parts[i];
+                            if (!string.IsNullOrEmpty(part)) currentBlock.Inlines.Add(part);
+
+                            // 매칭된 구두점 (group 1)
+                            if (i % 3 == 1)
+                            {
+                                // 뒤따르는 공백 (group 2)
+                                if (i + 1 < parts.Length)
+                                {
+                                    if (!string.IsNullOrEmpty(parts[i + 1])) 
+                                        currentBlock.Inlines.Add(parts[i + 1]);
+                                    i++; 
+                                }
+                                
+                                // 구두점 처리가 완료되면 현재 블록을 리스트에 넣고 새로운 이어지는 블록을 시작합니다.
+                                if (currentBlock.Inlines.Count > 0)
+                                {
+                                    blocks.Add(currentBlock);
+                                    currentBlock = new AozoraBindingModel 
+                                    { 
+                                        SourceLineNumber = lineNum++, 
+                                        EpubChapterIndex = chapterIndex,
+                                        IsParagraphContinuation = true // 구두점 뒤에서 잘린 이어지는 문장임을 명시
+                                    };
+                                }
+                            }
                         }
                     }
                 }
+                
+                // 루프 종료 후 남은 인라인 처리
+                if (currentBlock.Inlines.Count > 0)
+                {
+                    blocks.Add(currentBlock);
+                }
+                
+                // 다음 줄은 빈 줄(개행)이 나타나지 않는 한 현재 문단과 이어집니다.
+                isNewParagraph = false;
             }
+            
+            return blocks;
         }
-        
-        // 루프 종료 후 남은 인라인 처리
-        if (currentBlock.Inlines.Count > 0)
-        {
-            blocks.Add(currentBlock);
-        }
-        
-        // 다음 줄은 빈 줄(개행)이 나타나지 않는 한 현재 문단과 이어집니다.
-        isNewParagraph = false;
-    }
-    
-    return blocks;
-}
     }
 
     public class EpubPageInfoTag
