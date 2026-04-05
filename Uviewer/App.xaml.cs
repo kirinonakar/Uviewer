@@ -53,9 +53,11 @@ namespace Uviewer
 
         public App()
         {
-            // 추가 2: COM 실행 모드에서도 무조건 App SDK 경로가 설정되도록 최상단으로 이동
             this.UnhandledException += App_UnhandledException;
             Environment.SetEnvironmentVariable("MICROSOFT_WINDOWSAPPRUNTIME_BASE_DIRECTORY", AppContext.BaseDirectory);
+
+            // COM 실행 여부와 상관없이 InitializeComponent()는 호출해 주는 것이 WinUI 3 생명주기에 안전합니다.
+            InitializeComponent();
 
             _dispatcherQueue = Microsoft.UI.Dispatching.DispatcherQueue.GetForCurrentThread();
 
@@ -74,26 +76,36 @@ namespace Uviewer
 
                     CoRegisterClassObject(ref clsid, factoryPtr, 4, 1, out _comCookie);
 
-                    // COM 활성화인 경우 별도로 InitializeComponent를 호출하지 않고 타이머만 시작하여 리소스 최소화
                     _exitTimer = new System.Threading.Timer((_) =>
                     {
                         Interlocked.Exchange(ref _exitTimer, null)?.Dispose();
                         _dispatcherQueue?.TryEnqueue(() =>
                         {
-                            Application.Current.Exit();
+                            // 1. COM 등록을 가장 먼저 해제합니다 (탐색기와의 연결 끊기)
+                            if (_comCookie != 0)
+                            {
+                                CoRevokeClassObject(_comCookie);
+                                _comCookie = 0;
+                            }
+
+                            // 2. 참조 해제
+                            _commandFactory = null;
+
+                            // 3. Application.Current.Exit() 대신 확실한 강제 종료 사용
+                            // 이렇게 해야 백그라운드에 좀비 프로세스가 남지 않고 CPU 12% 점유 버그가 해결됩니다.
+                            Environment.Exit(0);
                         });
                     }, null, 5000, Timeout.Infinite);
                 }
                 catch (Exception ex)
                 {
                     System.Diagnostics.Debug.WriteLine($"COM Registration Error: {ex.Message}");
+                    Environment.Exit(1); // 오류 발생 시에도 확실히 종료
                 }
             }
             else
             {
-                // 일반 실행 모드인 경우에만 UI 리소스 초기화
-                InitializeComponent();
-
+                // 일반 실행 모드 (InitializeComponent는 위에서 이미 처리함)
                 try
                 {
                     LoadSettings();

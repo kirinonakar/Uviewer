@@ -67,15 +67,32 @@ namespace Uviewer
     {
         public int GetTitle(IntPtr psiItemArray, out IntPtr ppszName)
         {
-            App.MarkActivity();
-            ppszName = Marshal.StringToCoTaskMemUni("Open in Uviewer");
-            return 0; // S_OK
+            ppszName = IntPtr.Zero;
+            try
+            {
+                // App.MarkActivity() 제거: Explorer가 렌더링을 위해 매우 빈번하게 호출하므로 오버헤드 방지
+                ppszName = Marshal.StringToCoTaskMemUni("Open in Uviewer");
+                return 0; // S_OK
+            }
+            catch
+            {
+                return unchecked((int)0x80004005); // E_FAIL
+            }
         }
 
         public int GetIcon(IntPtr psiItemArray, out IntPtr ppszIcon)
         {
-            ppszIcon = Marshal.StringToCoTaskMemUni(Path.Combine(AppContext.BaseDirectory, "Assets", "Uviewer.ico"));
-            return 0; // S_OK
+            ppszIcon = IntPtr.Zero;
+            try
+            {
+                string iconPath = Path.Combine(AppContext.BaseDirectory, "Assets", "Uviewer.ico");
+                ppszIcon = Marshal.StringToCoTaskMemUni(iconPath);
+                return 0; // S_OK
+            }
+            catch
+            {
+                return unchecked((int)0x80004005); // E_FAIL
+            }
         }
 
         public int GetToolTip(IntPtr psiItemArray, out IntPtr ppszInfotip)
@@ -93,15 +110,24 @@ namespace Uviewer
         public int GetState(IntPtr psiItemArray, bool fOkToBeSlow, out uint pCommandState)
         {
             pCommandState = 0; // ECS_ENABLED
-            return 0; // S_OK
+            try
+            {
+                return 0; // S_OK
+            }
+            catch
+            {
+                return unchecked((int)0x80004005); // E_FAIL
+            }
         }
 
         public int Invoke(IntPtr psiItemArray, IntPtr pbc)
         {
-            App.MarkActivity();
-            if (psiItemArray != IntPtr.Zero)
+            try
             {
-                try
+                // Invoke는 사용자가 실제 클릭 시에만 호출되므로 여기서 수명 연장 타이머를 갱신합니다.
+                App.MarkActivity();
+
+                if (psiItemArray != IntPtr.Zero)
                 {
                     // IntPtr로 받은 후 안전하게 수동 캐스팅
                     var array = (IShellItemArray)Marshal.GetObjectForIUnknown(psiItemArray);
@@ -119,12 +145,13 @@ namespace Uviewer
                         });
                     }
                 }
-                catch (Exception ex)
-                {
-                    System.Diagnostics.Debug.WriteLine($"Invoke error: {ex.Message}");
-                }
+                return 0; // S_OK
             }
-            return 0; // S_OK
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Invoke error: {ex.Message}");
+                return unchecked((int)0x80004005); // E_FAIL
+            }
         }
 
         public int GetFlags(out uint pdwFlags)
