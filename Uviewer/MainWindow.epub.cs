@@ -117,7 +117,8 @@ namespace Uviewer
 
                          _epubPreloadCache.Clear();
                          _epubImageCache.Clear();
-                         // 참고: ClearBackwardCache()는 텍스트 모드 전용이므로 EPUB에서는 호출하지 않습니다.
+                         // [핵심 해결] 글자 크기나 창 크기가 바뀌면 공용 측정 캐시(MainWindow.aozora.cs 정의)를 비워야 정확한 재계산이 가능합니다.
+                         ClearBackwardCache(); 
                          
                          int currentLine = CurrentEpubWin2DPage?.StartLine ?? 1;
                          int currentBlockIdx = CurrentEpubWin2DPage?.StartBlockIndex ?? -1;
