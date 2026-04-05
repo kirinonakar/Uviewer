@@ -472,11 +472,6 @@ namespace Uviewer
             return; // 재파싱 없이 함수 즉시 종료
         }
 
-        // 블록이 없다면 기존 파싱 로직 실행하기 위한 초기화
-        _currentAozoraStartBlockIndex = 0;
-        _currentAozoraEndBlockIndex = 0;
-        _currentAozoraPageInfo = new AozoraPageInfo { Blocks = new List<AozoraBindingModel>(), StartLine = 1 };
-
         // 2. 전체 데이터 백그라운드 파싱 (UI 프리징 방지)
         await Task.Run(() =>
         {

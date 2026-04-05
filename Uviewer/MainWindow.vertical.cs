@@ -65,15 +65,21 @@ namespace Uviewer
                          // [핵심] 글자 크기나 창 크기가 바뀌면 측정 캐시와 이전 페이지 캐시를 모두 비워야 정확한 재배치가 가능합니다.
                          ClearBackwardCache(); 
                          
-                         int currentLine = 1;
-                         int currentBlockIdx = _currentVerticalStartBlockIndex;
-                         if (_aozoraBlocks != null && currentBlockIdx >= 0 && currentBlockIdx < _aozoraBlocks.Count)
+                         // [수정] 이미 펜딩 중인 위치가 있다면 그것을 우선시하여 레이스 컨디션 방어
+                         int currentLine = _pendingVerticalScrollLine ?? 1;
+                         int currentBlockIdx = _pendingVerticalStartBlockIndex;
+
+                         if (_pendingVerticalScrollLine == null)
                          {
-                             currentLine = _aozoraBlocks[currentBlockIdx].SourceLineNumber;
+                             if (_aozoraBlocks != null && _currentVerticalStartBlockIndex >= 0 && _currentVerticalStartBlockIndex < _aozoraBlocks.Count)
+                             {
+                                 currentLine = _aozoraBlocks[_currentVerticalStartBlockIndex].SourceLineNumber;
+                                 currentBlockIdx = _currentVerticalStartBlockIndex;
+                             }
                          }
                          
-                         // [추가] Aozora 모드에서는 글자 크기에 따라 인덴트 등 블록 속성이 달라질 수 있으므로 블록 자체를 재파싱합니다.
-                         if (_isAozoraMode && !_isEpubMode) _aozoraBlocks = new List<AozoraBindingModel>(); 
+                         // [수정] 블록을 강제로 비우지 않습니다. PrepareVerticalTextAsync 내부에서 필요시 재파싱합니다.
+                         // if (_isAozoraMode && !_isEpubMode) _aozoraBlocks = new List<AozoraBindingModel>(); 
 
                          _ = PrepareVerticalTextAsync(currentLine, currentBlockIdx, _globalTextCts?.Token ?? default);
                      }
@@ -273,11 +279,6 @@ namespace Uviewer
             _pendingVerticalScrollLine = targetLine;
             _pendingVerticalStartBlockIndex = targetBlockIndex;
             ClearBackwardCache(); // <-- 캐시 초기화 추가
-
-            // [수정] 이전 챕터의 잔여 데이터로 인한 무한 루프 방지를 위해 시작/끝 인덱스만 초기화하고,
-            // _currentVerticalPageInfo는 실제 새 페이지 렌더링 직전에 교체하여 깜박임을 방지합니다.
-            _currentVerticalStartBlockIndex = 0;
-            _currentVerticalEndBlockIndex = 0;
 
             try
             {

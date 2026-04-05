@@ -762,17 +762,28 @@ namespace Uviewer
 
             if (_isAozoraMode && !string.IsNullOrEmpty(_currentTextContent))
             {
-                // Capture current line to preserve position
-                int currentLine = 1;
-                if (!resetScroll && _aozoraBlocks.Count > 0 && _currentAozoraStartBlockIndex >= 0 && _currentAozoraStartBlockIndex < _aozoraBlocks.Count)
+                // [핵심 수정] 잦은 클릭 중 위치를 잃지 않도록 이미 펜딩 중인 타겟이 있다면 그것을 계속 사용합니다.
+                if (resetScroll)
                 {
-                    currentLine = _aozoraBlocks[_currentAozoraStartBlockIndex].SourceLineNumber;
+                    _aozoraPendingTargetLine = 1;
+                }
+                else if (_aozoraPendingTargetLine <= 0)
+                {
+                    // 현재 UI가 유효할 때만 캡처 (리셋된 0번 블록을 캡처하는 것 방지)
+                    if (_aozoraBlocks.Count > 0 && _currentAozoraStartBlockIndex >= 0 && _currentAozoraStartBlockIndex < _aozoraBlocks.Count)
+                    {
+                        _aozoraPendingTargetLine = _aozoraBlocks[_currentAozoraStartBlockIndex].SourceLineNumber;
+                    }
                 }
 
-                // Re-calculate pages with new font size/settings
-                await PrepareAozoraDisplayAsync(_currentTextContent, currentLine, -1, _globalTextCts?.Token ?? default);
+                // [추가] 이전 렌더링 작업이 있다면 취소하여 레이스 컨디션 방지
+                CancelAndResetGlobalTextCts();
+                var token = _globalTextCts!.Token;
 
-                // Content is already rendered progressively by PrepareAozoraDisplayAsync
+                // Re-calculate pages with new font size/settings
+                // targetLine 인자로 _aozoraPendingTargetLine을 명시적으로 전달
+                await PrepareAozoraDisplayAsync(_currentTextContent, _aozoraPendingTargetLine, -1, token);
+
                 if (TextArea != null)
                     TextArea.Background = _settingsManager.GetThemeBackground();
 
