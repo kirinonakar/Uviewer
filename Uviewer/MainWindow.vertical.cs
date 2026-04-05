@@ -106,6 +106,8 @@ namespace Uviewer
                     }
 
                     _epubPreloadCache.Clear();
+                    _epubImageCache.Clear();
+                    ClearBackwardCache();
                     await LoadEpubChapterAsync(_currentEpubChapterIndex, targetLine: currentLine, targetBlockIndex: currentBlockIdx);
                 }
                 else
@@ -167,6 +169,8 @@ namespace Uviewer
                     }
 
                     _epubPreloadCache.Clear();
+                    _epubImageCache.Clear();
+                    ClearBackwardCache();
                     await LoadEpubChapterAsync(_currentEpubChapterIndex, targetLine: currentLine, targetBlockIndex: currentBlockIdx);
                 }
                 else

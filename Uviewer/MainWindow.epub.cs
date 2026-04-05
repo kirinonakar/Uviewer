@@ -105,7 +105,7 @@ namespace Uviewer
             if (_epubResizeTimer == null)
             {
                 _epubResizeTimer = this.DispatcherQueue.CreateTimer();
-                _epubResizeTimer.Interval = TimeSpan.FromMilliseconds(500);
+                _epubResizeTimer.Interval = TimeSpan.FromMilliseconds(300);
                 _epubResizeTimer.IsRepeating = false;
                 _epubResizeTimer.Tick += (s, e) =>
                 {
@@ -113,6 +113,8 @@ namespace Uviewer
                      {
                          _epubPreloadCache.Clear();
                          _epubImageCache.Clear();
+                         ClearBackwardCache(); // Clear measurement cache for new layout
+                         
                          int currentLine = CurrentEpubWin2DPage?.StartLine ?? 1;
                          int currentBlockIdx = CurrentEpubWin2DPage?.StartBlockIndex ?? -1;
                          _ = LoadEpubChapterAsync(_currentEpubChapterIndex, targetLine: currentLine, targetBlockIndex: currentBlockIdx);
