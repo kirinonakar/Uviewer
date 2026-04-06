@@ -7,7 +7,7 @@
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     mc:Ignorable="d"
-    Title="{x:Bind DialogTitle, Mode=OneWay}"
+    Title="{x:Bind DialogTitle, Mode=OneTime}"
     PrimaryButtonText="{x:Bind common:Strings.DialogPrimary}"
     CloseButtonText="{x:Bind common:Strings.DialogClose}"
     DefaultButton="Primary">
@@ -15,7 +15,7 @@
     <StackPanel Width="300" Spacing="8">
         <TextBox x:Name="InputBox"
                  InputScope="Number"
-                 PlaceholderText="{x:Bind Placeholder, Mode=OneWay}"
+                 PlaceholderText="{x:Bind Placeholder, Mode=OneTime}"
                  Text="{x:Bind CurrentLineText, Mode=TwoWay}"/>
     </StackPanel>
 </ContentDialog>
