@@ -52,20 +52,23 @@ namespace Uviewer
             public int SourceLine;
             public int InlineCount;
             public int ContentHash; // 💡 한 줄이 여러 블록으로 쪼개졌을 때(문장 분리)를 위한 내용물 해시 추가
+            public bool IsVertical; // 💡 가로는 높이, 세로는 너비를 쟤므로 모드가 다르면 캐시 키도 달라야 함 (Cross-mode 캐시 오염 방지)
 
-            public BlockCacheKey(int line, int count, int contentHash)
+            public BlockCacheKey(int line, int count, int contentHash, bool isVertical = false)
             {
                 SourceLine = line;
                 InlineCount = count;
                 ContentHash = contentHash;
+                IsVertical = isVertical;
             }
 
             public bool Equals(BlockCacheKey other) => 
                 SourceLine == other.SourceLine && 
                 InlineCount == other.InlineCount && 
-                ContentHash == other.ContentHash;
+                ContentHash == other.ContentHash &&
+                IsVertical == other.IsVertical;
 
-            public override int GetHashCode() => HashCode.Combine(SourceLine, InlineCount, ContentHash);
+            public override int GetHashCode() => HashCode.Combine(SourceLine, InlineCount, ContentHash, IsVertical);
             public override bool Equals(object? obj) => obj is BlockCacheKey other && Equals(other);
         }
 
@@ -929,10 +932,9 @@ namespace Uviewer
 
         private float MeasureHorizontalBlockHeight(CanvasDevice? device, AozoraBindingModel block, float availableWidth, float fontSize)
         {
-            // 👉 줄 번호와 내부 요소 개수, 그리고 첫 요소의 해시를 조합해 고유 키 생성
-            // 복제된 블록이라도 같은 내용을 담고 있다면 완벽히 캐시 적중됩니다.
+            // 👉 가로 모드: IsVertical=false로 키 생성 (세로 모드와 캐시 분리)
             int contentHash = block.Inlines.Count > 0 ? block.Inlines[0].GetHashCode() : 0;
-            var cacheKey = new BlockCacheKey(block.SourceLineNumber, block.Inlines.Count, contentHash);
+            var cacheKey = new BlockCacheKey(block.SourceLineNumber, block.Inlines.Count, contentHash, isVertical: false);
             
             if (_blockMeasureCache.TryGetValue(cacheKey, out float cachedHeight))
                 return cachedHeight;

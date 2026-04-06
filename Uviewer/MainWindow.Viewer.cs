@@ -215,7 +215,7 @@ namespace Uviewer
                     }
 
                     // 렌더링 시작 (토큰 전달로 페이지 이동 시 취소 가능하게 함)
-                    nextBitmap = await LoadPdfPageBitmapAsync(entry.PdfPageIndex, MainCanvas, token);
+                    nextBitmap = await LoadPdfPageBitmapAsync(entry.PdfPageIndex, MainCanvas!, token);
 
                     // [핵심] await 후 인덱스가 달라졌으면 버리기 (다른 페이지로 넘어간 것임)
                     if (nextBitmap != null)
@@ -520,7 +520,7 @@ namespace Uviewer
                         try
                         {
                             if (token.IsCancellationRequested) return;
-                            await _animatedWebpService.StartAsync(entry, MainCanvas, token, (float)ImageOptions.UpscaleFactor, (float)ImageOptions.SharpenAmount, (float)ImageOptions.SharpenThreshold, (float)ImageOptions.UnsharpAmount, (float)ImageOptions.UnsharpRadius, _sharpenEnabled);
+                            await _animatedWebpService.StartAsync(entry, MainCanvas!, token, (float)ImageOptions.UpscaleFactor, (float)ImageOptions.SharpenAmount, (float)ImageOptions.SharpenThreshold, (float)ImageOptions.UnsharpAmount, (float)ImageOptions.UnsharpRadius, _sharpenEnabled);
                             
                             DispatcherQueue.TryEnqueue(() =>
                             {

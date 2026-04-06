@@ -698,7 +698,8 @@ namespace Uviewer
                 int backwardIdx = pinBlockIndex;
                 while (backwardIdx > 0)
                 {
-                    int prevStart = FindPreviousEpubPageStart(backwardIdx, allBlocks, maxWidth, pageHeight, device);
+                    // FindPreviousPageStart(aozora.cs)와 동일한 알고리즘 — 중복 메서드 제거 후 공용 메서드 재사용
+                    int prevStart = FindPreviousPageStart(backwardIdx, allBlocks, maxWidth, pageHeight, device, _isVerticalMode);
                     if (prevStart >= backwardIdx) break; // 더 이상 거슬러 올라갈 수 없음
 
                     int tempIdx = prevStart;
@@ -785,31 +786,7 @@ namespace Uviewer
             };
         }
 
-        private int FindPreviousEpubPageStart(int targetIdx, List<AozoraBindingModel> blocks, float maxWidth, float availHeight, CanvasDevice? device)
-        {
-            if (targetIdx <= 0) return 0;
-
-            int bestStart = Math.Max(0, targetIdx - 1);
-            int scanStart = Math.Max(0, targetIdx - 1);
-            int safetyLimit = 300; 
-
-            for (int i = scanStart; i >= 0 && safetyLimit > 0; i--, safetyLimit--)
-            {
-                int tempIdx = i;
-                var page = PaginateNextEpubPage(ref tempIdx, blocks, maxWidth, availHeight, device);
-                if (page == null) continue;
-
-                if (tempIdx >= targetIdx)
-                {
-                    bestStart = i;
-                }
-                else
-                {
-                    break;
-                }
-            }
-            return bestStart;
-        }
+        // FindPreviousEpubPageStart 제거됨 — aozora.cs의 FindPreviousPageStart(isVertical 파라미터)로 통합
 
         private void EpubArea_SizeChanged(object sender, SizeChangedEventArgs e)
         {

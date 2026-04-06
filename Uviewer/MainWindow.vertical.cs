@@ -811,10 +811,9 @@ namespace Uviewer
 
         private float MeasureVerticalBlockWidth(CanvasDevice? device, AozoraBindingModel block, float availableHeight, float fontSize)
         {
-            // 👉 줄 번호와 내부 요소 개수, 그리고 첫 요소의 해시를 조합해 고유 키 생성
-            // 복제된 블록이라도 같은 내용을 담고 있다면 완벽히 캐시 적중됩니다.
+            // 👉 세로 모드: IsVertical=true로 키 생성 (가로 모드와 캐시 분리 - 높이 vs 너비 오염 방지)
             int contentHash = block.Inlines.Count > 0 ? block.Inlines[0].GetHashCode() : 0;
-            var cacheKey = new BlockCacheKey(block.SourceLineNumber, block.Inlines.Count, contentHash);
+            var cacheKey = new BlockCacheKey(block.SourceLineNumber, block.Inlines.Count, contentHash, isVertical: true);
             
             if (_blockMeasureCache.TryGetValue(cacheKey, out float cachedWidth))
                 return cachedWidth;
