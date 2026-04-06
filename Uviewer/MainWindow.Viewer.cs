@@ -243,7 +243,7 @@ namespace Uviewer
                     // PDF: Set initial pan position to top or bottom of page depending on direction
                     if (!_isSeamlessScroll)
                     {
-                        var canvasSize = MainCanvas.Size;
+                        var canvasSize = MainCanvas!.Size;
                         var imageSize = nextBitmap.Size;
                         var fitRatio = Math.Min(canvasSize.Width / imageSize.Width, canvasSize.Height / imageSize.Height);
                         var scaledH = imageSize.Height * fitRatio * _zoomLevel;
