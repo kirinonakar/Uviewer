@@ -78,23 +78,38 @@ namespace Uviewer.Services
 
         public async Task AddOrUpdateFavoriteAsync(FavoriteItem favorite, bool isManualSave)
         {
-            FavoriteItem? existing = _favorites.FirstOrDefault(f => f.Path == favorite.Path && f.Type == favorite.Type);
-            bool wasPinned = false;
+            string normPath = favorite.Path.Replace('\\', '/').TrimEnd('/');
+            FavoriteItem? existing = _favorites.FirstOrDefault(f => 
+                f.Path.Replace('\\', '/').TrimEnd('/').Equals(normPath, StringComparison.OrdinalIgnoreCase) && 
+                f.Type == favorite.Type &&
+                f.IsWebDav == favorite.IsWebDav &&
+                (f.WebDavServerName == null && favorite.WebDavServerName == null || 
+                 f.WebDavServerName != null && f.WebDavServerName.Equals(favorite.WebDavServerName, StringComparison.OrdinalIgnoreCase)));
 
             if (existing != null)
             {
-                wasPinned = existing.IsPinned;
-
                 if (!isManualSave)
                 {
                     return; 
                 }
 
-                _favorites.Remove(existing);
+                // Update properties in-place instead of removing and re-adding
+                existing.Name = favorite.Name;
+                existing.Path = favorite.Path;
+                existing.ArchiveEntryKey = favorite.ArchiveEntryKey;
+                existing.ScrollOffset = favorite.ScrollOffset;
+                existing.SavedPage = favorite.SavedPage;
+                existing.ChapterIndex = favorite.ChapterIndex;
+                existing.SavedLine = favorite.SavedLine;
+                existing.SavedBlockIndex = favorite.SavedBlockIndex;
+                existing.IsVertical = favorite.IsVertical;
+                existing.Progress = favorite.Progress;
+                // IsPinned and CreatedAt remain unchanged
             }
-
-            favorite.IsPinned = wasPinned;
-            _favorites.Add(favorite);
+            else
+            {
+                _favorites.Add(favorite);
+            }
 
             await SaveFavoritesAsync();
             FavoritesUpdated?.Invoke(this, EventArgs.Empty);
@@ -102,8 +117,17 @@ namespace Uviewer.Services
 
         public async Task RemoveFavoriteAsync(FavoriteItem favorite)
         {
-            if (_favorites.Remove(favorite))
+            string normPath = favorite.Path.Replace('\\', '/').TrimEnd('/');
+            var existing = _favorites.FirstOrDefault(f => 
+                f.Path.Replace('\\', '/').TrimEnd('/').Equals(normPath, StringComparison.OrdinalIgnoreCase) && 
+                f.Type == favorite.Type &&
+                f.IsWebDav == favorite.IsWebDav &&
+                (f.WebDavServerName == null && favorite.WebDavServerName == null || 
+                 f.WebDavServerName != null && f.WebDavServerName.Equals(favorite.WebDavServerName, StringComparison.OrdinalIgnoreCase)));
+
+            if (existing != null)
             {
+                _favorites.Remove(existing);
                 await SaveFavoritesAsync();
                 FavoritesUpdated?.Invoke(this, EventArgs.Empty);
             }
@@ -118,7 +142,13 @@ namespace Uviewer.Services
 
         public bool AnyFolderFavoriteExists(string folderPath, bool isWebDav, string? webDavServerName)
         {
-            return _favorites.Any(f => f.Path == folderPath && f.Type == "Folder" && f.IsWebDav == isWebDav && f.WebDavServerName == webDavServerName);
+            string normPath = folderPath.Replace('\\', '/').TrimEnd('/');
+            return _favorites.Any(f => 
+                f.Path.Replace('\\', '/').TrimEnd('/').Equals(normPath, StringComparison.OrdinalIgnoreCase) && 
+                f.Type == "Folder" && 
+                f.IsWebDav == isWebDav && 
+                (f.WebDavServerName == null && webDavServerName == null || 
+                 f.WebDavServerName != null && f.WebDavServerName.Equals(webDavServerName, StringComparison.OrdinalIgnoreCase)));
         }
     }
 }
