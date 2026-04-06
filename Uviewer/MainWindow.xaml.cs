@@ -150,6 +150,8 @@ namespace Uviewer
 
         private Services.FavoritesService _favoritesService = new();
         private Services.RecentService _recentService = new();
+        private Services.TextDialogService _textDialogService = null!;
+        private bool _isColorPickerOpen;
         private Microsoft.UI.Xaml.Controls.ContentDialog? _aboutDialog;
 
         public async Task InitializeAsync(string? launchFilePath = null)
@@ -275,6 +277,7 @@ namespace Uviewer
             _imageResourceService = new Services.ImageResourceService(_sharpeningService);
 
             InitializeComponent();
+            _textDialogService = new Services.TextDialogService(RootGrid);
             LoadTextSettings();
 
             // [추가] UI 크기 변경 이벤트 구독

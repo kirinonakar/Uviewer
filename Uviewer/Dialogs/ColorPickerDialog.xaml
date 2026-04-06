@@ -1,0 +1,53 @@
+<ContentDialog
+    x:Class="Uviewer.Dialogs.ColorPickerDialog"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:local="using:Uviewer.Dialogs"
+    xmlns:common="using:Uviewer"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    mc:Ignorable="d"
+    Title="{x:Bind common:Strings.ChangeColors}"
+    PrimaryButtonText="{x:Bind common:Strings.DialogPrimary}"
+    CloseButtonText="{x:Bind common:Strings.DialogClose}"
+    DefaultButton="Primary">
+
+    <StackPanel Width="300">
+        <Border x:Name="PreviewBorder"
+                Height="60"
+                Margin="0,0,0,10"
+                BorderBrush="{ThemeResource SystemControlForegroundBaseMediumLowBrush}"
+                BorderThickness="1">
+            <TextBlock x:Name="PreviewText"
+                       HorizontalAlignment="Center"
+                       VerticalAlignment="Center"
+                       FontSize="18"/>
+        </Border>
+
+        <TextBlock Text="{x:Bind common:Strings.BackgroundColor}" 
+                   FontWeight="SemiBold" 
+                   Margin="0,8,0,4" />
+        
+        <TextBlock Text="{x:Bind common:Strings.Hue}" FontSize="12" />
+        <Slider x:Name="BgHSlider" Minimum="0" Maximum="360" ValueChanged="BgSlider_ValueChanged" Margin="0,0,0,8" />
+        
+        <TextBlock Text="{x:Bind common:Strings.Saturation}" FontSize="12" />
+        <Slider x:Name="BgSSlider" Minimum="0" Maximum="100" ValueChanged="BgSlider_ValueChanged" Margin="0,0,0,8" />
+        
+        <TextBlock Text="{x:Bind common:Strings.Lightness}" FontSize="12" />
+        <Slider x:Name="BgLSlider" Minimum="0" Maximum="100" ValueChanged="BgSlider_ValueChanged" Margin="0,0,0,8" />
+
+        <TextBlock Text="{x:Bind common:Strings.TextColor}" 
+                   FontWeight="SemiBold" 
+                   Margin="0,12,0,4" />
+        
+        <TextBlock Text="{x:Bind common:Strings.Hue}" FontSize="12" />
+        <Slider x:Name="FgHSlider" Minimum="0" Maximum="360" ValueChanged="FgSlider_ValueChanged" Margin="0,0,0,8" />
+        
+        <TextBlock Text="{x:Bind common:Strings.Saturation}" FontSize="12" />
+        <Slider x:Name="FgSSlider" Minimum="0" Maximum="100" ValueChanged="FgSlider_ValueChanged" Margin="0,0,0,8" />
+        
+        <TextBlock Text="{x:Bind common:Strings.Lightness}" FontSize="12" />
+        <Slider x:Name="FgLSlider" Minimum="0" Maximum="100" ValueChanged="FgSlider_ValueChanged" Margin="0,0,0,8" />
+    </StackPanel>
+</ContentDialog>

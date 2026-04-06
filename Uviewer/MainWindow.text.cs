@@ -946,91 +946,20 @@ namespace Uviewer
             if (LangJaItem != null) LangJaItem.IsChecked = current == "ja-JP";
         }
 
-        private bool _isColorPickerOpen = false;
 
         private async Task ShowColorPickerDialog()
         {
+            var currentBg = _settingsManager.CustomBackgroundColor ?? ((SolidColorBrush)_settingsManager.GetThemeBackground()).Color;
+            var currentFg = _settingsManager.CustomForegroundColor ?? ((SolidColorBrush)_settingsManager.GetThemeForeground()).Color;
+
             _isColorPickerOpen = true;
             try
             {
-                var bgHsl = ToHsl(_settingsManager.CustomBackgroundColor ?? ((SolidColorBrush)_settingsManager.GetThemeBackground()).Color);
-                var fgHsl = ToHsl(_settingsManager.CustomForegroundColor ?? ((SolidColorBrush)_settingsManager.GetThemeForeground()).Color);
-
-                var previewBorder = new Border
+                var result = await _textDialogService.ShowColorPickerAsync(currentBg, currentFg);
+                if (result.HasValue)
                 {
-                    Height = 60,
-                    Margin = new Thickness(0, 0, 0, 10),
-                    BorderBrush = new SolidColorBrush(Colors.Gray),
-                    BorderThickness = new Thickness(1),
-                    Background = new SolidColorBrush(FromHsl(bgHsl.h, bgHsl.s, bgHsl.l)),
-                    Child = new TextBlock
-                    {
-                        Text = Strings.Preview + " - Abc 가나다 123",
-                        HorizontalAlignment = HorizontalAlignment.Center,
-                        VerticalAlignment = VerticalAlignment.Center,
-                        FontSize = 18,
-                        Foreground = new SolidColorBrush(FromHsl(fgHsl.h, fgHsl.s, fgHsl.l))
-                    }
-                };
-
-                var previewText = (TextBlock)previewBorder.Child;
-
-                Slider CreateSlider(string label, double min, double max, double val, Action<double> onChange)
-                {
-                    var slider = new Slider { Minimum = min, Maximum = max, Value = val, Margin = new Thickness(0, 0, 0, 8) };
-                    slider.ValueChanged += (s, e) => onChange(e.NewValue);
-                    return slider;
-                }
-
-                var stackPanel = new StackPanel { Width = 300 };
-                stackPanel.Children.Add(previewBorder);
-
-                stackPanel.Children.Add(new TextBlock { Text = Strings.BackgroundColor, FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 8, 0, 4) });
-                stackPanel.Children.Add(new TextBlock { Text = Strings.Hue, FontSize = 12 });
-                var bgHSlider = CreateSlider(Strings.Hue, 0, 360, bgHsl.h, v => { bgHsl.h = v; previewBorder.Background = new SolidColorBrush(FromHsl(bgHsl.h, bgHsl.s, bgHsl.l)); });
-                stackPanel.Children.Add(bgHSlider);
-                stackPanel.Children.Add(new TextBlock { Text = Strings.Saturation, FontSize = 12 });
-                var bgSSlider = CreateSlider(Strings.Saturation, 0, 100, bgHsl.s, v => { bgHsl.s = v; previewBorder.Background = new SolidColorBrush(FromHsl(bgHsl.h, bgHsl.s, bgHsl.l)); });
-                stackPanel.Children.Add(bgSSlider);
-                stackPanel.Children.Add(new TextBlock { Text = Strings.Lightness, FontSize = 12 });
-                var bgLSlider = CreateSlider(Strings.Lightness, 0, 100, bgHsl.l, v => { bgHsl.l = v; previewBorder.Background = new SolidColorBrush(FromHsl(bgHsl.h, bgHsl.s, bgHsl.l)); });
-                stackPanel.Children.Add(bgLSlider);
-
-                stackPanel.Children.Add(new TextBlock { Text = Strings.TextColor, FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 12, 0, 4) });
-                stackPanel.Children.Add(new TextBlock { Text = Strings.Hue, FontSize = 12 });
-                var fgHSlider = CreateSlider(Strings.Hue, 0, 360, fgHsl.h, v => { fgHsl.h = v; previewText.Foreground = new SolidColorBrush(FromHsl(fgHsl.h, fgHsl.s, fgHsl.l)); });
-                stackPanel.Children.Add(fgHSlider);
-                stackPanel.Children.Add(new TextBlock { Text = Strings.Saturation, FontSize = 12 });
-                var fgSSlider = CreateSlider(Strings.Saturation, 0, 100, fgHsl.s, v => { fgHsl.s = v; previewText.Foreground = new SolidColorBrush(FromHsl(fgHsl.h, fgHsl.s, fgHsl.l)); });
-                stackPanel.Children.Add(fgSSlider);
-                stackPanel.Children.Add(new TextBlock { Text = Strings.Lightness, FontSize = 12 });
-                var fgLSlider = CreateSlider(Strings.Lightness, 0, 100, fgHsl.l, v => { fgHsl.l = v; previewText.Foreground = new SolidColorBrush(FromHsl(fgHsl.h, fgHsl.s, fgHsl.l)); });
-                stackPanel.Children.Add(fgLSlider);
-
-                var dialog = new ContentDialog
-                {
-                    Title = Strings.ChangeColors,
-                    Content = stackPanel,
-                    PrimaryButtonText = Strings.DialogPrimary,
-                    CloseButtonText = Strings.DialogClose,
-                    XamlRoot = this.Content.XamlRoot,
-                    DefaultButton = ContentDialogButton.Primary,
-                    RequestedTheme = RootGrid.ActualTheme
-                };
-
-                stackPanel.PreviewKeyDown += (s, e) =>
-                {
-                    if (e.Key == Windows.System.VirtualKey.Escape)
-                    {
-                        dialog.Hide(); // 강제 닫기
-                        e.Handled = true; // 이벤트 전파 중단
-                    }
-                };
-
-                if (await dialog.ShowAsync() == ContentDialogResult.Primary)
-                {
-                    _settingsManager.CustomBackgroundColor = FromHsl(bgHsl.h, bgHsl.s, bgHsl.l);
-                    _settingsManager.CustomForegroundColor = FromHsl(fgHsl.h, fgHsl.s, fgHsl.l);
+                    _settingsManager.CustomBackgroundColor = result.Value.bg;
+                    _settingsManager.CustomForegroundColor = result.Value.fg;
                     _settingsManager.ThemeIndex = 3; // Custom
                     SaveTextSettings();
                     await RefreshTextDisplay();
@@ -1058,79 +987,10 @@ namespace Uviewer
 
         private async Task ShowFontPickerDialog()
         {
-            try
+            var selectedFont = await _textDialogService.ShowFontPickerAsync(_settingsManager.FontFamily, Strings.FontSelectionTitle);
+            if (selectedFont != null)
             {
-                var fonts = CanvasTextFormat.GetSystemFontFamilies()
-                    .OrderBy(f => f)
-                    .ToList();
-
-                var searchBox = new AutoSuggestBox
-                {
-                    PlaceholderText = Strings.FontSearchPlaceholder,
-                    QueryIcon = new SymbolIcon(Symbol.Find),
-                    Margin = new Thickness(0, 0, 0, 10),
-                    Width = 300
-                };
-
-                var fontList = new ListView
-                {
-                    ItemsSource = fonts,
-                    SelectionMode = ListViewSelectionMode.Single,
-                    MaxHeight = 400,
-                    Width = 300,
-                    ItemTemplate = (DataTemplate)Microsoft.UI.Xaml.Markup.XamlReader.Load(
-                        @"<DataTemplate xmlns='http://schemas.microsoft.com/winfx/2006/xaml/presentation'>
-                            <TextBlock Text='{Binding}' FontFamily='{Binding}' FontSize='16' VerticalAlignment='Center' Padding='4'/>
-                        </DataTemplate>")
-                };
-
-                // Pre-select current font
-                string currentFont = _settingsManager.FontFamily;
-                fontList.SelectedItem = fonts.FirstOrDefault(f => f.Equals(currentFont, StringComparison.OrdinalIgnoreCase));
-                if (fontList.SelectedItem != null) fontList.ScrollIntoView(fontList.SelectedItem);
-
-                searchBox.TextChanged += (s, e) =>
-                {
-                    if (e.Reason == AutoSuggestionBoxTextChangeReason.UserInput)
-                    {
-                        var filtered = fonts.Where(f => f.Contains(s.Text, StringComparison.OrdinalIgnoreCase)).ToList();
-                        fontList.ItemsSource = filtered;
-                    }
-                };
-
-                var stackPanel = new StackPanel();
-                stackPanel.Children.Add(searchBox);
-                stackPanel.Children.Add(fontList);
-
-                var dialog = new ContentDialog
-                {
-                    Title = Strings.FontSelectionTitle,
-                    Content = stackPanel,
-                    PrimaryButtonText = Strings.DialogPrimary,
-                    CloseButtonText = Strings.DialogClose,
-                    XamlRoot = this.Content.XamlRoot,
-                    DefaultButton = ContentDialogButton.Primary,
-                    RequestedTheme = RootGrid.ActualTheme
-                };
-
-                // ★ 핵심: PreviewKeyDown을 사용하여 입력 컨트롤보다 먼저 ESC를 감지합니다.
-                stackPanel.PreviewKeyDown += (s, e) =>
-                {
-                    if (e.Key == Windows.System.VirtualKey.Escape)
-                    {
-                        dialog.Hide(); // 강제 닫기
-                        e.Handled = true; // 이벤트 전파 중단
-                    }
-                };
-
-                if (await dialog.ShowAsync() == ContentDialogResult.Primary && fontList.SelectedItem is string selectedFont)
-                {
-                    SetTextFont(selectedFont);
-                }
-            }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"Error showing font picker: {ex.Message}");
+                SetTextFont(selectedFont);
             }
         }
 
@@ -1148,87 +1008,10 @@ namespace Uviewer
 
         private async Task ShowUiFontPickerDialog()
         {
-            try
+            var selectedFont = await _textDialogService.ShowFontPickerAsync(_settingsManager.UIFontFamily, Strings.UIFontSelectionTitle);
+            if (selectedFont != null)
             {
-                var fonts = CanvasTextFormat.GetSystemFontFamilies()
-                    .OrderBy(f => f)
-                    .ToList();
-
-                var searchBox = new AutoSuggestBox
-                {
-                    PlaceholderText = Strings.FontSearchPlaceholder,
-                    QueryIcon = new SymbolIcon(Symbol.Find),
-                    Margin = new Thickness(0, 0, 0, 10),
-                    Width = 300
-                };
-
-                var fontList = new ListView
-                {
-                    ItemsSource = fonts,
-                    SelectionMode = ListViewSelectionMode.Single,
-                    MaxHeight = 400,
-                    Width = 300,
-                    ItemTemplate = (DataTemplate)Microsoft.UI.Xaml.Markup.XamlReader.Load(
-                        @"<DataTemplate xmlns='http://schemas.microsoft.com/winfx/2006/xaml/presentation'>
-                            <TextBlock Text='{Binding}' FontFamily='{Binding}' FontSize='16' VerticalAlignment='Center' Padding='4'/>
-                        </DataTemplate>")
-                };
-
-                // Pre-select current UI font
-                string currentFont = _settingsManager.UIFontFamily;
-                if (string.IsNullOrEmpty(currentFont))
-                {
-                    // Try to get current default font if possible, or just don't select
-                }
-                else
-                {
-                    fontList.SelectedItem = fonts.FirstOrDefault(f => f.Equals(currentFont, StringComparison.OrdinalIgnoreCase));
-                }
-
-                if (fontList.SelectedItem != null) fontList.ScrollIntoView(fontList.SelectedItem);
-
-                searchBox.TextChanged += (s, e) =>
-                {
-                    if (e.Reason == AutoSuggestionBoxTextChangeReason.UserInput)
-                    {
-                        var filtered = fonts.Where(f => f.Contains(s.Text, StringComparison.OrdinalIgnoreCase)).ToList();
-                        fontList.ItemsSource = filtered;
-                    }
-                };
-
-                var stackPanel = new StackPanel();
-                stackPanel.Children.Add(searchBox);
-                stackPanel.Children.Add(fontList);
-
-                var dialog = new ContentDialog
-                {
-                    Title = Strings.UIFontSelectionTitle,
-                    Content = stackPanel,
-                    PrimaryButtonText = Strings.DialogPrimary,
-                    CloseButtonText = Strings.DialogClose,
-                    XamlRoot = this.Content.XamlRoot,
-                    DefaultButton = ContentDialogButton.Primary,
-                    RequestedTheme = RootGrid.ActualTheme
-                };
-
-                // PreviewKeyDown for ESC
-                stackPanel.PreviewKeyDown += (s, e) =>
-                {
-                    if (e.Key == Windows.System.VirtualKey.Escape)
-                    {
-                        dialog.Hide();
-                        e.Handled = true;
-                    }
-                };
-
-                if (await dialog.ShowAsync() == ContentDialogResult.Primary && fontList.SelectedItem is string selectedFont)
-                {
-                    SetUiFont(selectedFont);
-                }
-            }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"Error showing UI font picker: {ex.Message}");
+                SetUiFont(selectedFont);
             }
         }
 
@@ -1341,82 +1124,16 @@ namespace Uviewer
 
         private async Task ShowFontPickerDialogForDefault(int slot)
         {
-            try
+            string currentFont = (slot == 1) ? _settingsManager.DefaultFont1 : _settingsManager.DefaultFont2;
+            var selectedFont = await _textDialogService.ShowFontPickerAsync(currentFont, Strings.FontSelectionSlotTitle(slot));
+            
+            if (selectedFont != null)
             {
-                var fonts = CanvasTextFormat.GetSystemFontFamilies()
-                    .OrderBy(f => f)
-                    .ToList();
+                if (slot == 1) _settingsManager.DefaultFont1 = selectedFont;
+                else _settingsManager.DefaultFont2 = selectedFont;
 
-                var searchBox = new AutoSuggestBox
-                {
-                    PlaceholderText = Strings.FontSearchPlaceholder,
-                    QueryIcon = new SymbolIcon(Symbol.Find),
-                    Margin = new Thickness(0, 0, 0, 10),
-                    Width = 300
-                };
-
-                var fontList = new ListView
-                {
-                    ItemsSource = fonts,
-                    SelectionMode = ListViewSelectionMode.Single,
-                    MaxHeight = 400,
-                    Width = 300,
-                    ItemTemplate = (DataTemplate)Microsoft.UI.Xaml.Markup.XamlReader.Load(
-                        @"<DataTemplate xmlns='http://schemas.microsoft.com/winfx/2006/xaml/presentation'>
-                            <TextBlock Text='{Binding}' FontFamily='{Binding}' FontSize='16' VerticalAlignment='Center' Padding='4'/>
-                        </DataTemplate>")
-                };
-
-                // Pre-select current default font
-                string currentFont = (slot == 1) ? _settingsManager.DefaultFont1 : _settingsManager.DefaultFont2;
-                fontList.SelectedItem = fonts.FirstOrDefault(f => f.Equals(currentFont, StringComparison.OrdinalIgnoreCase));
-                if (fontList.SelectedItem != null) fontList.ScrollIntoView(fontList.SelectedItem);
-
-                searchBox.TextChanged += (s, e) =>
-                {
-                    if (e.Reason == AutoSuggestionBoxTextChangeReason.UserInput)
-                    {
-                        var filtered = fonts.Where(f => f.Contains(s.Text, StringComparison.OrdinalIgnoreCase)).ToList();
-                        fontList.ItemsSource = filtered;
-                    }
-                };
-
-                var stackPanel = new StackPanel();
-                stackPanel.Children.Add(searchBox);
-                stackPanel.Children.Add(fontList);
-
-                var dialog = new ContentDialog
-                {
-                    Title = Strings.FontSelectionSlotTitle(slot),
-                    Content = stackPanel,
-                    PrimaryButtonText = Strings.DialogPrimary,
-                    CloseButtonText = Strings.DialogClose,
-                    XamlRoot = this.Content.XamlRoot,
-                    DefaultButton = ContentDialogButton.Primary,
-                    RequestedTheme = RootGrid.ActualTheme
-                };
-
-                stackPanel.PreviewKeyDown += (s, e) =>
-                {
-                    if (e.Key == Windows.System.VirtualKey.Escape)
-                    {
-                        dialog.Hide();
-                        e.Handled = true;
-                    }
-                };
-
-                if (await dialog.ShowAsync() == ContentDialogResult.Primary && fontList.SelectedItem is string selectedFont)
-                {
-                    if (slot == 1) _settingsManager.DefaultFont1 = selectedFont;
-                    else _settingsManager.DefaultFont2 = selectedFont;
-                    
-                    UpdateFontSettingsMenu();
-                    SaveTextSettings();
-                }
-            }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"Error showing font picker for default: {ex.Message}");
+                UpdateFontSettingsMenu();
+                SaveTextSettings();
             }
         }
 
@@ -1644,37 +1361,10 @@ namespace Uviewer
 
             if (currentLine < 1) currentLine = 1;
 
-            var input = new TextBox
+            var result = await _textDialogService.ShowGoToLineAsync(currentLine, totalLines, title);
+            if (result.HasValue)
             {
-                InputScope = new InputScope { Names = { new InputScopeName(InputScopeNameValue.Number) } },
-                PlaceholderText = $"1 - {totalLines}",
-                Text = currentLine.ToString()
-            };
-
-            input.SelectAll();
-
-            var dialog = new ContentDialog
-            {
-                Title = title,
-                Content = input,
-                PrimaryButtonText = Strings.DialogPrimary,
-                CloseButtonText = Strings.DialogClose,
-                XamlRoot = this.Content.XamlRoot,
-                RequestedTheme = RootGrid.ActualTheme
-            };
-
-            input.KeyDown += async (s, e) =>
-            {
-                if (e.Key == Windows.System.VirtualKey.Enter)
-                {
-                    dialog.Hide();
-                    await GoToLine(input.Text);
-                }
-            };
-
-            if (await dialog.ShowAsync() == ContentDialogResult.Primary)
-            {
-                await GoToLine(input.Text);
+                await GoToLine(result.Value.ToString());
             }
         }
 
