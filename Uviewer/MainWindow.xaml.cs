@@ -114,6 +114,10 @@ namespace Uviewer
         private readonly IAnimatedWebpService _animatedWebpService = null!;
         private readonly IKeyboardShortcutService _keyboardShortcutService = new KeyboardShortcutService();
         private readonly Services.TocService _tocService = new();
+        private readonly Services.ImageResourceService _imageResourceService;
+
+        // ImageResourceService를 _sharpeningService 다음에 생성해야 하므로
+        // 필드 초기화 식 대신 생성자 내부에서 초기화합니다.
 
         // Loading and navigation state
         private CancellationTokenSource? _imageLoadingCts;
@@ -267,6 +271,9 @@ namespace Uviewer
 
         public MainWindow(string? launchFilePath = null)
         {
+            // _imageResourceService는 _sharpeningService에 의존하므로 생성자 시작 시 초기화
+            _imageResourceService = new Services.ImageResourceService(_sharpeningService);
+
             InitializeComponent();
             LoadTextSettings();
 
@@ -798,6 +805,42 @@ namespace Uviewer
         internal ElementTheme GetCurrentTheme() => _currentTheme;
         internal void SetMatchControlDirection(bool match) => _matchControlDirection = match;
         internal bool IsMatchControlDirection() => _matchControlDirection;
+        #endregion
+
+        #region Image Resource Helpers
+
+        /// <summary>
+        /// 현재 MainWindow 필드 값을 기반으로 ViewingContext 스냅샷을 생성합니다.
+        /// 이미지 로딩·존재 확인 메서드 호출 직전에 사용합니다.
+        /// </summary>
+        private Services.ViewingContext CreateViewingContext() => new(
+            IsEpubMode:               _isEpubMode,
+            IsWebDavMode:             _isWebDavMode,
+            EpubArchive:              _currentEpubArchive,
+            EpubArchiveLock:          _epubArchiveLock,
+            CurrentTextFilePath:      _currentTextFilePath,
+            CurrentTextArchiveEntryKey: _currentTextArchiveEntryKey,
+            CurrentArchive:           _currentArchive,
+            Current7zArchive:         _current7zArchive,
+            ArchiveLock:              _archiveLock,
+            CurrentWebDavItemPath:    _currentWebDavItemPath,
+            ImageEntries:             _imageEntries,
+            ResolveWebDavImagePath:   ResolveWebDavImagePath,
+            WebDavService:            _webDavService
+        );
+
+        /// <summary>
+        /// 현재 ImageOptions 설정을 SharpenParams 레코드로 변환합니다.
+        /// </summary>
+        private Services.SharpenParams CreateSharpenParams() => new(
+            UpscaleFactor:   (float)ImageOptions.UpscaleFactor,
+            SharpenAmount:   (float)ImageOptions.SharpenAmount,
+            SharpenThreshold:(float)ImageOptions.SharpenThreshold,
+            UnsharpAmount:   (float)ImageOptions.UnsharpAmount,
+            UnsharpRadius:   (float)ImageOptions.UnsharpRadius
+        );
+
+        #endregion
         internal void SetAllowMultipleInstances(bool allow) => _allowMultipleInstances = allow;
         internal bool IsAllowMultipleInstances() => _allowMultipleInstances;
         internal void SetAutoDoublePageForArchive(bool auto) => _autoDoublePageForArchive = auto;
@@ -821,7 +864,6 @@ namespace Uviewer
                 op.IsAlwaysOnTop = _windowState.IsAlwaysOnTop;
             }
         }
-        #endregion
 
         #region Fullscreen
 

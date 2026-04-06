@@ -23,8 +23,7 @@ namespace Uviewer
     {
         private bool _isVerticalMode = false;
         private bool _verticalKeyAttached = false;
-        private Dictionary<string, CanvasBitmap> _verticalImageCache = new();
-        private HashSet<string> _knownMissingVerticalImages = new();
+        // 이미지 캐시는 _imageResourceService 로 통합됨 (접두어 "text:")
         private int? _pendingVerticalScrollLine = null;
         private int _pendingVerticalStartBlockIndex = -1;
 
@@ -98,7 +97,7 @@ namespace Uviewer
             _currentVerticalStartBlockIndex = 0;
             _currentVerticalEndBlockIndex = 0;
             _verticalNavHistory.Clear();
-            _verticalImageCache.Clear();
+            _imageResourceService.ClearTextEntries(); // vertical 이미지 캐시/누락 목록 초기화
             _verticalTotalPages = 0;
             _isVerticalPageCalcCompleted = false;
             _pendingVerticalStartBlockIndex = -1;
@@ -148,7 +147,7 @@ namespace Uviewer
                     }
 
                     _epubPreloadCache.Clear();
-                    _epubImageCache.Clear();
+                    _imageResourceService.ClearEpubEntries();
                     ClearBackwardCache();
                     await LoadEpubChapterAsync(_currentEpubChapterIndex, targetLine: currentLine, targetBlockIndex: currentBlockIdx);
                 }
@@ -211,7 +210,7 @@ namespace Uviewer
                     }
 
                     _epubPreloadCache.Clear();
-                    _epubImageCache.Clear();
+                    _imageResourceService.ClearEpubEntries();
                     ClearBackwardCache();
                     await LoadEpubChapterAsync(_currentEpubChapterIndex, targetLine: currentLine, targetBlockIndex: currentBlockIdx);
                 }
@@ -422,13 +421,18 @@ namespace Uviewer
             // [이미지 프리로딩] EPUB 등에서 이미지 교체 시 깜박임을 방지하기 위해 렌더링 전 이미지를 미리 로드합니다.
             if (pageBlocks.Any(b => b.HasImage))
             {
+                var ctx           = CreateViewingContext();
+                var sp            = CreateSharpenParams();
+                var preloadDevice = VerticalTextCanvas?.Device ?? Microsoft.Graphics.Canvas.CanvasDevice.GetSharedDevice();
                 var loadTasks = pageBlocks.Where(b => b.HasImage)
-                    .Select(async b => 
+                    .Select(async b =>
                     {
                         var src = b.Inlines.OfType<AozoraImage>().FirstOrDefault()?.Source;
-                        if (!string.IsNullOrEmpty(src) && !_verticalImageCache.ContainsKey(src))
+                        if (!string.IsNullOrEmpty(src))
                         {
-                            await LoadVerticalImageAsync(src);
+                            string cacheKey = Services.ImageResourceService.GetTextCacheKey(src);
+                            if (_imageResourceService.TryGetCached(cacheKey) == null)
+                                await _imageResourceService.LoadAsync(cacheKey, src, preloadDevice, ctx, _sharpenEnabled, sp);
                         }
                     }).ToList();
                 await Task.WhenAll(loadTasks);
@@ -441,7 +445,7 @@ namespace Uviewer
                 StartLine = pageBlocks.Count > 0 ? pageBlocks[0].SourceLineNumber : 1 
             };
 
-            VerticalTextCanvas.Invalidate();
+            VerticalTextCanvas?.Invalidate();
             UpdateVerticalStatusBar();
             StartBackwardPageCaching(_currentVerticalStartBlockIndex, true); // <-- 현재 페이지 렌더링 직후 백그라운드 캐싱 시작
         }
@@ -520,9 +524,10 @@ namespace Uviewer
                             if (_isSideBySideMode || _autoDoublePageForArchive)
                             {
                                 bool firstIsTall = true;
-                                if (_verticalImageCache.TryGetValue(aozoraImg!.Source, out var bmp1))
+                                if (aozoraImg != null)
                                 {
-                                    if (bmp1.Size.Width >= bmp1.Size.Height * 1.2f) firstIsTall = false;
+                                    var bmp1 = _imageResourceService.TryGetCached(Services.ImageResourceService.GetTextCacheKey(aozoraImg.Source));
+                                    if (bmp1 != null && bmp1.Size.Width >= bmp1.Size.Height * 1.2f) firstIsTall = false;
                                 }
 
                                 if (firstIsTall && i < _aozoraBlocks.Count - 1)
@@ -538,9 +543,9 @@ namespace Uviewer
                                             if (nextImg != null && DoesVerticalImageExist(nextImg.Source))
                                             {
                                                 bool secondIsTall = true;
-                                                if (_verticalImageCache.TryGetValue(nextImg.Source, out var bmp2))
                                                 {
-                                                    if (bmp2.Size.Width >= bmp2.Size.Height * 1.2f) secondIsTall = false;
+                                                    var bmp2 = _imageResourceService.TryGetCached(Services.ImageResourceService.GetTextCacheKey(nextImg.Source));
+                                                    if (bmp2 != null && bmp2.Size.Width >= bmp2.Size.Height * 1.2f) secondIsTall = false;
                                                 }
 
                                                 if (secondIsTall)
@@ -697,9 +702,10 @@ namespace Uviewer
                         // Check first image ratio
                         bool firstIsTall = true;
                         var firstImg = block.Inlines.OfType<AozoraImage>().FirstOrDefault();
-                        if (firstImg != null && _verticalImageCache.TryGetValue(firstImg.Source, out var bmp1))
+                        if (firstImg != null)
                         {
-                            if (bmp1.Size.Width >= bmp1.Size.Height * 1.2f) firstIsTall = false; // Wide image -> force single
+                            var bmp1 = _imageResourceService.TryGetCached(Services.ImageResourceService.GetTextCacheKey(firstImg.Source));
+                            if (bmp1 != null && bmp1.Size.Width >= bmp1.Size.Height * 1.2f) firstIsTall = false;
                         }
 
                         if (firstIsTall)
@@ -714,9 +720,9 @@ namespace Uviewer
                                     {
                                         // Check second image ratio
                                         bool secondIsTall = true;
-                                        if (_verticalImageCache.TryGetValue(nextImg.Source, out var bmp2))
                                         {
-                                            if (bmp2.Size.Width >= bmp2.Size.Height * 1.2f) secondIsTall = false;
+                                            var bmp2 = _imageResourceService.TryGetCached(Services.ImageResourceService.GetTextCacheKey(nextImg.Source));
+                                            if (bmp2 != null && bmp2.Size.Width >= bmp2.Size.Height * 1.2f) secondIsTall = false;
                                         }
 
                                         if (secondIsTall)
@@ -1227,10 +1233,11 @@ namespace Uviewer
         {
             if (string.IsNullOrEmpty(path)) return;
 
-            if (_verticalImageCache.TryGetValue(path, out var bitmap))
-            {
-                if (bitmap == null) return;
+            string cacheKey = Services.ImageResourceService.GetTextCacheKey(path);
+            var bitmap = _imageResourceService.TryGetCached(cacheKey);
 
+            if (bitmap != null)
+            {
                 float canvasW = (float)rect.Width;
                 float canvasH = (float)rect.Height;
                 float imgW = (float)bitmap.Size.Width;
@@ -1251,231 +1258,41 @@ namespace Uviewer
             }
             else
             {
-                _verticalImageCache[path] = null!;
                 _ = LoadVerticalImageAsync(path);
             }
         }
 
 
         private bool DoesVerticalImageExist(string relativePath)
-        {
-            if (string.IsNullOrEmpty(relativePath)) return false;
-
-            try
-            {
-                if (_isEpubMode && _currentEpubArchive != null)
-                {
-                    string normPath = relativePath.Replace('\\', '/');
-                    return _currentEpubArchive.Entries.Any(e =>
-                        e.FullName.Replace('\\', '/') == normPath ||
-                        string.Equals(e.FullName.Replace('\\', '/'), normPath, StringComparison.OrdinalIgnoreCase));
-                }
-                if (_isWebDavMode && !string.IsNullOrEmpty(_currentWebDavItemPath))
-                {
-                    if (_knownMissingVerticalImages.Contains(relativePath)) return false;
-
-                    // If it's in the same folder, we can check _imageEntries for faster initial feedback
-                    if (_imageEntries != null && !relativePath.Contains('/') && !relativePath.Contains('\\'))
-                    {
-                        string? fullRemotePath = ResolveWebDavImagePath(relativePath);
-                        if (fullRemotePath != null)
-                        {
-                            if (!_imageEntries.Any(e => e.WebDavPath == fullRemotePath ||
-                                string.Equals(e.WebDavPath, fullRemotePath, StringComparison.OrdinalIgnoreCase)))
-                            {
-                                return false; // Definitely missing from current folder
-                            }
-                        }
-                    }
-
-                    return true;
-                }
-                if (!string.IsNullOrEmpty(_currentTextFilePath) && _currentTextArchiveEntryKey == null)
-                {
-                    // Local File
-                    string fullPath = System.IO.Path.Combine(System.IO.Path.GetDirectoryName(_currentTextFilePath)!, relativePath);
-                    return System.IO.File.Exists(fullPath);
-                }
-                else if ((_currentArchive != null || _current7zArchive != null) && !string.IsNullOrEmpty(_currentTextArchiveEntryKey))
-                {
-                    // Archive
-                    string normKey = _currentTextArchiveEntryKey.Replace('\\', '/');
-                    string? baseDir = "";
-                    int lastSlash = normKey.LastIndexOf('/');
-                    if (lastSlash >= 0) baseDir = normKey.Substring(0, lastSlash);
-
-                    string subPath = relativePath.Replace('\\', '/').TrimStart('/');
-                    string targetKey = string.IsNullOrEmpty(baseDir) ? subPath : (baseDir.TrimEnd('/') + "/" + subPath);
-                    targetKey = targetKey.Replace("/./", "/");
-
-                    if (_currentArchive != null)
-                    {
-                        return _currentArchive.Entries.Any(e => e.Key != null &&
-                               (e.Key.Replace('\\', '/') == targetKey ||
-                                string.Equals(e.Key.Replace('\\', '/'), targetKey, StringComparison.OrdinalIgnoreCase)));
-                    }
-                    else if (_current7zArchive != null)
-                    {
-                        return _current7zArchive.Entries.Any(e => e.FileName != null &&
-                               (e.FileName.Replace('\\', '/') == targetKey ||
-                                string.Equals(e.FileName.Replace('\\', '/'), targetKey, StringComparison.OrdinalIgnoreCase)));
-                    }
-                }
-            }
-            catch { }
-            return false;
-        }
+            => _imageResourceService.DoesImageExist(relativePath, CreateViewingContext());
 
         private async Task LoadVerticalImageAsync(string relativePath)
         {
-            try
+            string cacheKey = Services.ImageResourceService.GetTextCacheKey(relativePath);
+            var device      = VerticalTextCanvas?.Device ?? Microsoft.Graphics.Canvas.CanvasDevice.GetSharedDevice();
+            var ctx         = CreateViewingContext();
+            var sp          = CreateSharpenParams();
+
+            var bitmap = await _imageResourceService.LoadAsync(cacheKey, relativePath, device, ctx, _sharpenEnabled, sp);
+
+            if (bitmap != null)
             {
-                byte[]? bytes = null;
-
-                if (_isEpubMode && _currentEpubArchive != null)
-                {
-                    string normPath = relativePath.Replace('\\', '/');
-                    var entry = _currentEpubArchive.Entries.FirstOrDefault(e => e.FullName.Replace('\\', '/') == normPath)
-                             ?? _currentEpubArchive.Entries.FirstOrDefault(e => string.Equals(e.FullName.Replace('\\', '/'), normPath, StringComparison.OrdinalIgnoreCase));
-
-                    if (entry != null)
-                    {
-                        await _epubArchiveLock.WaitAsync();
-                        try
-                        {
-                            using var s = entry.Open();
-                            using var ms = new System.IO.MemoryStream();
-                            await s.CopyToAsync(ms);
-                            bytes = ms.ToArray();
-                        }
-                        finally { _epubArchiveLock.Release(); }
-                    }
-                }
-                else if (_isWebDavMode && !string.IsNullOrEmpty(_currentWebDavItemPath))
-                {
-                    string? fullRemotePath = ResolveWebDavImagePath(relativePath);
-                    if (fullRemotePath != null)
-                    {
-                        var tempPath = await _webDavService.DownloadToTempFileAsync(fullRemotePath);
-                        if (!string.IsNullOrEmpty(tempPath) && System.IO.File.Exists(tempPath))
-                        {
-                            bytes = await System.IO.File.ReadAllBytesAsync(tempPath);
-                        }
-                        else
-                        {
-                            // Mark as missing to prevent empty page on re-calculation
-                            _knownMissingVerticalImages.Add(relativePath);
-                            
-                            // Re-calculate Vertical pages
-                            DispatcherQueue.TryEnqueue(() => 
-                            {
-                                int currentLine = 1;
-                                if (_aozoraBlocks.Count > 0 && _currentVerticalStartBlockIndex >= 0 && _currentVerticalStartBlockIndex < _aozoraBlocks.Count)
-                                    currentLine = _aozoraBlocks[_currentVerticalStartBlockIndex].SourceLineNumber;
-                                
-                                _ = PrepareVerticalTextAsync(currentLine, -1, _globalTextCts?.Token ?? default);
-                            });
-                        }
-                    }
-                }
-                else if (!string.IsNullOrEmpty(_currentTextFilePath) && _currentTextArchiveEntryKey == null)
-                {
-                    // Local File
-                    string fullPath = System.IO.Path.Combine(System.IO.Path.GetDirectoryName(_currentTextFilePath)!, relativePath);
-                    if (System.IO.File.Exists(fullPath))
-                    {
-                        bytes = await System.IO.File.ReadAllBytesAsync(fullPath);
-                    }
-                }
-                else if ((_currentArchive != null || _current7zArchive != null) && !string.IsNullOrEmpty(_currentTextArchiveEntryKey))
-                {
-                    // Archive
-                    string normKey = _currentTextArchiveEntryKey.Replace('\\', '/');
-                    string? baseDir = "";
-                    int lastSlash = normKey.LastIndexOf('/');
-                    if (lastSlash >= 0) baseDir = normKey.Substring(0, lastSlash);
-
-                    string subPath = relativePath.Replace('\\', '/').TrimStart('/');
-                    string targetKey = string.IsNullOrEmpty(baseDir) ? subPath : (baseDir.TrimEnd('/') + "/" + subPath);
-                    targetKey = targetKey.Replace("/./", "/");
-
-                    await _archiveLock.WaitAsync();
-                    try
-                    {
-                        if (_currentArchive != null)
-                        {
-                            var entry = _currentArchive.Entries.FirstOrDefault(e => e.Key != null && e.Key.Replace('\\', '/') == targetKey)
-                                     ?? _currentArchive.Entries.FirstOrDefault(e => e.Key != null && string.Equals(e.Key.Replace('\\', '/'), targetKey, StringComparison.OrdinalIgnoreCase));
-
-                            if (entry != null)
-                            {
-                                using var ms = new System.IO.MemoryStream();
-                                using var es = entry.OpenEntryStream();
-                                es.CopyTo(ms);
-                                bytes = ms.ToArray();
-                            }
-                        }
-                        else if (_current7zArchive != null)
-                        {
-                            var entry = _current7zArchive.Entries.FirstOrDefault(e => e.FileName != null && e.FileName.Replace('\\', '/') == targetKey)
-                                     ?? _current7zArchive.Entries.FirstOrDefault(e => e.FileName != null && string.Equals(e.FileName.Replace('\\', '/'), targetKey, StringComparison.OrdinalIgnoreCase));
-
-                            if (entry != null)
-                            {
-                                using var ms = new System.IO.MemoryStream();
-                                entry.Extract(ms);
-                                bytes = ms.ToArray();
-                            }
-                        }
-                    }
-                    finally { _archiveLock.Release(); }
-                }
-
-                if (bytes != null)
-                {
-                     // We need the CanvasDevice from the canvas control
-                     // Usually we should have it since pagination happened.
-                     if (VerticalTextCanvas == null) return;
-
-                     var winrtStream = new Windows.Storage.Streams.InMemoryRandomAccessStream();
-                     using (var writer = new Windows.Storage.Streams.DataWriter(winrtStream))
-                     {
-                         writer.WriteBytes(bytes);
-                         await writer.StoreAsync();
-                         await writer.FlushAsync();
-                         writer.DetachStream();
-                     }
-                     winrtStream.Seek(0);
-
-                     // Switch to UI thread or Canvas session thread? 
-                     // CanvasBitmap.LoadAsync can be called anywhere if we have device.
-                     var device = VerticalTextCanvas.Device;
-                     var originalBitmap = await CanvasBitmap.LoadAsync(device, winrtStream);
-                     var finalBitmap = originalBitmap;
-
-                     if (_sharpenEnabled)
-                     {
-                         var sharpened = await _sharpeningService.ApplySharpenToBitmapAsync(originalBitmap, (float)ImageOptions.UpscaleFactor, (float)ImageOptions.SharpenAmount, (float)ImageOptions.SharpenThreshold, (float)ImageOptions.UnsharpAmount, (float)ImageOptions.UnsharpRadius, skipUpscale: false);
-                         if (sharpened != null && sharpened != originalBitmap)
-                         {
-                             finalBitmap = sharpened;
-                             // Note: ApplySharpenToBitmapAsync might already dispose original if it returned a new one
-                             // but we keep the logic consistent.
-                         }
-                     }
-
-                     this.DispatcherQueue.TryEnqueue(() => 
-                     {
-                         _verticalImageCache[relativePath] = finalBitmap;
-                         VerticalTextCanvas.Invalidate(); // Redraw with image
-                     });
-                }
+                this.DispatcherQueue.TryEnqueue(() => VerticalTextCanvas?.Invalidate());
             }
-            catch (Exception ex)
+            else if (_isWebDavMode)
             {
-                System.Diagnostics.Debug.WriteLine($"LoadVerticalImageAsync failed: {ex.Message}");
+                // WebDAV 누락 이미지: 현재 페이지에서 다시 계산
+                this.DispatcherQueue.TryEnqueue(() =>
+                {
+                    int currentLine = 1;
+                    if (_aozoraBlocks.Count > 0 && _currentVerticalStartBlockIndex >= 0 && _currentVerticalStartBlockIndex < _aozoraBlocks.Count)
+                        currentLine = _aozoraBlocks[_currentVerticalStartBlockIndex].SourceLineNumber;
+
+                    _ = PrepareVerticalTextAsync(currentLine, -1, _globalTextCts?.Token ?? default);
+                });
             }
         }
 
     }
 }
+

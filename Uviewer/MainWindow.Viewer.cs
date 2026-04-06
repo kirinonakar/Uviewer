@@ -207,7 +207,7 @@ namespace Uviewer
                     // 현재 비트맵을 즉시 비우고 화면을 갱신합니다.
                     var tempOldBitmap = _currentBitmap;
                     _currentBitmap = null;
-                    MainCanvas.Invalidate();
+                    MainCanvas?.Invalidate();
 
                     if (tempOldBitmap != null && !IsBitmapInCache(tempOldBitmap))
                     {
@@ -253,7 +253,7 @@ namespace Uviewer
                         _isPdfTransitioning = false;
                     }
 
-                    MainCanvas.Invalidate();
+                    MainCanvas?.Invalidate();
                     ShowImageUI();
                     UpdateStatusBar(entry, _currentBitmap);
 
@@ -491,7 +491,7 @@ namespace Uviewer
                     ShowImageUI();
                     UpdateStatusBar(entry, _currentBitmap);
                     UpdateSharpenButtonState();
-                    MainCanvas.Invalidate();
+                    MainCanvas?.Invalidate();
  
                     // Sync sidebar selection (using our new safe method)
                     SyncSidebarSelection(entry);
@@ -570,7 +570,7 @@ namespace Uviewer
                 _imageCache.SafeDisposeBitmap(oldBitmap);
             }
 
-            MainCanvas.Invalidate();
+            MainCanvas?.Invalidate();
         }
 
         private async Task DisplaySideBySideImagesAsync(CancellationToken token)
@@ -792,18 +792,8 @@ namespace Uviewer
 
             _animatedWebpService.Stop();
 
-            // EPUB 및 텍스트 모드 이미지 캐시 초기화
-            foreach (var bmp in _epubImageCache.Values)
-                if (bmp != null) _imageCache?.SafeDisposeBitmap(bmp);
-            _epubImageCache.Clear();
-
-            foreach (var bmp in _verticalImageCache.Values)
-                if (bmp != null) _imageCache?.SafeDisposeBitmap(bmp);
-            _verticalImageCache.Clear();
-
-            foreach (var bmp in _aozoraImageCache.Values)
-                if (bmp != null) _imageCache?.SafeDisposeBitmap(bmp);
-            _aozoraImageCache.Clear();
+            // EPUB 및 텍스트 모드 이미지 캐시 통합 초기화
+            _imageResourceService.Clear();
 
             if (_isEpubMode)
             {
@@ -1372,7 +1362,7 @@ namespace Uviewer
                                 var prevEntry = _imageEntries[_currentIndex];
                                 UpdateStatusBar(prevEntry, _currentBitmap);
                                 SyncSidebarSelection(prevEntry);
-                                MainCanvas.Invalidate();
+                                MainCanvas?.Invalidate();
 
                                 _ = _preloadManager.StartPreloadAsync(
                                     _currentIndex, _imageEntries, _currentPdfDocument != null, _zoomLevel,
@@ -1415,7 +1405,7 @@ namespace Uviewer
                                     var prevEntry = _imageEntries[_currentIndex];
                                     UpdateStatusBar(prevEntry, _currentBitmap);
                                     SyncSidebarSelection(prevEntry);
-                                    MainCanvas.Invalidate();
+                                    MainCanvas?.Invalidate();
 
                                     _ = _preloadManager.StartPreloadAsync(
                                         _currentIndex, _imageEntries, _currentPdfDocument != null, _zoomLevel,
@@ -1464,7 +1454,7 @@ namespace Uviewer
                                 var nextEntry = _imageEntries[_currentIndex];
                                 UpdateStatusBar(nextEntry, _currentBitmap);
                                 SyncSidebarSelection(nextEntry);
-                                MainCanvas.Invalidate();
+                                MainCanvas?.Invalidate();
 
                                 _ = _preloadManager.StartPreloadAsync(
                                     _currentIndex, _imageEntries, _currentPdfDocument != null, _zoomLevel,
@@ -1507,7 +1497,7 @@ namespace Uviewer
                                     var nextEntry = _imageEntries[_currentIndex];
                                     UpdateStatusBar(nextEntry, _currentBitmap);
                                     SyncSidebarSelection(nextEntry);
-                                    MainCanvas.Invalidate();
+                                    MainCanvas?.Invalidate();
 
                                     _ = _preloadManager.StartPreloadAsync(
                                         _currentIndex, _imageEntries, _currentPdfDocument != null, _zoomLevel,
@@ -1638,18 +1628,8 @@ namespace Uviewer
                 
                 _animatedWebpService.Stop();
 
-                // EPUB 및 텍스트 모드 이미지 캐시 초기화
-                foreach (var bmp in _epubImageCache.Values)
-                    if (bmp != null) _imageCache?.SafeDisposeBitmap(bmp);
-                _epubImageCache.Clear();
-
-                foreach (var bmp in _verticalImageCache.Values)
-                    if (bmp != null) _imageCache?.SafeDisposeBitmap(bmp);
-                _verticalImageCache.Clear();
-
-                foreach (var bmp in _aozoraImageCache.Values)
-                    if (bmp != null) _imageCache?.SafeDisposeBitmap(bmp);
-                _aozoraImageCache.Clear();
+                // EPUB 및 텍스트 모드 이미지 캐시 통합 초기화
+                _imageResourceService.Clear();
                 
                 if (_isEpubMode)
                 {

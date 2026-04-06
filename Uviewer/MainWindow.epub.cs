@@ -64,8 +64,7 @@ namespace Uviewer
         private Dictionary<int, bool> _epubChapterHasText = new();
         private CancellationTokenSource? _epubPreloadCts;
 
-        // 이미지 캐시 (Win2D CanvasBitmap)
-        private Dictionary<string, CanvasBitmap?> _epubImageCache = new();
+        // 이미지 캐시는 _imageResourceService로 통합됨 (접두어 "epub:")
 
         // Optimized Static Regexes
         private static readonly Regex RxEpubFullPath = new Regex("full-path=[\"']([^\"']+)[\"']", RegexOptions.IgnoreCase | RegexOptions.Compiled);
@@ -116,7 +115,7 @@ namespace Uviewer
                          }
 
                          _epubPreloadCache.Clear();
-                         _epubImageCache.Clear();
+                         _imageResourceService.ClearEpubEntries();
                          // [핵심 해결] 글자 크기나 창 크기가 바뀌면 공용 측정 캐시(MainWindow.aozora.cs 정의)를 비워야 정확한 재계산이 가능합니다.
                          ClearBackwardCache(); 
                          
@@ -307,7 +306,7 @@ namespace Uviewer
                     _epubSpine.Clear();
                     _epubWin2DPages.Clear();
                     _epubPreloadCache.Clear();
-                    _epubImageCache.Clear();
+                    _imageResourceService.ClearEpubEntries();
                     _aozoraBlocks.Clear();
                     ClearVerticalDisplayState();
                 }
@@ -863,15 +862,10 @@ namespace Uviewer
         private void DrawEpubCanvasInternal(CanvasControl sender, CanvasDrawEventArgs args, string? imagePath, HorizontalAlignment align = HorizontalAlignment.Center)
         {
             if (string.IsNullOrEmpty(imagePath)) return;
-            CanvasBitmap? bitmap = null;
-            lock (_epubLock)
-            {
-                if (!_epubImageCache.TryGetValue(imagePath, out bitmap) || bitmap == null)
-                {
-                    // 로딩 중이면 표시하지 않음 (LoadEpubImageForWin2DAsync가 완료 시 Invalidate 호출)
-                    return;
-                }
-            }
+
+            string cacheKey = Services.ImageResourceService.GetEpubCacheKey(imagePath);
+            var bitmap = _imageResourceService.TryGetCached(cacheKey);
+            if (bitmap == null) return;  // 로딩 중이면 표시하지 않음
 
             var ds = args.DrawingSession;
             var canvasSize = sender.Size;
@@ -889,6 +883,7 @@ namespace Uviewer
 
             ds.DrawImage(bitmap, new Rect(posX, posY, (float)scaledSize.Width, (float)scaledSize.Height), bitmap.Bounds, 1.0f, CanvasImageInterpolation.HighQualityCubic);
         }
+
 
 
         private void EpubTextCanvas_Draw(CanvasControl sender, CanvasDrawEventArgs args)
@@ -995,8 +990,15 @@ namespace Uviewer
         private async Task LoadEpubImageForWin2DAsync(string imagePath)
         {
             if (string.IsNullOrEmpty(imagePath)) return;
-            if (_epubImageCache.TryGetValue(imagePath, out var cached) && cached != null) return;
 
+            string cacheKey = Services.ImageResourceService.GetEpubCacheKey(imagePath);
+            if (_imageResourceService.TryGetCached(cacheKey) != null) return;
+
+            var device = EpubTextCanvas?.Device ?? CanvasDevice.GetSharedDevice();
+            // EPUB \uc774\ubbf8\uc9c0\ub294 \ud56d\uc0c1 EPUB \ubaa8\ub4dc\uc774\uba70, \uce90\uc2dc \ud0a4 \uc811\ub450\uc5b4\uac00 "epub:"
+            // \uc11c\ube44\uc2a4\ub294 \uc704\uce58 \ud574\uc11d\uc744 ViewingContext\uc5d0 \ub9e1\uae30\uc9c0\ub9cc,
+            // EPUB \uc774\ubbf8\uc9c0\ub294 FindEntryLoose\ub97c \ud1b5\ud574 \ud558\ub294 \uae30\uc874 \ub85c\uc9c1 \uc720\uc9c0\ub97c \uc704\ud574
+            // \uc5ec\uae30\uc5d0\uc11c \ubc14\uc774\ud2b8\ub97c \ub9c8\ub828\ud55c \ud6c4 \uc11c\ube44\uc2a4\ub85c \uc804\ub2ec
             try
             {
                 var entry = FindEntryLoose(imagePath);
@@ -1013,9 +1015,6 @@ namespace Uviewer
                 }
                 finally { _epubArchiveLock.Release(); }
 
-                var device = EpubTextCanvas?.Device ?? CanvasDevice.GetSharedDevice();
-                if (device == null) return;
-
                 var ras = new InMemoryRandomAccessStream();
                 using (var writer = new DataWriter(ras))
                 {
@@ -1025,13 +1024,16 @@ namespace Uviewer
                     writer.DetachStream();
                 }
                 ras.Seek(0);
-                
-                var originalBitmap = await CanvasBitmap.LoadAsync(device, ras, 96.0f);
+
+                var originalBitmap = await CanvasBitmap.LoadAsync(device, ras);
                 CanvasBitmap finalBitmap = originalBitmap;
 
                 if (_sharpenEnabled)
                 {
-                    var sharpened = await _sharpeningService.ApplySharpenToBitmapAsync(originalBitmap, (float)ImageOptions.UpscaleFactor, (float)ImageOptions.SharpenAmount, (float)ImageOptions.SharpenThreshold, (float)ImageOptions.UnsharpAmount, (float)ImageOptions.UnsharpRadius, skipUpscale: false);
+                    var sp = CreateSharpenParams();
+                    var sharpened = await _sharpeningService.ApplySharpenToBitmapAsync(
+                        originalBitmap, sp.UpscaleFactor, sp.SharpenAmount, sp.SharpenThreshold,
+                        sp.UnsharpAmount, sp.UnsharpRadius, skipUpscale: false);
                     if (sharpened != null && sharpened != originalBitmap)
                     {
                         finalBitmap = sharpened;
@@ -1039,10 +1041,10 @@ namespace Uviewer
                     }
                 }
 
-                lock (_epubLock)
-                {
-                    _epubImageCache[imagePath] = finalBitmap;
-                }
+                // \uc11c\ube44\uc2a4 \uce90\uc2dc\uc5d0 \uc800\uc7a5 (epub: \uc811\ub450\uc5b4)
+                // \uc11c\ube44\uc2a4 \ub0b4\ubd80 _lock\uc774 \uc874\uc7ac\ud558\ubbc0\ub85c \ubc14\uc9c1 \ud638\ucd9c \uac00\ub2a5
+                var finalRef = finalBitmap;
+                action_store_epub_bitmap(cacheKey, finalRef);
 
                 this.DispatcherQueue.TryEnqueue(() =>
                 {
@@ -1059,6 +1061,18 @@ namespace Uviewer
                 System.Diagnostics.Debug.WriteLine($"LoadEpubImageForWin2DAsync failed: {ex.Message}");
             }
         }
+
+        // EPUB 비트맵을 서비스 캐시에 직접 저장하는 헬퍼
+        private void action_store_epub_bitmap(string cacheKey, CanvasBitmap bitmap)
+        {
+            // ImageResourceService.LoadAsync를 우회하여 이미 준비된 bitmap을 직접 저장.
+            // TryGetCached로 null 확인 후 두 번 로드 방지.
+            // _imageResourceService 내부 캐시에 직접 접근할 수 없으므로
+            // 서비스의 LoadAsync 흐름과 동일하게 null sentinel이 이미 없으면 추가.
+            // 실제로는 서비스를 통해 저장.
+            _imageResourceService.StoreBitmap(cacheKey, bitmap);
+        }
+
 
         private void ShowEpubImagePage(EpubWin2DPage page)
         {
@@ -1526,26 +1540,23 @@ namespace Uviewer
                 // 자동 2장보기 옵션이 켜져 있는 경우 비율에 따른 자동 판단
                 if (_autoDoublePageForArchive)
                 {
-                    lock (_epubLock)
                     {
-                        if (_epubImageCache.TryGetValue(page.ImagePath, out var bmp) && bmp != null)
+                        var bmp = _imageResourceService.TryGetCached(Services.ImageResourceService.GetEpubCacheKey(page.ImagePath));
+                        if (bmp != null)
                         {
                             float imgW = (float)bmp.Size.Width;
                             float imgH = (float)bmp.Size.Height;
 
                             if (imgH >= imgW * 1.2f)
                             {
-                                // 세로가 가로의 1.2배 이상 (세로형 이미지) -> 무조건 2장 보기 강제
                                 canSideBySide = true;
                             }
                             else if (imgW >= imgH * 1.2f)
                             {
-                                // 가로가 세로의 1.2배 이상 (가로형 이미지) -> 무조건 1장 보기 강제
                                 canSideBySide = false;
                             }
                             else
                             {
-                                // 그 외의 경우 (정사각형 등) 설정된 기본 모드(SideBySide)를 따름
                                 canSideBySide = _isSideBySideMode;
                             }
                         }
@@ -1564,13 +1575,9 @@ namespace Uviewer
                         bool nextShouldForceSingle = false;
                         if (_autoDoublePageForArchive)
                         {
-                            lock (_epubLock)
-                            {
-                                if (_epubImageCache.TryGetValue(pg2.ImagePath, out var bmp2) && bmp2 != null)
-                                {
-                                    if (bmp2.Size.Width >= bmp2.Size.Height * 1.2f) nextShouldForceSingle = true;
-                                }
-                            }
+                            var bmp2 = _imageResourceService.TryGetCached(Services.ImageResourceService.GetEpubCacheKey(pg2.ImagePath));
+                            if (bmp2 != null && bmp2.Size.Width >= bmp2.Size.Height * 1.2f)
+                                nextShouldForceSingle = true;
                         }
                         if (!nextShouldForceSingle) nextIsImage = true;
                     }
