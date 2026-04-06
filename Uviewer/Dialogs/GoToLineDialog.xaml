@@ -7,6 +7,7 @@
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     mc:Ignorable="d"
+    Style="{StaticResource DefaultContentDialogStyle}"
     Title="{x:Bind DialogTitle, Mode=OneTime}"
     PrimaryButtonText="{x:Bind common:Strings.DialogPrimary}"
     CloseButtonText="{x:Bind common:Strings.DialogClose}"
