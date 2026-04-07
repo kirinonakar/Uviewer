@@ -87,7 +87,7 @@ namespace Uviewer
         private static readonly Regex RxEpubRubySplit = new Regex(@"(\{\{RUBY\|.*?\}\})", RegexOptions.Compiled);
         private static readonly Regex RxEpubXmlns = new Regex("xmlns=\"[^\"]*\"", RegexOptions.Compiled);
         private static readonly Regex RxEpubHeading = new Regex(@"<(h[1-6])[^>]*>(.*?)</\1>", RegexOptions.IgnoreCase | RegexOptions.Singleline | RegexOptions.Compiled);
-        private static readonly Regex RxEpubTitle = new Regex(@"<title[^>]*>(.*?)</title>", RegexOptions.IgnoreCase | RegexOptions.Singleline | RegexOptions.Compiled);
+        // private static readonly Regex RxEpubTitle = ... (Removed as requested)
 
 
         public int CurrentEpubChapterIndex => _currentEpubChapterIndex;
@@ -1718,30 +1718,7 @@ namespace Uviewer
             // Pre-process special tags
             html = RxEpubBr.Replace(html, "\n");
 
-            // Extract title if present and prepend it as a heading if it's the start of the content
-            var titleMatch = RxEpubTitle.Match(html);
-            if (titleMatch.Success)
-            {
-                string titleText = RxEpubAnyTag.Replace(titleMatch.Groups[1].Value, "").Trim();
-                titleText = System.Net.WebUtility.HtmlDecode(titleText);
-                if (!string.IsNullOrEmpty(titleText))
-                {
-                    // [중복 방지] 본문의 앞부분(200자 내)에 이미 제목과 동일한 내용이 있는지 확인합니다.
-                    string bodyHtml = html;
-                    int bodyIdx = html.IndexOf("<body", StringComparison.OrdinalIgnoreCase);
-                    if (bodyIdx >= 0) bodyHtml = html.Substring(bodyIdx);
-                    
-                    string plainBody = RxEpubAnyTag.Replace(bodyHtml, "");
-                    plainBody = System.Net.WebUtility.HtmlDecode(plainBody).TrimStart();
-
-                    // 제목 텍스트가 본문 시작 부분에 포함되어 있지 않은 경우에만 별도로 제목을 추가합니다.
-                    if (!plainBody.Substring(0, Math.Min(plainBody.Length, 200)).Contains(titleText, StringComparison.OrdinalIgnoreCase))
-                    {
-                        // Prepend as a special marker that ParseHtmlToAozoraTextBlocks will recognize
-                        html = $"<h1 class=\"epub-title-generated\">{titleText}</h1>\n" + html;
-                    }
-                }
-            }
+            // (Title extraction and prepending removed as requested)
 
             // Split by Image tags
             var segments = RxEpubImgTag.Split(html);
