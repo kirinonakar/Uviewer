@@ -436,7 +436,7 @@ namespace Uviewer
                     }
                     else
                     {
-                        _currentArchive = ArchiveFactory.Open(archivePath);
+                        _currentArchive = ArchiveFactory.OpenArchive(archivePath);
 
                         _imageEntries = _currentArchive.Entries
                             .Where(e => !e.IsDirectory &&

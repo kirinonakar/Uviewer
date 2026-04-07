@@ -334,7 +334,7 @@ namespace Uviewer.Renderers
                     info.Layout.Dispose(); 
                 }
 
-                float spacing = fontSize * (block.IsBlankLine ? 0.2f : 0.6f); 
+                float spacing = fontSize * (block.IsBlankLine ? 0.2f : 0.6f) + (float)block.Margin.Bottom; 
                 currentX -= (currentLineThickness + spacing);
 
                 if (i == blocks.Count - 1 && isBoxing)

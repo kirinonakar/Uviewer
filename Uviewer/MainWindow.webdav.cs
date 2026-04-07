@@ -576,7 +576,7 @@ namespace Uviewer
                     CloseCurrentArchiveInternal();
 
                     _currentArchivePath = $"WebDAV:{item.WebDavPath}";
-                    _currentArchive = ArchiveFactory.Open(stream);
+                    _currentArchive = ArchiveFactory.OpenArchive(stream);
 
                     _imageEntries = _currentArchive.Entries
                         .Where(e => !e.IsDirectory &&

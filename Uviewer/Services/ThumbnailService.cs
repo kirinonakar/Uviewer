@@ -155,7 +155,7 @@ namespace Uviewer.Services
             await _thumbnailSemaphore.WaitAsync(ct);
             try
             {
-                using var archive = ArchiveFactory.Open(item.FullPath);
+                using var archive = ArchiveFactory.OpenArchive(item.FullPath);
                 var entry = archive.Entries
                     .Where(e => !e.IsDirectory &&
                            FileExplorerService.SupportedImageExtensions.Contains(Path.GetExtension(e.Key)?.ToLowerInvariant() ?? ""))

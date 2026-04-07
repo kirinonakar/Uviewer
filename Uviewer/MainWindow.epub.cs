@@ -86,6 +86,8 @@ namespace Uviewer
         private static readonly Regex RxEpubRt = new Regex(@"<rt[^>]*>(.*?)</rt>", RegexOptions.IgnoreCase | RegexOptions.Singleline | RegexOptions.Compiled);
         private static readonly Regex RxEpubRubySplit = new Regex(@"(\{\{RUBY\|.*?\}\})", RegexOptions.Compiled);
         private static readonly Regex RxEpubXmlns = new Regex("xmlns=\"[^\"]*\"", RegexOptions.Compiled);
+        private static readonly Regex RxEpubHeading = new Regex(@"<(h[1-6])[^>]*>(.*?)</\1>", RegexOptions.IgnoreCase | RegexOptions.Singleline | RegexOptions.Compiled);
+        private static readonly Regex RxEpubTitle = new Regex(@"<title[^>]*>(.*?)</title>", RegexOptions.IgnoreCase | RegexOptions.Singleline | RegexOptions.Compiled);
 
 
         public int CurrentEpubChapterIndex => _currentEpubChapterIndex;
@@ -1716,6 +1718,31 @@ namespace Uviewer
             // Pre-process special tags
             html = RxEpubBr.Replace(html, "\n");
 
+            // Extract title if present and prepend it as a heading if it's the start of the content
+            var titleMatch = RxEpubTitle.Match(html);
+            if (titleMatch.Success)
+            {
+                string titleText = RxEpubAnyTag.Replace(titleMatch.Groups[1].Value, "").Trim();
+                titleText = System.Net.WebUtility.HtmlDecode(titleText);
+                if (!string.IsNullOrEmpty(titleText))
+                {
+                    // [중복 방지] 본문의 앞부분(200자 내)에 이미 제목과 동일한 내용이 있는지 확인합니다.
+                    string bodyHtml = html;
+                    int bodyIdx = html.IndexOf("<body", StringComparison.OrdinalIgnoreCase);
+                    if (bodyIdx >= 0) bodyHtml = html.Substring(bodyIdx);
+                    
+                    string plainBody = RxEpubAnyTag.Replace(bodyHtml, "");
+                    plainBody = System.Net.WebUtility.HtmlDecode(plainBody).TrimStart();
+
+                    // 제목 텍스트가 본문 시작 부분에 포함되어 있지 않은 경우에만 별도로 제목을 추가합니다.
+                    if (!plainBody.Substring(0, Math.Min(plainBody.Length, 200)).Contains(titleText, StringComparison.OrdinalIgnoreCase))
+                    {
+                        // Prepend as a special marker that ParseHtmlToAozoraTextBlocks will recognize
+                        html = $"<h1 class=\"epub-title-generated\">{titleText}</h1>\n" + html;
+                    }
+                }
+            }
+
             // Split by Image tags
             var segments = RxEpubImgTag.Split(html);
             int lineNum = 1;
@@ -1815,8 +1842,17 @@ namespace Uviewer
                 return sb.ToString();
             });
             
-            // 블록 태그(p, div, h1~h6 등)를 이중 개행(\n\n)으로 치환하여 문단을 확실히 분리합니다.
-            html = Regex.Replace(html, @"</?(?:p|div|h[1-6]|li|blockquote|tr|table|ul|ol)[^>]*>", "\n\n", RegexOptions.IgnoreCase);
+            // headings handle - replace with markers to preserve them after tag stripping
+            html = RxEpubHeading.Replace(html, m => 
+            {
+                string level = m.Groups[1].Value.Substring(1);
+                string content = m.Groups[2].Value;
+                return $"\n\n@@HEADING_{level}@@{content}@@HEADING_END@@\n\n";
+            });
+
+            // 블록 태그(p, div, li, blockquote 등)를 이중 개행(\n\n)으로 치환하여 문단을 확실히 분리합니다.
+            // h1~h6는 위에서 이미 마커로 치환했으므로 여기서는 제외하거나 중복 처리되어도 무방합니다.
+            html = Regex.Replace(html, @"</?(?:p|div|li|blockquote|tr|table|ul|ol)[^>]*>", "\n\n", RegexOptions.IgnoreCase);
 
             // Strip remaining tags
             html = RxEpubAnyTag.Replace(html, ""); 
@@ -1842,6 +1878,50 @@ namespace Uviewer
                 string cleanLine = line.Replace('\u00A0', ' ').TrimEnd('\r', '\n', ' ');
                 if (isNewParagraph) cleanLine = cleanLine.TrimStart();
                 if (string.IsNullOrWhiteSpace(cleanLine)) continue;
+
+                // Handle heading markers
+                var headingMatch = Regex.Match(cleanLine, @"@@HEADING_(\d)@@(.*?)@@HEADING_END@@", RegexOptions.Singleline);
+                if (headingMatch.Success)
+                {
+                    int level = int.Parse(headingMatch.Groups[1].Value);
+                    string headingText = headingMatch.Groups[2].Value;
+                    // Tag stripping already happened to the whole html, but just in case
+                    headingText = RxEpubAnyTag.Replace(headingText, "");
+                    headingText = System.Net.WebUtility.HtmlDecode(headingText).Trim();
+
+                    if (string.IsNullOrEmpty(headingText)) continue;
+
+                    AozoraBindingModel headingBlock = new AozoraBindingModel 
+                    { 
+                        SourceLineNumber = lineNum++, 
+                        EpubChapterIndex = chapterIndex,
+                        HeadingLevel = level,
+                        IsBold = true,
+                        Alignment = TextAlignment.Center // Headings are often centered
+                    };
+
+                    // Apply heading styles
+                    if (level == 1)
+                    {
+                        headingBlock.FontSizeScale = 1.7;
+                        headingBlock.Margin = new Thickness(0, 0, 0, 40);
+                    }
+                    else if (level == 2)
+                    {
+                        headingBlock.FontSizeScale = 1.5;
+                        headingBlock.Margin = new Thickness(0, 0, 0, 30);
+                    }
+                    else
+                    {
+                        headingBlock.FontSizeScale = 1.3;
+                        headingBlock.Margin = new Thickness(0, 0, 0, 20);
+                    }
+
+                    headingBlock.Inlines.Add(headingText);
+                    blocks.Add(headingBlock);
+                    isNewParagraph = true;
+                    continue;
+                }
                 
                 var tokens = RxEpubRubySplit.Split(cleanLine);
                 
