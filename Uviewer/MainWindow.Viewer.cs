@@ -362,8 +362,28 @@ namespace Uviewer
                         }
                         else if (firstBitmap.Size.Height >= firstBitmap.Size.Width * 1.2)
                         {
-                            // 세로가 가로보다 1.2배 이상 길면 (세로형) 2장 보기 자동 활성화
-                            canSideBySide = true;
+                            // 세로가 가로보다 1.2배 이상 길면 (세로형) 2장 보기 자동 활성화 여부 확인
+                            // [수정] 다음 이미지도 세로인 경우에만 2장 보기로 표시
+                            canSideBySide = false; // 기본은 1장 보기로 초기화
+
+                            if (_currentIndex + 1 < _imageEntries.Count)
+                            {
+                                var nextEntry = _imageEntries[_currentIndex + 1];
+                                CanvasBitmap? nextBitmap = _imageCache.GetPreloadedImage(_currentIndex + 1, _zoomLevel);
+                                if (nextBitmap == null)
+                                {
+                                    nextBitmap = await LoadBitmapForPreloadAsync(nextEntry, token);
+                                    if (nextBitmap != null)
+                                    {
+                                        _imageCache.UpdateCache(_currentIndex + 1, nextBitmap, false, _zoomLevel, _currentBitmap);
+                                    }
+                                }
+
+                                if (nextBitmap != null && nextBitmap.Size.Height >= nextBitmap.Size.Width * 1.2)
+                                {
+                                    canSideBySide = true;
+                                }
+                            }
                         }
                     }
                 }
