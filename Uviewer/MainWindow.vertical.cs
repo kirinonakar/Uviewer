@@ -109,149 +109,167 @@ namespace Uviewer
 
         private async void VerticalToggleButton_Click(object sender, RoutedEventArgs e)
         {
-            // Save current position before switching mode
-            await AddToRecentAsync(true);
-            _isVerticalMode = VerticalToggleButton?.IsChecked ?? false;
-            SaveTextSettings();
-            ToggleVerticalMode();
+            try
+            {
+                // Save current position before switching mode
+                await AddToRecentAsync(true);
+                _isVerticalMode = VerticalToggleButton?.IsChecked ?? false;
+                SaveTextSettings();
+                ToggleVerticalMode();
+            }
+            catch (OperationCanceledException) { }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error in VerticalToggleButton_Click: {ex.Message}");
+                ShowNotification($"{ex.Message}", "\uE783", "Red");
+            }
         }
 
         private async void ToggleVerticalMode()
         {
-            if (TextFastNavOverlay != null) TextFastNavOverlay.Visibility = Visibility.Visible;
-            await Task.Delay(10); 
-
-            if (_isVerticalMode)
+            try
             {
-                if (!_verticalKeyAttached && RootGrid != null)
+                if (TextFastNavOverlay != null) TextFastNavOverlay.Visibility = Visibility.Visible;
+                await Task.Delay(10); 
+
+                if (_isVerticalMode)
                 {
-                    RootGrid.PreviewKeyDown += RootGrid_Vertical_PreviewKeyDown;
-                    _verticalKeyAttached = true;
-                }
-                
-                if (_isEpubMode)
-                {
-                    if (VerticalTextCanvas != null) VerticalTextCanvas.Visibility = Visibility.Collapsed;
-                    if (TextScrollViewer != null) TextScrollViewer.Visibility = Visibility.Collapsed;
-                    if (AozoraTextCanvas != null) AozoraTextCanvas.Visibility = Visibility.Collapsed;
-                    if (TextArea != null) TextArea.Visibility = Visibility.Collapsed;
-                    if (EpubArea != null) EpubArea.Visibility = Visibility.Visible;
+                    if (!_verticalKeyAttached && RootGrid != null)
+                    {
+                        RootGrid.PreviewKeyDown += RootGrid_Vertical_PreviewKeyDown;
+                        _verticalKeyAttached = true;
+                    }
                     
-                    int currentLine = 1;
-                    int currentBlockIdx = -1;
-                    if (_epubWin2DPages != null && _currentEpubPageIndex >= 0 && _currentEpubPageIndex < _epubWin2DPages.Count)
+                    if (_isEpubMode)
                     {
-                        var page = _epubWin2DPages[_currentEpubPageIndex];
-                        currentLine = page.StartLine;
-                        currentBlockIdx = page.StartBlockIndex;
-                    }
-
-                    _epubPreloadCache.Clear();
-                    _imageResourceService.ClearEpubEntries();
-                    ClearBackwardCache();
-                    await LoadEpubChapterAsync(_currentEpubChapterIndex, targetLine: currentLine, targetBlockIndex: currentBlockIdx);
-                }
-                else
-                {
-                    if (VerticalTextCanvas != null) VerticalTextCanvas.Visibility = Visibility.Visible;
-                    if (TextScrollViewer != null) TextScrollViewer.Visibility = Visibility.Collapsed;
-                    if (AozoraTextCanvas != null) AozoraTextCanvas.Visibility = Visibility.Collapsed;
-                    if (EpubArea != null) EpubArea.Visibility = Visibility.Collapsed;
-                    if (TextArea != null) TextArea.Visibility = Visibility.Visible;
-
-                    int currentLine = 1;
-                    if (_isAozoraMode)
-                    {
-                        if (_aozoraPendingTargetLine > 0) 
+                        if (VerticalTextCanvas != null) VerticalTextCanvas.Visibility = Visibility.Collapsed;
+                        if (TextScrollViewer != null) TextScrollViewer.Visibility = Visibility.Collapsed;
+                        if (AozoraTextCanvas != null) AozoraTextCanvas.Visibility = Visibility.Collapsed;
+                        if (TextArea != null) TextArea.Visibility = Visibility.Collapsed;
+                        if (EpubArea != null) EpubArea.Visibility = Visibility.Visible;
+                        
+                        int currentLine = 1;
+                        int currentBlockIdx = -1;
+                        if (_epubWin2DPages != null && _currentEpubPageIndex >= 0 && _currentEpubPageIndex < _epubWin2DPages.Count)
                         {
-                            currentLine = _aozoraPendingTargetLine;
-                            _aozoraPendingTargetLine = 0;
+                            var page = _epubWin2DPages[_currentEpubPageIndex];
+                            currentLine = page.StartLine;
+                            currentBlockIdx = page.StartBlockIndex;
                         }
-                        else if (_currentAozoraPageInfo.Blocks != null && _currentAozoraPageInfo.Blocks.Count > 0)
-                        {
-                            currentLine = _currentAozoraPageInfo.StartLine;
-                        }
-                        else if (_aozoraBlocks != null && _aozoraBlocks.Count > _currentAozoraStartBlockIndex)
-                        {
-                            currentLine = _aozoraBlocks[_currentAozoraStartBlockIndex].SourceLineNumber;
-                        }
-                    }
-                    else if (TextScrollViewer != null) 
-                    {
-                        currentLine = GetTopVisibleLineIndex();
-                    }
 
-                    int targetBlockIdx = _isAozoraMode ? _currentAozoraStartBlockIndex : -1;
-                    await PrepareVerticalTextAsync(currentLine, targetBlockIdx, _globalTextCts?.Token ?? default);
-                }
-            }
-            else
-            {
-                if (_verticalKeyAttached && RootGrid != null)
-                {
-                    RootGrid.PreviewKeyDown -= RootGrid_Vertical_PreviewKeyDown;
-                    _verticalKeyAttached = false;
-                }
-                
-                int currentLine = 1;
-                int currentBlockIdx = -1;
-
-                if (_isEpubMode)
-                {
-                    if (VerticalTextCanvas != null) VerticalTextCanvas.Visibility = Visibility.Collapsed;
-                    if (TextArea != null) TextArea.Visibility = Visibility.Collapsed;
-                    if (EpubArea != null) EpubArea.Visibility = Visibility.Visible;
-
-                    if (_epubWin2DPages != null && _currentEpubPageIndex >= 0 && _currentEpubPageIndex < _epubWin2DPages.Count)
-                    {
-                        var page = _epubWin2DPages[_currentEpubPageIndex];
-                        currentLine = page.StartLine;
-                        currentBlockIdx = page.StartBlockIndex;
-                    }
-
-                    _epubPreloadCache.Clear();
-                    _imageResourceService.ClearEpubEntries();
-                    ClearBackwardCache();
-                    await LoadEpubChapterAsync(_currentEpubChapterIndex, targetLine: currentLine, targetBlockIndex: currentBlockIdx);
-                }
-                else
-                {
-                    if (_pendingVerticalStartBlockIndex >= 0)
-                    {
-                        currentBlockIdx = _pendingVerticalStartBlockIndex;
-                        if (_aozoraBlocks != null && currentBlockIdx < _aozoraBlocks.Count)
-                            currentLine = _aozoraBlocks[currentBlockIdx].SourceLineNumber;
-                    }
-                    else if (_pendingVerticalScrollLine.HasValue)
-                    {
-                        currentLine = _pendingVerticalScrollLine.Value;
-                    }
-                    else if (_currentVerticalPageInfo.Blocks != null && _currentVerticalPageInfo.Blocks.Count > 0)
-                    {
-                        currentLine = _currentVerticalPageInfo.StartLine;
-                        currentBlockIdx = _currentVerticalStartBlockIndex;
-                    }
-
-                    _pendingVerticalScrollLine = null;
-                    _pendingVerticalStartBlockIndex = -1;
-
-                    if (VerticalTextCanvas != null) VerticalTextCanvas.Visibility = Visibility.Collapsed;
-                    if (EpubArea != null) EpubArea.Visibility = Visibility.Collapsed;
-                    if (TextArea != null) TextArea.Visibility = Visibility.Visible;
-
-                    if (_isAozoraMode)
-                    {
-                        if (AozoraTextCanvas != null) AozoraTextCanvas.Visibility = Visibility.Visible;
-                        await PrepareAozoraDisplayAsync(_currentTextContent, currentLine, currentBlockIdx, _globalTextCts?.Token ?? default);
+                        _epubPreloadCache.Clear();
+                        _imageResourceService.ClearEpubEntries();
+                        ClearBackwardCache();
+                        await LoadEpubChapterAsync(_currentEpubChapterIndex, targetLine: currentLine, targetBlockIndex: currentBlockIdx);
                     }
                     else
                     {
-                        if (TextScrollViewer != null) TextScrollViewer.Visibility = Visibility.Visible;
-                        await LoadTextLinesProgressivelyAsync(_currentTextContent, currentLine);
+                        if (VerticalTextCanvas != null) VerticalTextCanvas.Visibility = Visibility.Visible;
+                        if (TextScrollViewer != null) TextScrollViewer.Visibility = Visibility.Collapsed;
+                        if (AozoraTextCanvas != null) AozoraTextCanvas.Visibility = Visibility.Collapsed;
+                        if (EpubArea != null) EpubArea.Visibility = Visibility.Collapsed;
+                        if (TextArea != null) TextArea.Visibility = Visibility.Visible;
+
+                        int currentLine = 1;
+                        if (_isAozoraMode)
+                        {
+                            if (_aozoraPendingTargetLine > 0) 
+                            {
+                                currentLine = _aozoraPendingTargetLine;
+                                _aozoraPendingTargetLine = 0;
+                            }
+                            else if (_currentAozoraPageInfo.Blocks != null && _currentAozoraPageInfo.Blocks.Count > 0)
+                            {
+                                currentLine = _currentAozoraPageInfo.StartLine;
+                            }
+                            else if (_aozoraBlocks != null && _aozoraBlocks.Count > _currentAozoraStartBlockIndex)
+                            {
+                                currentLine = _aozoraBlocks[_currentAozoraStartBlockIndex].SourceLineNumber;
+                            }
+                        }
+                        else if (TextScrollViewer != null) 
+                        {
+                            currentLine = GetTopVisibleLineIndex();
+                        }
+
+                        int targetBlockIdx = _isAozoraMode ? _currentAozoraStartBlockIndex : -1;
+                        await PrepareVerticalTextAsync(currentLine, targetBlockIdx, _globalTextCts?.Token ?? default);
                     }
                 }
+                else
+                {
+                    if (_verticalKeyAttached && RootGrid != null)
+                    {
+                        RootGrid.PreviewKeyDown -= RootGrid_Vertical_PreviewKeyDown;
+                        _verticalKeyAttached = false;
+                    }
+                    
+                    int currentLine = 1;
+                    int currentBlockIdx = -1;
+
+                    if (_isEpubMode)
+                    {
+                        if (VerticalTextCanvas != null) VerticalTextCanvas.Visibility = Visibility.Collapsed;
+                        if (TextArea != null) TextArea.Visibility = Visibility.Collapsed;
+                        if (EpubArea != null) EpubArea.Visibility = Visibility.Visible;
+
+                        if (_epubWin2DPages != null && _currentEpubPageIndex >= 0 && _currentEpubPageIndex < _epubWin2DPages.Count)
+                        {
+                            var page = _epubWin2DPages[_currentEpubPageIndex];
+                            currentLine = page.StartLine;
+                            currentBlockIdx = page.StartBlockIndex;
+                        }
+
+                        _epubPreloadCache.Clear();
+                        _imageResourceService.ClearEpubEntries();
+                        ClearBackwardCache();
+                        await LoadEpubChapterAsync(_currentEpubChapterIndex, targetLine: currentLine, targetBlockIndex: currentBlockIdx);
+                    }
+                    else
+                    {
+                        if (_pendingVerticalStartBlockIndex >= 0)
+                        {
+                            currentBlockIdx = _pendingVerticalStartBlockIndex;
+                            if (_aozoraBlocks != null && currentBlockIdx < _aozoraBlocks.Count)
+                                currentLine = _aozoraBlocks[currentBlockIdx].SourceLineNumber;
+                        }
+                        else if (_pendingVerticalScrollLine.HasValue)
+                        {
+                            currentLine = _pendingVerticalScrollLine.Value;
+                        }
+                        else if (_currentVerticalPageInfo.Blocks != null && _currentVerticalPageInfo.Blocks.Count > 0)
+                        {
+                            currentLine = _currentVerticalPageInfo.StartLine;
+                            currentBlockIdx = _currentVerticalStartBlockIndex;
+                        }
+
+                        _pendingVerticalScrollLine = null;
+                        _pendingVerticalStartBlockIndex = -1;
+
+                        if (VerticalTextCanvas != null) VerticalTextCanvas.Visibility = Visibility.Collapsed;
+                        if (EpubArea != null) EpubArea.Visibility = Visibility.Collapsed;
+                        if (TextArea != null) TextArea.Visibility = Visibility.Visible;
+
+                        if (_isAozoraMode)
+                        {
+                            if (AozoraTextCanvas != null) AozoraTextCanvas.Visibility = Visibility.Visible;
+                            await PrepareAozoraDisplayAsync(_currentTextContent, currentLine, currentBlockIdx, _globalTextCts?.Token ?? default);
+                        }
+                        else
+                        {
+                            if (TextScrollViewer != null) TextScrollViewer.Visibility = Visibility.Visible;
+                            await LoadTextLinesProgressivelyAsync(_currentTextContent, currentLine);
+                        }
+                    }
+                }
+                UpdateTextStatusBar();
             }
-            UpdateTextStatusBar();
+            catch (OperationCanceledException) { }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error in ToggleVerticalMode: {ex.Message}");
+                ShowNotification($"{ex.Message}", "\uE783", "Red");
+            }
         }
 
 
@@ -452,25 +470,25 @@ namespace Uviewer
 
         private async void StartVerticalPageCalculationAsync()
         {
-            if (!_isVerticalMode || _aozoraBlocks == null || _aozoraBlocks.Count == 0) return;
-            
-            _verticalPageCalcCts?.Cancel();
-            _verticalPageCalcCts = new System.Threading.CancellationTokenSource();
-            var token = _verticalPageCalcCts.Token;
-
-            _isVerticalPageCalcCompleted = false;
-            _verticalTotalPages = 0;
-            _verticalCalculatedCurrentPage = 1;
-
-            if (VerticalTextCanvas == null || VerticalTextCanvas.ActualHeight <= 0 || VerticalTextCanvas.ActualWidth <= 0) return;
-
-            // [수정] 백그라운드 계산도 상하 40, 좌우 40 공간 차감으로 맞춥니다.
-            float availableHeight = (float)VerticalTextCanvas.ActualHeight - 40;
-            float availableWidth = (float)VerticalTextCanvas.ActualWidth - 40;
-            var device = VerticalTextCanvas.Device;
-
             try
             {
+                if (!_isVerticalMode || _aozoraBlocks == null || _aozoraBlocks.Count == 0) return;
+                
+                _verticalPageCalcCts?.Cancel();
+                _verticalPageCalcCts = new System.Threading.CancellationTokenSource();
+                var token = _verticalPageCalcCts.Token;
+
+                _isVerticalPageCalcCompleted = false;
+                _verticalTotalPages = 0;
+                _verticalCalculatedCurrentPage = 1;
+
+                if (VerticalTextCanvas == null || VerticalTextCanvas.ActualHeight <= 0 || VerticalTextCanvas.ActualWidth <= 0) return;
+
+                // [수정] 백그라운드 계산도 상하 40, 좌우 40 공간 차감으로 맞춥니다.
+                float availableHeight = (float)VerticalTextCanvas.ActualHeight - 40;
+                float availableWidth = (float)VerticalTextCanvas.ActualWidth - 40;
+                var device = VerticalTextCanvas.Device;
+
                 await Task.Run(async () =>
                 {
                     int pageCount = 1;
@@ -651,7 +669,11 @@ namespace Uviewer
                     });
                 }, token);
             }
-            catch { }
+            catch (OperationCanceledException) { }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error in StartVerticalPageCalculationAsync: {ex.Message}");
+            }
         }
 
         private List<AozoraBindingModel> PaginateAozoraPage(ref int index, List<AozoraBindingModel> blocks, float availableWidth, float availableHeight, Microsoft.Graphics.Canvas.CanvasDevice? device = null)
@@ -1014,55 +1036,64 @@ namespace Uviewer
 
         private async void NavigateVerticalPage(int direction)
         {
-            var blocks = _aozoraBlocks;
-            bool isEmpty = blocks == null || blocks.Count == 0;
-            if (isEmpty && !_isEpubMode) return;
-
-            if (direction > 0) // 다음 페이지
+            try
             {
-                if (blocks != null && _currentVerticalEndBlockIndex < blocks.Count - 1)
+                var blocks = _aozoraBlocks;
+                bool isEmpty = blocks == null || blocks.Count == 0;
+                if (isEmpty && !_isEpubMode) return;
+
+                if (direction > 0) // 다음 페이지
                 {
-                    // 💡 History Push 완전히 제거됨
-                    await RenderVerticalDynamicPageAsync(_currentVerticalEndBlockIndex + 1);
-                    if (_isVerticalPageCalcCompleted) { _verticalCalculatedCurrentPage++; UpdateVerticalStatusBar(); }
+                    if (blocks != null && _currentVerticalEndBlockIndex < blocks.Count - 1)
+                    {
+                        // 💡 History Push 완전히 제거됨
+                        await RenderVerticalDynamicPageAsync(_currentVerticalEndBlockIndex + 1);
+                        if (_isVerticalPageCalcCompleted) { _verticalCalculatedCurrentPage++; UpdateVerticalStatusBar(); }
+                    }
+                    else if (_isEpubMode)
+                    {
+                        // [수정] EPUB 모드일 때는 세로 모드여도 NavigateEpubAsync를 통해 내부 페이지를 정교하게 이동 (2장보기 등 대응)
+                        await NavigateEpubAsync(direction);
+                    }
                 }
-                else if (_isEpubMode)
+                else if (direction < 0) // 이전 페이지
                 {
-                    // [수정] EPUB 모드일 때는 세로 모드여도 NavigateEpubAsync를 통해 내부 페이지를 정교하게 이동 (2장보기 등 대응)
-                    await NavigateEpubAsync(direction);
+                    if (blocks != null && _currentVerticalStartBlockIndex > 0)
+                    {
+                        int targetIdx = _currentVerticalStartBlockIndex;
+                        int bestStart = 0;
+
+                        float availWidth = (float)(VerticalTextCanvas?.ActualWidth ?? 1000) - 40;
+                        float availHeight = (float)(VerticalTextCanvas?.ActualHeight ?? 800) - 40;
+                        var device = VerticalTextCanvas?.Device ?? Microsoft.Graphics.Canvas.CanvasDevice.GetSharedDevice();
+
+                        // 💡 이동 전 캐시 유효성 철저히 검증
+                        ValidateBackwardCache(availWidth, availHeight, _settingsManager.FontSize, true, targetIdx);
+
+                        lock (_backwardPageCache)
+                        {
+                            if (!_backwardPageCache.TryGetValue(targetIdx, out bestStart))
+                            {
+                                bestStart = FindPreviousPageStart(targetIdx, blocks, availWidth, availHeight, device, true);
+                                _backwardPageCache[targetIdx] = bestStart;
+                            }
+                        }
+
+                        await RenderVerticalDynamicPageAsync(bestStart);
+                        if (_isVerticalPageCalcCompleted) { _verticalCalculatedCurrentPage = Math.Max(1, _verticalCalculatedCurrentPage - 1); UpdateVerticalStatusBar(); }
+                    }
+                    else if (_isEpubMode)
+                    {
+                        // [수정] EPUB 모드일 때는 세로 모드여도 NavigateEpubAsync를 통해 내부 페이지를 정교하게 이동
+                        await NavigateEpubAsync(direction);
+                    }
                 }
             }
-            else if (direction < 0) // 이전 페이지
+            catch (OperationCanceledException) { }
+            catch (Exception ex)
             {
-                if (blocks != null && _currentVerticalStartBlockIndex > 0)
-                {
-                    int targetIdx = _currentVerticalStartBlockIndex;
-                    int bestStart = 0;
-
-                    float availWidth = (float)(VerticalTextCanvas?.ActualWidth ?? 1000) - 40;
-                    float availHeight = (float)(VerticalTextCanvas?.ActualHeight ?? 800) - 40;
-                    var device = VerticalTextCanvas?.Device ?? Microsoft.Graphics.Canvas.CanvasDevice.GetSharedDevice();
-
-                    // 💡 이동 전 캐시 유효성 철저히 검증
-                    ValidateBackwardCache(availWidth, availHeight, _settingsManager.FontSize, true, targetIdx);
-
-                    lock (_backwardPageCache)
-                    {
-                        if (!_backwardPageCache.TryGetValue(targetIdx, out bestStart))
-                        {
-                            bestStart = FindPreviousPageStart(targetIdx, blocks, availWidth, availHeight, device, true);
-                            _backwardPageCache[targetIdx] = bestStart;
-                        }
-                    }
-
-                    await RenderVerticalDynamicPageAsync(bestStart);
-                    if (_isVerticalPageCalcCompleted) { _verticalCalculatedCurrentPage = Math.Max(1, _verticalCalculatedCurrentPage - 1); UpdateVerticalStatusBar(); }
-                }
-                else if (_isEpubMode)
-                {
-                    // [수정] EPUB 모드일 때는 세로 모드여도 NavigateEpubAsync를 통해 내부 페이지를 정교하게 이동
-                    await NavigateEpubAsync(direction);
-                }
+                System.Diagnostics.Debug.WriteLine($"Error in NavigateVerticalPage: {ex.Message}");
+                ShowNotification($"{ex.Message}", "\uE783", "Red");
             }
         }
 
@@ -1133,74 +1164,83 @@ namespace Uviewer
 
         private async void RootGrid_Vertical_PreviewKeyDown(object sender, Microsoft.UI.Xaml.Input.KeyRoutedEventArgs e)
         {
-            if (e.Handled) return;
-            if (!_isVerticalMode) return;
-            var blocks = _aozoraBlocks;
-
-            // Space to toggle SideBySide for images in vertical mode
-            // 스페이스 키 부분:
-            if (e.Key == Windows.System.VirtualKey.Space)
+            try
             {
-                _isSideBySideMode = !_isSideBySideMode;
-                UpdateSideBySideButtonState();
-                // [수정] EPUB 모드일 때는 챕터 통합 로직을 위해 다시 로드 (SideBySide 모드 반영)
-                var pageBlocks = _currentVerticalPageInfo.Blocks;
-                int currentLine = pageBlocks != null ? _currentVerticalPageInfo.StartLine : 1;
-                
-                if (_isEpubMode)
-                {
-                    _ = LoadEpubChapterAsync(_currentEpubChapterIndex, targetLine: currentLine);
-                }
-                else
-                {
-                    _ = PrepareVerticalTextAsync(currentLine);
-                }
-                e.Handled = true;
-                return;
-            }
+                if (e.Handled) return;
+                if (!_isVerticalMode) return;
+                var blocks = _aozoraBlocks;
 
-            // Home 키 부분:
-            if (e.Key == Windows.System.VirtualKey.Home)
-            {
-                // [수정] EPUB 모드일 때는 무조건 이전 챕터로 이동
-                if (_isEpubMode)
+                // Space to toggle SideBySide for images in vertical mode
+                // 스페이스 키 부분:
+                if (e.Key == Windows.System.VirtualKey.Space)
                 {
-                    if (_currentEpubChapterIndex > 0)
+                    _isSideBySideMode = !_isSideBySideMode;
+                    UpdateSideBySideButtonState();
+                    // [수정] EPUB 모드일 때는 챕터 통합 로직을 위해 다시 로드 (SideBySide 모드 반영)
+                    var pageBlocks = _currentVerticalPageInfo.Blocks;
+                    int currentLine = pageBlocks != null ? _currentVerticalPageInfo.StartLine : 1;
+                    
+                    if (_isEpubMode)
                     {
-                        _currentEpubChapterIndex--;
-                        _ = LoadEpubChapterAsync(_currentEpubChapterIndex);
+                        _ = LoadEpubChapterAsync(_currentEpubChapterIndex, targetLine: currentLine);
+                    }
+                    else
+                    {
+                        _ = PrepareVerticalTextAsync(currentLine);
                     }
                     e.Handled = true;
+                    return;
                 }
-                // 일반 텍스트 모드일 때는 텍스트의 처음으로 이동
-                else if (_currentVerticalStartBlockIndex > 0)
+
+                // Home 키 부분:
+                if (e.Key == Windows.System.VirtualKey.Home)
                 {
-                    await RenderVerticalDynamicPageAsync(0);
-                    if (_isVerticalPageCalcCompleted) { _verticalCalculatedCurrentPage = 1; UpdateVerticalStatusBar(); }
-                    e.Handled = true;
+                    // [수정] EPUB 모드일 때는 무조건 이전 챕터로 이동
+                    if (_isEpubMode)
+                    {
+                        if (_currentEpubChapterIndex > 0)
+                        {
+                            _currentEpubChapterIndex--;
+                            _ = LoadEpubChapterAsync(_currentEpubChapterIndex);
+                        }
+                        e.Handled = true;
+                    }
+                    // 일반 텍스트 모드일 때는 텍스트의 처음으로 이동
+                    else if (_currentVerticalStartBlockIndex > 0)
+                    {
+                        await RenderVerticalDynamicPageAsync(0);
+                        if (_isVerticalPageCalcCompleted) { _verticalCalculatedCurrentPage = 1; UpdateVerticalStatusBar(); }
+                        e.Handled = true;
+                    }
+                }
+                // End 키 부분:
+                else if (e.Key == Windows.System.VirtualKey.End)
+                {
+                    // [수정] EPUB 모드일 때는 무조건 다음 챕터로 이동
+                    if (_isEpubMode)
+                    {
+                        if (_currentEpubChapterIndex < _epubSpine.Count - 1)
+                        {
+                            _currentEpubChapterIndex++;
+                            _ = LoadEpubChapterAsync(_currentEpubChapterIndex);
+                        }
+                        e.Handled = true;
+                    }
+                    // 일반 텍스트 모드일 때는 텍스트의 끝으로 이동
+                    else if (blocks != null && _currentVerticalEndBlockIndex < blocks.Count - 1)
+                    {
+                        int lastIdx = Math.Max(0, blocks.Count - 15); // 끝부분 추정
+                        await RenderVerticalDynamicPageAsync(lastIdx);
+                        if (_isVerticalPageCalcCompleted) { _verticalCalculatedCurrentPage = _verticalTotalPages; UpdateVerticalStatusBar(); }
+                        e.Handled = true;
+                    }
                 }
             }
-            // End 키 부분:
-            else if (e.Key == Windows.System.VirtualKey.End)
+            catch (OperationCanceledException) { }
+            catch (Exception ex)
             {
-                // [수정] EPUB 모드일 때는 무조건 다음 챕터로 이동
-                if (_isEpubMode)
-                {
-                    if (_currentEpubChapterIndex < _epubSpine.Count - 1)
-                    {
-                        _currentEpubChapterIndex++;
-                        _ = LoadEpubChapterAsync(_currentEpubChapterIndex);
-                    }
-                    e.Handled = true;
-                }
-                // 일반 텍스트 모드일 때는 텍스트의 끝으로 이동
-                else if (blocks != null && _currentVerticalEndBlockIndex < blocks.Count - 1)
-                {
-                    int lastIdx = Math.Max(0, blocks.Count - 15); // 끝부분 추정
-                    await RenderVerticalDynamicPageAsync(lastIdx);
-                    if (_isVerticalPageCalcCompleted) { _verticalCalculatedCurrentPage = _verticalTotalPages; UpdateVerticalStatusBar(); }
-                    e.Handled = true;
-                }
+                System.Diagnostics.Debug.WriteLine($"Error in RootGrid_Vertical_PreviewKeyDown: {ex.Message}");
+                ShowNotification($"{ex.Message}", "\uE783", "Red");
             }
         }
 

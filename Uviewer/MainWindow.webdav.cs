@@ -39,8 +39,17 @@ namespace Uviewer
         /// </summary>
         private async void AddWebDavButton_Click(object sender, RoutedEventArgs e)
         {
-            WebDavFlyout.Hide();
-            await ShowAddWebDavServerDialogAsync();
+            try
+            {
+                WebDavFlyout.Hide();
+                await ShowAddWebDavServerDialogAsync();
+            }
+            catch (OperationCanceledException) { }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error in AddWebDavButton_Click: {ex.Message}");
+                ShowNotification($"{ex.Message}", "\uE783", "Red");
+            }
         }
 
         /// <summary>
@@ -240,10 +249,19 @@ namespace Uviewer
         /// </summary>
         private async void WebDavServerItem_Click(object sender, RoutedEventArgs e)
         {
-            if (sender is Button btn && btn.Tag is string serverName)
+            try
             {
-                WebDavFlyout.Hide();
-                await ConnectToWebDavServerAsync(serverName, true);
+                if (sender is Button btn && btn.Tag is string serverName)
+                {
+                    WebDavFlyout.Hide();
+                    await ConnectToWebDavServerAsync(serverName, true);
+                }
+            }
+            catch (OperationCanceledException) { }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error in WebDavServerItem_Click: {ex.Message}");
+                ShowNotification($"{ex.Message}", "\uE783", "Red");
             }
         }
 

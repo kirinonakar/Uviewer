@@ -104,27 +104,35 @@ namespace Uviewer
                 _epubResizeTimer = this.DispatcherQueue.CreateTimer();
                 _epubResizeTimer.Interval = TimeSpan.FromMilliseconds(300);
                 _epubResizeTimer.IsRepeating = false;
-                _epubResizeTimer.Tick += (s, e) =>
+                _epubResizeTimer.Tick += async (s, e) =>
                 {
-                     if (_isEpubMode)
-                     {
-                         // [버그 수정] 로딩 중에 SizeChanged가 발생하면 _epubWin2DPages가 없어서 리사이즈가 취소되는 문제 해결.
-                         // 로딩 중이라면 타이머를 연장하여 로딩이 끝난 뒤에 반영되게 유도합니다.
-                         if (CurrentEpubWin2DPage == null || _epubWin2DPages == null || _epubWin2DPages.Count == 0) 
-                         {
-                             _epubResizeTimer?.Start();
-                             return;
-                         }
+                    try
+                    {
+                        if (_isEpubMode)
+                        {
+                            // [버그 수정] 로딩 중에 SizeChanged가 발생하면 _epubWin2DPages가 없어서 리사이즈가 취소되는 문제 해결.
+                            // 로딩 중이라면 타이머를 연장하여 로딩이 끝난 뒤에 반영되게 유도합니다.
+                            if (CurrentEpubWin2DPage == null || _epubWin2DPages == null || _epubWin2DPages.Count == 0) 
+                            {
+                                _epubResizeTimer?.Start();
+                                return;
+                            }
 
-                         _epubPreloadCache.Clear();
-                         _imageResourceService.ClearEpubEntries();
-                         // [핵심 해결] 글자 크기나 창 크기가 바뀌면 공용 측정 캐시(MainWindow.aozora.cs 정의)를 비워야 정확한 재계산이 가능합니다.
-                         ClearBackwardCache(); 
-                         
-                         int currentLine = CurrentEpubWin2DPage?.StartLine ?? 1;
-                         int currentBlockIdx = CurrentEpubWin2DPage?.StartBlockIndex ?? -1;
-                         _ = LoadEpubChapterAsync(_currentEpubChapterIndex, targetLine: currentLine, targetBlockIndex: currentBlockIdx);
-                     }
+                            _epubPreloadCache.Clear();
+                            _imageResourceService.ClearEpubEntries();
+                            // [핵심 해결] 글자 크기나 창 크기가 바뀌면 공용 측정 캐시(MainWindow.aozora.cs 정의)를 비워야 정확한 재계산이 가능합니다.
+                            ClearBackwardCache(); 
+                            
+                            int currentLine = CurrentEpubWin2DPage?.StartLine ?? 1;
+                            int currentBlockIdx = CurrentEpubWin2DPage?.StartBlockIndex ?? -1;
+                            await LoadEpubChapterAsync(_currentEpubChapterIndex, targetLine: currentLine, targetBlockIndex: currentBlockIdx);
+                        }
+                    }
+                    catch (OperationCanceledException) { }
+                    catch (Exception ex)
+                    {
+                        System.Diagnostics.Debug.WriteLine($"Error in EpubResize timer: {ex.Message}");
+                    }
                 };
             }
 
@@ -924,40 +932,59 @@ namespace Uviewer
         }
 
 
-        private void EpubTouchOverlay_PointerPressed(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
+        private async void EpubTouchOverlay_PointerPressed(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
         {
-            if (!_isEpubMode) return;
-            DispatcherQueue.TryEnqueue(() => EpubTextCanvas?.Focus(Microsoft.UI.Xaml.FocusState.Programmatic));
-            var pt = e.GetCurrentPoint(EpubTouchOverlay);
-            double half = EpubTouchOverlay.ActualWidth / 2;
-            
-            if (_isVerticalMode)
+            try
             {
-                // Vertical (RTL): Left=Next, Right=Prev
-                if (pt.Position.X < half) _ = NavigateEpubAsync(1);
-                else _ = NavigateEpubAsync(-1);
+                if (!_isEpubMode) return;
+                DispatcherQueue.TryEnqueue(() => EpubTextCanvas?.Focus(Microsoft.UI.Xaml.FocusState.Programmatic));
+                var pt = e.GetCurrentPoint(EpubTouchOverlay);
+                double half = EpubTouchOverlay.ActualWidth / 2;
+                
+                if (_isVerticalMode)
+                {
+                    // Vertical (RTL): Next is on the Left, Prev is on the Right
+                    if (pt.Position.X < half) await NavigateEpubAsync(1);
+                    else await NavigateEpubAsync(-1);
+                }
+                else
+                {
+                    // Horizontal (LTR): Prev is on the Left, Next is on the Right
+                    if (pt.Position.X < half) await NavigateEpubAsync(-1);
+                    else await NavigateEpubAsync(1);
+                }
             }
-            else
+            catch (OperationCanceledException) { }
+            catch (Exception ex)
             {
-                // Horizontal (LTR): Left=Prev, Right=Next
-                if (pt.Position.X < half) _ = NavigateEpubAsync(-1);
-                else _ = NavigateEpubAsync(1);
+                System.Diagnostics.Debug.WriteLine($"Error in EpubTouchOverlay_PointerPressed: {ex.Message}");
+                ShowNotification($"{ex.Message}", "\uE783", "Red");
             }
         }
 
-        private void EpubTouchOverlay_PointerWheelChanged(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
+        private async void EpubTouchOverlay_PointerWheelChanged(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
         {
-            if (!_isEpubMode) return;
-            // 세로 모드와 동일하게 RootGrid에 포커스 (EpubTextCanvas 포커스 시 잔상/깜박임 방지)
-            RootGrid.Focus(Microsoft.UI.Xaml.FocusState.Programmatic);
-            var delta = e.GetCurrentPoint(EpubTouchOverlay).Properties.MouseWheelDelta;
-            if (delta > 0) 
+            try
             {
-                _ = NavigateEpubAsync(-1);
+                if (!_isEpubMode) return;
+                // 세로 모드와 동일하게 RootGrid에 포커스 (EpubTextCanvas 포커스 시 잔상/깜박임 방지)
+                RootGrid.Focus(Microsoft.UI.Xaml.FocusState.Programmatic);
+                var delta = e.GetCurrentPoint(EpubTouchOverlay).Properties.MouseWheelDelta;
+                if (delta > 0) 
+                {
+                    await NavigateEpubAsync(-1);
+                }
+                else 
+                {
+                    await NavigateEpubAsync(1);
+                }
+             e.Handled = true;
             }
-            else 
+            catch (OperationCanceledException) { }
+            catch (Exception ex)
             {
-                _ = NavigateEpubAsync(1);
+                System.Diagnostics.Debug.WriteLine($"Error in EpubTouchOverlay_PointerWheelChanged: {ex.Message}");
+                ShowNotification($"{ex.Message}", "\uE783", "Red");
             }
         }
 
@@ -1642,36 +1669,45 @@ namespace Uviewer
 
         public async void JumpToEpubTocItem(EpubTocItem item)
         {
-             // item.Link might contain hash: chapter.html#id
-             string path = item.Link;
-             string hash = "";
-             int hashIdx = path.IndexOf('#');
-             if (hashIdx >= 0)
-             {
-                 hash = path.Substring(hashIdx + 1);
-                 path = path.Substring(0, hashIdx);
-             }
-             
-             // Find in spine
-             // Spine stores full paths from container (OPS/chapter1.html)
-             // item.Link should already be resolved to full path
-             
-             int index = -1;
-             string normPath = path.Replace("\\", "/");
-             for (int i = 0; i < _epubSpine.Count; i++)
-             {
-                 if (_epubSpine[i].Replace("\\", "/").Equals(normPath, StringComparison.OrdinalIgnoreCase))
-                 {
-                     index = i;
-                     break;
-                 }
-             }
-             
-             if (index >= 0)
-             {
-                 _currentEpubChapterIndex = index;
-                 await LoadEpubChapterAsync(index);
-             }
+            try
+            {
+                // item.Link might contain hash: chapter.html#id
+                string path = item.Link;
+                string hash = "";
+                int hashIdx = path.IndexOf('#');
+                if (hashIdx >= 0)
+                {
+                    hash = path.Substring(hashIdx + 1);
+                    path = path.Substring(0, hashIdx);
+                }
+
+                // Find in spine
+                // Spine stores full paths from container (OPS/chapter1.html)
+                // item.Link should already be resolved to full path
+
+                int index = -1;
+                string normPath = path.Replace("\\", "/");
+                for (int i = 0; i < _epubSpine.Count; i++)
+                {
+                    if (_epubSpine[i].Replace("\\", "/").Equals(normPath, StringComparison.OrdinalIgnoreCase))
+                    {
+                        index = i;
+                        break;
+                    }
+                }
+
+                if (index >= 0)
+                {
+                    _currentEpubChapterIndex = index;
+                    await LoadEpubChapterAsync(index);
+                }
+            }
+            catch (OperationCanceledException) { }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error in JumpToEpubTocItem: {ex.Message}");
+                ShowNotification($"{ex.Message}", "\uE783", "Red");
+            }
         }
 
 

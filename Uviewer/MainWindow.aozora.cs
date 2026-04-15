@@ -275,61 +275,70 @@ namespace Uviewer
 
         private async void ToggleAozoraMode()
         {
-            if (TextFastNavOverlay != null) TextFastNavOverlay.Visibility = Visibility.Visible;
-            await Task.Delay(10);
-            
-            int currentLine = 1;
-
-            if (_isAozoraMode)
+            try
             {
-                // [추가] 수직 모드가 활성화되어 있다면 수직 모드의 현재 라인을 가장 먼저 우선시해야 함
-                if (_isVerticalMode && _currentVerticalPageInfo.Blocks != null && _currentVerticalPageInfo.Blocks.Count > 0)
+                if (TextFastNavOverlay != null) TextFastNavOverlay.Visibility = Visibility.Visible;
+                await Task.Delay(10);
+                
+                int currentLine = 1;
+
+                if (_isAozoraMode)
                 {
-                    currentLine = _currentVerticalPageInfo.StartLine;
-                    _aozoraPendingTargetBlockIndex = _currentVerticalStartBlockIndex;
+                    // [추가] 수직 모드가 활성화되어 있다면 수직 모드의 현재 라인을 가장 먼저 우선시해야 함
+                    if (_isVerticalMode && _currentVerticalPageInfo.Blocks != null && _currentVerticalPageInfo.Blocks.Count > 0)
+                    {
+                        currentLine = _currentVerticalPageInfo.StartLine;
+                        _aozoraPendingTargetBlockIndex = _currentVerticalStartBlockIndex;
+                    }
+                    // [수정] 가로 렌더링 대기 라인을 우선 확인
+                    else if (_aozoraPendingTargetLine > 0)
+                    {
+                        currentLine = _aozoraPendingTargetLine;
+                    }
+                    else if (_currentAozoraPageInfo.Blocks != null && _currentAozoraPageInfo.Blocks.Count > 0)
+                    {
+                        currentLine = _currentAozoraPageInfo.StartLine;
+                    }
                 }
-                // [수정] 가로 렌더링 대기 라인을 우선 확인
-                else if (_aozoraPendingTargetLine > 0)
+                else
                 {
-                    currentLine = _aozoraPendingTargetLine;
+                    // [수정] 세로 모드에서 넘어올 때의 방어 로직 추가
+                    if (_isVerticalMode && _pendingVerticalScrollLine.HasValue)
+                    {
+                        currentLine = _pendingVerticalScrollLine.Value;
+                    }
+                    else if (_isVerticalMode && _currentVerticalPageInfo.Blocks != null && _currentVerticalPageInfo.Blocks.Count > 0)
+                    {
+                        currentLine = _currentVerticalPageInfo.StartLine;
+                    }
+                    else if (TextScrollViewer != null)
+                    {
+                        currentLine = GetTopVisibleLineIndex();
+                    }
                 }
-                else if (_currentAozoraPageInfo.Blocks != null && _currentAozoraPageInfo.Blocks.Count > 0)
+
+                _aozoraPendingTargetLine = currentLine > 0 ? currentLine : 1;
+                _isAozoraMode = !_isAozoraMode;
+
+                if (AozoraToggleButton != null) AozoraToggleButton.IsChecked = _isAozoraMode;
+                SaveAozoraSettings();
+
+                if (!string.IsNullOrEmpty(_currentTextContent))
                 {
-                    currentLine = _currentAozoraPageInfo.StartLine;
+                    CancelAndResetGlobalTextCts();
+                    string displayName = string.IsNullOrEmpty(_currentTextFilePath) ? "Document" : System.IO.Path.GetFileName(_currentTextFilePath);
+                    await DisplayLoadedText(_currentTextContent, displayName, _currentTextFilePath, _globalTextCts!.Token);
+                }
+                else
+                {
+                    if (TextFastNavOverlay != null) TextFastNavOverlay.Visibility = Visibility.Collapsed;
                 }
             }
-            else
+            catch (OperationCanceledException) { }
+            catch (Exception ex)
             {
-                // [수정] 세로 모드에서 넘어올 때의 방어 로직 추가
-                if (_isVerticalMode && _pendingVerticalScrollLine.HasValue)
-                {
-                    currentLine = _pendingVerticalScrollLine.Value;
-                }
-                else if (_isVerticalMode && _currentVerticalPageInfo.Blocks != null && _currentVerticalPageInfo.Blocks.Count > 0)
-                {
-                    currentLine = _currentVerticalPageInfo.StartLine;
-                }
-                else if (TextScrollViewer != null)
-                {
-                    currentLine = GetTopVisibleLineIndex();
-                }
-            }
-
-            _aozoraPendingTargetLine = currentLine > 0 ? currentLine : 1;
-            _isAozoraMode = !_isAozoraMode;
-
-            if (AozoraToggleButton != null) AozoraToggleButton.IsChecked = _isAozoraMode;
-            SaveAozoraSettings();
-
-            if (!string.IsNullOrEmpty(_currentTextContent))
-            {
-                CancelAndResetGlobalTextCts();
-                string displayName = string.IsNullOrEmpty(_currentTextFilePath) ? "Document" : System.IO.Path.GetFileName(_currentTextFilePath);
-                await DisplayLoadedText(_currentTextContent, displayName, _currentTextFilePath, _globalTextCts!.Token);
-            }
-            else
-            {
-                if (TextFastNavOverlay != null) TextFastNavOverlay.Visibility = Visibility.Collapsed;
+                System.Diagnostics.Debug.WriteLine($"Error in ToggleAozoraMode: {ex.Message}");
+                ShowNotification($"{ex.Message}", "\uE783", "Red");
             }
         }
 
@@ -651,28 +660,28 @@ namespace Uviewer
 
         private async void StartAozoraPageCalculationAsync()
         {
-            if (!_isAozoraMode || _aozoraBlocks == null || _aozoraBlocks.Count == 0) return;
-
-            _aozoraPageCalcCts?.Cancel();
-            _aozoraPageCalcCts = new System.Threading.CancellationTokenSource();
-            var token = _aozoraPageCalcCts.Token;
-
-            _isAozoraPageCalcCompleted = false;
-            _aozoraTotalPages = 0;
-            _aozoraCalculatedCurrentPage = 1;
-            UpdateAozoraStatusBar();
-
-            if (AozoraTextCanvas == null || AozoraTextCanvas.ActualHeight <= 0 || AozoraTextCanvas.ActualWidth <= 0) return;
-
-            // [수정] 백그라운드 페이지 계산도 렌더링 마진(상하 40, 좌우 80)과 일치시킵니다.
-            float availableWidth = (float)AozoraTextCanvas.ActualWidth - 80;
-            float availableHeight = (float)AozoraTextCanvas.ActualHeight - 40; 
-
-            float maxWidth = _isMarkdownRenderMode ? availableWidth : Math.Min(availableWidth, (float)GetUrlMaxWidth());
-            var device = AozoraTextCanvas.Device;
-
             try
             {
+                if (!_isAozoraMode || _aozoraBlocks == null || _aozoraBlocks.Count == 0) return;
+
+                _aozoraPageCalcCts?.Cancel();
+                _aozoraPageCalcCts = new System.Threading.CancellationTokenSource();
+                var token = _aozoraPageCalcCts.Token;
+
+                _isAozoraPageCalcCompleted = false;
+                _aozoraTotalPages = 0;
+                _aozoraCalculatedCurrentPage = 1;
+                UpdateAozoraStatusBar();
+
+                if (AozoraTextCanvas == null || AozoraTextCanvas.ActualHeight <= 0 || AozoraTextCanvas.ActualWidth <= 0) return;
+
+                // [수정] 백그라운드 페이지 계산도 렌더링 마진(상하 40, 좌우 80)과 일치시킵니다.
+                float availableWidth = (float)AozoraTextCanvas.ActualWidth - 80;
+                float availableHeight = (float)AozoraTextCanvas.ActualHeight - 40; 
+
+                float maxWidth = _isMarkdownRenderMode ? availableWidth : Math.Min(availableWidth, (float)GetUrlMaxWidth());
+                var device = AozoraTextCanvas.Device;
+
                 await Task.Run(async () =>
                 {
                     int pageCount = 1;
@@ -813,7 +822,11 @@ namespace Uviewer
                     });
                 }, token);
             }
-            catch { }
+            catch (OperationCanceledException) { }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error in StartAozoraPageCalculationAsync: {ex.Message}");
+            }
         }
 
         private List<AozoraBindingModel> PaginateHorizontalAozoraPage(ref int index, List<AozoraBindingModel> blocks, float availableWidth, float availableHeight, CanvasDevice? device = null)
@@ -1307,100 +1320,109 @@ namespace Uviewer
 
         private async void TocButton_Click(object sender, RoutedEventArgs e)
         {
-            if (!_isTextMode && !_isEpubMode) return;
-
-            // Ensure TOC Title
-            if (TocFlyout.Content is Grid g && g.Children.Count > 0 && g.Children[0] is TextBlock tb)
+            try
             {
-                tb.Text = Strings.TocTitle;
-            }
+                if (!_isTextMode && !_isEpubMode) return;
 
-            var items = _tocService.CurrentToc;
-
-            // Highlight current item and scroll
-            int currentIndex = -1;
-
-            if (_isEpubMode)
-            {
-                if (_currentEpubChapterIndex >= 0 && _currentEpubChapterIndex < _epubSpine.Count)
+                // Ensure TOC Title
+                if (TocFlyout.Content is Grid g && g.Children.Count > 0 && g.Children[0] is TextBlock tb)
                 {
-                    string currentSpinePath = _epubSpine[_currentEpubChapterIndex];
-                    for (int i = 0; i < items.Count; i++)
+                    tb.Text = Strings.TocTitle;
+                }
+
+                var items = _tocService.CurrentToc;
+
+                // Highlight current item and scroll
+                int currentIndex = -1;
+
+                if (_isEpubMode)
+                {
+                    if (_currentEpubChapterIndex >= 0 && _currentEpubChapterIndex < _epubSpine.Count)
                     {
-                        string linkPath = items[i].EpubLink;
-                        if (string.IsNullOrEmpty(linkPath)) continue;
-
-                        int hashIndex = linkPath.IndexOf('#');
-                        if (hashIndex >= 0) linkPath = linkPath.Substring(0, hashIndex);
-
-                        if (string.Equals(linkPath, currentSpinePath, StringComparison.OrdinalIgnoreCase))
+                        string currentSpinePath = _epubSpine[_currentEpubChapterIndex];
+                        for (int i = 0; i < items.Count; i++)
                         {
-                            currentIndex = i;
-                            break;
+                            string linkPath = items[i].EpubLink;
+                            if (string.IsNullOrEmpty(linkPath)) continue;
+
+                            int hashIndex = linkPath.IndexOf('#');
+                            if (hashIndex >= 0) linkPath = linkPath.Substring(0, hashIndex);
+
+                            if (string.Equals(linkPath, currentSpinePath, StringComparison.OrdinalIgnoreCase))
+                            {
+                                currentIndex = i;
+                                break;
+                            }
                         }
                     }
                 }
-            }
-            else
-            {
-                // Text / Aozora Mode
-                int currentLine = 1;
-                if (_isVerticalMode)
-                {
-                    currentLine = _currentVerticalPageInfo.StartLine;
-                }
-                else if (_isAozoraMode)
-                {
-                    if (_currentAozoraStartBlockIndex >= 0 && _currentAozoraStartBlockIndex < _aozoraBlocks.Count)
-                        currentLine = _aozoraBlocks[_currentAozoraStartBlockIndex].SourceLineNumber;
-                }
                 else
                 {
-                    currentLine = GetTopVisibleLineIndex();
-                }
-
-                for (int i = 0; i < items.Count; i++)
-                {
-                    if (items[i].SourceLineNumber > 0 && items[i].SourceLineNumber <= currentLine)
-                        currentIndex = i;
-                    else if (items[i].SourceLineNumber > currentLine)
-                        break;
-                }
-            }
-
-            // Create a display-only list to avoid modifying the original service list
-            var displayItems = items.Select(item => new TocItem 
-            { 
-                HeadingText = item.HeadingText, 
-                HeadingLevel = item.HeadingLevel, 
-                SourceLineNumber = item.SourceLineNumber,
-                EpubLink = item.EpubLink,
-                Tag = item.Tag
-            }).ToList();
-
-            if (currentIndex >= 0 && currentIndex < displayItems.Count)
-            {
-                displayItems[currentIndex].HeadingText = "⮕ " + displayItems[currentIndex].HeadingText;
-            }
-
-            if (displayItems.Count == 0)
-            {
-                displayItems.Add(new TocItem { HeadingText = Strings.NoTocContent, SourceLineNumber = -1 });
-            }
-
-            TocListView.ItemsSource = displayItems;
-
-            if (currentIndex >= 0)
-            {
-                // Ensure layout updated before scrolling
-                this.DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, () =>
-                {
-                    try
+                    // Text / Aozora Mode
+                    int currentLine = 1;
+                    if (_isVerticalMode)
                     {
-                        TocListView.ScrollIntoView(displayItems[currentIndex], ScrollIntoViewAlignment.Leading);
+                        currentLine = _currentVerticalPageInfo.StartLine;
                     }
-                    catch { }
-                });
+                    else if (_isAozoraMode)
+                    {
+                        if (_currentAozoraStartBlockIndex >= 0 && _currentAozoraStartBlockIndex < _aozoraBlocks.Count)
+                            currentLine = _aozoraBlocks[_currentAozoraStartBlockIndex].SourceLineNumber;
+                    }
+                    else
+                    {
+                        currentLine = GetTopVisibleLineIndex();
+                    }
+
+                    for (int i = 0; i < items.Count; i++)
+                    {
+                        if (items[i].SourceLineNumber > 0 && items[i].SourceLineNumber <= currentLine)
+                            currentIndex = i;
+                        else if (items[i].SourceLineNumber > currentLine)
+                            break;
+                    }
+                }
+
+                // Create a display-only list to avoid modifying the original service list
+                var displayItems = items.Select(item => new TocItem 
+                { 
+                    HeadingText = item.HeadingText, 
+                    HeadingLevel = item.HeadingLevel, 
+                    SourceLineNumber = item.SourceLineNumber,
+                    EpubLink = item.EpubLink,
+                    Tag = item.Tag
+                }).ToList();
+
+                if (currentIndex >= 0 && currentIndex < displayItems.Count)
+                {
+                    displayItems[currentIndex].HeadingText = "⮕ " + displayItems[currentIndex].HeadingText;
+                }
+
+                if (displayItems.Count == 0)
+                {
+                    displayItems.Add(new TocItem { HeadingText = Strings.NoTocContent, SourceLineNumber = -1 });
+                }
+
+                TocListView.ItemsSource = displayItems;
+
+                if (currentIndex >= 0)
+                {
+                    // Ensure layout updated before scrolling
+                    this.DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, () =>
+                    {
+                        try
+                        {
+                            TocListView.ScrollIntoView(displayItems[currentIndex], ScrollIntoViewAlignment.Leading);
+                        }
+                        catch { }
+                    });
+                }
+            }
+            catch (OperationCanceledException) { }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error in TocButton_Click: {ex.Message}");
+                ShowNotification($"{ex.Message}", "\uE783", "Red");
             }
         }
 

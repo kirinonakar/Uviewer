@@ -128,46 +128,91 @@ namespace Uviewer
         // Event Handlers for BookmarkListControl
         private async void BookmarkList_ItemClicked(object? sender, BookmarkViewModel e)
         {
-            if (e.OriginalItem is FavoriteItem fav)
+            try
             {
-                FavoritesFlyout?.Hide();
-                SidebarFavoritesFlyout?.Hide();
-                await NavigateToFavoriteAsync(fav);
+                if (e.OriginalItem is FavoriteItem fav)
+                {
+                    FavoritesFlyout?.Hide();
+                    SidebarFavoritesFlyout?.Hide();
+                    await NavigateToFavoriteAsync(fav);
+                }
+            }
+            catch (OperationCanceledException) { }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error in BookmarkList_ItemClicked: {ex.Message}");
+                ShowNotification($"{ex.Message}", "\uE783", "Red");
             }
         }
 
         private async void BookmarkList_RemoveClicked(object? sender, BookmarkViewModel e)
         {
-            if (e.OriginalItem is FavoriteItem fav)
+            try
             {
-                await RemoveFavoriteAsync(fav);
+                if (e.OriginalItem is FavoriteItem fav)
+                {
+                    await RemoveFavoriteAsync(fav);
+                }
+            }
+            catch (OperationCanceledException) { }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error in BookmarkList_RemoveClicked: {ex.Message}");
+                ShowNotification($"{ex.Message}", "\uE783", "Red");
             }
         }
 
         private async void BookmarkList_PinClicked(object? sender, BookmarkViewModel e)
         {
-            if (e.OriginalItem is FavoriteItem fav)
+            try
             {
-                await _favoritesService.TogglePinAsync(fav);
-                UpdateFavoritesMenu();
+                if (e.OriginalItem is FavoriteItem fav)
+                {
+                    await _favoritesService.TogglePinAsync(fav);
+                    UpdateFavoritesMenu();
+                }
+            }
+            catch (OperationCanceledException) { }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error in BookmarkList_PinClicked: {ex.Message}");
+                ShowNotification($"{ex.Message}", "\uE783", "Red");
             }
         }
 
         private async void RecentList_ItemClicked(object? sender, BookmarkViewModel e)
         {
-            if (e.OriginalItem is RecentItem recent)
+            try
             {
-                RecentFlyout?.Hide();
-                SidebarRecentFlyout?.Hide();
-                await NavigateToRecentAsync(recent);
+                if (e.OriginalItem is RecentItem recent)
+                {
+                    RecentFlyout?.Hide();
+                    SidebarRecentFlyout?.Hide();
+                    await NavigateToRecentAsync(recent);
+                }
+            }
+            catch (OperationCanceledException) { }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error in RecentList_ItemClicked: {ex.Message}");
+                ShowNotification($"{ex.Message}", "\uE783", "Red");
             }
         }
 
         private async void RecentList_RemoveClicked(object? sender, BookmarkViewModel e)
         {
-            if (e.OriginalItem is RecentItem recent)
+            try
             {
-                await RemoveRecentAsync(recent);
+                if (e.OriginalItem is RecentItem recent)
+                {
+                    await RemoveRecentAsync(recent);
+                }
+            }
+            catch (OperationCanceledException) { }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error in RecentList_RemoveClicked: {ex.Message}");
+                ShowNotification($"{ex.Message}", "\uE783", "Red");
             }
         }
 

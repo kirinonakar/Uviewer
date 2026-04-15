@@ -156,253 +156,262 @@ namespace Uviewer
 
         private async Task DisplayCurrentImageAsync()
         {
-            // 방어 코드: 인덱스가 범위를 벗어나면 현재 이미지 목록 기준으로 자동 보정
-            if (_imageEntries == null || _imageEntries.Count == 0)
-                return;
-
-            if (_currentIndex < 0 || _currentIndex >= _imageEntries.Count)
+            try
             {
-                _currentIndex = Math.Clamp(_currentIndex, 0, _imageEntries.Count - 1);
-            }
+                // 방어 코드: 인덱스가 범위를 벗어나면 현재 이미지 목록 기준으로 자동 보정
+                if (_imageEntries == null || _imageEntries.Count == 0)
+                    return;
 
-            // [Important] Capture index before await to avoid race condition if _currentIndex changes during render
-            int capturedIndexAtStart = _currentIndex;
-
-            // 이전 로딩 작업 취소
-            _imageLoadingCts?.Cancel();
-            _imageLoadingCts = new CancellationTokenSource();
-            var token = _imageLoadingCts.Token; // <-- 이 토큰을 전달해야 함
-
-            // 아카이브 탐색 시 백그라운드 추출 위치 재조정 신호 전송 (큰 폭의 이동 시에만)
-            if (_current7zArchive != null)
-            {
-                if (Math.Abs(_currentIndex - _lastIndexFor7zJump) > 2)
+                if (_currentIndex < 0 || _currentIndex >= _imageEntries.Count)
                 {
-                    Signal7zJump();
+                    _currentIndex = Math.Clamp(_currentIndex, 0, _imageEntries.Count - 1);
+                }
+
+                // [Important] Capture index before await to avoid race condition if _currentIndex changes during render
+                int capturedIndexAtStart = _currentIndex;
+
+                // 이전 로딩 작업 취소
+                _imageLoadingCts?.Cancel();
+                _imageLoadingCts = new CancellationTokenSource();
+                var token = _imageLoadingCts.Token; // <-- 이 토큰을 전달해야 함
+
+                // 아카이브 탐색 시 백그라운드 추출 위치 재조정 신호 전송 (큰 폭의 이동 시에만)
+                if (_current7zArchive != null)
+                {
+                    if (Math.Abs(_currentIndex - _lastIndexFor7zJump) > 2)
+                    {
+                        Signal7zJump();
+                        _lastIndexFor7zJump = _currentIndex;
+                    }
+                }
+                else
+                {
                     _lastIndexFor7zJump = _currentIndex;
                 }
-            }
-            else
-            {
-                _lastIndexFor7zJump = _currentIndex;
-            }
 
-            _animatedWebpService.Stop();
+                _animatedWebpService.Stop();
 
-            var entry = _imageEntries[_currentIndex];
+                var entry = _imageEntries[_currentIndex];
 
-            // PDF 전용 처리 블록: 잔상 제거 및 줌 레벨 맞춤 캐시 적용
-            if (entry.IsPdfEntry && _currentPdfDocument != null)
-            {
-                SwitchToImageMode();
-                _isCurrentViewSideBySide = false;
-                CanvasBitmap? nextBitmap = null;
-
-                nextBitmap = _imageCache.GetPreloadedImage(_currentIndex, _zoomLevel);
-
-                // 2. 캐시에 없어서 새로 렌더링해야 하는 경우 (잔상 제거 로직 포함)
-                if (nextBitmap == null)
+                // PDF 전용 처리 블록: 잔상 제거 및 줌 레벨 맞춤 캐시 적용
+                if (entry.IsPdfEntry && _currentPdfDocument != null)
                 {
-                    // 새 페이지를 그리는 동안 예전 페이지가 멈춰 있는 현상을 막기 위해
-                    // 현재 비트맵을 즉시 비우고 화면을 갱신합니다.
-                    var tempOldBitmap = _currentBitmap;
-                    _currentBitmap = null;
-                    MainCanvas?.Invalidate();
+                    SwitchToImageMode();
+                    _isCurrentViewSideBySide = false;
+                    CanvasBitmap? nextBitmap = null;
 
-                    if (tempOldBitmap != null && !IsBitmapInCache(tempOldBitmap))
+                    nextBitmap = _imageCache.GetPreloadedImage(_currentIndex, _zoomLevel);
+
+                    // 2. 캐시에 없어서 새로 렌더링해야 하는 경우 (잔상 제거 로직 포함)
+                    if (nextBitmap == null)
                     {
-                        _imageCache.SafeDisposeBitmap(tempOldBitmap);
-                    }
+                        // 새 페이지를 그리는 동안 예전 페이지가 멈춰 있는 현상을 막기 위해
+                        // 현재 비트맵을 즉시 비우고 화면을 갱신합니다.
+                        var tempOldBitmap = _currentBitmap;
+                        _currentBitmap = null;
+                        MainCanvas?.Invalidate();
 
-                    // 렌더링 시작 (토큰 전달로 페이지 이동 시 취소 가능하게 함)
-                    nextBitmap = await LoadPdfPageBitmapAsync(entry.PdfPageIndex, MainCanvas!, token);
-
-                    // [핵심] await 후 인덱스가 달라졌으면 버리기 (다른 페이지로 넘어간 것임)
-                    if (nextBitmap != null)
-                    {
-                        if (token.IsCancellationRequested || _currentIndex != capturedIndexAtStart)
+                        if (tempOldBitmap != null && !IsBitmapInCache(tempOldBitmap))
                         {
-                            _imageCache.SafeDisposeBitmap(nextBitmap);
-                            return;
+                            _imageCache.SafeDisposeBitmap(tempOldBitmap);
                         }
 
-                        _imageCache.UpdateCache(capturedIndexAtStart, nextBitmap, true, _zoomLevel, _currentBitmap);
+                        // 렌더링 시작 (토큰 전달로 페이지 이동 시 취소 가능하게 함)
+                        nextBitmap = await LoadPdfPageBitmapAsync(entry.PdfPageIndex, MainCanvas!, token);
+
+                        // [핵심] await 후 인덱스가 달라졌으면 버리기 (다른 페이지로 넘어간 것임)
+                        if (nextBitmap != null)
+                        {
+                            if (token.IsCancellationRequested || _currentIndex != capturedIndexAtStart)
+                            {
+                                _imageCache.SafeDisposeBitmap(nextBitmap);
+                                return;
+                            }
+
+                            _imageCache.UpdateCache(capturedIndexAtStart, nextBitmap, true, _zoomLevel, _currentBitmap);
+                        }
                     }
-                }
 
-                // 3. 확보된 이미지를 화면에 표시
-                if (nextBitmap != null && !token.IsCancellationRequested && _currentIndex == capturedIndexAtStart)
-                {
-                    var oldBitmap = _currentBitmap;
-                    _currentBitmap = nextBitmap;
-
-                    // PDF 단일 페이지 모드이므로 사이드 바이 사이드용 비트맵 초기화
-                    _leftBitmap = null;
-                    _rightBitmap = null;
-
-                    // PDF: Set initial pan position to top or bottom of page depending on direction
-                    if (!_isSeamlessScroll)
+                    // 3. 확보된 이미지를 화면에 표시
+                    if (nextBitmap != null && !token.IsCancellationRequested && _currentIndex == capturedIndexAtStart)
                     {
-                        var canvasSize = MainCanvas!.Size;
-                        var imageSize = nextBitmap.Size;
-                        var fitRatio = Math.Min(canvasSize.Width / imageSize.Width, canvasSize.Height / imageSize.Height);
-                        var scaledH = imageSize.Height * fitRatio * _zoomLevel;
-                        double maxPan = (scaledH > canvasSize.Height) ? (scaledH - canvasSize.Height) / 2 : 0;
-                        _pdfPanY = (_pdfScrollDirection == 1) ? maxPan : -maxPan;
-                        _pdfPanX = 0;
-                        _isPdfTransitioning = false;
-                    }
+                        var oldBitmap = _currentBitmap;
+                        _currentBitmap = nextBitmap;
 
-                    MainCanvas?.Invalidate();
-                    ShowImageUI();
-                    UpdateStatusBar(entry, _currentBitmap);
+                        // PDF 단일 페이지 모드이므로 사이드 바이 사이드용 비트맵 초기화
+                        _leftBitmap = null;
+                        _rightBitmap = null;
 
-                    // [수정] PDF 페이지 이동 시 캐시된 이미지가 저해상도일 수 있으므로(예: 이전에 작은 창 크기에서 프리로드됨)
-                    // 현재 해상도와 줌 레벨에 맞춰 비동기로 한 번 더 고해상도 렌더링을 수행하여 항상 선명한 환경을 유지합니다.
-                    _ = RerenderPdfCurrentPageAsync();
+                        // PDF: Set initial pan position to top or bottom of page depending on direction
+                        if (!_isSeamlessScroll)
+                        {
+                            var canvasSize = MainCanvas!.Size;
+                            var imageSize = nextBitmap.Size;
+                            var fitRatio = Math.Min(canvasSize.Width / imageSize.Width, canvasSize.Height / imageSize.Height);
+                            var scaledH = imageSize.Height * fitRatio * _zoomLevel;
+                            double maxPan = (scaledH > canvasSize.Height) ? (scaledH - canvasSize.Height) / 2 : 0;
+                            _pdfPanY = (_pdfScrollDirection == 1) ? maxPan : -maxPan;
+                            _pdfPanX = 0;
+                            _isPdfTransitioning = false;
+                        }
 
-                    if (oldBitmap != null && oldBitmap != nextBitmap && !IsBitmapInCache(oldBitmap))
-                    {
-                        _imageCache.SafeDisposeBitmap(oldBitmap);
-                    }
-                }
-                
-                // 페이지 이동 정보 기록
-                await AddToRecentAsync(false);
-                RootGrid.Focus(FocusState.Programmatic);
-                return;
-            }
+                        MainCanvas?.Invalidate();
+                        ShowImageUI();
+                        UpdateStatusBar(entry, _currentBitmap);
 
-            if (FileExplorerService.IsTextEntry(entry))
-            {
-                if (!_isTextMode || _currentTextFilePath != entry.FilePath || _currentTextArchiveEntryKey != entry.ArchiveEntryKey)
-                {
-                    await LoadTextEntryAsync(entry);
-                }
-                else
-                {
-                    // Already in text mode and same file: update UI
-                    if (_aozoraPendingTargetLine != 0)
-                    {
-                        string fileName = System.IO.Path.GetFileName(_currentTextFilePath ?? "");
-                        await ReloadTextDisplayFromCacheAsync(fileName, _aozoraPendingTargetLine);
-                    }
-                    else
-                    {
-                        if (_isVerticalMode) VerticalTextCanvas?.Invalidate();
-                        else if (_isAozoraMode) AozoraTextCanvas?.Invalidate();
-                        else TextScrollViewer?.InvalidateArrange(); // Or similar refresh
-                    }
-                }
-                await AddToRecentAsync(false);
-            }
-            else if (FileExplorerService.IsEpubEntry(entry))
-            {
-                if (!_isEpubMode || _currentEpubFilePath != entry.FilePath)
-                {
-                    await LoadEpubEntryAsync(entry, token);
-                }
-                else
-                {
-                    // Already in EPUB mode and same file: update UI
-                    if (PendingEpubChapterIndex >= 0 || _aozoraPendingTargetLine != 0)
-                    {
-                        int targetCh = (PendingEpubChapterIndex >= 0) ? PendingEpubChapterIndex : _currentEpubChapterIndex;
-                        await LoadEpubChapterAsync(targetCh, targetLine: _aozoraPendingTargetLine, targetBlockIndex: _pendingEpubStartBlockIndex, targetPage: PendingEpubPageIndex, token: token);
-                        
-                        // Reset pending values
-                        PendingEpubChapterIndex = -1;
-                        PendingEpubPageIndex = -1;
-                        _aozoraPendingTargetLine = 0;
-                        _pendingEpubStartBlockIndex = -1;
-                    }
-                    else
-                    {
-                        if (_isVerticalMode) VerticalTextCanvas?.Invalidate();
-                        else if (CurrentEpubWin2DPage?.IsImagePage == true) ShowEpubImagePage(CurrentEpubWin2DPage);
-                        else EpubTextCanvas?.Invalidate();
-                    }
-                }
-                await AddToRecentAsync(false);
-            }
-            else
-            {
-                SwitchToImageMode(); // Ensure Image Mode is active
+                        // [수정] PDF 페이지 이동 시 캐시된 이미지가 저해상도일 수 있으므로(예: 이전에 작은 창 크기에서 프리로드됨)
+                        // 현재 해상도와 줌 레벨에 맞춰 비동기로 한 번 더 고해상도 렌더링을 수행하여 항상 선명한 환경을 유지합니다.
+                        _ = RerenderPdfCurrentPageAsync();
 
-                // 이미지가 1장뿐일 때는 항상 단일 이미지 모드로 렌더링하여
-                // 2장 보기 모드에서 발생할 수 있는 NRE를 방지
-                bool canSideBySide = _isSideBySideMode &&
-                                     _currentPdfDocument == null &&
-                                     _imageEntries.Count > 1;
-
-// [추가] 압축파일 자동 2장보기 옵션
-                if (_autoDoublePageForArchive && 
-                    (_currentArchivePath != null || _current7zArchive != null) &&
-                    _currentPdfDocument == null && _imageEntries.Count > 1)
-                {
-                    // 현재 이미지를 미리 로드하여 가로세로 비율 확인 (샤픈 적용을 피하기 위해 원본 로드 사용)
-                    CanvasBitmap? firstBitmap = _imageCache.GetPreloadedImage(_currentIndex, _zoomLevel);
+                        if (oldBitmap != null && oldBitmap != nextBitmap && !IsBitmapInCache(oldBitmap))
+                        {
+                            _imageCache.SafeDisposeBitmap(oldBitmap);
+                        }
+                    }
                     
-                    if (firstBitmap == null)
+                    // 페이지 이동 정보 기록
+                    await AddToRecentAsync(false);
+                    RootGrid.Focus(FocusState.Programmatic);
+                    return;
+                }
+
+                if (FileExplorerService.IsTextEntry(entry))
+                {
+                    if (!_isTextMode || _currentTextFilePath != entry.FilePath || _currentTextArchiveEntryKey != entry.ArchiveEntryKey)
                     {
-                        firstBitmap = await LoadBitmapForPreloadAsync(entry, token);
+                        await LoadTextEntryAsync(entry);
+                    }
+                    else
+                    {
+                        // Already in text mode and same file: update UI
+                        if (_aozoraPendingTargetLine != 0)
+                        {
+                            string fileName = System.IO.Path.GetFileName(_currentTextFilePath ?? "");
+                            await ReloadTextDisplayFromCacheAsync(fileName, _aozoraPendingTargetLine);
+                        }
+                        else
+                        {
+                            if (_isVerticalMode) VerticalTextCanvas?.Invalidate();
+                            else if (_isAozoraMode) AozoraTextCanvas?.Invalidate();
+                            else TextScrollViewer?.InvalidateArrange(); // Or similar refresh
+                        }
+                    }
+                    await AddToRecentAsync(false);
+                }
+                else if (FileExplorerService.IsEpubEntry(entry))
+                {
+                    if (!_isEpubMode || _currentEpubFilePath != entry.FilePath)
+                    {
+                        await LoadEpubEntryAsync(entry, token);
+                    }
+                    else
+                    {
+                        // Already in EPUB mode and same file: update UI
+                        if (PendingEpubChapterIndex >= 0 || _aozoraPendingTargetLine != 0)
+                        {
+                            int targetCh = (PendingEpubChapterIndex >= 0) ? PendingEpubChapterIndex : _currentEpubChapterIndex;
+                            await LoadEpubChapterAsync(targetCh, targetLine: _aozoraPendingTargetLine, targetBlockIndex: _pendingEpubStartBlockIndex, targetPage: PendingEpubPageIndex, token: token);
+                            
+                            // Reset pending values
+                            PendingEpubChapterIndex = -1;
+                            PendingEpubPageIndex = -1;
+                            _aozoraPendingTargetLine = 0;
+                            _pendingEpubStartBlockIndex = -1;
+                        }
+                        else
+                        {
+                            if (_isVerticalMode) VerticalTextCanvas?.Invalidate();
+                            else if (CurrentEpubWin2DPage?.IsImagePage == true) ShowEpubImagePage(CurrentEpubWin2DPage);
+                            else EpubTextCanvas?.Invalidate();
+                        }
+                    }
+                    await AddToRecentAsync(false);
+                }
+                else
+                {
+                    SwitchToImageMode(); // Ensure Image Mode is active
+
+                    // 이미지가 1장뿐일 때는 항상 단일 이미지 모드로 렌더링하여
+                    // 2장 보기 모드에서 발생할 수 있는 NRE를 방지
+                    bool canSideBySide = _isSideBySideMode &&
+                                        _currentPdfDocument == null &&
+                                        _imageEntries.Count > 1;
+
+    // [추가] 압축파일 자동 2장보기 옵션
+                    if (_autoDoublePageForArchive && 
+                        (_currentArchivePath != null || _current7zArchive != null) &&
+                        _currentPdfDocument == null && _imageEntries.Count > 1)
+                    {
+                        // 현재 이미지를 미리 로드하여 가로세로 비율 확인 (샤픈 적용을 피하기 위해 원본 로드 사용)
+                        CanvasBitmap? firstBitmap = _imageCache.GetPreloadedImage(_currentIndex, _zoomLevel);
+                        
+                        if (firstBitmap == null)
+                        {
+                            firstBitmap = await LoadBitmapForPreloadAsync(entry, token);
+                            if (firstBitmap != null)
+                            {
+                                // 원본 이미지를 캐시에 넣어두어 나중에 다시 로드되는 것을 방지
+                                _imageCache.UpdateCache(_currentIndex, firstBitmap, false, _zoomLevel, _currentBitmap);
+                            }
+                        }
+
                         if (firstBitmap != null)
                         {
-                            // 원본 이미지를 캐시에 넣어두어 나중에 다시 로드되는 것을 방지
-                            _imageCache.UpdateCache(_currentIndex, firstBitmap, false, _zoomLevel, _currentBitmap);
-                        }
-                    }
-
-                    if (firstBitmap != null)
-                    {
-                        if (firstBitmap.Size.Width >= firstBitmap.Size.Height * 1.2)
-                        {
-                            // 가로가 세로보다 1.2배 이상 길면 1장 보기로 강제 (2장 보기 무시)
-                            canSideBySide = false;
-                        }
-                        else if (firstBitmap.Size.Height >= firstBitmap.Size.Width * 1.2)
-                        {
-                            // 세로가 가로보다 1.2배 이상 길면 (세로형) 2장 보기 자동 활성화 여부 확인
-                            // [수정] 다음 이미지도 세로인 경우에만 2장 보기로 표시
-                            canSideBySide = false; // 기본은 1장 보기로 초기화
-
-                            if (_currentIndex + 1 < _imageEntries.Count)
+                            if (firstBitmap.Size.Width >= firstBitmap.Size.Height * 1.2)
                             {
-                                var nextEntry = _imageEntries[_currentIndex + 1];
-                                CanvasBitmap? nextBitmap = _imageCache.GetPreloadedImage(_currentIndex + 1, _zoomLevel);
-                                if (nextBitmap == null)
-                                {
-                                    nextBitmap = await LoadBitmapForPreloadAsync(nextEntry, token);
-                                    if (nextBitmap != null)
-                                    {
-                                        _imageCache.UpdateCache(_currentIndex + 1, nextBitmap, false, _zoomLevel, _currentBitmap);
-                                    }
-                                }
+                                // 가로가 세로보다 1.2배 이상 길면 1장 보기로 강제 (2장 보기 무시)
+                                canSideBySide = false;
+                            }
+                            else if (firstBitmap.Size.Height >= firstBitmap.Size.Width * 1.2)
+                            {
+                                // 세로가 가로보다 1.2배 이상 길면 (세로형) 2장 보기 자동 활성화 여부 확인
+                                // [수정] 다음 이미지도 세로인 경우에만 2장 보기로 표시
+                                canSideBySide = false; // 기본은 1장 보기로 초기화
 
-                                if (nextBitmap != null && nextBitmap.Size.Height >= nextBitmap.Size.Width * 1.2)
+                                if (_currentIndex + 1 < _imageEntries.Count)
                                 {
-                                    canSideBySide = true;
+                                    var nextEntry = _imageEntries[_currentIndex + 1];
+                                    CanvasBitmap? nextBitmap = _imageCache.GetPreloadedImage(_currentIndex + 1, _zoomLevel);
+                                    if (nextBitmap == null)
+                                    {
+                                        nextBitmap = await LoadBitmapForPreloadAsync(nextEntry, token);
+                                        if (nextBitmap != null)
+                                        {
+                                            _imageCache.UpdateCache(_currentIndex + 1, nextBitmap, false, _zoomLevel, _currentBitmap);
+                                        }
+                                    }
+
+                                    if (nextBitmap != null && nextBitmap.Size.Height >= nextBitmap.Size.Width * 1.2)
+                                    {
+                                        canSideBySide = true;
+                                    }
                                 }
                             }
                         }
                     }
+
+                    _isCurrentViewSideBySide = canSideBySide;
+
+                    if (canSideBySide)
+                    {
+                        await DisplaySideBySideImagesAsync(token); // <-- token 전달
+                    }
+                    else
+                    {
+                        await DisplaySingleImageAsync(token); // <-- token 전달
+                    }
+
+                    await AddToRecentAsync(false);
                 }
 
-                _isCurrentViewSideBySide = canSideBySide;
-
-                if (canSideBySide)
-                {
-                    await DisplaySideBySideImagesAsync(token); // <-- token 전달
-                }
-                else
-                {
-                    await DisplaySingleImageAsync(token); // <-- token 전달
-                }
-
-                await AddToRecentAsync(false);
+                RootGrid.Focus(FocusState.Programmatic);
             }
-
-            RootGrid.Focus(FocusState.Programmatic);
+            catch (OperationCanceledException) { }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error in DisplayCurrentImageAsync: {ex.Message}");
+                ShowNotification($"{ex.Message}", "\uE783", "Red");
+            }
         }
 
         private void SyncSidebarSelection(ImageEntry entry)
@@ -805,47 +814,56 @@ namespace Uviewer
 
         private async void SharpenButton_Click(object sender, RoutedEventArgs e)
         {
-            _sharpenEnabled = !_sharpenEnabled;
-
-            // [추가] 샤픈 옵션을 바꿀 때 캐시를 초기화하여 충돌 방지
-            _imageCache.ClearSharpenedCache(_currentBitmap, _leftBitmap, _rightBitmap);
-
-            _animatedWebpService.Stop();
-
-            // EPUB 및 텍스트 모드 이미지 캐시 통합 초기화
-            _imageResourceService.Clear();
-
-            if (_isEpubMode)
+            try
             {
-                if (CurrentEpubWin2DPage?.IsImagePage == true)
+                _sharpenEnabled = !_sharpenEnabled;
+
+                // [추가] 샤픈 옵션을 바꿀 때 캐시를 초기화하여 충돌 방지
+                _imageCache.ClearSharpenedCache(_currentBitmap, _leftBitmap, _rightBitmap);
+
+                _animatedWebpService.Stop();
+
+                // EPUB 및 텍스트 모드 이미지 캐시 통합 초기화
+                _imageResourceService.Clear();
+
+                if (_isEpubMode)
                 {
-                    ShowEpubImagePage(CurrentEpubWin2DPage);
+                    if (CurrentEpubWin2DPage?.IsImagePage == true)
+                    {
+                        ShowEpubImagePage(CurrentEpubWin2DPage);
+                    }
+                    else
+                    {
+                        EpubTextCanvas?.Invalidate();
+                    }
                 }
-                else
+
+                if (_isVerticalMode) VerticalTextCanvas?.Invalidate();
+                if (_isAozoraMode) AozoraTextCanvas?.Invalidate();
+
+                UpdateSharpenButtonState();
+                _windowSettingsCoordinator.SaveWindowSettings();
+
+                // 이미지 다시 로드
+                await DisplayCurrentImageAsync();
+
+                // [추가] 샤프닝 토글 시 주변 이미지들도 즉시 샤프닝 작업 시작 (스크롤 시 부분적으로 보이는 이미지용)
+                if (_imageEntries != null && _imageEntries.Count > 0)
                 {
-                    EpubTextCanvas?.Invalidate();
+                    _ = _preloadManager.StartPreloadAsync(
+                        _currentIndex, _imageEntries, _currentPdfDocument != null, _zoomLevel,
+                        _currentBitmap, _leftBitmap, _rightBitmap,
+                        LoadBitmapForPreloadAsync,
+                        () => MainCanvas?.Invalidate(),
+                        prioritizeNext: true,
+                        requireSharpening: _sharpenEnabled);
                 }
             }
-
-            if (_isVerticalMode) VerticalTextCanvas?.Invalidate();
-            if (_isAozoraMode) AozoraTextCanvas?.Invalidate();
-
-            UpdateSharpenButtonState();
-            _windowSettingsCoordinator.SaveWindowSettings();
-
-            // 이미지 다시 로드
-            await DisplayCurrentImageAsync();
-
-            // [추가] 샤프닝 토글 시 주변 이미지들도 즉시 샤프닝 작업 시작 (스크롤 시 부분적으로 보이는 이미지용)
-            if (_imageEntries != null && _imageEntries.Count > 0)
+            catch (OperationCanceledException) { }
+            catch (Exception ex)
             {
-                _ = _preloadManager.StartPreloadAsync(
-                    _currentIndex, _imageEntries, _currentPdfDocument != null, _zoomLevel,
-                    _currentBitmap, _leftBitmap, _rightBitmap,
-                    LoadBitmapForPreloadAsync,
-                    () => MainCanvas?.Invalidate(),
-                    prioritizeNext: true,
-                    requireSharpening: _sharpenEnabled);
+                System.Diagnostics.Debug.WriteLine($"Error in SharpenButton_Click: {ex.Message}");
+                ShowNotification($"{ex.Message}", "\uE783", "Red");
             }
         }
 
@@ -1152,49 +1170,58 @@ namespace Uviewer
 
         private async void ImageArea_PointerWheelChanged(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
         {
-            var properties = e.GetCurrentPoint(ImageArea).Properties;
-            var wheelDelta = properties.MouseWheelDelta;
-            var isHorizontal = properties.IsHorizontalMouseWheel;
-
-            var ctrl = Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(Windows.System.VirtualKey.Control);
-            if (ctrl.HasFlag(Windows.UI.Core.CoreVirtualKeyStates.Down))
+            try
             {
-                if (_currentBitmap != null && (!_isCurrentViewSideBySide || _currentPdfDocument != null))
-                {
-                    // 마우스 휠이나 터치패드 핀치의 불연속적인 델타값을 스무스하게 보간하기 위해 애니메이션 사용
-                    double zoomMultiplier = Math.Exp(wheelDelta * 0.001); 
-                    var pt = e.GetCurrentPoint(ImageArea).Position;
-                    StartSmoothZoom(zoomMultiplier, pt);
+                var properties = e.GetCurrentPoint(ImageArea).Properties;
+                var wheelDelta = properties.MouseWheelDelta;
+                var isHorizontal = properties.IsHorizontalMouseWheel;
 
+                var ctrl = Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(Windows.System.VirtualKey.Control);
+                if (ctrl.HasFlag(Windows.UI.Core.CoreVirtualKeyStates.Down))
+                {
+                    if (_currentBitmap != null && (!_isCurrentViewSideBySide || _currentPdfDocument != null))
+                    {
+                        // 마우스 휠이나 터치패드 핀치의 불연속적인 델타값을 스무스하게 보간하기 위해 애니메이션 사용
+                        double zoomMultiplier = Math.Exp(wheelDelta * 0.001); 
+                        var pt = e.GetCurrentPoint(ImageArea).Position;
+                        StartSmoothZoom(zoomMultiplier, pt);
+
+                        e.Handled = true;
+                        return;
+                    }
+                }
+
+                // [핵심] PDF이거나 1장 보기 상태에서 확대된 이미지는 터치패드의 세밀한 델타값을 그대로 반영하여 부드럽게 스크롤되게 합니다.
+                if (_currentBitmap != null && (_currentPdfDocument != null || (_zoomLevel > 1.01 && !_isCurrentViewSideBySide)))
+                {
+                    // [핵심] 강제로 80 단위로 움직이던 코드를 제거하고, 터치패드의 부드러운 실제 값을 그대로 전달합니다.
+                    // 가로 스크롤(스와이프)도 함께 지원하도록 분기합니다.
+                    if (isHorizontal)
+                    {
+                        await HandlePdfScrollAsync(wheelDelta, 0);
+                    }
+                    else
+                    {
+                        await HandlePdfScrollAsync(0, wheelDelta);
+                    }
                     e.Handled = true;
                     return;
                 }
-            }
 
-            // [핵심] PDF이거나 1장 보기 상태에서 확대된 이미지는 터치패드의 세밀한 델타값을 그대로 반영하여 부드럽게 스크롤되게 합니다.
-            if (_currentBitmap != null && (_currentPdfDocument != null || (_zoomLevel > 1.01 && !_isCurrentViewSideBySide)))
-            {
-                // [핵심] 강제로 80 단위로 움직이던 코드를 제거하고, 터치패드의 부드러운 실제 값을 그대로 전달합니다.
-                // 가로 스크롤(스와이프)도 함께 지원하도록 분기합니다.
-                if (isHorizontal)
+                if (Math.Abs(wheelDelta) >= 40)
                 {
-                    await HandlePdfScrollAsync(wheelDelta, 0);
+                    if (wheelDelta < 0) await NavigateToNextAsync();
+                    else await NavigateToPreviousAsync();
                 }
-                else
-                {
-                    await HandlePdfScrollAsync(0, wheelDelta);
-                }
+
                 e.Handled = true;
-                return;
             }
-
-            if (Math.Abs(wheelDelta) >= 40)
+            catch (OperationCanceledException) { }
+            catch (Exception ex)
             {
-                if (wheelDelta < 0) await NavigateToNextAsync();
-                else await NavigateToPreviousAsync();
+                System.Diagnostics.Debug.WriteLine($"Error in ImageArea_PointerWheelChanged: {ex.Message}");
+                ShowNotification($"{ex.Message}", "\uE783", "Red");
             }
-
-            e.Handled = true;
         }
 
         private void ImageArea_ManipulationStarting(object sender, Microsoft.UI.Xaml.Input.ManipulationStartingRoutedEventArgs e)
@@ -1205,18 +1232,27 @@ namespace Uviewer
 
         private async void ImageArea_ManipulationDelta(object sender, Microsoft.UI.Xaml.Input.ManipulationDeltaRoutedEventArgs e)
         {
-            if (_currentBitmap == null || (_isCurrentViewSideBySide && _currentPdfDocument == null)) return;
-
-            // 1. 핀치 줌 처리
-            if (e.Delta.Scale != 1.0f)
+            try
             {
-                ZoomPdfAtPosition(e.Delta.Scale, e.Position);
+                if (_currentBitmap == null || (_isCurrentViewSideBySide && _currentPdfDocument == null)) return;
+
+                // 1. 핀치 줌 처리
+                if (e.Delta.Scale != 1.0f)
+                {
+                    ZoomPdfAtPosition(e.Delta.Scale, e.Position);
+                }
+
+                // 2. 드래그/스와이프 스크롤 처리
+                await HandlePdfScrollAsync(e.Delta.Translation.X, e.Delta.Translation.Y);
+
+                e.Handled = true;
             }
-
-            // 2. 드래그/스와이프 스크롤 처리
-            await HandlePdfScrollAsync(e.Delta.Translation.X, e.Delta.Translation.Y);
-
-            e.Handled = true;
+            catch (OperationCanceledException) { }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error in ImageArea_ManipulationDelta: {ex.Message}");
+                ShowNotification($"{ex.Message}", "\uE783", "Red");
+            }
         }
 
         private void ImageArea_ManipulationCompleted(object sender, Microsoft.UI.Xaml.Input.ManipulationCompletedRoutedEventArgs e)
@@ -1547,33 +1583,42 @@ namespace Uviewer
 
         private async void ImageArea_PointerPressed(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
         {
-            if (_imageEntries.Count <= 1)
-                return;
-
-            var pt = e.GetCurrentPoint(ImageArea);
-            if (!pt.Properties.IsLeftButtonPressed)
-                return;
-
-            if (e.Pointer.PointerDeviceType == Microsoft.UI.Input.PointerDeviceType.Touch)
+            try
             {
-                // 확대된 상태이거나 PDF 모드인 경우에는 스와이프/팬 제스처를 방해하지 않도록 터치 클릭 내비게이션을 차단합니다.
-                if (_zoomLevel > 1.01 || _currentPdfDocument != null)
+                if (_imageEntries.Count <= 1)
                     return;
-            }
 
-            double half = ImageArea.ActualWidth * 0.5;
-            if (pt.Position.X < half)
-            {
-                if (ShouldInvertControls) await NavigateToNextAsync(true);
-                else await NavigateToPreviousAsync(true);
+                var pt = e.GetCurrentPoint(ImageArea);
+                if (!pt.Properties.IsLeftButtonPressed)
+                    return;
+
+                if (e.Pointer.PointerDeviceType == Microsoft.UI.Input.PointerDeviceType.Touch)
+                {
+                    // 확대된 상태이거나 PDF 모드인 경우에는 스와이프/팬 제스처를 방해하지 않도록 터치 클릭 내비게이션을 차단합니다.
+                    if (_zoomLevel > 1.01 || _currentPdfDocument != null)
+                        return;
+                }
+
+                double half = ImageArea.ActualWidth * 0.5;
+                if (pt.Position.X < half)
+                {
+                    if (ShouldInvertControls) await NavigateToNextAsync(true);
+                    else await NavigateToPreviousAsync(true);
+                }
+                else
+                {
+                    if (ShouldInvertControls) await NavigateToPreviousAsync(true);
+                    else await NavigateToNextAsync(true);
+                }
+                e.Handled = true;
+                RootGrid.Focus(FocusState.Programmatic);
             }
-            else
+            catch (OperationCanceledException) { }
+            catch (Exception ex)
             {
-                if (ShouldInvertControls) await NavigateToPreviousAsync(true);
-                else await NavigateToNextAsync(true);
+                System.Diagnostics.Debug.WriteLine($"Error in ImageArea_PointerPressed: {ex.Message}");
+                ShowNotification($"{ex.Message}", "\uE783", "Red");
             }
-            e.Handled = true;
-            RootGrid.Focus(FocusState.Programmatic);
         }
 
         private void ClearImageResources()
@@ -1641,49 +1686,58 @@ namespace Uviewer
 
         private async void OnSharpenParamsChanged()
         {
-            // 샤프닝이 켜져있다면 즉시 캐시 지우고 화면 리렌더링
-            if (_sharpenEnabled)
+            try
             {
-                _imageCache?.ClearSharpenedCache(_currentBitmap, _leftBitmap, _rightBitmap);
-                
-                _animatedWebpService.Stop();
-
-                // EPUB 및 텍스트 모드 이미지 캐시 통합 초기화
-                _imageResourceService.Clear();
-                
-                if (_isEpubMode)
+                // 샤프닝이 켜져있다면 즉시 캐시 지우고 화면 리렌더링
+                if (_sharpenEnabled)
                 {
-                    if (CurrentEpubWin2DPage?.IsImagePage == true)
+                    _imageCache?.ClearSharpenedCache(_currentBitmap, _leftBitmap, _rightBitmap);
+                    
+                    _animatedWebpService.Stop();
+
+                    // EPUB 및 텍스트 모드 이미지 캐시 통합 초기화
+                    _imageResourceService.Clear();
+                    
+                    if (_isEpubMode)
                     {
-                        ShowEpubImagePage(CurrentEpubWin2DPage);
+                        if (CurrentEpubWin2DPage?.IsImagePage == true)
+                        {
+                            ShowEpubImagePage(CurrentEpubWin2DPage);
+                        }
+                        else
+                        {
+                            EpubTextCanvas?.Invalidate();
+                        }
                     }
-                    else
+                    
+                    if (_isVerticalMode) VerticalTextCanvas?.Invalidate();
+                    if (_isAozoraMode) AozoraTextCanvas?.Invalidate();
+
+                    // 현재 이미지 다시 그리기
+                    await DisplayCurrentImageAsync();
+                    
+                    // [추가] 샤프닝 옵션 변경 시 주변 이미지들도 즉시 새 설정으로 샤프닝 다시 시작
+                    if (_imageEntries != null && _imageEntries.Count > 0)
                     {
-                        EpubTextCanvas?.Invalidate();
+                        _ = _preloadManager.StartPreloadAsync(
+                            _currentIndex, _imageEntries, _currentPdfDocument != null, _zoomLevel,
+                            _currentBitmap, _leftBitmap, _rightBitmap,
+                            LoadBitmapForPreloadAsync,
+                            () => MainCanvas?.Invalidate(),
+                            prioritizeNext: true,
+                            requireSharpening: _sharpenEnabled);
                     }
                 }
                 
-                if (_isVerticalMode) VerticalTextCanvas?.Invalidate();
-                if (_isAozoraMode) AozoraTextCanvas?.Invalidate();
-
-                // 현재 이미지 다시 그리기
-                await DisplayCurrentImageAsync();
-                
-                // [추가] 샤프닝 옵션 변경 시 주변 이미지들도 즉시 새 설정으로 샤프닝 다시 시작
-                if (_imageEntries != null && _imageEntries.Count > 0)
-                {
-                    _ = _preloadManager.StartPreloadAsync(
-                        _currentIndex, _imageEntries, _currentPdfDocument != null, _zoomLevel,
-                        _currentBitmap, _leftBitmap, _rightBitmap,
-                        LoadBitmapForPreloadAsync,
-                        () => MainCanvas?.Invalidate(),
-                        prioritizeNext: true,
-                        requireSharpening: _sharpenEnabled);
-                }
+                // 변경사항 저장
+                _windowSettingsCoordinator.SaveWindowSettings();
             }
-            
-            // 변경사항 저장
-            _windowSettingsCoordinator.SaveWindowSettings();
+            catch (OperationCanceledException) { }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error in OnSharpenParamsChanged: {ex.Message}");
+                ShowNotification($"{ex.Message}", "\uE783", "Red");
+            }
         }
 
         private void SharpenParams_Reset_Click(object sender, RoutedEventArgs e)

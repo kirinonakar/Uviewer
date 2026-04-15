@@ -45,48 +45,57 @@ namespace Uviewer
 
         private async void Grid_Drop(object sender, DragEventArgs e)
         {
-            if (e.DataView.Contains(Windows.ApplicationModel.DataTransfer.StandardDataFormats.StorageItems))
+            try
             {
-                var items = await e.DataView.GetStorageItemsAsync();
-
-                if (items.Count > 0)
+                if (e.DataView.Contains(Windows.ApplicationModel.DataTransfer.StandardDataFormats.StorageItems))
                 {
-                    var item = items[0];
+                    var items = await e.DataView.GetStorageItemsAsync();
 
-                    if (item is StorageFile file)
+                    if (items.Count > 0)
                     {
-                        var ext = Path.GetExtension(file.Name).ToLowerInvariant();
+                        var item = items[0];
 
-                        if (FileExplorerService.SupportedArchiveExtensions.Contains(ext))
+                        if (item is StorageFile file)
                         {
-                            await LoadImagesFromArchiveAsync(file.Path);
-                        }
-                        else if (FileExplorerService.SupportedEpubExtensions.Contains(ext))
-                        {
-                            await LoadImageFromFileAsync(file);
-                        }
-                        else if (FileExplorerService.SupportedPdfExtensions.Contains(ext))
-                        {
-                            await LoadImagesFromPdfAsync(file.Path);
-                        }
-                        else if (FileExplorerService.SupportedImageExtensions.Contains(ext) || FileExplorerService.SupportedTextExtensions.Contains(ext))
-                        {
-                            await LoadImageFromFileAsync(file);
-                        }
+                            var ext = Path.GetExtension(file.Name).ToLowerInvariant();
 
-                        // Update explorer
-                        var folder = Path.GetDirectoryName(file.Path);
-                        if (folder != null)
-                        {
-                            LoadExplorerFolder(folder);
+                            if (FileExplorerService.SupportedArchiveExtensions.Contains(ext))
+                            {
+                                await LoadImagesFromArchiveAsync(file.Path);
+                            }
+                            else if (FileExplorerService.SupportedEpubExtensions.Contains(ext))
+                            {
+                                await LoadImageFromFileAsync(file);
+                            }
+                            else if (FileExplorerService.SupportedPdfExtensions.Contains(ext))
+                            {
+                                await LoadImagesFromPdfAsync(file.Path);
+                            }
+                            else if (FileExplorerService.SupportedImageExtensions.Contains(ext) || FileExplorerService.SupportedTextExtensions.Contains(ext))
+                            {
+                                await LoadImageFromFileAsync(file);
+                            }
+
+                            // Update explorer
+                            var folder = Path.GetDirectoryName(file.Path);
+                            if (folder != null)
+                            {
+                                LoadExplorerFolder(folder);
+                            }
                         }
-                    }
-                    else if (item is StorageFolder folder)
-                    {
-                        LoadExplorerFolder(folder.Path);
-                        await LoadImagesFromFolderAsync(folder);
+                        else if (item is StorageFolder folder)
+                        {
+                            LoadExplorerFolder(folder.Path);
+                            await LoadImagesFromFolderAsync(folder);
+                        }
                     }
                 }
+            }
+            catch (OperationCanceledException) { }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error in Grid_Drop: {ex.Message}");
+                ShowNotification($"{ex.Message}", "\uE783", "Red");
             }
         }
 
@@ -96,79 +105,105 @@ namespace Uviewer
 
         private async void OpenFileButton_Click(object sender, RoutedEventArgs e)
         {
-            await OpenFileAsync();
+            try { await OpenFileAsync(); }
+            catch (OperationCanceledException) { }
+            catch (Exception ex) { ShowNotification(ex.Message, "\uE783", "Red"); }
         }
 
         private async void OpenFolderButton_Click(object sender, RoutedEventArgs e)
         {
-            await OpenFolderAsync();
+            try { await OpenFolderAsync(); }
+            catch (OperationCanceledException) { }
+            catch (Exception ex) { ShowNotification(ex.Message, "\uE783", "Red"); }
         }
 
         private async void PrevFileButton_Click(object sender, RoutedEventArgs e)
         {
-            await NavigateToFileAsync(false);
+            try { await NavigateToFileAsync(false); }
+            catch (OperationCanceledException) { }
+            catch (Exception ex) { ShowNotification(ex.Message, "\uE783", "Red"); }
         }
 
         private async void NextFileButton_Click(object sender, RoutedEventArgs e)
         {
-            await NavigateToFileAsync(true);
+            try { await NavigateToFileAsync(true); }
+            catch (OperationCanceledException) { }
+            catch (Exception ex) { ShowNotification(ex.Message, "\uE783", "Red"); }
         }
 
         private async void PrevPageButton_Click(object sender, RoutedEventArgs e)
         {
-            if (_isVerticalMode)
+            try
             {
-                // In vertical mode, the left button (Prev) should go to the Next page for EPUB
-                if (_isEpubMode) NavigateVerticalPage(1);
-                else NavigateVerticalPage(-1); // Default behavior for other modes
-            }
-            else if (_isEpubMode)
-            {
-                await NavigateEpubAsync(-1);
-            }
-            else if (_isTextMode)
-            {
-                if (_isAozoraMode)
+                if (_isVerticalMode)
                 {
-                    NavigateAozoraPage(-1);
+                    // In vertical mode, the left button (Prev) should go to the Next page for EPUB
+                    if (_isEpubMode) NavigateVerticalPage(1);
+                    else NavigateVerticalPage(-1); // Default behavior for other modes
+                }
+                else if (_isEpubMode)
+                {
+                    await NavigateEpubAsync(-1);
+                }
+                else if (_isTextMode)
+                {
+                    if (_isAozoraMode)
+                    {
+                        NavigateAozoraPage(-1);
+                    }
+                    else
+                    {
+                        NavigateTextPage(-1);
+                    }
                 }
                 else
                 {
-                    NavigateTextPage(-1);
+                    await NavigateToPreviousAsync();
                 }
             }
-            else
+            catch (OperationCanceledException) { }
+            catch (Exception ex)
             {
-                await NavigateToPreviousAsync();
+                System.Diagnostics.Debug.WriteLine($"Error in PrevPageButton_Click: {ex.Message}");
+                ShowNotification($"{ex.Message}", "\uE783", "Red");
             }
         }
 
         private async void NextPageButton_Click(object sender, RoutedEventArgs e)
         {
-            if (_isVerticalMode)
+            try
             {
-                // In vertical mode, the right button (Next) should go to the Previous page for EPUB
-                if (_isEpubMode) NavigateVerticalPage(-1);
-                else NavigateVerticalPage(1); // Default behavior for other modes
-            }
-            else if (_isEpubMode)
-            {
-                await NavigateEpubAsync(1);
-            }
-            else if (_isTextMode)
-            {
-                if (_isAozoraMode)
+                if (_isVerticalMode)
                 {
-                    NavigateAozoraPage(1);
+                    // In vertical mode, the right button (Next) should go to the Previous page for EPUB
+                    if (_isEpubMode) NavigateVerticalPage(-1);
+                    else NavigateVerticalPage(1); // Default behavior for other modes
+                }
+                else if (_isEpubMode)
+                {
+                    await NavigateEpubAsync(1);
+                }
+                else if (_isTextMode)
+                {
+                    if (_isAozoraMode)
+                    {
+                        NavigateAozoraPage(1);
+                    }
+                    else
+                    {
+                        NavigateTextPage(1);
+                    }
                 }
                 else
                 {
-                    NavigateTextPage(1);
+                    await NavigateToNextAsync();
                 }
             }
-            else
+            catch (OperationCanceledException) { }
+            catch (Exception ex)
             {
-                await NavigateToNextAsync();
+                System.Diagnostics.Debug.WriteLine($"Error in NextPageButton_Click: {ex.Message}");
+                ShowNotification($"{ex.Message}", "\uE783", "Red");
             }
         }
 
@@ -949,23 +984,41 @@ namespace Uviewer
 
         private async void FileListView_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
-            if (FileListView.SelectedItem is FileItem item)
+            try
             {
-                if (IsCurrentFile(item.FullPath)) return;
-                
-                await HandleFileSelectionAsync(item);
-                // Do not clear selection so user can see what's selected
+                if (FileListView.SelectedItem is FileItem item)
+                {
+                    if (IsCurrentFile(item.FullPath)) return;
+                    
+                    await HandleFileSelectionAsync(item);
+                    // Do not clear selection so user can see what's selected
+                }
+            }
+            catch (OperationCanceledException) { }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error in FileListView_SelectionChanged: {ex.Message}");
+                ShowNotification($"{ex.Message}", "\uE783", "Red");
             }
         }
 
         private async void FileGridView_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
-            if (FileGridView.SelectedItem is FileItem item)
+            try
             {
-                if (IsCurrentFile(item.FullPath)) return;
+                if (FileGridView.SelectedItem is FileItem item)
+                {
+                    if (IsCurrentFile(item.FullPath)) return;
 
-                await HandleFileSelectionAsync(item);
-                // Do not clear selection so user can see what's selected
+                    await HandleFileSelectionAsync(item);
+                    // Do not clear selection so user can see what's selected
+                }
+            }
+            catch (OperationCanceledException) { }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error in FileGridView_SelectionChanged: {ex.Message}");
+                ShowNotification($"{ex.Message}", "\uE783", "Red");
             }
         }
 
@@ -1005,99 +1058,117 @@ namespace Uviewer
 
         private async void FileGridView_PreviewKeyDown(object sender, Microsoft.UI.Xaml.Input.KeyRoutedEventArgs e)
         {
-            // If we are viewing an image (archive or file) and the sidebar is focused
-            if (_imageEntries.Count > 0)
+            try
             {
-                // When viewing an archive (or images in a folder), 
-                // Left/Right should navigate IMAGES (override GridView default)
-                // Up/Down should navigate FILES (override GridView default)
-                
-                switch (e.Key)
+                // If we are viewing an image (archive or file) and the sidebar is focused
+                if (_imageEntries.Count > 0)
                 {
-                    case Windows.System.VirtualKey.Enter:
-                        if (FileGridView.SelectedItem is FileItem item)
-                        {
-                            if (item.IsDirectory)
+                    // When viewing an archive (or images in a folder), 
+                    // Left/Right should navigate IMAGES (override GridView default)
+                    // Up/Down should navigate FILES (override GridView default)
+                    
+                    switch (e.Key)
+                    {
+                        case Windows.System.VirtualKey.Enter:
+                            if (FileGridView.SelectedItem is FileItem item)
                             {
-                                LoadExplorerFolder(item.FullPath);
+                                if (item.IsDirectory)
+                                {
+                                    LoadExplorerFolder(item.FullPath);
+                                }
                             }
-                        }
-                        e.Handled = true;
-                        break;
-                    case Windows.System.VirtualKey.Left:
-                        await NavigateToPreviousAsync();
-                        e.Handled = true;
-                        break;
-                    case Windows.System.VirtualKey.Right:
-                        await NavigateToNextAsync();
-                        e.Handled = true;
-                        break;
-                    case Windows.System.VirtualKey.Up:
-                        MoveExplorerSelection(-1);
-                        e.Handled = true;
-                        break;
-                    case Windows.System.VirtualKey.Down:
-                        MoveExplorerSelection(1);
-                        e.Handled = true;
-                        break;
-                    case Windows.System.VirtualKey.Space:
-                        // Toggle Side by Side
-                        SideBySideButton_Click(sender, new RoutedEventArgs());
-                        e.Handled = true;
-                        break;
-                    case Windows.System.VirtualKey.Home:
-                        _currentIndex = 0;
-                        await DisplayCurrentImageAsync();
-                        e.Handled = true;
-                        break;
-                    case Windows.System.VirtualKey.End:
-                        _currentIndex = _imageEntries.Count - 1;
-                        await DisplayCurrentImageAsync();
-                        e.Handled = true;
-                        break;
+                            e.Handled = true;
+                            break;
+                        case Windows.System.VirtualKey.Left:
+                            await NavigateToPreviousAsync();
+                            e.Handled = true;
+                            break;
+                        case Windows.System.VirtualKey.Right:
+                            await NavigateToNextAsync();
+                            e.Handled = true;
+                            break;
+                        case Windows.System.VirtualKey.Up:
+                            MoveExplorerSelection(-1);
+                            e.Handled = true;
+                            break;
+                        case Windows.System.VirtualKey.Down:
+                            MoveExplorerSelection(1);
+                            e.Handled = true;
+                            break;
+                        case Windows.System.VirtualKey.Space:
+                            // Toggle Side by Side
+                            SideBySideButton_Click(sender, new RoutedEventArgs());
+                            e.Handled = true;
+                            break;
+                        case Windows.System.VirtualKey.Home:
+                            _currentIndex = 0;
+                            await DisplayCurrentImageAsync();
+                            e.Handled = true;
+                            break;
+                        case Windows.System.VirtualKey.End:
+                            _currentIndex = _imageEntries.Count - 1;
+                            await DisplayCurrentImageAsync();
+                            e.Handled = true;
+                            break;
+                    }
+                }
+                else
+                {
+                     // Handle Enter key for directories even if no image is loaded
+                     if (e.Key == Windows.System.VirtualKey.Enter)
+                     {
+                         if (FileGridView.SelectedItem is FileItem item && item.IsDirectory)
+                         {
+                             LoadExplorerFolder(item.FullPath);
+                             e.Handled = true;
+                         }
+                     }
                 }
             }
-            else
+            catch (OperationCanceledException) { }
+            catch (Exception ex)
             {
-                 // Handle Enter key for directories even if no image is loaded
-                 if (e.Key == Windows.System.VirtualKey.Enter)
-                 {
-                     if (FileGridView.SelectedItem is FileItem item && item.IsDirectory)
-                     {
-                         LoadExplorerFolder(item.FullPath);
-                         e.Handled = true;
-                     }
-                 }
+                System.Diagnostics.Debug.WriteLine($"Error in FileGridView_PreviewKeyDown: {ex.Message}");
+                ShowNotification($"{ex.Message}", "\uE783", "Red");
             }
         }
 
         private async void FileListView_PreviewKeyDown(object sender, Microsoft.UI.Xaml.Input.KeyRoutedEventArgs e)
         {
-            if (_imageEntries.Count > 0)
+            try
             {
-                if (e.Key == Windows.System.VirtualKey.Home)
+                if (_imageEntries.Count > 0)
                 {
-                    _currentIndex = 0;
-                    await DisplayCurrentImageAsync();
-                    e.Handled = true;
-                    return;
+                    if (e.Key == Windows.System.VirtualKey.Home)
+                    {
+                        _currentIndex = 0;
+                        await DisplayCurrentImageAsync();
+                        e.Handled = true;
+                        return;
+                    }
+                    else if (e.Key == Windows.System.VirtualKey.End)
+                    {
+                        _currentIndex = _imageEntries.Count - 1;
+                        await DisplayCurrentImageAsync();
+                        e.Handled = true;
+                        return;
+                    }
                 }
-                else if (e.Key == Windows.System.VirtualKey.End)
+
+                if (e.Key == Windows.System.VirtualKey.Enter)
                 {
-                    _currentIndex = _imageEntries.Count - 1;
-                    await DisplayCurrentImageAsync();
-                    e.Handled = true;
-                    return;
+                    if (FileListView.SelectedItem is FileItem item && item.IsDirectory)
+                    {
+                        LoadExplorerFolder(item.FullPath);
+                        e.Handled = true;
+                    }
                 }
             }
-
-            if (e.Key == Windows.System.VirtualKey.Enter)
+            catch (OperationCanceledException) { }
+            catch (Exception ex)
             {
-                if (FileListView.SelectedItem is FileItem item && item.IsDirectory)
-                {
-                    LoadExplorerFolder(item.FullPath);
-                    e.Handled = true;
-                }
+                System.Diagnostics.Debug.WriteLine($"Error in FileListView_PreviewKeyDown: {ex.Message}");
+                ShowNotification($"{ex.Message}", "\uE783", "Red");
             }
         }
 
@@ -1181,9 +1252,18 @@ namespace Uviewer
             }
         }
 
-        private void BrowseFolderButton_Click(object sender, RoutedEventArgs e)
+        private async void BrowseFolderButton_Click(object sender, RoutedEventArgs e)
         {
-            _ = BrowseAndLoadFolderAsync();
+            try
+            {
+                await BrowseAndLoadFolderAsync();
+            }
+            catch (OperationCanceledException) { }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error in BrowseFolderButton_Click: {ex.Message}");
+                ShowNotification($"{ex.Message}", "\uE783", "Red");
+            }
         }
 
         private void SortByName_Click(object sender, RoutedEventArgs e)
@@ -1243,9 +1323,18 @@ namespace Uviewer
             }
         }
 
-        private void ParentFolderButton_Click(object sender, RoutedEventArgs e)
+        private async void ParentFolderButton_Click(object sender, RoutedEventArgs e)
         {
-            _ = NavigateToParentFolderAsync();
+            try
+            {
+                await NavigateToParentFolderAsync();
+            }
+            catch (OperationCanceledException) { }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error in ParentFolderButton_Click: {ex.Message}");
+                ShowNotification($"{ex.Message}", "\uE783", "Red");
+            }
         }
 
         private void FavoritesButton_Click(object sender, RoutedEventArgs e)
@@ -1255,9 +1344,18 @@ namespace Uviewer
             flyout?.ShowAt(FavoritesButton);
         }
 
-        private void AddToFavoritesMenuItem_Click(object sender, RoutedEventArgs e)
+        private async void AddToFavoritesMenuItem_Click(object sender, RoutedEventArgs e)
         {
-            _ = AddToFavoritesAsync();
+            try
+            {
+                await AddToFavoritesAsync();
+            }
+            catch (OperationCanceledException) { }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error in AddToFavoritesMenuItem_Click: {ex.Message}");
+                ShowNotification($"{ex.Message}", "\uE783", "Red");
+            }
         }
 
         private void RecentButton_Click(object sender, RoutedEventArgs e)
@@ -1277,18 +1375,27 @@ namespace Uviewer
             // Flyout is opened automatically by Button
         }
 
-        private void FileItem_ItemClick(object sender, ItemClickEventArgs e)
+        private async void FileItem_ItemClick(object sender, ItemClickEventArgs e)
         {
-            if (e.ClickedItem is FileItem item && item.IsDirectory)
+            try
             {
-                if (item.IsWebDav && !string.IsNullOrEmpty(item.WebDavPath))
+                if (e.ClickedItem is FileItem item && item.IsDirectory)
                 {
-                    _ = LoadWebDavFolderAsync(item.WebDavPath);
+                    if (item.IsWebDav && !string.IsNullOrEmpty(item.WebDavPath))
+                    {
+                        await LoadWebDavFolderAsync(item.WebDavPath);
+                    }
+                    else
+                    {
+                        LoadExplorerFolder(item.FullPath);
+                    }
                 }
-                else
-                {
-                    LoadExplorerFolder(item.FullPath);
-                }
+            }
+            catch (OperationCanceledException) { }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error in FileItem_ItemClick: {ex.Message}");
+                ShowNotification($"{ex.Message}", "\uE783", "Red");
             }
         }
 

@@ -58,36 +58,45 @@ namespace Uviewer
 
         private async void EncodingItem_Click(object sender, RoutedEventArgs e)
         {
-            if (sender is ToggleMenuFlyoutItem item && item.Tag is string tag)
+            try
             {
-                _settingsManager.EncodingName = tag;
-
-                // Update UI Check States
-                if (EncAutoItem != null) EncAutoItem.IsChecked = (tag == "Auto Detect");
-                if (EncUtf8Item != null) EncUtf8Item.IsChecked = (tag == "UTF-8");
-                if (EncEucKrItem != null) EncEucKrItem.IsChecked = (tag == "EUC-KR");
-                if (EncSjisItem != null) EncSjisItem.IsChecked = (tag == "Shift-JIS");
-                if (EncJohabItem != null) EncJohabItem.IsChecked = (tag == "Johab");
-
-                // Reload current text
-                if (!string.IsNullOrEmpty(_currentTextFilePath))
+                if (sender is ToggleMenuFlyoutItem item && item.Tag is string tag)
                 {
-                    try
+                    _settingsManager.EncodingName = tag;
+
+                    // Update UI Check States
+                    if (EncAutoItem != null) EncAutoItem.IsChecked = (tag == "Auto Detect");
+                    if (EncUtf8Item != null) EncUtf8Item.IsChecked = (tag == "UTF-8");
+                    if (EncEucKrItem != null) EncEucKrItem.IsChecked = (tag == "EUC-KR");
+                    if (EncSjisItem != null) EncSjisItem.IsChecked = (tag == "Shift-JIS");
+                    if (EncJohabItem != null) EncJohabItem.IsChecked = (tag == "Johab");
+
+                    // Reload current text
+                    if (!string.IsNullOrEmpty(_currentTextFilePath))
                     {
-                        var file = await StorageFile.GetFileFromPathAsync(_currentTextFilePath);
-                        await LoadTextFileAsync(file);
+                        try
+                        {
+                            var file = await StorageFile.GetFileFromPathAsync(_currentTextFilePath);
+                            await LoadTextFileAsync(file);
+                        }
+                        catch { }
                     }
-                    catch { }
-                }
-                else if (_currentTextArchiveEntryKey != null && (_currentArchive != null || _current7zArchive != null))
-                {
-                    try
+                    else if (_currentTextArchiveEntryKey != null && (_currentArchive != null || _current7zArchive != null))
                     {
-                        var entry = new ImageEntry { ArchiveEntryKey = _currentTextArchiveEntryKey, DisplayName = FileNameText.Text };
-                        await LoadTextFromArchiveEntryAsync(entry);
+                        try
+                        {
+                            var entry = new ImageEntry { ArchiveEntryKey = _currentTextArchiveEntryKey, DisplayName = FileNameText.Text };
+                            await LoadTextFromArchiveEntryAsync(entry);
+                        }
+                        catch { }
                     }
-                    catch { }
                 }
+            }
+            catch (OperationCanceledException) { }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error in EncodingItem_Click: {ex.Message}");
+                ShowNotification($"{ex.Message}", "\uE783", "Red");
             }
         }
 
@@ -878,30 +887,39 @@ namespace Uviewer
 
         private async void LanguageItem_Click(object sender, RoutedEventArgs e)
         {
-            if (sender is ToggleMenuFlyoutItem item && item.Tag is string lang)
+            try
             {
-                ApplyLanguage(lang);
-                SaveTextSettings();
-
-                // Give a moment for the system to process the language change
-                await Task.Delay(100);
-
-                // Reload strings
-                Strings.Reload();
-
-                // Refresh UI
-                ApplyLocalization();
-                UpdateLanguageMenuCheckmark();
-
-                // Refresh status bar immediately
-                if (_isTextMode || _isEpubMode || _isAozoraMode || _isVerticalMode)
+                if (sender is ToggleMenuFlyoutItem item && item.Tag is string lang)
                 {
-                    UpdateTextStatusBar();
+                    ApplyLanguage(lang);
+                    SaveTextSettings();
+
+                    // Give a moment for the system to process the language change
+                    await Task.Delay(100);
+
+                    // Reload strings
+                    Strings.Reload();
+
+                    // Refresh UI
+                    ApplyLocalization();
+                    UpdateLanguageMenuCheckmark();
+
+                    // Refresh status bar immediately
+                    if (_isTextMode || _isEpubMode || _isAozoraMode || _isVerticalMode)
+                    {
+                        UpdateTextStatusBar();
+                    }
+                    else if (_imageEntries != null && _currentIndex >= 0 && _currentIndex < _imageEntries.Count && _currentBitmap != null)
+                    {
+                        UpdateStatusBar(_imageEntries[_currentIndex], _currentBitmap);
+                    }
                 }
-                else if (_imageEntries != null && _currentIndex >= 0 && _currentIndex < _imageEntries.Count && _currentBitmap != null)
-                {
-                    UpdateStatusBar(_imageEntries[_currentIndex], _currentBitmap);
-                }
+            }
+            catch (OperationCanceledException) { }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error in LanguageItem_Click: {ex.Message}");
+                ShowNotification($"{ex.Message}", "\uE783", "Red");
             }
         }
 
@@ -996,9 +1014,18 @@ namespace Uviewer
 
         private async void SetTextFont(string fontFamily)
         {
-            _settingsManager.FontFamily = fontFamily;
-            SaveTextSettings();
-            await RefreshTextDisplay();
+            try
+            {
+                _settingsManager.FontFamily = fontFamily;
+                SaveTextSettings();
+                await RefreshTextDisplay();
+            }
+            catch (OperationCanceledException) { }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error in SetTextFont: {ex.Message}");
+                ShowNotification($"{ex.Message}", "\uE783", "Red");
+            }
         }
 
         private void UiFontMenu_Click(object sender, RoutedEventArgs e)
@@ -1088,13 +1115,22 @@ namespace Uviewer
 
         private async void ToggleFont()
         {
-            if (_settingsManager.FontFamily == _settingsManager.DefaultFont1)
-                _settingsManager.FontFamily = _settingsManager.DefaultFont2;
-            else
-                _settingsManager.FontFamily = _settingsManager.DefaultFont1;
+            try
+            {
+                if (_settingsManager.FontFamily == _settingsManager.DefaultFont1)
+                    _settingsManager.FontFamily = _settingsManager.DefaultFont2;
+                else
+                    _settingsManager.FontFamily = _settingsManager.DefaultFont1;
 
-            SaveTextSettings();
-            await RefreshTextDisplay();
+                SaveTextSettings();
+                await RefreshTextDisplay();
+            }
+            catch (OperationCanceledException) { }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error in ToggleFont: {ex.Message}");
+                ShowNotification($"{ex.Message}", "\uE783", "Red");
+            }
         }
 
         private void UpdateFontSettingsMenu()
@@ -1116,10 +1152,18 @@ namespace Uviewer
 
         private async void ResetDefaultFontsMenuItem_Click(object sender, RoutedEventArgs e)
         {
-            _settingsManager.DefaultFont1 = "Yu Gothic";
-            _settingsManager.DefaultFont2 = "Yu Mincho";
-            UpdateFontSettingsMenu();
-            SaveTextSettings();
+            try
+            {
+                _settingsManager.DefaultFont1 = "Yu Gothic";
+                _settingsManager.DefaultFont2 = "Yu Mincho";
+                UpdateFontSettingsMenu();
+                SaveTextSettings();
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error in ResetDefaultFontsMenuItem_Click: {ex.Message}");
+                ShowNotification($"{ex.Message}", "\uE783", "Red");
+            }
         }
 
         private async Task ShowFontPickerDialogForDefault(int slot)
@@ -1144,11 +1188,20 @@ namespace Uviewer
 
         private async void IncreaseTextSize()
         {
-            _settingsManager.FontSize += 2;
-            if (_settingsManager.FontSize > 72) _settingsManager.FontSize = 72;
-            TextSizeLevelText.Text = _settingsManager.FontSize.ToString();
-            SaveTextSettings();
-            await RefreshTextDisplay();
+            try
+            {
+                _settingsManager.FontSize += 2;
+                if (_settingsManager.FontSize > 72) _settingsManager.FontSize = 72;
+                TextSizeLevelText.Text = _settingsManager.FontSize.ToString();
+                SaveTextSettings();
+                await RefreshTextDisplay();
+            }
+            catch (OperationCanceledException) { }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error in IncreaseTextSize: {ex.Message}");
+                ShowNotification($"{ex.Message}", "\uE783", "Red");
+            }
         }
 
         private void TextSizeDownButton_Click(object sender, RoutedEventArgs e)
@@ -1158,11 +1211,20 @@ namespace Uviewer
 
         private async void DecreaseTextSize()
         {
-            _settingsManager.FontSize -= 2;
-            if (_settingsManager.FontSize < 8) _settingsManager.FontSize = 8;
-            TextSizeLevelText.Text = _settingsManager.FontSize.ToString();
-            SaveTextSettings();
-            await RefreshTextDisplay();
+            try
+            {
+                _settingsManager.FontSize -= 2;
+                if (_settingsManager.FontSize < 8) _settingsManager.FontSize = 8;
+                TextSizeLevelText.Text = _settingsManager.FontSize.ToString();
+                SaveTextSettings();
+                await RefreshTextDisplay();
+            }
+            catch (OperationCanceledException) { }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error in DecreaseTextSize: {ex.Message}");
+                ShowNotification($"{ex.Message}", "\uE783", "Red");
+            }
         }
 
         private void ThemeToggleButton_Click(object sender, RoutedEventArgs e)
@@ -1172,11 +1234,20 @@ namespace Uviewer
 
         private async void ToggleTheme()
         {
-            // [수정] 유저가 설정한 색(Custom: 3)이 있는 경우, 0(White) -> 1(Beige) -> 2(Dark) -> 3(Custom) 순으로 순환하도록 변경합니다.
-            int maxThemes = _settingsManager.CustomBackgroundColor.HasValue ? 4 : 3;
-            _settingsManager.ThemeIndex = (_settingsManager.ThemeIndex + 1) % maxThemes;
-            SaveTextSettings();
-            await RefreshTextDisplay();
+            try
+            {
+                // [수정] 유저가 설정한 색(Custom: 3)이 있는 경우, 0(White) -> 1(Beige) -> 2(Dark) -> 3(Custom) 순으로 순환하도록 변경합니다.
+                int maxThemes = _settingsManager.CustomBackgroundColor.HasValue ? 4 : 3;
+                _settingsManager.ThemeIndex = (_settingsManager.ThemeIndex + 1) % maxThemes;
+                SaveTextSettings();
+                await RefreshTextDisplay();
+            }
+            catch (OperationCanceledException) { }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error in ToggleTheme: {ex.Message}");
+                ShowNotification($"{ex.Message}", "\uE783", "Red");
+            }
         }
 
         private void GoToPageButton_Click(object sender, RoutedEventArgs e)
@@ -1663,38 +1734,38 @@ namespace Uviewer
 
         private async void StartPageCalculationAsync()
         {
-            if (_isAozoraMode) return;
-            if (TextScrollViewer == null) return;
-
-            _pageCalcCts?.Cancel();
-            _pageCalcCts = new CancellationTokenSource();
-            var token = _pageCalcCts.Token;
-
-            _isPageCalculationCompleted = false;
-            _textTotalPages = 0;
-            _textLinePages = null;
-            UpdateTextStatusBar(); 
-
-            // 초기 뷰포트 확보 및 레이아웃 대기
-            double viewportWidth = TextScrollViewer.ViewportWidth > 0 ? TextScrollViewer.ViewportWidth : TextScrollViewer.ActualWidth;
-            double viewportHeight = TextScrollViewer.ViewportHeight > 0 ? TextScrollViewer.ViewportHeight : TextScrollViewer.ActualHeight;
-
-            if (viewportWidth <= 0 || viewportHeight <= 0)
-            {
-                try { await Task.Delay(100, token); } catch { return; }
-                viewportWidth = TextScrollViewer.ViewportWidth > 0 ? TextScrollViewer.ViewportWidth : TextScrollViewer.ActualWidth;
-                viewportHeight = TextScrollViewer.ViewportHeight > 0 ? TextScrollViewer.ViewportHeight : TextScrollViewer.ActualHeight;
-                if (viewportWidth <= 0 || viewportHeight <= 0) return;
-            }
-
-            var linesToCalc = _textLines;
-            if (linesToCalc.Count == 0) return;
-
-            float fontSize = (float)_settingsManager.FontSize;
-            string fontFamily = _settingsManager.FontFamily ?? "Segoe UI";
-
             try
             {
+                if (_isAozoraMode) return;
+                if (TextScrollViewer == null) return;
+
+                _pageCalcCts?.Cancel();
+                _pageCalcCts = new CancellationTokenSource();
+                var token = _pageCalcCts.Token;
+
+                _isPageCalculationCompleted = false;
+                _textTotalPages = 0;
+                _textLinePages = null;
+                UpdateTextStatusBar(); 
+
+                // 초기 뷰포트 확보 및 레이아웃 대기
+                double viewportWidth = TextScrollViewer.ViewportWidth > 0 ? TextScrollViewer.ViewportWidth : TextScrollViewer.ActualWidth;
+                double viewportHeight = TextScrollViewer.ViewportHeight > 0 ? TextScrollViewer.ViewportHeight : TextScrollViewer.ActualHeight;
+
+                if (viewportWidth <= 0 || viewportHeight <= 0)
+                {
+                    try { await Task.Delay(100, token); } catch { return; }
+                    viewportWidth = TextScrollViewer.ViewportWidth > 0 ? TextScrollViewer.ViewportWidth : TextScrollViewer.ActualWidth;
+                    viewportHeight = TextScrollViewer.ViewportHeight > 0 ? TextScrollViewer.ViewportHeight : TextScrollViewer.ActualHeight;
+                    if (viewportWidth <= 0 || viewportHeight <= 0) return;
+                }
+
+                var linesToCalc = _textLines;
+                if (linesToCalc.Count == 0) return;
+
+                float fontSize = (float)_settingsManager.FontSize;
+                string fontFamily = _settingsManager.FontFamily ?? "Segoe UI";
+
                 // [성능 개선] 백그라운드 스레드에서 정밀 계산 수행 (UI 스레드 차단 방지)
                 var result = await TextPaginationCalculator.CalculatePagesAsync(
                     linesToCalc,
@@ -1789,46 +1860,55 @@ namespace Uviewer
 
         private async void ScrollToLine(int line)
         {
-            if (TextItemsRepeater == null || TextScrollViewer == null) return;
-            if (line < 1) line = 1;
-            int index = line - 1;
-            if (_textLines == null || _textLines.Count == 0) return;
-            if (index >= _textLines.Count) index = _textLines.Count - 1;
-            if (index < 0) return;
-
-            double lineH = _settingsManager.FontSize * 1.8;
-            double targetOffset = index * lineH;
-
-            // 1. ItemsRepeater가 데이터 바인딩 후 UI 레이아웃을 계산할 수 있도록 대기
-            await Task.Delay(50);
-            TextScrollViewer.UpdateLayout();
-
-            // 2. 대략적인 위치로 단번에 점프하여 ItemsRepeater가 해당 영역의 Layout을 계산하도록 유도
-            TextScrollViewer.ChangeView(null, targetOffset, null, true);
-            await Task.Delay(50);
-            TextScrollViewer.UpdateLayout();
-
-            // 3. 정밀 위치 보정 (실제 렌더링된 UI Element를 찾아 화면 최상단에 정확히 일치시킴)
             try
             {
-                var element = TextItemsRepeater.GetOrCreateElement(index);
-                if (element != null)
-                {
-                    element.UpdateLayout();
-                    element.StartBringIntoView(new BringIntoViewOptions
-                    {
-                        VerticalAlignmentRatio = 0,
-                        AnimationDesired = false
-                    });
-                }
-            }
-            catch
-            {
-                // 너무 먼 거리라 UI Element가 미처 생성되지 않았을 경우 픽셀 위치로 Fallback
-                TextScrollViewer.ChangeView(null, targetOffset, null, true);
-            }
+                if (TextItemsRepeater == null || TextScrollViewer == null) return;
+                if (line < 1) line = 1;
+                int index = line - 1;
+                if (_textLines == null || _textLines.Count == 0) return;
+                if (index >= _textLines.Count) index = _textLines.Count - 1;
+                if (index < 0) return;
 
-            UpdateTextStatusBar();
+                double lineH = _settingsManager.FontSize * 1.8;
+                double targetOffset = index * lineH;
+
+                // 1. ItemsRepeater가 데이터 바인딩 후 UI 레이아웃을 계산할 수 있도록 대기
+                await Task.Delay(50);
+                TextScrollViewer.UpdateLayout();
+
+                // 2. 대략적인 위치로 단번에 점프하여 ItemsRepeater가 해당 영역의 Layout을 계산하도록 유도
+                TextScrollViewer.ChangeView(null, targetOffset, null, true);
+                await Task.Delay(50);
+                TextScrollViewer.UpdateLayout();
+
+                // 3. 정밀 위치 보정 (실제 렌더링된 UI Element를 찾아 화면 최상단에 정확히 일치시킴)
+                try
+                {
+                    var element = TextItemsRepeater.GetOrCreateElement(index);
+                    if (element != null)
+                    {
+                        element.UpdateLayout();
+                        element.StartBringIntoView(new BringIntoViewOptions
+                        {
+                            VerticalAlignmentRatio = 0,
+                            AnimationDesired = false
+                        });
+                    }
+                }
+                catch
+                {
+                    // 너무 먼 거리라 UI Element가 미처 생성되지 않았을 경우 픽셀 위치로 Fallback
+                    TextScrollViewer.ChangeView(null, targetOffset, null, true);
+                }
+
+                UpdateTextStatusBar();
+            }
+            catch (OperationCanceledException) { }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error in ScrollToLine: {ex.Message}");
+                ShowNotification($"{ex.Message}", "\uE783", "Red");
+            }
         }
     }
 }
