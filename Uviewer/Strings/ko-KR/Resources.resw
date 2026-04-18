@@ -311,7 +311,7 @@
     <value>서버 이름</value>
   </data>
   <data name="WebDavAddress" xml:space="preserve">
-    <value>주소</value>
+    <value>주소 (https만 지원)</value>
   </data>
   <data name="WebDavPort" xml:space="preserve">
     <value>포트</value>

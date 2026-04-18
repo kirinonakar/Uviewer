@@ -311,7 +311,7 @@
     <value>サーバー名</value>
   </data>
   <data name="WebDavAddress" xml:space="preserve">
-    <value>アドレス</value>
+    <value>アドレス (httpsのみサポート)</value>
   </data>
   <data name="WebDavPort" xml:space="preserve">
     <value>ポート</value>

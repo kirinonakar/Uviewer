@@ -311,7 +311,7 @@
     <value>Server Name</value>
   </data>
   <data name="WebDavAddress" xml:space="preserve">
-    <value>Address</value>
+    <value>Address (HTTPS only)</value>
   </data>
   <data name="WebDavPort" xml:space="preserve">
     <value>Port</value>
