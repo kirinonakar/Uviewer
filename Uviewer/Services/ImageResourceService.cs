@@ -208,17 +208,21 @@ namespace Uviewer.Services
                     return null;
                 }
 
-                var ras = new InMemoryRandomAccessStream();
-                using (var writer = new Windows.Storage.Streams.DataWriter(ras))
+                // [안정성 수정] using으로 감싸서 스트림 리소스 누수 방지
+                CanvasBitmap originalBitmap;
+                using (var ras = new InMemoryRandomAccessStream())
                 {
-                    writer.WriteBytes(bytes);
-                    await writer.StoreAsync();
-                    await writer.FlushAsync();
-                    writer.DetachStream();
-                }
-                ras.Seek(0);
+                    using (var writer = new Windows.Storage.Streams.DataWriter(ras))
+                    {
+                        writer.WriteBytes(bytes);
+                        await writer.StoreAsync();
+                        await writer.FlushAsync();
+                        writer.DetachStream();
+                    }
+                    ras.Seek(0);
 
-                var originalBitmap = await CanvasBitmap.LoadAsync(device, ras);
+                    originalBitmap = await CanvasBitmap.LoadAsync(device, ras);
+                }
                 CanvasBitmap finalBitmap = originalBitmap;
 
                 if (sharpenEnabled)

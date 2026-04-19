@@ -171,9 +171,12 @@ namespace Uviewer
                 int capturedIndexAtStart = _currentIndex;
 
                 // 이전 로딩 작업 취소
-                _imageLoadingCts?.Cancel();
+                // [안정성 수정] 이전 CTS를 Dispose하여 빠른 페이지 넘김 시 리소스 누수 방지
+                var oldCts = _imageLoadingCts;
                 _imageLoadingCts = new CancellationTokenSource();
                 var token = _imageLoadingCts.Token; // <-- 이 토큰을 전달해야 함
+                oldCts?.Cancel();
+                oldCts?.Dispose();
 
                 // 아카이브 탐색 시 백그라운드 추출 위치 재조정 신호 전송 (큰 폭의 이동 시에만)
                 if (_current7zArchive != null)
@@ -997,7 +1000,9 @@ namespace Uviewer
             {
                 var file = await StorageFile.GetFileFromPathAsync(filePath);
                 using var stream = await file.OpenAsync(FileAccessMode.Read);
-                return await CanvasBitmap.LoadAsync(canvas, stream, 96.0f);
+                // [안정성 수정] CanvasControl 대신 Device를 사용하여 백그라운드 스레드에서도 안전하게 로드
+                var device = canvas.Device ?? CanvasDevice.GetSharedDevice();
+                return await CanvasBitmap.LoadAsync(device, stream, 96.0f);
             }
             catch (Exception ex)
             {
@@ -1020,13 +1025,18 @@ namespace Uviewer
     using var memoryStream = new MemoryStream();
 
     // 1. [Lock 구간] 아카이브에서 데이터만 빠르게 메모리로 복사
+    bool archiveLockReleased = false;
     await _archiveLock.WaitAsync(token);
     try
     {
         // [Race Condition 방지] Lock을 기다리는 사이에 백그라운드 스레드가 압축을 풀었을 수 있음
+        // [안정성 수정] Lock 내에서 UI 바운드 호출 시 데드락 가능 → 경로만 캡처, Lock 해제 후 로드
         if (imageEntry != null && !string.IsNullOrEmpty(imageEntry.FilePath) && File.Exists(imageEntry.FilePath))
         {
-            return await LoadImageFromPathAsync(imageEntry.FilePath, canvas);
+            var cachedPath = imageEntry.FilePath;
+            _archiveLock.Release();
+            archiveLockReleased = true;
+            return await LoadImageFromPathAsync(cachedPath, canvas);
         }
 
         if (_currentArchive != null)
@@ -1056,7 +1066,7 @@ namespace Uviewer
     }
     finally
     {
-        _archiveLock.Release();
+        if (!archiveLockReleased) _archiveLock.Release();
     }
 
     memoryStream.Position = 0;
@@ -1065,7 +1075,7 @@ namespace Uviewer
     // 2. [Lock 해제 후] 디코딩 수행 (여기가 CPU를 많이 쓰므로 락 밖에서 해야 함)
     try
     {
-        return await CanvasBitmap.LoadAsync(canvas, memoryStream.AsRandomAccessStream(), 96.0f);
+        return await CanvasBitmap.LoadAsync(canvas.Device ?? CanvasDevice.GetSharedDevice(), memoryStream.AsRandomAccessStream(), 96.0f);
     }
     catch (Exception ex)
     {
@@ -1856,7 +1866,7 @@ namespace Uviewer
                     double canvasW = MainCanvas.Size.Width > 0 ? MainCanvas.Size.Width : 1000;
                     double canvasH = MainCanvas.Size.Height > 0 ? MainCanvas.Size.Height : 1000;
                     double pageAR = bitmap.Size.Height > 0 ? bitmap.Size.Width / bitmap.Size.Height : 1.0;
-                    double targetW = Math.Clamp((pageAR > (canvasW / canvasH) ? canvasW : canvasH * pageAR) * _zoomLevel, 1920.0 / dpiScale, 3840.0 / dpiScale);
+                    double targetW = Math.Clamp((pageAR > (canvasW / canvasH) ? canvasW : canvasH * pageAR) * _zoomLevel, 1920.0 / dpiScale, 6016.0 / dpiScale);
 
                     // 캐시에 있던 해상도가 우리가 당장 필요한 목표치보다 현저히 작으면 버림
                     if (bitmap.Size.Width < targetW * 0.9)
@@ -1916,6 +1926,11 @@ namespace Uviewer
                                 {
                                     _imageCache.CacheSharpenedImage(entryIndex, sharpened, _currentIndex);
                                     DispatcherQueue.TryEnqueue(() => MainCanvas?.Invalidate());
+                                }
+                                // [안정성 수정] 취소되었거나 캐시 불필요 시 새로 생성된 비트맵 해제하여 GPU 메모리 누수 방지
+                                else if (sharpened != null && sharpened != capturedBitmap)
+                                {
+                                    _imageCache.SafeDisposeBitmap(sharpened);
                                 }
                             }
                             catch { }

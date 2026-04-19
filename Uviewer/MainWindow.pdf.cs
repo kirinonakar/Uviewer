@@ -41,7 +41,7 @@ namespace Uviewer
 
             // Close other formats first - outside the lock to avoid double-locking/deadlocks
             CloseCurrentArchive();
-            CloseCurrentEpub();
+            await CloseCurrentEpubAsync();
 
             try
             {
@@ -243,9 +243,9 @@ namespace Uviewer
                 // 화면에 표시되는 영역(DIP)만큼 렌더링 (줌 배율 반영)
                 targetWidth = visibleWidthInDips * _zoomLevel;
 
-                // 품질과 메모리 사용량의 균형을 위해 임계값 적용 (물리 픽셀 기준 1920px~3840px을 DIP로 변환)
+                // 품질과 메모리 사용량의 균형을 위해 임계값 적용 (물리 픽셀 기준 1920px~6016px을 DIP로 변환)
                 double minDip = 1920.0 / currentDpiScale;
-                double maxDip = 3840.0 / currentDpiScale;
+                double maxDip = 6016.0 / currentDpiScale;
                 targetWidth = Math.Clamp(targetWidth, minDip, maxDip);
 
                 double scale = 1.0;

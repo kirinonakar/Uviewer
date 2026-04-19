@@ -302,7 +302,7 @@ namespace Uviewer
 
             CloseCurrentArchive();
             await CloseCurrentPdfAsync();
-            CloseCurrentEpub();
+            await CloseCurrentEpubAsync();
             CloseCurrentText();
 
             // Cancel any ongoing preloading and clear cache
@@ -401,7 +401,7 @@ namespace Uviewer
 
             CloseCurrentArchive();
             await CloseCurrentPdfAsync();
-            CloseCurrentEpub();
+            await CloseCurrentEpubAsync();
 
             // Cancel any ongoing preloading and clear cache
             _preloadManager.CancelAll();
@@ -440,7 +440,7 @@ namespace Uviewer
 
             // Close other formats first
             await CloseCurrentPdfAsync();
-            CloseCurrentEpub();
+            await CloseCurrentEpubAsync();
 
             try
             {

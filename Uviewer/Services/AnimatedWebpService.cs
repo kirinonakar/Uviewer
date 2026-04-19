@@ -71,6 +71,9 @@ namespace Uviewer.Services
             _animatedWebpTimer?.Stop();
             _animatedWebpTimer = null;
 
+            // [안정성 수정] 캔버스 참조를 먼저 끊어서 더 이상 프레임이 전파되지 않도록 합니다.
+            _currentCanvas = null;
+
             _animatedWebpFramePixels?.Clear();
             _animatedWebpFramePixels = null;
             _animatedWebpDelaysMs?.Clear();
@@ -80,6 +83,10 @@ namespace Uviewer.Services
             _animatedWebpHeight = 0;
             _animatedWebpFrameIndex = 0;
 
+            // [안정성 수정] Stop()을 호출한 측에서 _currentBitmap을 null로 설정한 뒤에
+            // 캐시를 해제하도록 AnimationStopped 이벤트를 먼저 발행합니다.
+            AnimationStopped?.Invoke(this, EventArgs.Empty);
+
             lock (_animatedWebpSharpenedCache)
             {
                 foreach (var bmp in _animatedWebpSharpenedCache.Values)
@@ -88,8 +95,6 @@ namespace Uviewer.Services
                 }
                 _animatedWebpSharpenedCache.Clear();
             }
-
-            AnimationStopped?.Invoke(this, EventArgs.Empty);
         }
 
         public async Task StartAsync(ImageEntry entry, CanvasControl canvas, CancellationToken token, 
@@ -151,21 +156,29 @@ namespace Uviewer.Services
 
         private async void AnimatedWebpTimer_Tick(DispatcherQueueTimer sender, object args)
         {
-            if (_animatedWebpFramePixels == null || _animatedWebpDelaysMs == null || _animatedWebpFramePixels.Count == 0 || _currentCanvas == null)
+            // [안정성 수정] 로컬 변수에 스냅샷을 캡처하여 도중에 Stop()이 호출되어도 안전하게 접근
+            var framePixels = _animatedWebpFramePixels;
+            var delaysMs = _animatedWebpDelaysMs;
+            var canvas = _currentCanvas;
+            if (framePixels == null || delaysMs == null || canvas == null)
                 return;
+
+            // [안정성 수정] 두 리스트의 최소 Count를 기준으로 바운드 체크 (백그라운드 디코딩 중 비원자적 추가 대응)
+            int safeFrameCount = Math.Min(framePixels.Count, delaysMs.Count);
+            if (safeFrameCount == 0) return;
 
             var stopwatch = Stopwatch.StartNew();
             sender.Stop();
 
             try
             {
-                if (_animatedWebpFrameIndex >= _animatedWebpFramePixels.Count)
+                if (_animatedWebpFrameIndex >= safeFrameCount)
                 {
                     _animatedWebpFrameIndex = 0;
                 }
 
                 int nextIndex = _animatedWebpFrameIndex + 1;
-                if (nextIndex >= _animatedWebpFramePixels.Count)
+                if (nextIndex >= safeFrameCount)
                 {
                     if (_isDecodingAnimatedImage)
                     {
@@ -178,7 +191,8 @@ namespace Uviewer.Services
                 }
                 _animatedWebpFrameIndex = nextIndex;
 
-                if (_currentCanvas.Device == null) return;
+                // 재검증: Stop()이 호출되었거나 인덱스가 범위를 벗어나면 중단
+                if (canvas.Device == null || _animatedWebpFrameIndex >= safeFrameCount) return;
 
                 CanvasBitmap? newBitmap = null;
 
@@ -195,15 +209,15 @@ namespace Uviewer.Services
                     if (newBitmap == null)
                     {
                         using var originalBitmap = CanvasBitmap.CreateFromBytes(
-                            _currentCanvas,
-                            _animatedWebpFramePixels[_animatedWebpFrameIndex],
+                            canvas,
+                            framePixels[_animatedWebpFrameIndex],
                             _animatedWebpWidth,
                             _animatedWebpHeight,
                             DirectXPixelFormat.B8G8R8A8UIntNormalized);
 
                         newBitmap = await _sharpeningService.ApplySharpenToBitmapAsync(originalBitmap, _upscaleFactor, _sharpenAmountParam, _sharpenThresholdParam, _unsharpAmount, _unsharpRadius, skipUpscale: false);
 
-                        if (_animatedWebpFramePixels == null || _currentCanvas.Device == null)
+                        if (_animatedWebpFramePixels == null || _currentCanvas == null)
                         {
                             newBitmap?.Dispose();
                             return;
@@ -222,8 +236,8 @@ namespace Uviewer.Services
                 if (newBitmap == null)
                 {
                     newBitmap = CanvasBitmap.CreateFromBytes(
-                        _currentCanvas,
-                        _animatedWebpFramePixels[_animatedWebpFrameIndex],
+                        canvas,
+                        framePixels[_animatedWebpFrameIndex],
                         _animatedWebpWidth,
                         _animatedWebpHeight,
                         DirectXPixelFormat.B8G8R8A8UIntNormalized);
@@ -238,9 +252,10 @@ namespace Uviewer.Services
             finally
             {
                 stopwatch.Stop();
-                if (_animatedWebpDelaysMs != null && _animatedWebpFrameIndex < _animatedWebpDelaysMs.Count)
+                var currentDelays = _animatedWebpDelaysMs;
+                if (currentDelays != null && _animatedWebpFrameIndex < currentDelays.Count)
                 {
-                    int targetDelay = _animatedWebpDelaysMs[_animatedWebpFrameIndex];
+                    int targetDelay = currentDelays[_animatedWebpFrameIndex];
                     int adjustedDelay = Math.Max(1, targetDelay - (int)stopwatch.ElapsedMilliseconds);
                     sender.Interval = TimeSpan.FromMilliseconds(adjustedDelay);
                     sender.Start();

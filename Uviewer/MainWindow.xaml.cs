@@ -60,7 +60,8 @@ namespace Uviewer
         private double _pdfPanY = 0;
         private double _pdfPanX = 0;
         private double _lastCanvasWidth = 0;
-        private bool _isPdfTransitioning = false;
+        // [안정성 수정] volatile로 선언하여 비동기 continuation 간 최신 값 보장
+        private volatile bool _isPdfTransitioning = false;
         private int _pdfScrollDirection = 1; // 1 for next (start top), -1 for prev (start bottom)
         private bool _isSeamlessScroll = false;
         private bool _allowMultipleInstances = true;

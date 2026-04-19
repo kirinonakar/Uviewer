@@ -584,22 +584,21 @@ namespace Uviewer
         /// <summary>
         /// WebDAV 임시 다운로드 폴더 정리
         /// </summary>
-        public static void CleanupTempFiles()
+        // [안정성 수정] Thread.Sleep → Task.Delay로 전환하여 UI 스레드 블로킹 방지
+        public static async Task CleanupTempFilesAsync()
         {
             try
             {
                 var tempDir = Path.Combine(Path.GetTempPath(), "Uviewer", "WebDav");
                 if (Directory.Exists(tempDir))
                 {
-                    // 윈도우에서 가끔 파일이 늦게 풀리는 경우가 있어 짧게 여러 번 시도
                     for (int i = 0; i < 3; i++)
                     {
                         try { Directory.Delete(tempDir, recursive: true); break; }
-                        catch { Thread.Sleep(100); }
+                        catch { await Task.Delay(100); }
                     }
                 }
 
-                // 부모 폴더(Uviewer)가 비어있으면 삭제 시도
                 var baseTemp = Path.Combine(Path.GetTempPath(), "Uviewer");
                 if (Directory.Exists(baseTemp))
                 {
@@ -614,6 +613,12 @@ namespace Uviewer
                 }
             }
             catch { }
+        }
+
+        /// <summary>동기 래퍼 (하위 호환)</summary>
+        public static void CleanupTempFiles()
+        {
+            _ = CleanupTempFilesAsync();
         }
     }
 

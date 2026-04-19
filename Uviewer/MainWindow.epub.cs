@@ -162,7 +162,7 @@ namespace Uviewer
         {
             try
             {
-                CloseCurrentEpub();
+                await CloseCurrentEpubAsync();
                 if (entry.FilePath != null)
                 {
                     var file = await StorageFile.GetFileFromPathAsync(entry.FilePath);
@@ -208,7 +208,7 @@ namespace Uviewer
                  // Close other formats first
                  CloseCurrentArchive();
                  await CloseCurrentPdfAsync();
-                 CloseCurrentEpub();
+                 await CloseCurrentEpubAsync();
 
                  _currentEpubFilePath = file.Path;
                  _currentEpubDisplayName = entry?.DisplayName ?? file.Name;
@@ -302,38 +302,34 @@ namespace Uviewer
         }
 
 
-        private void CloseCurrentEpub()
+        // [안정성 수정] 동기 Wait → 비동기 WaitAsync로 전환하여 UI 프리징 방지
+        private async Task CloseCurrentEpubAsync()
         {
-            if (_epubArchiveLock.Wait(TimeSpan.FromSeconds(2)))
+            bool lockAcquired = await _epubArchiveLock.WaitAsync(TimeSpan.FromSeconds(2));
+            try
             {
-                try
-                {
-                    _currentEpubArchive?.Dispose();
-                    _currentEpubArchive = null;
-                    _currentEpubFilePath = null;
-                    _currentEpubChapterIndex = 0;
-                    _currentEpubPageIndex = 0;
-                    _epubSpine.Clear();
-                    _epubWin2DPages.Clear();
-                    _epubPreloadCache.Clear();
-                    _imageResourceService.ClearEpubEntries();
-                    _aozoraBlocks.Clear();
-                    ClearVerticalDisplayState();
-                }
-                finally
-                {
-                    _epubArchiveLock.Release();
-                }
-            }
-            else
-            {
-                // 타임아웃 발생 시 강제 정리 시도
+                _currentEpubArchive?.Dispose();
                 _currentEpubArchive = null;
                 _currentEpubFilePath = null;
+                _currentEpubChapterIndex = 0;
+                _currentEpubPageIndex = 0;
+                _epubSpine.Clear();
                 _epubWin2DPages.Clear();
+                _epubPreloadCache.Clear();
+                _imageResourceService.ClearEpubEntries();
                 _aozoraBlocks.Clear();
                 ClearVerticalDisplayState();
             }
+            finally
+            {
+                if (lockAcquired) _epubArchiveLock.Release();
+            }
+        }
+        
+        // [하위 호환] 동기 호출이 필요한 곳(Window.Closed 등)을 위한 래퍼
+        private void CloseCurrentEpub()
+        {
+            _ = CloseCurrentEpubAsync();
         }
 
         private void SwitchToEpubMode()

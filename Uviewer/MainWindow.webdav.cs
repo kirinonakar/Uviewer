@@ -477,7 +477,7 @@ namespace Uviewer
 
             // Close other formats first
             await CloseCurrentPdfAsync();
-            CloseCurrentEpub();
+            await CloseCurrentEpubAsync();
             CloseCurrentArchive();
             _currentWebDavItemPath = item.WebDavPath;
             ClearImageResources();
@@ -568,7 +568,7 @@ namespace Uviewer
 
             // Close other formats first
             await CloseCurrentPdfAsync();
-            CloseCurrentEpub();
+            await CloseCurrentEpubAsync();
 
             _currentWebDavItemPath = item.WebDavPath;
             ClearImageResources();
