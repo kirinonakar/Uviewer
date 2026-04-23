@@ -61,13 +61,13 @@
   <ItemGroup>
     <PackageReference Include="CommunityToolkit.WinUI.Controls.Sizers" Version="8.2.251219" />
     <PackageReference Include="Microsoft.Windows.SDK.BuildTools" Version="10.0.28000.1721" />
-    <PackageReference Include="Microsoft.WindowsAppSDK" Version="1.8.260317003" />
+    <PackageReference Include="Microsoft.WindowsAppSDK" Version="1.8.260416003" />
     <PackageReference Include="PdfPig" Version="0.1.14" />
     <PackageReference Include="SevenZipExtractor" Version="1.0.19" />
     <PackageReference Include="SharpCompress" Version="0.47.4" />
     <PackageReference Include="Microsoft.Graphics.Win2D" Version="1.4.0" />
-    <PackageReference Include="System.Management" Version="10.0.6" />
-    <PackageReference Include="System.Security.Cryptography.ProtectedData" Version="10.0.6" />
+    <PackageReference Include="System.Management" Version="10.0.7" />
+    <PackageReference Include="System.Security.Cryptography.ProtectedData" Version="10.0.7" />
     <PackageReference Include="WebDav.Client" Version="2.9.0" />
   </ItemGroup>
 
