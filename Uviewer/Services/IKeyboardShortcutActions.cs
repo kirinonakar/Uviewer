@@ -20,6 +20,7 @@ namespace Uviewer.Services
         bool IsAboutDialogActive { get; }
 
         void ToggleFullscreen();
+        void ToggleMaximizeRestore();
         void CloseApp();
         void NavigateVerticalPage(int offset);
         Task NavigateEpubAsync(int offset);

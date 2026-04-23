@@ -90,6 +90,7 @@
 | | EPUB | Previous / Next Chapter |
 | **Backspace** | Global | Go to Parent Folder |
 | **Esc** | Global | Close Window / Exit Fullscreen |
+| **F10** | Global | Toggle Maximize / Restore |
 | **F11** | Global | Toggle Fullscreen |
 | **`** | Global | Toggle Pin (Auto-Hide UI) |
 | **D** | Global | Toggle Dark/Light Mode |

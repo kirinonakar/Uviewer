@@ -973,6 +973,12 @@ namespace Uviewer
             RootGrid?.Focus(FocusState.Programmatic);
         }
 
+        private void ToggleMaximizeRestore()
+        {
+            _windowState.ToggleMaximizeRestore();
+            RootGrid?.Focus(FocusState.Programmatic);
+        }
+
 
         private void RootGrid_PointerMoved(object sender, PointerRoutedEventArgs e)
         {
@@ -1544,6 +1550,7 @@ namespace Uviewer
         bool IKeyboardShortcutActions.IsAboutDialogActive => _aboutDialog != null;
 
         void IKeyboardShortcutActions.ToggleFullscreen() => ToggleFullscreen();
+        void IKeyboardShortcutActions.ToggleMaximizeRestore() => ToggleMaximizeRestore();
         void IKeyboardShortcutActions.CloseApp() => CloseWindowButton_Click(CloseWindowButton, new RoutedEventArgs());
         void IKeyboardShortcutActions.NavigateVerticalPage(int offset) => NavigateVerticalPage(offset);
         Task IKeyboardShortcutActions.NavigateEpubAsync(int offset) => NavigateEpubAsync(offset);

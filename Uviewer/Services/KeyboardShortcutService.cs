@@ -40,6 +40,13 @@ namespace Uviewer.Services
                 return Task.CompletedTask;
             }
 
+            if (e.Key == Windows.System.VirtualKey.F10)
+            {
+                e.Handled = true;
+                actions.ToggleMaximizeRestore();
+                return Task.CompletedTask;
+            }
+
             // --- EPUB/Vertical Mode Handling ---
             if (actions.IsEpubMode)
             {

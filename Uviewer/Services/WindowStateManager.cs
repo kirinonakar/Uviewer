@@ -50,6 +50,33 @@ namespace Uviewer.Services
             }
         }
 
+        public void ToggleMaximizeRestore()
+        {
+            if (IsFullscreen) return;
+
+            if (_appWindow.Presenter is not OverlappedPresenter overlapped)
+            {
+                _appWindow.SetPresenter(OverlappedPresenter.Create());
+                if (_appWindow.Presenter is not OverlappedPresenter restoredPresenter)
+                {
+                    return;
+                }
+
+                overlapped = restoredPresenter;
+            }
+
+            if (overlapped.State == OverlappedPresenterState.Maximized)
+            {
+                overlapped.Restore();
+            }
+            else
+            {
+                overlapped.Maximize();
+            }
+
+            overlapped.IsAlwaysOnTop = IsAlwaysOnTop;
+        }
+
         // 핀(Pin) 상태 토글
         public void TogglePin()
         {
