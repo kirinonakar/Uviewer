@@ -322,6 +322,7 @@ namespace Uviewer
                 _fastNavigationService = new Services.FastNavigationService(DispatcherQueue);
                 _animatedWebpService = new Services.AnimatedWebpService(_sharpeningService, DispatcherQueue);
                 _animatedWebpService.FrameUpdated += OnAnimatedWebpFrameUpdated;
+                _animatedWebpService.AnimationStopped += OnAnimatedWebpAnimationStopped;
 
                 _windowSettingsCoordinator = new Services.WindowSettingsCoordinator(this, _appSettingsService);
                 
@@ -849,6 +850,11 @@ namespace Uviewer
         internal bool IsAllowMultipleInstances() => _allowMultipleInstances;
         internal void SetAutoDoublePageForArchive(bool auto) => _autoDoublePageForArchive = auto;
         internal bool IsAutoDoublePageForArchive() => _autoDoublePageForArchive;
+        private static bool IsAutoDoublePageTallCandidate(double width, double height)
+        {
+            if (width <= 0 || height <= 0) return false;
+            return height >= width * 1.2 && height <= width * 3.0;
+        }
         internal void SetIsRegistered(bool registered) => _isRegistered = registered;
         internal bool IsRegistered() => _isRegistered;
 

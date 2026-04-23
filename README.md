@@ -52,7 +52,7 @@
 - **Allow Multiple Instances**: When enabled, each file opens in a new window instance. When disabled, files open in the already running instance using inter-process communication (NamedPipe).
 
 #### 🖼️ Image Viewing Options
-- **Auto Side-by-Side in Archive**: When enabled, the viewer automatically applies side-by-side (2-page) view for portrait-oriented images (height > width * 1.2) when browsing archives and EPUB.
+- **Auto Side-by-Side in Archive**: When enabled, the viewer automatically applies side-by-side (2-page) view for portrait-oriented images (height = width * 1.2~3) when browsing archives and EPUB.
 
 #### 🎨 Image Sharpening & Upscaling
 - **Advanced Sharpening Control**: Right-click the **Sharpening (S)** button to open the settings flyout.

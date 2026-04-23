@@ -365,9 +365,9 @@ namespace Uviewer
                                 // 가로가 세로보다 1.2배 이상 길면 1장 보기로 강제 (2장 보기 무시)
                                 canSideBySide = false;
                             }
-                            else if (firstBitmap.Size.Height >= firstBitmap.Size.Width * 1.2)
+                            else if (IsAutoDoublePageTallCandidate(firstBitmap.Size.Width, firstBitmap.Size.Height))
                             {
-                                // 세로가 가로보다 1.2배 이상 길면 (세로형) 2장 보기 자동 활성화 여부 확인
+                                // 세로가 가로의 1.2~3배 사이일 때만 2장 보기 자동 활성화 여부 확인
                                 // [수정] 다음 이미지도 세로인 경우에만 2장 보기로 표시
                                 canSideBySide = false; // 기본은 1장 보기로 초기화
 
@@ -384,11 +384,16 @@ namespace Uviewer
                                         }
                                     }
 
-                                    if (nextBitmap != null && nextBitmap.Size.Height >= nextBitmap.Size.Width * 1.2)
+                                    if (nextBitmap != null && IsAutoDoublePageTallCandidate(nextBitmap.Size.Width, nextBitmap.Size.Height))
                                     {
                                         canSideBySide = true;
                                     }
                                 }
+                            }
+                            else if (firstBitmap.Size.Height > firstBitmap.Size.Width * 3.0)
+                            {
+                                // 너무 긴 세로 이미지는 자동 2장보기 대상에서 제외
+                                canSideBySide = false;
                             }
                         }
                     }
@@ -603,6 +608,23 @@ namespace Uviewer
             }
 
             MainCanvas?.Invalidate();
+        }
+
+        private void OnAnimatedWebpAnimationStopped(object? sender, EventArgs e)
+        {
+            try
+            {
+                var bitmap = _currentBitmap;
+                if (bitmap != null && _animatedWebpService.IsBitmapInCache(bitmap))
+                {
+                    _currentBitmap = null;
+                    MainCanvas?.Invalidate();
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error stopping animated image: {ex.Message}");
+            }
         }
 
         private async Task DisplaySideBySideImagesAsync(CancellationToken token)

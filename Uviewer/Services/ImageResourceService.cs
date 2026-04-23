@@ -46,6 +46,7 @@ namespace Uviewer.Services
         private readonly Dictionary<string, CanvasBitmap?> _cache = new();
         private readonly HashSet<string> _knownMissing = new();
         private readonly object _lock = new();
+        private int _cacheVersion;
 
         private readonly ISharpeningService _sharpeningService;
 
@@ -66,6 +67,11 @@ namespace Uviewer.Services
             lock (_lock)
             {
                 _cache.TryGetValue(cacheKey, out var bmp);
+                if (bmp != null && !IsBitmapUsable(bmp))
+                {
+                    _cache.Remove(cacheKey);
+                    return null;
+                }
                 return bmp;
             }
         }
@@ -181,6 +187,8 @@ namespace Uviewer.Services
             bool sharpenEnabled,
             SharpenParams sharpenParams)
         {
+            int loadVersion;
+
             // 캐시 확인 (이미 로드됨)
             lock (_lock)
             {
@@ -191,6 +199,7 @@ namespace Uviewer.Services
                     return null;
 
                 // 로딩 중 표시 (null 플레이스홀더)
+                loadVersion = _cacheVersion;
                 _cache[cacheKey] = null;
             }
 
@@ -202,8 +211,11 @@ namespace Uviewer.Services
                 {
                     lock (_lock)
                     {
-                        _knownMissing.Add(cacheKey);
-                        _cache.Remove(cacheKey);
+                        if (loadVersion == _cacheVersion)
+                        {
+                            _knownMissing.Add(cacheKey);
+                            _cache.Remove(cacheKey);
+                        }
                     }
                     return null;
                 }
@@ -243,9 +255,23 @@ namespace Uviewer.Services
                     }
                 }
 
+                bool discardLoadedBitmap = false;
                 lock (_lock)
                 {
-                    _cache[cacheKey] = finalBitmap;
+                    if (loadVersion != _cacheVersion || !_cache.ContainsKey(cacheKey))
+                    {
+                        discardLoadedBitmap = true;
+                    }
+                    else
+                    {
+                        _cache[cacheKey] = finalBitmap;
+                    }
+                }
+
+                if (discardLoadedBitmap)
+                {
+                    SafeDispose(finalBitmap);
+                    return null;
                 }
 
                 return finalBitmap;
@@ -255,7 +281,8 @@ namespace Uviewer.Services
                 System.Diagnostics.Debug.WriteLine($"[ImageResourceService] LoadAsync failed: {ex.Message}");
                 lock (_lock)
                 {
-                    _cache.Remove(cacheKey);
+                    if (loadVersion == _cacheVersion)
+                        _cache.Remove(cacheKey);
                 }
                 return null;
             }
@@ -268,43 +295,69 @@ namespace Uviewer.Services
         /// <summary>전체 캐시 비우기 (모드 전환, EPUB 닫기 등)</summary>
         public void Clear()
         {
+            List<CanvasBitmap> bitmapsToDispose;
             lock (_lock)
             {
-                foreach (var bmp in _cache.Values)
-                    bmp?.Dispose();
+                _cacheVersion++;
+                bitmapsToDispose = _cache.Values.Where(b => b != null).Cast<CanvasBitmap>().Distinct().ToList();
                 _cache.Clear();
                 _knownMissing.Clear();
             }
+
+            foreach (var bmp in bitmapsToDispose)
+                SafeDispose(bmp);
         }
 
         /// <summary>EPUB 전용 항목만 선택적으로 제거 ("epub:" 접두어 키)</summary>
         public void ClearEpubEntries()
         {
+            List<CanvasBitmap> bitmapsToDispose;
             lock (_lock)
             {
+                _cacheVersion++;
                 var epubKeys = _cache.Keys.Where(k => k.StartsWith("epub:")).ToList();
+                bitmapsToDispose = epubKeys
+                    .Select(k => _cache[k])
+                    .Where(b => b != null)
+                    .Cast<CanvasBitmap>()
+                    .Distinct()
+                    .ToList();
+
                 foreach (var k in epubKeys)
                 {
-                    _cache[k]?.Dispose();
                     _cache.Remove(k);
                 }
                 _knownMissing.RemoveWhere(k => k.StartsWith("epub:"));
             }
+
+            foreach (var bmp in bitmapsToDispose)
+                SafeDispose(bmp);
         }
 
         /// <summary>텍스트/아카이브 전용 항목만 선택적으로 제거 ("text:" 접두어 키)</summary>
         public void ClearTextEntries()
         {
+            List<CanvasBitmap> bitmapsToDispose;
             lock (_lock)
             {
+                _cacheVersion++;
                 var textKeys = _cache.Keys.Where(k => k.StartsWith("text:")).ToList();
+                bitmapsToDispose = textKeys
+                    .Select(k => _cache[k])
+                    .Where(b => b != null)
+                    .Cast<CanvasBitmap>()
+                    .Distinct()
+                    .ToList();
+
                 foreach (var k in textKeys)
                 {
-                    _cache[k]?.Dispose();
                     _cache.Remove(k);
                 }
                 _knownMissing.RemoveWhere(k => k.StartsWith("text:"));
             }
+
+            foreach (var bmp in bitmapsToDispose)
+                SafeDispose(bmp);
         }
 
         /// <summary>누락 경로 기록을 초기화한다 (WebDAV 재연결 후 등)</summary>
@@ -441,6 +494,30 @@ namespace Uviewer.Services
                 ? subPath
                 : (baseDir.TrimEnd('/') + "/" + subPath);
             return targetKey.Replace("/./", "/");
+        }
+
+        private static bool IsBitmapUsable(CanvasBitmap bitmap)
+        {
+            try
+            {
+                return bitmap.Device != null;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        private static void SafeDispose(CanvasBitmap? bitmap)
+        {
+            try
+            {
+                bitmap?.Dispose();
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[ImageResourceService] Bitmap dispose failed: {ex.Message}");
+            }
         }
     }
 

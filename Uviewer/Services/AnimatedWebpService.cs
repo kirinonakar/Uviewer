@@ -85,15 +85,59 @@ namespace Uviewer.Services
 
             // [안정성 수정] Stop()을 호출한 측에서 _currentBitmap을 null로 설정한 뒤에
             // 캐시를 해제하도록 AnimationStopped 이벤트를 먼저 발행합니다.
-            AnimationStopped?.Invoke(this, EventArgs.Empty);
+            RaiseAnimationStopped();
 
+            List<CanvasBitmap> bitmapsToDispose;
             lock (_animatedWebpSharpenedCache)
             {
-                foreach (var bmp in _animatedWebpSharpenedCache.Values)
-                {
-                    bmp.Dispose();
-                }
+                bitmapsToDispose = _animatedWebpSharpenedCache.Values.Distinct().ToList();
                 _animatedWebpSharpenedCache.Clear();
+            }
+
+            DisposeBitmapsOnDispatcher(bitmapsToDispose);
+        }
+
+        private void RaiseAnimationStopped()
+        {
+            if (AnimationStopped == null) return;
+
+            if (_dispatcherQueue.HasThreadAccess)
+            {
+                AnimationStopped?.Invoke(this, EventArgs.Empty);
+                return;
+            }
+
+            using var completed = new ManualResetEventSlim(false);
+            if (_dispatcherQueue.TryEnqueue(() =>
+            {
+                try { AnimationStopped?.Invoke(this, EventArgs.Empty); }
+                finally { completed.Set(); }
+            }))
+            {
+                completed.Wait(TimeSpan.FromMilliseconds(500));
+            }
+        }
+
+        private void DisposeBitmapsOnDispatcher(List<CanvasBitmap> bitmaps)
+        {
+            if (bitmaps.Count == 0) return;
+
+            void DisposeAll()
+            {
+                foreach (var bmp in bitmaps)
+                {
+                    try { bmp.Dispose(); }
+                    catch (Exception ex) { Debug.WriteLine($"Animated frame dispose error: {ex.Message}"); }
+                }
+            }
+
+            if (_dispatcherQueue.HasThreadAccess)
+            {
+                DisposeAll();
+            }
+            else if (!_dispatcherQueue.TryEnqueue(DispatcherQueuePriority.Low, DisposeAll))
+            {
+                DisposeAll();
             }
         }
 

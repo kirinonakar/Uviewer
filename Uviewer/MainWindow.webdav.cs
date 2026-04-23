@@ -476,9 +476,9 @@ namespace Uviewer
             if (string.IsNullOrEmpty(item.WebDavPath)) return;
 
             // Close other formats first
-            await CloseCurrentPdfAsync();
-            await CloseCurrentEpubAsync();
-            CloseCurrentArchive();
+            if (!await CloseCurrentPdfAsync()) return;
+            if (!await CloseCurrentEpubAsync()) return;
+            if (!await CloseCurrentArchiveAsync()) return;
             _currentWebDavItemPath = item.WebDavPath;
             ClearImageResources();
             FileNameText.Text = item.Name + Strings.Loading;
@@ -567,8 +567,9 @@ namespace Uviewer
             if (string.IsNullOrEmpty(item.WebDavPath)) return;
 
             // Close other formats first
-            await CloseCurrentPdfAsync();
-            await CloseCurrentEpubAsync();
+            if (!await CloseCurrentPdfAsync()) return;
+            if (!await CloseCurrentEpubAsync()) return;
+            if (!await CloseCurrentArchiveAsync()) return;
 
             _currentWebDavItemPath = item.WebDavPath;
             ClearImageResources();

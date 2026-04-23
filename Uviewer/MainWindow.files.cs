@@ -300,9 +300,9 @@ namespace Uviewer
             _preloadManager.CancelAll();
             _globalTextCts?.Cancel();
 
-            CloseCurrentArchive();
-            await CloseCurrentPdfAsync();
-            await CloseCurrentEpubAsync();
+            if (!await CloseCurrentArchiveAsync()) return;
+            if (!await CloseCurrentPdfAsync()) return;
+            if (!await CloseCurrentEpubAsync()) return;
             CloseCurrentText();
 
             // Cancel any ongoing preloading and clear cache
@@ -399,9 +399,9 @@ namespace Uviewer
             _preloadManager.CancelAll();
             _globalTextCts?.Cancel();
 
-            CloseCurrentArchive();
-            await CloseCurrentPdfAsync();
-            await CloseCurrentEpubAsync();
+            if (!await CloseCurrentArchiveAsync()) return;
+            if (!await CloseCurrentPdfAsync()) return;
+            if (!await CloseCurrentEpubAsync()) return;
 
             // Cancel any ongoing preloading and clear cache
             _preloadManager.CancelAll();
@@ -439,8 +439,8 @@ namespace Uviewer
             _globalTextCts?.Cancel();
 
             // Close other formats first
-            await CloseCurrentPdfAsync();
-            await CloseCurrentEpubAsync();
+            if (!await CloseCurrentPdfAsync()) return;
+            if (!await CloseCurrentEpubAsync()) return;
 
             try
             {
@@ -551,34 +551,33 @@ namespace Uviewer
             }
             else
             {
-                // 타임아웃 발생 시 강제로 정리
-                System.Diagnostics.Debug.WriteLine("Archive lock timeout - forcing cleanup");
-                
-                // 백그라운드 작업 다시 한 번 취소 확인
-                _7zExtractCts?.Cancel();
+                // 락을 잡지 못한 상태에서 강제 Dispose하면 로딩/프리로드 중인 스레드와 충돌할 수 있습니다.
+                // 비동기 호출 경로에서 안전하게 재시도하도록 남기고, 여기서는 추가 파괴 작업을 하지 않습니다.
+                System.Diagnostics.Debug.WriteLine("Archive lock timeout - cleanup deferred to avoid disposing while in use");
+            }
+        }
 
-                if (_currentArchive != null)
-                {
-                    try { _currentArchive.Dispose(); } catch { }
-                    _currentArchive = null;
-                }
-                if (_current7zArchive != null)
-                {
-                    try { _current7zArchive.Dispose(); } catch { }
-                    _current7zArchive = null;
-                }
-                _currentArchivePath = null;
+        private async Task<bool> CloseCurrentArchiveAsync()
+        {
+            if (_currentArchive == null && _current7zArchive == null) return true;
 
-                // 타임아웃 시에도 임시 데이터 정리 및 상태 초기화 강제 실행
-                Cleanup7zTempData(immediate: true);
-                
-                DispatcherQueue.TryEnqueue(() =>
-                {
-                    Title = "Uviewer - Image & Text Viewer";
-                    _currentBitmap = null;
-                    _leftBitmap = null;
-                    _rightBitmap = null;
-                });
+            _7zExtractCts?.Cancel();
+            _preloadManager.CancelAll();
+
+            if (!await _archiveLock.WaitAsync(TimeSpan.FromSeconds(10)))
+            {
+                System.Diagnostics.Debug.WriteLine("Archive lock timeout - aborting format switch to avoid unsafe dispose");
+                return false;
+            }
+
+            try
+            {
+                CloseCurrentArchiveInternal();
+                return true;
+            }
+            finally
+            {
+                _archiveLock.Release();
             }
         }
 

@@ -40,8 +40,8 @@ namespace Uviewer
             SwitchToImageMode(); // Force UI to image mode immediately
 
             // Close other formats first - outside the lock to avoid double-locking/deadlocks
-            CloseCurrentArchive();
-            await CloseCurrentEpubAsync();
+            if (!await CloseCurrentArchiveAsync()) return;
+            if (!await CloseCurrentEpubAsync()) return;
 
             try
             {
@@ -146,19 +146,26 @@ namespace Uviewer
             }
         }
 
-        private async Task CloseCurrentPdfAsync() // 동기 메서드 대신 비동기로 변경하여 UI 프리징 방지
+        private async Task<bool> CloseCurrentPdfAsync() // 동기 메서드 대신 비동기로 변경하여 UI 프리징 방지
         {
-            if (_currentPdfDocument == null) return;
+            if (_currentPdfDocument == null) return true;
 
             // UI 스레드를 막지 않고 비동기로 락 획득 대기
-            bool lockAcquired = await _pdfLock.WaitAsync(TimeSpan.FromSeconds(2));
+            bool lockAcquired = await _pdfLock.WaitAsync(TimeSpan.FromSeconds(10));
+            if (!lockAcquired)
+            {
+                System.Diagnostics.Debug.WriteLine("PDF lock timeout - aborting format switch to avoid unsafe dispose");
+                return false;
+            }
+
             try
             {
                 CloseCurrentPdfInternal();
+                return true;
             }
             finally
             {
-                if (lockAcquired) _pdfLock.Release();
+                _pdfLock.Release();
             }
         }
 
@@ -374,51 +381,59 @@ namespace Uviewer
 
         private async Task RerenderPdfCurrentPageAsync()
         {
-            if (_currentPdfDocument == null || _currentBitmap == null) return;
-            if (_currentIndex < 0 || _currentIndex >= _imageEntries.Count) return;
-
-            var entry = _imageEntries[_currentIndex];
-            if (!entry.IsPdfEntry) return;
-
-            _pdfZoomRerenderCts?.Cancel();
-            _pdfZoomRerenderCts = new CancellationTokenSource();
-            var token = _pdfZoomRerenderCts.Token;
-
-            // [Important] Capture index before await to avoid race condition if _currentIndex changes during render
-            int capturedIndex = _currentIndex;
-
-            var canvas = MainCanvas;
-            // [최적화] isPreload=false → _pdfCurrentPageSemaphore 사용으로 프리로드에 의해 블록되지 않음
-            var newBitmap = await LoadPdfPageBitmapAsync(entry.PdfPageIndex, canvas, token, isPreload: false);
-
-            if (token.IsCancellationRequested || newBitmap == null)
+            try
             {
-                if (newBitmap != null) _imageCache.SafeDisposeBitmap(newBitmap);
-                return;
-            }
+                if (_currentPdfDocument == null || _currentBitmap == null) return;
+                if (_currentIndex < 0 || _currentIndex >= _imageEntries.Count) return;
 
-            // [Important] If index changed while rendering, discard this result as it's no longer the "current" page
-            if (capturedIndex != _currentIndex)
+                var entry = _imageEntries[_currentIndex];
+                if (!entry.IsPdfEntry) return;
+
+                _pdfZoomRerenderCts?.Cancel();
+                _pdfZoomRerenderCts = new CancellationTokenSource();
+                var token = _pdfZoomRerenderCts.Token;
+
+                // [Important] Capture index before await to avoid race condition if _currentIndex changes during render
+                int capturedIndex = _currentIndex;
+
+                var canvas = MainCanvas;
+                // [최적화] isPreload=false → _pdfCurrentPageSemaphore 사용으로 프리로드에 의해 블록되지 않음
+                var newBitmap = await LoadPdfPageBitmapAsync(entry.PdfPageIndex, canvas, token, isPreload: false);
+
+                if (token.IsCancellationRequested || newBitmap == null)
+                {
+                    if (newBitmap != null) _imageCache.SafeDisposeBitmap(newBitmap);
+                    return;
+                }
+
+                // [Important] If index changed while rendering, discard this result as it's no longer the "current" page
+                if (capturedIndex != _currentIndex)
+                {
+                    _imageCache.SafeDisposeBitmap(newBitmap);
+                    return;
+                }
+
+                var oldBitmap = _currentBitmap;
+                _currentBitmap = newBitmap;
+                _imageCache.UpdateCache(capturedIndex, newBitmap, true, _zoomLevel, oldBitmap);
+
+                MainCanvas.Invalidate();
+                UpdateStatusBar(entry, _currentBitmap);
+
+                // [추가] 현재 페이지 렌더링이 끝난 직후, 변경된 줌 레벨로 다음/이전 페이지들을 백그라운드에서 다시 그리도록 지시합니다.
+                _ = _preloadManager.StartPreloadAsync(
+                    _currentIndex, _imageEntries, _currentPdfDocument != null, _zoomLevel,
+                    _currentBitmap, _leftBitmap, _rightBitmap,
+                    LoadBitmapForPreloadAsync,
+                    () => MainCanvas?.Invalidate(),
+                    prioritizeNext: true,
+                    requireSharpening: _sharpenEnabled);
+            }
+            catch (OperationCanceledException) { }
+            catch (Exception ex)
             {
-                _imageCache.SafeDisposeBitmap(newBitmap);
-                return;
+                System.Diagnostics.Debug.WriteLine($"PDF rerender skipped: {ex.Message}");
             }
-
-            var oldBitmap = _currentBitmap;
-            _currentBitmap = newBitmap;
-            _imageCache.UpdateCache(capturedIndex, newBitmap, true, _zoomLevel, oldBitmap);
-
-            MainCanvas.Invalidate();
-            UpdateStatusBar(entry, _currentBitmap);
-
-            // [추가] 현재 페이지 렌더링이 끝난 직후, 변경된 줌 레벨로 다음/이전 페이지들을 백그라운드에서 다시 그리도록 지시합니다.
-            _ = _preloadManager.StartPreloadAsync(
-                _currentIndex, _imageEntries, _currentPdfDocument != null, _zoomLevel,
-                _currentBitmap, _leftBitmap, _rightBitmap,
-                LoadBitmapForPreloadAsync,
-                () => MainCanvas?.Invalidate(),
-                prioritizeNext: true,
-                requireSharpening: _sharpenEnabled);
         }
     }
 }

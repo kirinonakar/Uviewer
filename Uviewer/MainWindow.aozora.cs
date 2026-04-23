@@ -1274,19 +1274,26 @@ namespace Uviewer
 
             if (bitmap != null)
             {
-                float canvasW = (float)canvasSize.Width;
-                float canvasH = (float)canvasSize.Height;
-                float imgW = (float)bitmap.Size.Width;
-                float imgH = (float)bitmap.Size.Height;
+                try
+                {
+                    float canvasW = (float)canvasSize.Width;
+                    float canvasH = (float)canvasSize.Height;
+                    float imgW = (float)bitmap.Size.Width;
+                    float imgH = (float)bitmap.Size.Height;
 
-                float scale = Math.Min(canvasW / imgW, canvasH / imgH);
-                float drawW = imgW * scale;
-                float drawH = imgH * scale;
+                    float scale = Math.Min(canvasW / imgW, canvasH / imgH);
+                    float drawW = imgW * scale;
+                    float drawH = imgH * scale;
 
-                float drawX = (canvasW - drawW) / 2;
-                float drawY = (canvasH - drawH) / 2;
+                    float drawX = (canvasW - drawW) / 2;
+                    float drawY = (canvasH - drawH) / 2;
 
-                ds.DrawImage(bitmap, new Rect(drawX, drawY, drawW, drawH), bitmap.Bounds, 1.0f, CanvasImageInterpolation.HighQualityCubic);
+                    ds.DrawImage(bitmap, new Rect(drawX, drawY, drawW, drawH), bitmap.Bounds, 1.0f, CanvasImageInterpolation.HighQualityCubic);
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"Aozora image draw skipped: {ex.Message}");
+                }
             }
             else
             {

@@ -541,11 +541,16 @@ namespace Uviewer
                             // [추가] 2장보기 페어링 처리
                             if (_isSideBySideMode || _autoDoublePageForArchive)
                             {
-                                bool firstIsTall = true;
+                                bool firstIsTall = !_autoDoublePageForArchive;
                                 if (aozoraImg != null)
                                 {
                                     var bmp1 = _imageResourceService.TryGetCached(Services.ImageResourceService.GetTextCacheKey(aozoraImg.Source));
-                                    if (bmp1 != null && bmp1.Size.Width >= bmp1.Size.Height * 1.2f) firstIsTall = false;
+                                    if (bmp1 != null)
+                                    {
+                                        firstIsTall = _autoDoublePageForArchive
+                                            ? IsAutoDoublePageTallCandidate(bmp1.Size.Width, bmp1.Size.Height)
+                                            : bmp1.Size.Width < bmp1.Size.Height * 1.2f;
+                                    }
                                 }
 
                                 if (firstIsTall && i < _aozoraBlocks.Count - 1)
@@ -560,10 +565,15 @@ namespace Uviewer
                                             var nextImg = nextB.Inlines.OfType<AozoraImage>().FirstOrDefault();
                                             if (nextImg != null && DoesVerticalImageExist(nextImg.Source))
                                             {
-                                                bool secondIsTall = true;
+                                                bool secondIsTall = !_autoDoublePageForArchive;
                                                 {
                                                     var bmp2 = _imageResourceService.TryGetCached(Services.ImageResourceService.GetTextCacheKey(nextImg.Source));
-                                                    if (bmp2 != null && bmp2.Size.Width >= bmp2.Size.Height * 1.2f) secondIsTall = false;
+                                                    if (bmp2 != null)
+                                                    {
+                                                        secondIsTall = _autoDoublePageForArchive
+                                                            ? IsAutoDoublePageTallCandidate(bmp2.Size.Width, bmp2.Size.Height)
+                                                            : bmp2.Size.Width < bmp2.Size.Height * 1.2f;
+                                                    }
                                                 }
 
                                                 if (secondIsTall)
@@ -722,12 +732,17 @@ namespace Uviewer
                     if (_isSideBySideMode || _autoDoublePageForArchive)
                     {
                         // Check first image ratio
-                        bool firstIsTall = true;
+                        bool firstIsTall = !_autoDoublePageForArchive;
                         var firstImg = block.Inlines.OfType<AozoraImage>().FirstOrDefault();
                         if (firstImg != null)
                         {
                             var bmp1 = _imageResourceService.TryGetCached(Services.ImageResourceService.GetTextCacheKey(firstImg.Source));
-                            if (bmp1 != null && bmp1.Size.Width >= bmp1.Size.Height * 1.2f) firstIsTall = false;
+                            if (bmp1 != null)
+                            {
+                                firstIsTall = _autoDoublePageForArchive
+                                    ? IsAutoDoublePageTallCandidate(bmp1.Size.Width, bmp1.Size.Height)
+                                    : bmp1.Size.Width < bmp1.Size.Height * 1.2f;
+                            }
                         }
 
                         if (firstIsTall)
@@ -741,10 +756,15 @@ namespace Uviewer
                                     if (nextImg != null && DoesVerticalImageExist(nextImg.Source))
                                     {
                                         // Check second image ratio
-                                        bool secondIsTall = true;
+                                        bool secondIsTall = !_autoDoublePageForArchive;
                                         {
                                             var bmp2 = _imageResourceService.TryGetCached(Services.ImageResourceService.GetTextCacheKey(nextImg.Source));
-                                            if (bmp2 != null && bmp2.Size.Width >= bmp2.Size.Height * 1.2f) secondIsTall = false;
+                                            if (bmp2 != null)
+                                            {
+                                                secondIsTall = _autoDoublePageForArchive
+                                                    ? IsAutoDoublePageTallCandidate(bmp2.Size.Width, bmp2.Size.Height)
+                                                    : bmp2.Size.Width < bmp2.Size.Height * 1.2f;
+                                            }
                                         }
 
                                         if (secondIsTall)
@@ -1277,23 +1297,30 @@ namespace Uviewer
 
             if (bitmap != null)
             {
-                float canvasW = (float)rect.Width;
-                float canvasH = (float)rect.Height;
-                float imgW = (float)bitmap.Size.Width;
-                float imgH = (float)bitmap.Size.Height;
+                try
+                {
+                    float canvasW = (float)rect.Width;
+                    float canvasH = (float)rect.Height;
+                    float imgW = (float)bitmap.Size.Width;
+                    float imgH = (float)bitmap.Size.Height;
 
-                float scale = Math.Min(canvasW / imgW, canvasH / imgH);
+                    float scale = Math.Min(canvasW / imgW, canvasH / imgH);
 
-                float drawW = imgW * scale;
-                float drawH = imgH * scale;
+                    float drawW = imgW * scale;
+                    float drawH = imgH * scale;
 
-                float drawX = (float)rect.X + (canvasW - drawW) / 2;
-                if (align == HorizontalAlignment.Left) drawX = (float)rect.X;
-                else if (align == HorizontalAlignment.Right) drawX = (float)rect.X + (canvasW - drawW);
+                    float drawX = (float)rect.X + (canvasW - drawW) / 2;
+                    if (align == HorizontalAlignment.Left) drawX = (float)rect.X;
+                    else if (align == HorizontalAlignment.Right) drawX = (float)rect.X + (canvasW - drawW);
 
-                float drawY = (float)rect.Y + (canvasH - drawH) / 2;
+                    float drawY = (float)rect.Y + (canvasH - drawH) / 2;
 
-                ds.DrawImage(bitmap, new Rect(drawX, drawY, (float)drawW, (float)drawH), bitmap.Bounds, 1.0f, CanvasImageInterpolation.HighQualityCubic);
+                    ds.DrawImage(bitmap, new Rect(drawX, drawY, drawW, drawH), bitmap.Bounds, 1.0f, CanvasImageInterpolation.HighQualityCubic);
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"Vertical image draw skipped: {ex.Message}");
+                }
             }
             else
             {

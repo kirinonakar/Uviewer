@@ -162,7 +162,7 @@ namespace Uviewer
         {
             try
             {
-                await CloseCurrentEpubAsync();
+                if (!await CloseCurrentEpubAsync()) return;
                 if (entry.FilePath != null)
                 {
                     var file = await StorageFile.GetFileFromPathAsync(entry.FilePath);
@@ -206,9 +206,9 @@ namespace Uviewer
                  CancelAndResetGlobalTextCts();
                  
                  // Close other formats first
-                 CloseCurrentArchive();
-                 await CloseCurrentPdfAsync();
-                 await CloseCurrentEpubAsync();
+                 if (!await CloseCurrentArchiveAsync()) return;
+                 if (!await CloseCurrentPdfAsync()) return;
+                 if (!await CloseCurrentEpubAsync()) return;
 
                  _currentEpubFilePath = file.Path;
                  _currentEpubDisplayName = entry?.DisplayName ?? file.Name;
@@ -303,9 +303,15 @@ namespace Uviewer
 
 
         // [안정성 수정] 동기 Wait → 비동기 WaitAsync로 전환하여 UI 프리징 방지
-        private async Task CloseCurrentEpubAsync()
+        private async Task<bool> CloseCurrentEpubAsync()
         {
-            bool lockAcquired = await _epubArchiveLock.WaitAsync(TimeSpan.FromSeconds(2));
+            bool lockAcquired = await _epubArchiveLock.WaitAsync(TimeSpan.FromSeconds(10));
+            if (!lockAcquired)
+            {
+                System.Diagnostics.Debug.WriteLine("EPUB lock timeout - aborting format switch to avoid unsafe dispose");
+                return false;
+            }
+
             try
             {
                 _currentEpubArchive?.Dispose();
@@ -319,10 +325,11 @@ namespace Uviewer
                 _imageResourceService.ClearEpubEntries();
                 _aozoraBlocks.Clear();
                 ClearVerticalDisplayState();
+                return true;
             }
             finally
             {
-                if (lockAcquired) _epubArchiveLock.Release();
+                _epubArchiveLock.Release();
             }
         }
         
@@ -850,21 +857,28 @@ namespace Uviewer
             var bitmap = _imageResourceService.TryGetCached(cacheKey);
             if (bitmap == null) return;  // 로딩 중이면 표시하지 않음
 
-            var ds = args.DrawingSession;
-            var canvasSize = sender.Size;
-            var imageSize = bitmap.Size;
+            try
+            {
+                var ds = args.DrawingSession;
+                var canvasSize = sender.Size;
+                var imageSize = bitmap.Size;
 
-            var fitRatio = Math.Min(canvasSize.Width / imageSize.Width, canvasSize.Height / imageSize.Height);
-            var scaledSize = new Windows.Foundation.Size(imageSize.Width * fitRatio, imageSize.Height * fitRatio);
+                var fitRatio = Math.Min(canvasSize.Width / imageSize.Width, canvasSize.Height / imageSize.Height);
+                var scaledSize = new Windows.Foundation.Size(imageSize.Width * fitRatio, imageSize.Height * fitRatio);
 
-            float posX = 0;
-            if (align == HorizontalAlignment.Center) posX = (float)(canvasSize.Width - scaledSize.Width) / 2;
-            else if (align == HorizontalAlignment.Right) posX = (float)(canvasSize.Width - scaledSize.Width);
-            else posX = 0;
+                float posX = 0;
+                if (align == HorizontalAlignment.Center) posX = (float)(canvasSize.Width - scaledSize.Width) / 2;
+                else if (align == HorizontalAlignment.Right) posX = (float)(canvasSize.Width - scaledSize.Width);
+                else posX = 0;
 
-            float posY = (float)(canvasSize.Height - scaledSize.Height) / 2;
+                float posY = (float)(canvasSize.Height - scaledSize.Height) / 2;
 
-            ds.DrawImage(bitmap, new Rect(posX, posY, (float)scaledSize.Width, (float)scaledSize.Height), bitmap.Bounds, 1.0f, CanvasImageInterpolation.HighQualityCubic);
+                ds.DrawImage(bitmap, new Rect(posX, posY, (float)scaledSize.Width, (float)scaledSize.Height), bitmap.Bounds, 1.0f, CanvasImageInterpolation.HighQualityCubic);
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"EPUB image draw skipped: {ex.Message}");
+            }
         }
 
 
@@ -995,6 +1009,8 @@ namespace Uviewer
 
             string cacheKey = Services.ImageResourceService.GetEpubCacheKey(imagePath);
             if (_imageResourceService.TryGetCached(cacheKey) != null) return;
+            var archiveAtStart = _currentEpubArchive;
+            var filePathAtStart = _currentEpubFilePath;
 
             var device = EpubTextCanvas?.Device ?? CanvasDevice.GetSharedDevice();
             // EPUB \uc774\ubbf8\uc9c0\ub294 \ud56d\uc0c1 EPUB \ubaa8\ub4dc\uc774\uba70, \uce90\uc2dc \ud0a4 \uc811\ub450\uc5b4\uac00 "epub:"
@@ -1017,7 +1033,7 @@ namespace Uviewer
                 }
                 finally { _epubArchiveLock.Release(); }
 
-                var ras = new InMemoryRandomAccessStream();
+                using var ras = new InMemoryRandomAccessStream();
                 using (var writer = new DataWriter(ras))
                 {
                     writer.WriteBytes(bytes);
@@ -1041,6 +1057,14 @@ namespace Uviewer
                         finalBitmap = sharpened;
                         originalBitmap.Dispose();
                     }
+                }
+
+                if (archiveAtStart == null ||
+                    !ReferenceEquals(_currentEpubArchive, archiveAtStart) ||
+                    !string.Equals(_currentEpubFilePath, filePathAtStart, StringComparison.OrdinalIgnoreCase))
+                {
+                    finalBitmap.Dispose();
+                    return;
                 }
 
                 // \uc11c\ube44\uc2a4 \uce90\uc2dc\uc5d0 \uc800\uc7a5 (epub: \uc811\ub450\uc5b4)
@@ -1549,11 +1573,11 @@ namespace Uviewer
                             float imgW = (float)bmp.Size.Width;
                             float imgH = (float)bmp.Size.Height;
 
-                            if (imgH >= imgW * 1.2f)
+                            if (IsAutoDoublePageTallCandidate(imgW, imgH))
                             {
                                 canSideBySide = true;
                             }
-                            else if (imgW >= imgH * 1.2f)
+                            else if (imgW >= imgH * 1.2f || imgH > imgW * 3.0f)
                             {
                                 canSideBySide = false;
                             }
@@ -1578,7 +1602,7 @@ namespace Uviewer
                         if (_autoDoublePageForArchive)
                         {
                             var bmp2 = _imageResourceService.TryGetCached(Services.ImageResourceService.GetEpubCacheKey(pg2.ImagePath));
-                            if (bmp2 != null && bmp2.Size.Width >= bmp2.Size.Height * 1.2f)
+                            if (bmp2 != null && !IsAutoDoublePageTallCandidate(bmp2.Size.Width, bmp2.Size.Height))
                                 nextShouldForceSingle = true;
                         }
                         if (!nextShouldForceSingle) nextIsImage = true;
