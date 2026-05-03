@@ -92,14 +92,14 @@ namespace Uviewer
         {
             if (_isCurrentViewSideBySide && _currentPdfDocument == null) return;
 
-            if (_currentBitmap != null && _currentBitmap.Device != null)
+            if (TryGetBitmapSize(_currentBitmap, out var bitmapSize))
             {
                 var containerWidth = ImageArea.ActualWidth;
                 var containerHeight = ImageArea.ActualHeight;
 
                 if (containerWidth > 0 && containerHeight > 0)
                 {
-                    _zoomService.CalculateActualZoom(containerWidth, containerHeight, _currentBitmap.Size.Width, _currentBitmap.Size.Height, MainCanvas.Dpi / 96.0f, _currentPdfDocument != null);
+                    _zoomService.CalculateActualZoom(containerWidth, containerHeight, bitmapSize.Width, bitmapSize.Height, MainCanvas.Dpi / 96.0f, _currentPdfDocument != null);
                     ApplyZoom();
                 }
             }
@@ -127,7 +127,7 @@ namespace Uviewer
 
         private void ApplyZoom()
         {
-            if (_currentBitmap == null || _currentBitmap.Device == null || ImageArea.ActualWidth <= 0 || ImageArea.ActualHeight <= 0)
+            if (!IsCanvasBitmapUsable(_currentBitmap) || ImageArea.ActualWidth <= 0 || ImageArea.ActualHeight <= 0)
                 return;
 
             // Trigger canvas redraw for new zoom level
@@ -1170,8 +1170,8 @@ namespace Uviewer
         private void UpdateStatusBar(ImageEntry entry, CanvasBitmap bitmap)
         {
             FileNameText.Text = FileExplorerService.GetFormattedDisplayName(entry.DisplayName, entry.IsArchiveEntry, _currentArchivePath, _isWebDavMode ? _currentWebDavItemPath : null);
-            if (bitmap != null && bitmap.Device != null)
-                ImageInfoText.Text = $"{(int)bitmap.Size.Width} × {(int)bitmap.Size.Height}";
+            if (TryGetBitmapSize(bitmap, out var bitmapSize))
+                ImageInfoText.Text = $"{(int)bitmapSize.Width} × {(int)bitmapSize.Height}";
             else
                 ImageInfoText.Text = "";
             TextProgressText.Text = ""; // Clear for image mode
@@ -1298,18 +1298,10 @@ namespace Uviewer
 
         private void ZoomPdfAtPosition(double zoomMultiplier, Windows.Foundation.Point position)
         {
-            if (_currentBitmap == null) return;
+            var bitmap = _currentBitmap;
+            if (bitmap == null) return;
             var canvasSize = MainCanvas.Size;
-            Windows.Foundation.Size imageSize;
-            try
-            {
-                if (_currentBitmap.Device == null) return;
-                imageSize = _currentBitmap.Size;
-            }
-            catch (Exception)
-            {
-                return;
-            }
+            if (!TryGetBitmapSize(bitmap, out var imageSize)) return;
             if (canvasSize.Width <= 0 || canvasSize.Height <= 0) return;
 
             var fitRatio = Math.Min(canvasSize.Width / imageSize.Width, canvasSize.Height / imageSize.Height);
@@ -1398,15 +1390,13 @@ namespace Uviewer
         {
             var bitmap = _currentBitmap;
             // PDF가 아니어도 확대된 일반 이미지라면 연속 스크롤 지원
-            if ((_currentPdfDocument == null && _zoomLevel <= 1.01) || bitmap == null || bitmap.Device == null || _isPdfTransitioning) return;
+            if ((_currentPdfDocument == null && _zoomLevel <= 1.01) || !TryGetBitmapSize(bitmap, out var imageSize) || _isPdfTransitioning) return;
 
             try
             {
                 var canvasSize = MainCanvas.Size;
                 if (canvasSize.Width <= 0 || canvasSize.Height <= 0) return;
 
-                Windows.Foundation.Size imageSize;
-                try { imageSize = bitmap.Size; } catch { return; }
                 var fitRatio = Math.Min(canvasSize.Width / imageSize.Width, canvasSize.Height / imageSize.Height);
                 var scaledSize = new Windows.Foundation.Size(imageSize.Width * fitRatio * _zoomLevel, imageSize.Height * fitRatio * _zoomLevel);
 
@@ -1438,12 +1428,12 @@ namespace Uviewer
 
                         _currentIndex = targetPrevIndex;
 
-                        if (prev != null && prev.Device != null)
+                        if (TryGetBitmapSize(prev, out var prevSize))
                         {
                             try
                             {
-                                var pFit = Math.Min(canvasSize.Width / prev.Size.Width, canvasSize.Height / prev.Size.Height);
-                                var pScaledH = prev.Size.Height * pFit * _zoomLevel;
+                                var pFit = Math.Min(canvasSize.Width / prevSize.Width, canvasSize.Height / prevSize.Height);
+                                var pScaledH = prevSize.Height * pFit * _zoomLevel;
                                 _pdfPanY = (oldPosNextTop - gap - pScaledH) - (canvasSize.Height - pScaledH) / 2;
 
                                 _currentBitmap = prev;
@@ -1485,8 +1475,9 @@ namespace Uviewer
                                 {
                                     _imageCache.UpdateCache(targetPrevIndex, prev, true, _zoomLevel, _currentBitmap);
 
-                                    var pFit = Math.Min(canvasSize.Width / prev.Size.Width, canvasSize.Height / prev.Size.Height);
-                                    var pScaledH = prev.Size.Height * pFit * _zoomLevel;
+                                    if (!TryGetBitmapSize(prev, out var loadedPrevSize)) return;
+                                    var pFit = Math.Min(canvasSize.Width / loadedPrevSize.Width, canvasSize.Height / loadedPrevSize.Height);
+                                    var pScaledH = loadedPrevSize.Height * pFit * _zoomLevel;
                                     _pdfPanY = (oldPosNextTop - gap - pScaledH) - (canvasSize.Height - pScaledH) / 2;
 
                                     _currentBitmap = prev;
@@ -1530,12 +1521,12 @@ namespace Uviewer
 
                         _currentIndex = targetNextIndex;
 
-                        if (next != null && next.Device != null)
+                        if (TryGetBitmapSize(next, out var nextSize))
                         {
                             try
                             {
-                                var nFit = Math.Min(canvasSize.Width / next.Size.Width, canvasSize.Height / next.Size.Height);
-                                var nScaledH = next.Size.Height * nFit * _zoomLevel;
+                                var nFit = Math.Min(canvasSize.Width / nextSize.Width, canvasSize.Height / nextSize.Height);
+                                var nScaledH = nextSize.Height * nFit * _zoomLevel;
                                 _pdfPanY = (oldPosPrevBottom + gap) - (canvasSize.Height - nScaledH) / 2;
 
                                 _currentBitmap = next;
@@ -1577,8 +1568,9 @@ namespace Uviewer
                                 {
                                     _imageCache.UpdateCache(targetNextIndex, next, true, _zoomLevel, _currentBitmap);
 
-                                    var nFit = Math.Min(canvasSize.Width / next.Size.Width, canvasSize.Height / next.Size.Height);
-                                    var nScaledH = next.Size.Height * nFit * _zoomLevel;
+                                    if (!TryGetBitmapSize(next, out var loadedNextSize)) return;
+                                    var nFit = Math.Min(canvasSize.Width / loadedNextSize.Width, canvasSize.Height / loadedNextSize.Height);
+                                    var nScaledH = loadedNextSize.Height * nFit * _zoomLevel;
                                     _pdfPanY = (oldPosPrevBottom + gap) - (canvasSize.Height - nScaledH) / 2;
 
                                     _currentBitmap = next;

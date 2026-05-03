@@ -12,6 +12,7 @@ using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
+using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.Linq;
 using System.Runtime.CompilerServices;
@@ -122,6 +123,29 @@ namespace Uviewer
 
         // Loading and navigation state
         private CancellationTokenSource? _imageLoadingCts;
+
+        private static bool TryGetBitmapSize([NotNullWhen(true)] CanvasBitmap? bitmap, out Windows.Foundation.Size size)
+        {
+            size = default;
+
+            if (bitmap == null) return false;
+
+            try
+            {
+                if (bitmap.Device == null) return false;
+                size = bitmap.Size;
+                return size.Width > 0 && size.Height > 0;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        private static bool IsCanvasBitmapUsable(CanvasBitmap? bitmap)
+        {
+            return TryGetBitmapSize(bitmap, out _);
+        }
 
         [System.Runtime.InteropServices.DllImport("user32.dll", CharSet = System.Runtime.InteropServices.CharSet.Unicode)]
         private static extern int MessageBox(IntPtr hWnd, string text, string caption, uint type);
@@ -1335,15 +1359,15 @@ namespace Uviewer
 
         private void MainCanvas_Draw(CanvasControl sender, CanvasDrawEventArgs args)
         {
-            if (_currentBitmap != null)
+            var currentBitmap = _currentBitmap;
+            if (currentBitmap != null)
             {
                 try
                 {
-                    if (_currentBitmap.Device == null) return; // Disposed 체크
+                    if (!TryGetBitmapSize(currentBitmap, out var imageSize)) return;
 
                     var ds = args.DrawingSession;
                     var canvasSize = sender.Size;
-                    var imageSize = _currentBitmap.Size;
 
                     // Calculate fit ratio
                     var fitRatio = Math.Min(canvasSize.Width / imageSize.Width, canvasSize.Height / imageSize.Height);
@@ -1370,13 +1394,10 @@ namespace Uviewer
                         position.Y = (canvasSize.Height - scaledSize.Height) / 2 + _pdfPanY;
                         var destRect = new Windows.Foundation.Rect(position, scaledSize);
 
-                        if (_currentBitmap.Device != null)
-                        {
-                            if (_currentPdfDocument != null)
-                                ds.DrawImage(_currentBitmap, destRect);
-                            else
-                                ds.DrawImage(_currentBitmap, destRect, _currentBitmap.Bounds, 1.0f, CanvasImageInterpolation.HighQualityCubic);
-                        }
+                        if (_currentPdfDocument != null)
+                            ds.DrawImage(currentBitmap, destRect);
+                        else
+                            ds.DrawImage(currentBitmap, destRect, currentBitmap.Bounds, 1.0f, CanvasImageInterpolation.HighQualityCubic);
 
                         double gap = 20 * _zoomLevel;
 
@@ -1389,10 +1410,10 @@ namespace Uviewer
 
                             CanvasBitmap? prev = (_sharpenEnabled && _currentPdfDocument == null) ? _imageCache.GetSharpenedImage(prevIdx) : null;
                             if (prev == null) prev = _imageCache.GetPreloadedImage(prevIdx, _zoomLevel);
-                            if (prev != null && prev.Device != null && prev != _currentBitmap)
+                            if (prev != null && TryGetBitmapSize(prev, out var prevSize) && prev != currentBitmap)
                             {
-                                var pFit = Math.Min(canvasSize.Width / prev.Size.Width, canvasSize.Height / prev.Size.Height);
-                                var pScaledSize = new Windows.Foundation.Size(prev.Size.Width * pFit * _zoomLevel, prev.Size.Height * pFit * _zoomLevel);
+                                var pFit = Math.Min(canvasSize.Width / prevSize.Width, canvasSize.Height / prevSize.Height);
+                                var pScaledSize = new Windows.Foundation.Size(prevSize.Width * pFit * _zoomLevel, prevSize.Height * pFit * _zoomLevel);
                                 var pPos = new Windows.Foundation.Point((canvasSize.Width - pScaledSize.Width) / 2 + _pdfPanX, currentY_top - pScaledSize.Height - gap);
                                 if (_currentPdfDocument != null)
                                     ds.DrawImage(prev, new Windows.Foundation.Rect(pPos, pScaledSize));
@@ -1403,7 +1424,7 @@ namespace Uviewer
                                 // Stop if even this page is way above screen
                                 if (currentY_top + pScaledSize.Height < -500) break;
                             }
-                            else if (prev == _currentBitmap) continue; // Skip duplicates
+                            else if (prev == currentBitmap) continue; // Skip duplicates
                             else break; // Missing preload, can't draw further
                         }
 
@@ -1416,10 +1437,10 @@ namespace Uviewer
 
                             CanvasBitmap? next = (_sharpenEnabled && _currentPdfDocument == null) ? _imageCache.GetSharpenedImage(nextIdx) : null;
                             if (next == null) next = _imageCache.GetPreloadedImage(nextIdx, _zoomLevel);
-                            if (next != null && next.Device != null && next != _currentBitmap)
+                            if (next != null && TryGetBitmapSize(next, out var nextSize) && next != currentBitmap)
                             {
-                                var nFit = Math.Min(canvasSize.Width / next.Size.Width, canvasSize.Height / next.Size.Height);
-                                var nScaledSize = new Windows.Foundation.Size(next.Size.Width * nFit * _zoomLevel, next.Size.Height * nFit * _zoomLevel);
+                                var nFit = Math.Min(canvasSize.Width / nextSize.Width, canvasSize.Height / nextSize.Height);
+                                var nScaledSize = new Windows.Foundation.Size(nextSize.Width * nFit * _zoomLevel, nextSize.Height * nFit * _zoomLevel);
                                 var nPos = new Windows.Foundation.Point((canvasSize.Width - nScaledSize.Width) / 2 + _pdfPanX, currentY_bottom + gap);
                                 if (_currentPdfDocument != null)
                                     ds.DrawImage(next, new Windows.Foundation.Rect(nPos, nScaledSize));
@@ -1430,14 +1451,14 @@ namespace Uviewer
                                 // Stop if even this page is way below screen
                                 if (nPos.Y > canvasSize.Height + 500) break;
                             }
-                            else if (next == _currentBitmap) continue; // Skip duplicates
+                            else if (next == currentBitmap) continue; // Skip duplicates
                             else break;
                         }
                     }
                     else
                     {
                         var destRect = new Windows.Foundation.Rect(position, scaledSize);
-                        ds.DrawImage(_currentBitmap, destRect, _currentBitmap.Bounds, 1.0f, CanvasImageInterpolation.HighQualityCubic);
+                        ds.DrawImage(currentBitmap, destRect, currentBitmap.Bounds, 1.0f, CanvasImageInterpolation.HighQualityCubic);
                     }
                 }
                 catch (Exception)
@@ -1454,15 +1475,15 @@ namespace Uviewer
 
         private void LeftCanvas_Draw(CanvasControl sender, CanvasDrawEventArgs args)
         {
-            if (_leftBitmap != null)
+            var leftBitmap = _leftBitmap;
+            if (leftBitmap != null)
             {
                 try
                 {
-                    if (_leftBitmap.Device == null) return; // Disposed 체크
+                    if (!TryGetBitmapSize(leftBitmap, out var imageSize)) return;
 
                     var ds = args.DrawingSession;
                     var canvasSize = sender.Size;
-                    var imageSize = _leftBitmap.Size;
 
                     // Calculate fit ratio for full canvas width (each canvas is already half the screen)
                     var fitRatio = Math.Min(canvasSize.Width / imageSize.Width, canvasSize.Height / imageSize.Height);
@@ -1478,7 +1499,7 @@ namespace Uviewer
 
 
                     var destRect = new Windows.Foundation.Rect(position, scaledSize);
-                    ds.DrawImage(_leftBitmap, destRect, _leftBitmap.Bounds, 1.0f, CanvasImageInterpolation.HighQualityCubic);
+                    ds.DrawImage(leftBitmap, destRect, leftBitmap.Bounds, 1.0f, CanvasImageInterpolation.HighQualityCubic);
                 }
                 catch (Exception) { }
             }
@@ -1491,15 +1512,15 @@ namespace Uviewer
 
         private void RightCanvas_Draw(CanvasControl sender, CanvasDrawEventArgs args)
         {
-            if (_rightBitmap != null)
+            var rightBitmap = _rightBitmap;
+            if (rightBitmap != null)
             {
                 try
                 {
-                    if (_rightBitmap.Device == null) return; // Disposed 체크
+                    if (!TryGetBitmapSize(rightBitmap, out var imageSize)) return;
 
                     var ds = args.DrawingSession;
                     var canvasSize = sender.Size;
-                    var imageSize = _rightBitmap.Size;
 
                     // Calculate fit ratio for full canvas width (each canvas is already half the screen)
                     var fitRatio = Math.Min(canvasSize.Width / imageSize.Width, canvasSize.Height / imageSize.Height);
@@ -1515,7 +1536,7 @@ namespace Uviewer
 
 
                     var destRect = new Windows.Foundation.Rect(position, scaledSize);
-                    ds.DrawImage(_rightBitmap, destRect, _rightBitmap.Bounds, 1.0f, CanvasImageInterpolation.HighQualityCubic);
+                    ds.DrawImage(rightBitmap, destRect, rightBitmap.Bounds, 1.0f, CanvasImageInterpolation.HighQualityCubic);
                 }
                 catch (Exception) { }
             }
