@@ -77,6 +77,24 @@ namespace Uviewer.Services
             overlapped.IsAlwaysOnTop = IsAlwaysOnTop;
         }
 
+        public bool SyncFullscreenStateFromPresenter()
+        {
+            bool isActuallyFullscreen = _appWindow.Presenter.Kind == AppWindowPresenterKind.FullScreen;
+            if (IsFullscreen == isActuallyFullscreen)
+            {
+                return false;
+            }
+
+            IsFullscreen = isActuallyFullscreen;
+
+            if (!IsFullscreen && _appWindow.Presenter is OverlappedPresenter overlapped)
+            {
+                overlapped.IsAlwaysOnTop = IsAlwaysOnTop;
+            }
+
+            return true;
+        }
+
         // 핀(Pin) 상태 토글
         public void TogglePin()
         {

@@ -670,6 +670,11 @@ namespace Uviewer
             // 복잡한 위치/크기 추적은 매니저에게 위임합니다.
             _windowState.HandleAppWindowChanged(args);
 
+            if (_windowState.SyncFullscreenStateFromPresenter())
+            {
+                ApplyFullscreenUiState();
+            }
+
             if (args.DidPositionChange || args.DidSizeChange)
             {
                 if (args.DidSizeChange)
@@ -918,9 +923,18 @@ namespace Uviewer
             _windowState.ToggleFullscreen();
 
             // 2. 바뀐 상태에 따라 UI 컨트롤(Grid 등) 표시/숨김 처리
+            ApplyFullscreenUiState();
+
+            // [Important] Re-focus RootGrid after window state change
+            RootGrid?.Focus(FocusState.Programmatic);
+        }
+
+        private void ApplyFullscreenUiState()
+        {
             if (!_windowState.IsFullscreen)
             {
                 // Exit fullscreen
+                _overlayManager.StopAll();
                 if (_windowState.IsPinned)
                 {
                     // 핀 고정 상태: UI 모두 복원
@@ -968,9 +982,6 @@ namespace Uviewer
                 FullscreenIcon.Glyph = "\uE73F"; // Exit fullscreen icon
                 _overlayManager.StopAll();
             }
-
-            // [Important] Re-focus RootGrid after window state change
-            RootGrid?.Focus(FocusState.Programmatic);
         }
 
         private void ToggleMaximizeRestore()
