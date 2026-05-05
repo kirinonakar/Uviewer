@@ -7,7 +7,6 @@
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     xmlns:canvas="using:Microsoft.Graphics.Canvas.UI.Xaml"
-    xmlns:controls="using:CommunityToolkit.WinUI.Controls"
     xmlns:uc="using:Uviewer.Controls"
     xmlns:models="using:Uviewer.Models"
     mc:Ignorable="d"
@@ -789,14 +788,14 @@
                 </Grid>
             </Grid>
 
-            <controls:GridSplitter 
+            <uc:InternalGridSplitter 
                 x:Name="SplitterGrid"
                 Grid.Column="1"
                 Width="8"
                 Background="Transparent"
-                Foreground="{ThemeResource CardStrokeColorDefaultBrush}"
-                ResizeBehavior="BasedOnAlignment"
-                ResizeDirection="Columns" />
+                SplitterBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                HoverBrush="{ThemeResource TextFillColorSecondaryBrush}"
+                ResizeCompleted="Splitter_ResizeCompleted" />
 
             <!-- Image Area with Win2D CanvasControl -->
             <Grid Grid.Column="2" x:Name="ImageArea" Background="{ThemeResource SolidBackgroundFillColorBaseBrush}"

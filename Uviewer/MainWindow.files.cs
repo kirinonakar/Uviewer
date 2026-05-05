@@ -1468,69 +1468,11 @@ namespace Uviewer
 
         #region Sidebar Resizing
 
-        private bool _isDraggingSplitter = false;
-        private double _lastPointerX = 0;
-
-        private void Splitter_PointerEntered(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
+        private void Splitter_ResizeCompleted(object? sender, EventArgs e)
         {
-            if (SplitterGrid != null && !_isDraggingSplitter)
+            if (SidebarColumn.Width.IsAbsolute && SidebarColumn.Width.Value > 200)
             {
-                SplitterGrid.Background = new SolidColorBrush(Microsoft.UI.Colors.LightGray);
-            }
-        }
-
-        private void Splitter_PointerExited(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
-        {
-            if (SplitterGrid != null && !_isDraggingSplitter)
-            {
-                SplitterGrid.Background = new SolidColorBrush(Microsoft.UI.Colors.Transparent);
-            }
-        }
-
-        private void Splitter_PointerPressed(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
-        {
-            _isDraggingSplitter = true;
-            var pointer = e.GetCurrentPoint(SplitterGrid);
-            _lastPointerX = pointer.Position.X;
-
-            if (SplitterGrid != null)
-            {
-                SplitterGrid.CapturePointer(e.Pointer);
-            }
-        }
-
-        private void Splitter_PointerMoved(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
-        {
-            if (!_isDraggingSplitter || SidebarColumn == null)
-                return;
-
-            var pointer = e.GetCurrentPoint(SplitterGrid);
-            var deltaX = pointer.Position.X - _lastPointerX;
-
-            // Get current width
-            if (SidebarColumn.Width.IsAuto)
-                return;
-
-            var newWidth = SidebarColumn.Width.Value + deltaX;
-
-            // Clamp between 150 and 800
-            if (newWidth < 150)
-                newWidth = 150;
-            else if (newWidth > 800)
-                newWidth = 800;
-
-            SidebarColumn.Width = new GridLength(newWidth);
-            _lastPointerX = pointer.Position.X;
-        }
-
-        private void Splitter_PointerReleased(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
-        {
-            _isDraggingSplitter = false;
-
-            if (SplitterGrid != null)
-            {
-                SplitterGrid.ReleasePointerCapture(e.Pointer);
-                SplitterGrid.Background = new SolidColorBrush(Microsoft.UI.Colors.Transparent);
+                _windowState.SidebarWidth = (int)SidebarColumn.Width.Value;
             }
         }
 
