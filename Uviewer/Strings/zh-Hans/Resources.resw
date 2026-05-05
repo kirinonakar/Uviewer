@@ -59,382 +59,382 @@
     <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
   </resheader>
   <data name="ToggleSidebarTooltip" xml:space="preserve">
-    <value>Toggle Sidebar (Ctrl+B)</value>
+    <value>切换侧边栏 (Ctrl+B)</value>
   </data>
   <data name="OpenFileTooltip" xml:space="preserve">
-    <value>Open File (Ctrl+O)</value>
+    <value>打开文件 (Ctrl+O)</value>
   </data>
   <data name="OpenFolderTooltip" xml:space="preserve">
-    <value>Open Folder</value>
+    <value>打开文件夹</value>
   </data>
   <data name="ZoomOutTooltip" xml:space="preserve">
-    <value>Zoom Out (-)</value>
+    <value>缩小 (-)</value>
   </data>
   <data name="ZoomInTooltip" xml:space="preserve">
-    <value>Zoom In (+)</value>
+    <value>放大 (+)</value>
   </data>
   <data name="ZoomFitTooltip" xml:space="preserve">
-    <value>Fit to Window (0)</value>
+    <value>适应窗口 (0)</value>
   </data>
   <data name="ZoomActualTooltip" xml:space="preserve">
-    <value>Actual Size (1)</value>
+    <value>实际大小 (1)</value>
   </data>
   <data name="SharpenTooltip" xml:space="preserve">
-    <value>Sharpen(S) - Right-click for settings</value>
+    <value>锐化(S) - 右键打开设置</value>
   </data>
   <data name="SideBySideTooltip" xml:space="preserve">
-    <value>Side by Side (Space)</value>
+    <value>双页并排 (Space)</value>
   </data>
   <data name="NextImageSideTooltip" xml:space="preserve">
-    <value>Next Image Position</value>
+    <value>下一张图像位置</value>
   </data>
   <data name="PrevFileTooltip" xml:space="preserve">
-    <value>Previous File (↑)</value>
+    <value>上一个文件 (↑)</value>
   </data>
   <data name="NextFileTooltip" xml:space="preserve">
-    <value>Next File (↓)</value>
+    <value>下一个文件 (↓)</value>
   </data>
   <data name="PrevPageTooltip" xml:space="preserve">
-    <value>Previous Image/Page (←)</value>
+    <value>上一张图像/上一页 (←)</value>
   </data>
   <data name="NextPageTooltip" xml:space="preserve">
-    <value>Next Image/Page (→)</value>
+    <value>下一张图像/下一页 (→)</value>
   </data>
   <data name="AozoraTooltip" xml:space="preserve">
-    <value>Aozora/md (A)</value>
+    <value>青空文库/md (A)</value>
   </data>
   <data name="FontTooltip" xml:space="preserve">
-    <value>Change Font (F) - Right-click for settings</value>
+    <value>更改字体(F) - 右键打开设置</value>
   </data>
   <data name="GoToPageTooltip" xml:space="preserve">
-    <value>Go to Line (G)</value>
+    <value>跳转到行 (G)</value>
   </data>
   <data name="PdfGoToPageTooltip" xml:space="preserve">
-    <value>Go to Page (G)</value>
+    <value>跳转到页面 (G)</value>
   </data>
   <data name="GoToPageTitle" xml:space="preserve">
-    <value>Go to Page</value>
+    <value>跳转到页面</value>
   </data>
   <data name="TextSizeDownTooltip" xml:space="preserve">
-    <value>Text Smaller (-)</value>
+    <value>缩小文字 (-)</value>
   </data>
   <data name="TextSizeUpTooltip" xml:space="preserve">
-    <value>Text Larger (+)</value>
+    <value>放大文字 (+)</value>
   </data>
   <data name="VerticalTooltip" xml:space="preserve">
-    <value>Vertical Mode (V)</value>
+    <value>竖排模式 (V)</value>
   </data>
   <data name="ThemeTooltip" xml:space="preserve">
-    <value>Change Background (B)</value>
+    <value>更改背景 (B)</value>
   </data>
   <data name="FullscreenTooltip" xml:space="preserve">
-    <value>Fullscreen (F11)</value>
+    <value>全屏 (F11)</value>
   </data>
   <data name="CloseWindowTooltip" xml:space="preserve">
-    <value>Close (Esc)</value>
+    <value>关闭 (Esc)</value>
   </data>
   <data name="ToggleViewTooltip" xml:space="preserve">
-    <value>Thumbnail View</value>
+    <value>缩略图视图</value>
   </data>
   <data name="ListViewTooltip" xml:space="preserve">
-    <value>List View</value>
+    <value>列表视图</value>
   </data>
   <data name="ParentFolderTooltip" xml:space="preserve">
-    <value>Up Level (Backspace)</value>
+    <value>返回上一级 (Backspace)</value>
   </data>
   <data name="RecentTooltip" xml:space="preserve">
-    <value>Recent Files</value>
+    <value>最近文件</value>
   </data>
   <data name="NoRecentFiles" xml:space="preserve">
-    <value>No Recent Files</value>
+    <value>无最近文件</value>
   </data>
   <data name="FavoritesTooltip" xml:space="preserve">
-    <value>Favorites (Ctrl+S)</value>
+    <value>收藏 (Ctrl+S)</value>
   </data>
   <data name="NoFavorites" xml:space="preserve">
-    <value>No Favorites</value>
+    <value>无收藏</value>
   </data>
   <data name="FavoritesFiles" xml:space="preserve">
-    <value>Files</value>
+    <value>文件</value>
   </data>
   <data name="FavoritesFolders" xml:space="preserve">
-    <value>Folders</value>
+    <value>文件夹</value>
   </data>
   <data name="PinFavorite" xml:space="preserve">
-    <value>Pin</value>
+    <value>固定</value>
   </data>
   <data name="UnpinFavorite" xml:space="preserve">
-    <value>Unpin</value>
+    <value>取消固定</value>
   </data>
   <data name="RemoveFavorite" xml:space="preserve">
-    <value>Remove</value>
+    <value>移除</value>
   </data>
   <data name="ProgressLabel" xml:space="preserve">
-    <value>Progress</value>
+    <value>进度</value>
   </data>
   <data name="TocTooltip" xml:space="preserve">
-    <value>Table of Contents</value>
+    <value>目录</value>
   </data>
   <data name="TocTitle" xml:space="preserve">
-    <value>Contents</value>
+    <value>目录</value>
   </data>
   <data name="NoTocContent" xml:space="preserve">
-    <value>No Table of Contents</value>
+    <value>无目录</value>
   </data>
   <data name="BrowseFolderTooltip" xml:space="preserve">
-    <value>Open Folder</value>
+    <value>打开文件夹</value>
   </data>
   <data name="SettingsTooltip" xml:space="preserve">
-    <value>Settings</value>
+    <value>设置</value>
   </data>
   <data name="LightModeTooltip" xml:space="preserve">
-    <value>Light Mode (D)</value>
+    <value>浅色模式 (D)</value>
   </data>
   <data name="DarkModeTooltip" xml:space="preserve">
-    <value>Dark Mode (D)</value>
+    <value>深色模式 (D)</value>
   </data>
   <data name="ChangeFont" xml:space="preserve">
-    <value>Change Font</value>
+    <value>更改字体</value>
   </data>
   <data name="FontSelectionTitle" xml:space="preserve">
-    <value>Font Selection</value>
+    <value>字体选择</value>
   </data>
   <data name="FontSearchPlaceholder" xml:space="preserve">
-    <value>Search Fonts...</value>
+    <value>搜索字体...</value>
   </data>
   <data name="ChangeColors" xml:space="preserve">
-    <value>Background/Text Colors</value>
+    <value>背景/文字颜色</value>
   </data>
   <data name="BackgroundColor" xml:space="preserve">
-    <value>Background Color</value>
+    <value>背景颜色</value>
   </data>
   <data name="TextColor" xml:space="preserve">
-    <value>Text Color</value>
+    <value>文字颜色</value>
   </data>
   <data name="Hue" xml:space="preserve">
-    <value>Hue</value>
+    <value>色相</value>
   </data>
   <data name="Saturation" xml:space="preserve">
-    <value>Saturation</value>
+    <value>饱和度</value>
   </data>
   <data name="Lightness" xml:space="preserve">
-    <value>Lightness</value>
+    <value>亮度</value>
   </data>
   <data name="Preview" xml:space="preserve">
-    <value>Preview</value>
+    <value>预览</value>
   </data>
   <data name="MatchControlDirection" xml:space="preserve">
-    <value>Match Control Direction</value>
+    <value>匹配控制方向</value>
   </data>
   <data name="MatchControlDirectionTooltip" xml:space="preserve">
-    <value>Change control direction based on page progression direction</value>
+    <value>根据页面前进方向更改控制方向</value>
   </data>
   <data name="AllowMultipleInstances" xml:space="preserve">
-    <value>Allow Multiple Instances</value>
+    <value>允许多个实例</value>
   </data>
   <data name="AllowMultipleInstancesTooltip" xml:space="preserve">
-    <value>Allows multiple instances of the app. If disabled, images will open in the already running instance.</value>
+    <value>允许同时运行多个应用实例。关闭后，图像会在已运行的实例中打开。</value>
   </data>
   <data name="CurrentPathPlaceholder" xml:space="preserve">
-    <value>Select a folder</value>
+    <value>选择文件夹</value>
   </data>
   <data name="EmptyStateDrag" xml:space="preserve">
-    <value>Drag files here or</value>
+    <value>将文件拖到这里或</value>
   </data>
   <data name="EmptyStateClick" xml:space="preserve">
-    <value>Click 'Open Button'</value>
+    <value>点击“打开”按钮</value>
   </data>
   <data name="EmptyStateButton" xml:space="preserve">
-    <value>Open File</value>
+    <value>打开文件</value>
   </data>
   <data name="FastNavText" xml:space="preserve">
-    <value>Fast Navigating...</value>
+    <value>快速导航中...</value>
   </data>
   <data name="TextFastNavText" xml:space="preserve">
-    <value>Navigating...</value>
+    <value>导航中...</value>
   </data>
   <data name="CalculatingPages" xml:space="preserve">
-    <value> (Calculating pages...)</value>
+    <value> (正在计算页数...)</value>
   </data>
   <data name="Paginating" xml:space="preserve">
-    <value>Paginating...</value>
+    <value>正在分页...</value>
   </data>
   <data name="FileSelectPlaceholder" xml:space="preserve">
-    <value>Select a file</value>
+    <value>选择文件</value>
   </data>
   <data name="LoadImageError" xml:space="preserve">
-    <value>Cannot load file.</value>
+    <value>无法加载文件。</value>
   </data>
   <data name="AddedToFavoritesNotification" xml:space="preserve">
-    <value>Added to Favorites</value>
+    <value>已添加到收藏</value>
   </data>
   <data name="Loading" xml:space="preserve">
-    <value> (Loading...)</value>
+    <value> (加载中...)</value>
   </data>
   <data name="AddToFavorites" xml:space="preserve">
-    <value>➕ Add to Favorites (Ctrl+S)</value>
+    <value>➕ 添加到收藏 (Ctrl+S)</value>
   </data>
   <data name="DialogTitle" xml:space="preserve">
-    <value>Go to Line</value>
+    <value>跳转到行</value>
   </data>
   <data name="DialogPrimary" xml:space="preserve">
-    <value>Go</value>
+    <value>跳转</value>
   </data>
   <data name="DialogClose" xml:space="preserve">
-    <value>Cancel</value>
+    <value>取消</value>
   </data>
   <data name="EncodingMenu" xml:space="preserve">
-    <value>Encoding</value>
+    <value>编码</value>
   </data>
   <data name="EncAuto" xml:space="preserve">
-    <value>Auto (Detect)</value>
+    <value>自动(检测)</value>
   </data>
   <data name="EncUtf8" xml:space="preserve">
     <value>UTF-8</value>
   </data>
   <data name="EncEucKr" xml:space="preserve">
-    <value>Korean (EUC-KR)</value>
+    <value>韩语(EUC-KR)</value>
   </data>
   <data name="EncSjis" xml:space="preserve">
-    <value>Japanese (Shift-JIS)</value>
+    <value>日语(Shift-JIS)</value>
   </data>
   <data name="EncJohab" xml:space="preserve">
-    <value>Korean (Johab)</value>
+    <value>韩语(Johab)</value>
   </data>
   <data name="WebDavTooltip" xml:space="preserve">
-    <value>WebDAV Connect</value>
+    <value>连接 WebDAV</value>
   </data>
   <data name="AddWebDavServer" xml:space="preserve">
-    <value>➕ Add WebDAV Server</value>
+    <value>➕ 添加 WebDAV 服务器</value>
   </data>
   <data name="WebDavServerName" xml:space="preserve">
-    <value>Server Name</value>
+    <value>服务器名称</value>
   </data>
   <data name="WebDavAddress" xml:space="preserve">
-    <value>Address (HTTPS only)</value>
+    <value>地址(仅 HTTPS)</value>
   </data>
   <data name="WebDavPort" xml:space="preserve">
-    <value>Port</value>
+    <value>端口</value>
   </data>
   <data name="WebDavId" xml:space="preserve">
     <value>ID</value>
   </data>
   <data name="WebDavPassword" xml:space="preserve">
-    <value>Password</value>
+    <value>密码</value>
   </data>
   <data name="WebDavSave" xml:space="preserve">
-    <value>Save</value>
+    <value>保存</value>
   </data>
   <data name="WebDavCancel" xml:space="preserve">
-    <value>Cancel</value>
+    <value>取消</value>
   </data>
   <data name="WebDavConnecting" xml:space="preserve">
-    <value>Connecting...</value>
+    <value>正在连接...</value>
   </data>
   <data name="WebDavConnectionFailed" xml:space="preserve">
-    <value>Connection Failed</value>
+    <value>连接失败</value>
   </data>
   <data name="LineInfo" xml:space="preserve">
-    <value>Line {0} / {1}</value>
+    <value>第 {0} 行 / 共 {1} 行</value>
   </data>
   <data name="EpubLoadError" xml:space="preserve">
-    <value>EPUB Load Failed: {0}</value>
+    <value>EPUB 加载失败: {0}</value>
   </data>
   <data name="EpubParseError" xml:space="preserve">
-    <value>EPUB Parse Error: {0}</value>
+    <value>EPUB 解析错误: {0}</value>
   </data>
   <data name="EpubPageInfo" xml:space="preserve">
-    <value>Page {0}/{1} Line {2}/{3} (Ch.{4}/{5})</value>
+    <value>第 {0}/{1} 页 第 {2}/{3} 行 (第 {4}/{5} 章)</value>
   </data>
 
   <data name="LanguageSelection" xml:space="preserve">
-    <value>Language Selection</value>
+    <value>语言设置</value>
   </data>
   <data name="LanguageAuto" xml:space="preserve">
-    <value>Auto (Default)</value>
+    <value>自动(默认)</value>
   </data>
   <data name="LanguageKorean" xml:space="preserve">
-    <value>Korean</value>
+    <value>韩语</value>
   </data>
   <data name="LanguageEnglish" xml:space="preserve">
-    <value>English</value>
+    <value>英语</value>
   </data>
   <data name="LanguageJapanese" xml:space="preserve">
-    <value>Japanese</value>
+    <value>日语</value>
   </data>
   <data name="LanguageChineseSimplified" xml:space="preserve">
-    <value>Chinese (Simplified)</value>
+    <value>简体中文</value>
   </data>
   <data name="LanguageChineseTraditional" xml:space="preserve">
-    <value>Chinese (Traditional)</value>
+    <value>繁体中文</value>
   </data>
   <data name="LanguageVietnamese" xml:space="preserve">
-    <value>Vietnamese</value>
+    <value>越南语</value>
   </data>
   <data name="ChangeUiFont" xml:space="preserve">
-    <value>Change UI Font</value>
+    <value>更改 UI 字体</value>
   </data>
   <data name="UIFontSelectionTitle" xml:space="preserve">
-    <value>UI Font Selection</value>
+    <value>UI 字体选择</value>
   </data>
   <data name="PinTooltip" xml:space="preserve">
-    <value>Pin/Auto-Hide UI (`)</value>
+    <value>固定/自动隐藏 UI (`)</value>
   </data>
   <data name="AlwaysOnTopTooltip" xml:space="preserve">
-    <value>Always on Top (T)</value>
+    <value>置顶显示 (T)</value>
   </data>
   <data name="AutoDoublePageForArchive" xml:space="preserve">
-    <value>Auto Side-by-Side in Archive</value>
+    <value>压缩包内自动双页并排</value>
   </data>
   <data name="FolderEmpty" xml:space="preserve">
-    <value>Folder is empty.</value>
+    <value>文件夹为空。</value>
   </data>
   <data name="SortByNameTooltip" xml:space="preserve">
-    <value>Sort by Name</value>
+    <value>按名称排序</value>
   </data>
   <data name="SortByDateDescTooltip" xml:space="preserve">
-    <value>Date Modified (Newest)</value>
+    <value>修改日期(最新)</value>
   </data>
   <data name="SortByDateAscTooltip" xml:space="preserve">
-    <value>Date Modified (Oldest)</value>
+    <value>修改日期(最旧)</value>
   </data>
   <data name="About" xml:space="preserve">
-    <value>About</value>
+    <value>关于</value>
   </data>
   <data name="AboutTitle" xml:space="preserve">
-    <value>About Uviewer</value>
+    <value>关于 Uviewer</value>
   </data>
   <data name="SharpenSettingsTitle" xml:space="preserve">
-    <value>Sharpen &amp; Upscale Settings</value>
+    <value>锐化和放大设置</value>
   </data>
   <data name="UpscaleFactorLabel" xml:space="preserve">
-    <value>Upscale Factor:</value>
+    <value>放大倍率:</value>
   </data>
   <data name="SharpenAmountLabel" xml:space="preserve">
-    <value>Sharpen Amount:</value>
+    <value>锐化强度:</value>
   </data>
   <data name="SharpenThresholdLabel" xml:space="preserve">
-    <value>Sharpen Threshold:</value>
+    <value>锐化阈值:</value>
   </data>
   <data name="UnsharpAmountLabel" xml:space="preserve">
-    <value>Unsharp Amount:</value>
+    <value>反锐化强度:</value>
   </data>
   <data name="UnsharpRadiusLabel" xml:space="preserve">
-    <value>Unsharp Radius:</value>
+    <value>反锐化半径:</value>
   </data>
   <data name="ResetButton" xml:space="preserve">
-    <value>Reset</value>
+    <value>重置</value>
   </data>
   <data name="DefaultFont1Label" xml:space="preserve">
-    <value>Font 1</value>
+    <value>字体 1</value>
   </data>
   <data name="DefaultFont2Label" xml:space="preserve">
-    <value>Font 2</value>
+    <value>字体 2</value>
   </data>
   <data name="FontSelectionSlotTitle" xml:space="preserve">
-    <value>Select Font {0}</value>
+    <value>选择字体 {0}</value>
   </data>
   <data name="FileNotFound" xml:space="preserve">
-    <value>File/Folder not found.</value>
+    <value>找不到文件/文件夹。</value>
   </data>
 </root>

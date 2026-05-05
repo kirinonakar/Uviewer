@@ -1,0 +1,47 @@
+Tên sản phẩm: Uviewer - Trình xem ảnh & đọc tiểu thuyết hiện đại
+
+Mô tả ngắn:
+Trình xem đa năng cho ảnh, văn bản, PDF và EPUB, có hỗ trợ Aozora Bunko (chữ dọc) và xem trực tiếp trong tệp nén. Trải nghiệm hiện đại, hiệu năng cao trên WinUI 3.
+
+Mô tả:
+Uviewer là trình xem tích hợp, hiện đại và hiệu năng cao cho Windows, được xây dựng trên WinUI 3 và .NET 10. Ứng dụng xử lý mượt mà ảnh, văn bản, PDF và EPUB, đồng thời cung cấp các tính năng nâng cao như xem ảnh trực tiếp trong tệp nén, chế độ xem song song và hỗ trợ mạnh mẽ cho Aozora Bunko với khả năng hiển thị chữ dọc.
+
+Với thiết kế linh hoạt, Uviewer còn hỗ trợ Markdown, tự động phát hiện mã hóa thông minh và kết nối WebDAV để tối ưu quy trình đọc và xem nội dung số của bạn.
+
+Tính năng chính:
+
+🖼️ Xem ảnh & PDF
+- Hỗ trợ định dạng rộng: PDF, JPEG, PNG, GIF, BMP, TIFF, ICO, SVG, WebP, AVIF, JXL và WebP động.
+- Kết xuất hiệu năng cao: Dựa trên Win2D (Direct2D) để phóng to, thu nhỏ và kéo ảnh mượt mà.
+- Thu phóng thông minh: Hỗ trợ mức zoom tùy chỉnh (0.1x đến 10x), vừa cửa sổ và kích thước thật.
+- Công cụ: Bộ lọc làm sắc nét, chế độ xem song song, khớp hướng điều khiển (điều hướng phải sang trái) và lớp phủ điều hướng nhanh.
+
+📝 Xem văn bản & tiểu thuyết
+- Bộ xử lý văn bản nâng cao: Tải nhanh các tệp văn bản lớn.
+- Hỗ trợ Aozora Bunko: Hiển thị Ruby (Furigana), nhấn mạnh, thụt lề và hình ảnh.
+- Hỗ trợ Markdown: Kết xuất tùy chỉnh, bao gồm bảng và khối mã.
+- Phát hiện mã hóa thông minh: Xử lý UTF-8, EUC-KR, Shift-JIS và nhiều mã hóa khác.
+- Chế độ chữ dọc: Hỗ trợ bố cục chữ dọc chính xác theo pixel.
+- Điều hướng: Trích xuất mục lục, dấu trang PDF và hỗ trợ "Đến dòng".
+
+📖 Trình đọc EPUB
+- Hỗ trợ EPUB đầy đủ: Điều hướng theo trang với theo dõi chương.
+- Điều hướng mục lục: Chuyển nhanh giữa các chương.
+- Hỗ trợ chữ dọc: Xem EPUB ở chế độ chữ dọc cho trải nghiệm đọc truyền thống.
+
+📂 Quản lý tệp
+- Hỗ trợ tệp nén: Đọc ảnh trực tiếp từ .zip, .rar, .7z và các định dạng khác.
+- Tổ chức: Quản lý mục yêu thích và tệp gần đây.
+- Hỗ trợ WebDAV: Truy cập ảnh trực tiếp từ máy chủ từ xa.
+
+🌍 Bản địa hóa
+- Hỗ trợ đa ngôn ngữ: Tiếng Anh, tiếng Hàn, tiếng Nhật, tiếng Trung giản thể, tiếng Trung phồn thể và tiếng Việt.
+
+Tính năng:
+- Xem ảnh, văn bản, PDF và EPUB mượt mà trong một ứng dụng.
+- Xem ảnh trực tiếp trong tệp ZIP/7z/RAR mà không cần giải nén.
+- Kết xuất Aozora Bunko (chữ dọc) đẹp mắt với hỗ trợ Ruby.
+- Kết xuất ảnh tăng tốc phần cứng cho hiệu năng mượt mà.
+- Tự động phát hiện mã hóa thông minh cho tệp văn bản.
+- Hỗ trợ WebDAV để đọc và xem từ xa.
+- Giao diện phong cách Windows 11 hiện đại với chế độ tối/sáng.

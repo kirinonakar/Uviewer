@@ -35,7 +35,7 @@ Key Features:
 - WebDAV Support: Access images directly from remote servers.
 
 🌍 Localization
-- Multi-language Support: English, Korean, and Japanese.
+- Multi-language Support: English, Korean, Japanese, Chinese (Simplified), Chinese (Traditional), and Vietnamese.
 
 Features:
 - Seamless viewing of images, text, PDF and EPUBs in one app.

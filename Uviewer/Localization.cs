@@ -117,6 +117,9 @@ namespace Uviewer
         public static string LanguageKorean => GetString("LanguageKorean");
         public static string LanguageEnglish => GetString("LanguageEnglish");
         public static string LanguageJapanese => GetString("LanguageJapanese");
+        public static string LanguageChineseSimplified => GetString("LanguageChineseSimplified");
+        public static string LanguageChineseTraditional => GetString("LanguageChineseTraditional");
+        public static string LanguageVietnamese => GetString("LanguageVietnamese");
         public static string ChangeUiFont => GetString("ChangeUiFont");
         public static string UIFontSelectionTitle => GetString("UIFontSelectionTitle");
         public static string PinTooltip => GetString("PinTooltip");

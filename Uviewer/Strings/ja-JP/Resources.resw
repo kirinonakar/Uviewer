@@ -362,6 +362,15 @@
   <data name="LanguageJapanese" xml:space="preserve">
     <value>日本語</value>
   </data>
+  <data name="LanguageChineseSimplified" xml:space="preserve">
+    <value>中国語(簡体字)</value>
+  </data>
+  <data name="LanguageChineseTraditional" xml:space="preserve">
+    <value>中国語(繁体字)</value>
+  </data>
+  <data name="LanguageVietnamese" xml:space="preserve">
+    <value>ベトナム語</value>
+  </data>
   <data name="ChangeUiFont" xml:space="preserve">
     <value>UIフォント変更</value>
   </data>

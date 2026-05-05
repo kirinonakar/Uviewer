@@ -133,6 +133,9 @@
                                 <ToggleMenuFlyoutItem x:Name="LangKoItem" Text="한국어" Click="LanguageItem_Click" Tag="ko-KR"/>
                                 <ToggleMenuFlyoutItem x:Name="LangEnItem" Text="English" Click="LanguageItem_Click" Tag="en-US"/>
                                 <ToggleMenuFlyoutItem x:Name="LangJaItem" Text="日本語" Click="LanguageItem_Click" Tag="ja-JP"/>
+                                <ToggleMenuFlyoutItem x:Name="LangZhHansItem" Text="简体中文" Click="LanguageItem_Click" Tag="zh-Hans"/>
+                                <ToggleMenuFlyoutItem x:Name="LangZhHantItem" Text="繁體中文" Click="LanguageItem_Click" Tag="zh-Hant"/>
+                                <ToggleMenuFlyoutItem x:Name="LangViItem" Text="Tiếng Việt" Click="LanguageItem_Click" Tag="vi-VN"/>
                             </MenuFlyoutSubItem>
                             <MenuFlyoutSeparator/>
                             <ToggleMenuFlyoutItem x:Name="MatchControlDirectionMenuItem" Text="컨트롤 방향 일치" Click="MatchControlDirectionMenuItem_Click">

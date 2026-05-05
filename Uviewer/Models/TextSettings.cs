@@ -10,7 +10,7 @@ namespace Uviewer.Models
         public bool IsVerticalMode { get; set; } = false;
         public string? CustomBackgroundColor { get; set; }
         public string? CustomForegroundColor { get; set; }
-        public string? Language { get; set; } // "ko-KR", "en-US", "ja-JP" or null for auto
+        public string? Language { get; set; } // "ko-KR", "en-US", "ja-JP", "zh-Hans", "zh-Hant", "vi-VN" or null for auto
         public string? UIFontFamily { get; set; }
         public string DefaultFont1 { get; set; } = "Yu Gothic";
         public string DefaultFont2 { get; set; } = "Yu Mincho";

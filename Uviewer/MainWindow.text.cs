@@ -962,6 +962,9 @@ namespace Uviewer
             if (LangKoItem != null) LangKoItem.IsChecked = current == "ko-KR";
             if (LangEnItem != null) LangEnItem.IsChecked = current == "en-US";
             if (LangJaItem != null) LangJaItem.IsChecked = current == "ja-JP";
+            if (LangZhHansItem != null) LangZhHansItem.IsChecked = current == "zh-Hans";
+            if (LangZhHantItem != null) LangZhHantItem.IsChecked = current == "zh-Hant";
+            if (LangViItem != null) LangViItem.IsChecked = current == "vi-VN";
         }
 
 

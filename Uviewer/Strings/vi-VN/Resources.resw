@@ -59,382 +59,382 @@
     <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
   </resheader>
   <data name="ToggleSidebarTooltip" xml:space="preserve">
-    <value>Toggle Sidebar (Ctrl+B)</value>
+    <value>Bật/tắt thanh bên (Ctrl+B)</value>
   </data>
   <data name="OpenFileTooltip" xml:space="preserve">
-    <value>Open File (Ctrl+O)</value>
+    <value>Mở tệp (Ctrl+O)</value>
   </data>
   <data name="OpenFolderTooltip" xml:space="preserve">
-    <value>Open Folder</value>
+    <value>Mở thư mục</value>
   </data>
   <data name="ZoomOutTooltip" xml:space="preserve">
-    <value>Zoom Out (-)</value>
+    <value>Thu nhỏ (-)</value>
   </data>
   <data name="ZoomInTooltip" xml:space="preserve">
-    <value>Zoom In (+)</value>
+    <value>Phóng to (+)</value>
   </data>
   <data name="ZoomFitTooltip" xml:space="preserve">
-    <value>Fit to Window (0)</value>
+    <value>Vừa cửa sổ (0)</value>
   </data>
   <data name="ZoomActualTooltip" xml:space="preserve">
-    <value>Actual Size (1)</value>
+    <value>Kích thước thật (1)</value>
   </data>
   <data name="SharpenTooltip" xml:space="preserve">
-    <value>Sharpen(S) - Right-click for settings</value>
+    <value>Làm sắc nét (S) - Nhấp phải để cài đặt</value>
   </data>
   <data name="SideBySideTooltip" xml:space="preserve">
-    <value>Side by Side (Space)</value>
+    <value>Xem song song (Space)</value>
   </data>
   <data name="NextImageSideTooltip" xml:space="preserve">
-    <value>Next Image Position</value>
+    <value>Vị trí ảnh tiếp theo</value>
   </data>
   <data name="PrevFileTooltip" xml:space="preserve">
-    <value>Previous File (↑)</value>
+    <value>Tệp trước (↑)</value>
   </data>
   <data name="NextFileTooltip" xml:space="preserve">
-    <value>Next File (↓)</value>
+    <value>Tệp tiếp theo (↓)</value>
   </data>
   <data name="PrevPageTooltip" xml:space="preserve">
-    <value>Previous Image/Page (←)</value>
+    <value>Ảnh/trang trước (←)</value>
   </data>
   <data name="NextPageTooltip" xml:space="preserve">
-    <value>Next Image/Page (→)</value>
+    <value>Ảnh/trang tiếp theo (→)</value>
   </data>
   <data name="AozoraTooltip" xml:space="preserve">
     <value>Aozora/md (A)</value>
   </data>
   <data name="FontTooltip" xml:space="preserve">
-    <value>Change Font (F) - Right-click for settings</value>
+    <value>Đổi phông chữ (F) - Nhấp phải để cài đặt</value>
   </data>
   <data name="GoToPageTooltip" xml:space="preserve">
-    <value>Go to Line (G)</value>
+    <value>Đến dòng (G)</value>
   </data>
   <data name="PdfGoToPageTooltip" xml:space="preserve">
-    <value>Go to Page (G)</value>
+    <value>Đến trang (G)</value>
   </data>
   <data name="GoToPageTitle" xml:space="preserve">
-    <value>Go to Page</value>
+    <value>Đến trang</value>
   </data>
   <data name="TextSizeDownTooltip" xml:space="preserve">
-    <value>Text Smaller (-)</value>
+    <value>Chữ nhỏ hơn (-)</value>
   </data>
   <data name="TextSizeUpTooltip" xml:space="preserve">
-    <value>Text Larger (+)</value>
+    <value>Chữ lớn hơn (+)</value>
   </data>
   <data name="VerticalTooltip" xml:space="preserve">
-    <value>Vertical Mode (V)</value>
+    <value>Chế độ chữ dọc (V)</value>
   </data>
   <data name="ThemeTooltip" xml:space="preserve">
-    <value>Change Background (B)</value>
+    <value>Đổi nền (B)</value>
   </data>
   <data name="FullscreenTooltip" xml:space="preserve">
-    <value>Fullscreen (F11)</value>
+    <value>Toàn màn hình (F11)</value>
   </data>
   <data name="CloseWindowTooltip" xml:space="preserve">
-    <value>Close (Esc)</value>
+    <value>Đóng (Esc)</value>
   </data>
   <data name="ToggleViewTooltip" xml:space="preserve">
-    <value>Thumbnail View</value>
+    <value>Xem hình thu nhỏ</value>
   </data>
   <data name="ListViewTooltip" xml:space="preserve">
-    <value>List View</value>
+    <value>Xem danh sách</value>
   </data>
   <data name="ParentFolderTooltip" xml:space="preserve">
-    <value>Up Level (Backspace)</value>
+    <value>Lên một cấp (Backspace)</value>
   </data>
   <data name="RecentTooltip" xml:space="preserve">
-    <value>Recent Files</value>
+    <value>Tệp gần đây</value>
   </data>
   <data name="NoRecentFiles" xml:space="preserve">
-    <value>No Recent Files</value>
+    <value>Không có tệp gần đây</value>
   </data>
   <data name="FavoritesTooltip" xml:space="preserve">
-    <value>Favorites (Ctrl+S)</value>
+    <value>Yêu thích (Ctrl+S)</value>
   </data>
   <data name="NoFavorites" xml:space="preserve">
-    <value>No Favorites</value>
+    <value>Không có mục yêu thích</value>
   </data>
   <data name="FavoritesFiles" xml:space="preserve">
-    <value>Files</value>
+    <value>Tệp</value>
   </data>
   <data name="FavoritesFolders" xml:space="preserve">
-    <value>Folders</value>
+    <value>Thư mục</value>
   </data>
   <data name="PinFavorite" xml:space="preserve">
-    <value>Pin</value>
+    <value>Ghim</value>
   </data>
   <data name="UnpinFavorite" xml:space="preserve">
-    <value>Unpin</value>
+    <value>Bỏ ghim</value>
   </data>
   <data name="RemoveFavorite" xml:space="preserve">
-    <value>Remove</value>
+    <value>Xóa</value>
   </data>
   <data name="ProgressLabel" xml:space="preserve">
-    <value>Progress</value>
+    <value>Tiến trình</value>
   </data>
   <data name="TocTooltip" xml:space="preserve">
-    <value>Table of Contents</value>
+    <value>Mục lục</value>
   </data>
   <data name="TocTitle" xml:space="preserve">
-    <value>Contents</value>
+    <value>Mục lục</value>
   </data>
   <data name="NoTocContent" xml:space="preserve">
-    <value>No Table of Contents</value>
+    <value>Không có mục lục</value>
   </data>
   <data name="BrowseFolderTooltip" xml:space="preserve">
-    <value>Open Folder</value>
+    <value>Mở thư mục</value>
   </data>
   <data name="SettingsTooltip" xml:space="preserve">
-    <value>Settings</value>
+    <value>Cài đặt</value>
   </data>
   <data name="LightModeTooltip" xml:space="preserve">
-    <value>Light Mode (D)</value>
+    <value>Chế độ sáng (D)</value>
   </data>
   <data name="DarkModeTooltip" xml:space="preserve">
-    <value>Dark Mode (D)</value>
+    <value>Chế độ tối (D)</value>
   </data>
   <data name="ChangeFont" xml:space="preserve">
-    <value>Change Font</value>
+    <value>Đổi phông chữ</value>
   </data>
   <data name="FontSelectionTitle" xml:space="preserve">
-    <value>Font Selection</value>
+    <value>Chọn phông chữ</value>
   </data>
   <data name="FontSearchPlaceholder" xml:space="preserve">
-    <value>Search Fonts...</value>
+    <value>Tìm phông chữ...</value>
   </data>
   <data name="ChangeColors" xml:space="preserve">
-    <value>Background/Text Colors</value>
+    <value>Màu nền/chữ</value>
   </data>
   <data name="BackgroundColor" xml:space="preserve">
-    <value>Background Color</value>
+    <value>Màu nền</value>
   </data>
   <data name="TextColor" xml:space="preserve">
-    <value>Text Color</value>
+    <value>Màu chữ</value>
   </data>
   <data name="Hue" xml:space="preserve">
-    <value>Hue</value>
+    <value>Sắc độ</value>
   </data>
   <data name="Saturation" xml:space="preserve">
-    <value>Saturation</value>
+    <value>Độ bão hòa</value>
   </data>
   <data name="Lightness" xml:space="preserve">
-    <value>Lightness</value>
+    <value>Độ sáng</value>
   </data>
   <data name="Preview" xml:space="preserve">
-    <value>Preview</value>
+    <value>Xem trước</value>
   </data>
   <data name="MatchControlDirection" xml:space="preserve">
-    <value>Match Control Direction</value>
+    <value>Khớp hướng điều khiển</value>
   </data>
   <data name="MatchControlDirectionTooltip" xml:space="preserve">
-    <value>Change control direction based on page progression direction</value>
+    <value>Đổi hướng điều khiển theo hướng chuyển trang</value>
   </data>
   <data name="AllowMultipleInstances" xml:space="preserve">
-    <value>Allow Multiple Instances</value>
+    <value>Cho phép nhiều phiên bản</value>
   </data>
   <data name="AllowMultipleInstancesTooltip" xml:space="preserve">
-    <value>Allows multiple instances of the app. If disabled, images will open in the already running instance.</value>
+    <value>Cho phép chạy nhiều phiên bản ứng dụng. Nếu tắt, ảnh sẽ mở trong phiên bản đang chạy.</value>
   </data>
   <data name="CurrentPathPlaceholder" xml:space="preserve">
-    <value>Select a folder</value>
+    <value>Chọn thư mục</value>
   </data>
   <data name="EmptyStateDrag" xml:space="preserve">
-    <value>Drag files here or</value>
+    <value>Kéo tệp vào đây hoặc</value>
   </data>
   <data name="EmptyStateClick" xml:space="preserve">
-    <value>Click 'Open Button'</value>
+    <value>Nhấp nút 'Mở'</value>
   </data>
   <data name="EmptyStateButton" xml:space="preserve">
-    <value>Open File</value>
+    <value>Mở tệp</value>
   </data>
   <data name="FastNavText" xml:space="preserve">
-    <value>Fast Navigating...</value>
+    <value>Đang điều hướng nhanh...</value>
   </data>
   <data name="TextFastNavText" xml:space="preserve">
-    <value>Navigating...</value>
+    <value>Đang điều hướng...</value>
   </data>
   <data name="CalculatingPages" xml:space="preserve">
-    <value> (Calculating pages...)</value>
+    <value> (Đang tính trang...)</value>
   </data>
   <data name="Paginating" xml:space="preserve">
-    <value>Paginating...</value>
+    <value>Đang phân trang...</value>
   </data>
   <data name="FileSelectPlaceholder" xml:space="preserve">
-    <value>Select a file</value>
+    <value>Chọn tệp</value>
   </data>
   <data name="LoadImageError" xml:space="preserve">
-    <value>Cannot load file.</value>
+    <value>Không thể tải tệp.</value>
   </data>
   <data name="AddedToFavoritesNotification" xml:space="preserve">
-    <value>Added to Favorites</value>
+    <value>Đã thêm vào Yêu thích</value>
   </data>
   <data name="Loading" xml:space="preserve">
-    <value> (Loading...)</value>
+    <value> (Đang tải...)</value>
   </data>
   <data name="AddToFavorites" xml:space="preserve">
-    <value>➕ Add to Favorites (Ctrl+S)</value>
+    <value>➕ Thêm vào Yêu thích (Ctrl+S)</value>
   </data>
   <data name="DialogTitle" xml:space="preserve">
-    <value>Go to Line</value>
+    <value>Đến dòng</value>
   </data>
   <data name="DialogPrimary" xml:space="preserve">
-    <value>Go</value>
+    <value>Đi</value>
   </data>
   <data name="DialogClose" xml:space="preserve">
-    <value>Cancel</value>
+    <value>Hủy</value>
   </data>
   <data name="EncodingMenu" xml:space="preserve">
-    <value>Encoding</value>
+    <value>Mã hóa</value>
   </data>
   <data name="EncAuto" xml:space="preserve">
-    <value>Auto (Detect)</value>
+    <value>Tự động (phát hiện)</value>
   </data>
   <data name="EncUtf8" xml:space="preserve">
     <value>UTF-8</value>
   </data>
   <data name="EncEucKr" xml:space="preserve">
-    <value>Korean (EUC-KR)</value>
+    <value>Tiếng Hàn (EUC-KR)</value>
   </data>
   <data name="EncSjis" xml:space="preserve">
-    <value>Japanese (Shift-JIS)</value>
+    <value>Tiếng Nhật (Shift-JIS)</value>
   </data>
   <data name="EncJohab" xml:space="preserve">
-    <value>Korean (Johab)</value>
+    <value>Tiếng Hàn (Johab)</value>
   </data>
   <data name="WebDavTooltip" xml:space="preserve">
-    <value>WebDAV Connect</value>
+    <value>Kết nối WebDAV</value>
   </data>
   <data name="AddWebDavServer" xml:space="preserve">
-    <value>➕ Add WebDAV Server</value>
+    <value>➕ Thêm máy chủ WebDAV</value>
   </data>
   <data name="WebDavServerName" xml:space="preserve">
-    <value>Server Name</value>
+    <value>Tên máy chủ</value>
   </data>
   <data name="WebDavAddress" xml:space="preserve">
-    <value>Address (HTTPS only)</value>
+    <value>Địa chỉ (chỉ HTTPS)</value>
   </data>
   <data name="WebDavPort" xml:space="preserve">
-    <value>Port</value>
+    <value>Cổng</value>
   </data>
   <data name="WebDavId" xml:space="preserve">
     <value>ID</value>
   </data>
   <data name="WebDavPassword" xml:space="preserve">
-    <value>Password</value>
+    <value>Mật khẩu</value>
   </data>
   <data name="WebDavSave" xml:space="preserve">
-    <value>Save</value>
+    <value>Lưu</value>
   </data>
   <data name="WebDavCancel" xml:space="preserve">
-    <value>Cancel</value>
+    <value>Hủy</value>
   </data>
   <data name="WebDavConnecting" xml:space="preserve">
-    <value>Connecting...</value>
+    <value>Đang kết nối...</value>
   </data>
   <data name="WebDavConnectionFailed" xml:space="preserve">
-    <value>Connection Failed</value>
+    <value>Kết nối thất bại</value>
   </data>
   <data name="LineInfo" xml:space="preserve">
-    <value>Line {0} / {1}</value>
+    <value>Dòng {0} / {1}</value>
   </data>
   <data name="EpubLoadError" xml:space="preserve">
-    <value>EPUB Load Failed: {0}</value>
+    <value>Tải EPUB thất bại: {0}</value>
   </data>
   <data name="EpubParseError" xml:space="preserve">
-    <value>EPUB Parse Error: {0}</value>
+    <value>Lỗi phân tích EPUB: {0}</value>
   </data>
   <data name="EpubPageInfo" xml:space="preserve">
-    <value>Page {0}/{1} Line {2}/{3} (Ch.{4}/{5})</value>
+    <value>Trang {0}/{1} Dòng {2}/{3} (Chương {4}/{5})</value>
   </data>
 
   <data name="LanguageSelection" xml:space="preserve">
-    <value>Language Selection</value>
+    <value>Chọn ngôn ngữ</value>
   </data>
   <data name="LanguageAuto" xml:space="preserve">
-    <value>Auto (Default)</value>
+    <value>Tự động (mặc định)</value>
   </data>
   <data name="LanguageKorean" xml:space="preserve">
-    <value>Korean</value>
+    <value>Tiếng Hàn</value>
   </data>
   <data name="LanguageEnglish" xml:space="preserve">
-    <value>English</value>
+    <value>Tiếng Anh</value>
   </data>
   <data name="LanguageJapanese" xml:space="preserve">
-    <value>Japanese</value>
+    <value>Tiếng Nhật</value>
   </data>
   <data name="LanguageChineseSimplified" xml:space="preserve">
-    <value>Chinese (Simplified)</value>
+    <value>Tiếng Trung giản thể</value>
   </data>
   <data name="LanguageChineseTraditional" xml:space="preserve">
-    <value>Chinese (Traditional)</value>
+    <value>Tiếng Trung phồn thể</value>
   </data>
   <data name="LanguageVietnamese" xml:space="preserve">
-    <value>Vietnamese</value>
+    <value>Tiếng Việt</value>
   </data>
   <data name="ChangeUiFont" xml:space="preserve">
-    <value>Change UI Font</value>
+    <value>Đổi phông chữ UI</value>
   </data>
   <data name="UIFontSelectionTitle" xml:space="preserve">
-    <value>UI Font Selection</value>
+    <value>Chọn phông chữ UI</value>
   </data>
   <data name="PinTooltip" xml:space="preserve">
-    <value>Pin/Auto-Hide UI (`)</value>
+    <value>Ghim/tự ẩn UI (`)</value>
   </data>
   <data name="AlwaysOnTopTooltip" xml:space="preserve">
-    <value>Always on Top (T)</value>
+    <value>Luôn ở trên cùng (T)</value>
   </data>
   <data name="AutoDoublePageForArchive" xml:space="preserve">
-    <value>Auto Side-by-Side in Archive</value>
+    <value>Tự động xem song song trong tệp nén</value>
   </data>
   <data name="FolderEmpty" xml:space="preserve">
-    <value>Folder is empty.</value>
+    <value>Thư mục trống.</value>
   </data>
   <data name="SortByNameTooltip" xml:space="preserve">
-    <value>Sort by Name</value>
+    <value>Sắp xếp theo tên</value>
   </data>
   <data name="SortByDateDescTooltip" xml:space="preserve">
-    <value>Date Modified (Newest)</value>
+    <value>Ngày sửa đổi (mới nhất)</value>
   </data>
   <data name="SortByDateAscTooltip" xml:space="preserve">
-    <value>Date Modified (Oldest)</value>
+    <value>Ngày sửa đổi (cũ nhất)</value>
   </data>
   <data name="About" xml:space="preserve">
-    <value>About</value>
+    <value>Giới thiệu</value>
   </data>
   <data name="AboutTitle" xml:space="preserve">
-    <value>About Uviewer</value>
+    <value>Giới thiệu Uviewer</value>
   </data>
   <data name="SharpenSettingsTitle" xml:space="preserve">
-    <value>Sharpen &amp; Upscale Settings</value>
+    <value>Cài đặt làm sắc nét &amp; phóng đại</value>
   </data>
   <data name="UpscaleFactorLabel" xml:space="preserve">
-    <value>Upscale Factor:</value>
+    <value>Hệ số phóng đại:</value>
   </data>
   <data name="SharpenAmountLabel" xml:space="preserve">
-    <value>Sharpen Amount:</value>
+    <value>Mức làm sắc nét:</value>
   </data>
   <data name="SharpenThresholdLabel" xml:space="preserve">
-    <value>Sharpen Threshold:</value>
+    <value>Ngưỡng làm sắc nét:</value>
   </data>
   <data name="UnsharpAmountLabel" xml:space="preserve">
-    <value>Unsharp Amount:</value>
+    <value>Mức unsharp:</value>
   </data>
   <data name="UnsharpRadiusLabel" xml:space="preserve">
-    <value>Unsharp Radius:</value>
+    <value>Bán kính unsharp:</value>
   </data>
   <data name="ResetButton" xml:space="preserve">
-    <value>Reset</value>
+    <value>Đặt lại</value>
   </data>
   <data name="DefaultFont1Label" xml:space="preserve">
-    <value>Font 1</value>
+    <value>Phông chữ 1</value>
   </data>
   <data name="DefaultFont2Label" xml:space="preserve">
-    <value>Font 2</value>
+    <value>Phông chữ 2</value>
   </data>
   <data name="FontSelectionSlotTitle" xml:space="preserve">
-    <value>Select Font {0}</value>
+    <value>Chọn phông chữ {0}</value>
   </data>
   <data name="FileNotFound" xml:space="preserve">
-    <value>File/Folder not found.</value>
+    <value>Không tìm thấy tệp/thư mục.</value>
   </data>
 </root>

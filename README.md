@@ -66,7 +66,7 @@
   - Left-clicking the **F** button (or pressing **F**) will instantly toggle between these two selections.
 
 ### 🌍 Localization
-- **Multi-language Support**: Automatically detects and switches between **English**, **Korean**, and **Japanese** based on system settings.
+- **Multi-language Support**: Automatically detects and switches between **English**, **Korean**, **Japanese**, **Chinese (Simplified)**, **Chinese (Traditional)**, and **Vietnamese** based on system settings.
 
 ### 🎨 Global Theme & Design
 - **Dark & Light Mode**: Seamlessly switch between dark and light themes for the entire interface.

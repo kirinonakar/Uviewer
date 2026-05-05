@@ -656,6 +656,9 @@ namespace Uviewer
             if (LangKoItem != null) LangKoItem.Text = Strings.LanguageKorean;
             if (LangEnItem != null) LangEnItem.Text = Strings.LanguageEnglish;
             if (LangJaItem != null) LangJaItem.Text = Strings.LanguageJapanese;
+            if (LangZhHansItem != null) LangZhHansItem.Text = Strings.LanguageChineseSimplified;
+            if (LangZhHantItem != null) LangZhHantItem.Text = Strings.LanguageChineseTraditional;
+            if (LangViItem != null) LangViItem.Text = Strings.LanguageVietnamese;
 
             // Favorites Pivot Headers
             if (FileFavoritesPivotItem != null) FileFavoritesPivotItem.Header = Strings.FavoritesFiles;
