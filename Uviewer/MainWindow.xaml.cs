@@ -10,7 +10,6 @@ using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
 using System;
 using System.Collections.Generic;
-using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Diagnostics.CodeAnalysis;
 using System.IO;
@@ -27,80 +26,6 @@ namespace Uviewer
 {
     public sealed partial class MainWindow : Window, IKeyboardShortcutActions
     {
-        private List<ImageEntry> _imageEntries = new();
-        private int _currentIndex = -1;
-        private double _zoomLevel { get => _zoomService.Level; set => _zoomService.SetLevel(value); }
-        private CanvasBitmap? _currentBitmap;
-
-        // Folder explorer
-        private string? _currentExplorerPath;
-        private ObservableCollection<FileItem> _fileItems = new();
-        private bool _isExplorerGrid = false;
-        private ExplorerSortMode _explorerSortMode = ExplorerSortMode.Name;
-
-        // Fullscreen
-        private FullscreenOverlayManager _overlayManager = null!;
-
-        private DispatcherQueueTimer? _notificationTimer;
-
-        // Side-by-side view settings
-        private bool _isSideBySideMode = false;
-        private bool _nextImageOnRight = true;
-        private bool _autoDoublePageForArchive = false;
-        private bool _isCurrentViewSideBySide = false;
-        private ElementTheme _currentTheme = ElementTheme.Default;
-        private CanvasBitmap? _leftBitmap;
-        private CanvasBitmap? _rightBitmap;
-        private bool _matchControlDirection = false;
-        private int _pendingPdfPageIndex = -1;
-
-        // Sharpen & Upscale Parameters
-        private bool _sharpenEnabled;
-        public ImageProcessingViewModel ImageOptions { get; } = new();
-
-        private double _pdfPanY = 0;
-        private double _pdfPanX = 0;
-        private double _lastCanvasWidth = 0;
-        // [안정성 수정] volatile로 선언하여 비동기 continuation 간 최신 값 보장
-        private volatile bool _isPdfTransitioning = false;
-        private int _pdfScrollDirection = 1; // 1 for next (start top), -1 for prev (start bottom)
-        private bool _isSeamlessScroll = false;
-        private bool _allowMultipleInstances = true;
-        private bool _isRegistered = false;
-
-        // 컨트롤 반전 로직 수정:
-        // - Match Control Direction이 켜져 있고 Next Image가 왼쪽인 경우
-        // - 이미지 모드(한장보기/두장보기)와 epub 이미지의 경우 반전 적용
-        // - 텍스트 모드는 어떤 경우에도 반전되지 않음
-        private bool ShouldInvertControls
-        {
-            get
-            {
-                if (_currentPdfDocument != null) return false;
-                if (!_matchControlDirection || _nextImageOnRight) return false;
-                if (_isTextMode) return false;
-
-                if (_isEpubMode)
-                {
-                    // 1. 현재 선택된 페이지가 텍스트인 경우 반전 안 함
-                    if (EpubSelectedItem is Grid g && !(g.Tag is EpubImageTag)) return false;
-
-                    // 2. 현재 챕터에 텍스트가 포함된 경우 (이미지 페이지라도) 반전 안 함
-                    if (_epubChapterHasText.TryGetValue(_currentEpubChapterIndex, out var curHasText) && curHasText) return false;
-
-                    // 3. 현재 챕터가 이미지만 있더라도, 전후 챕터가 모두 텍스트인 경우 반전 안 함 (소설 내 삽화 등)
-                    bool prevHasText = _currentEpubChapterIndex > 0 &&
-                                      _epubChapterHasText.TryGetValue(_currentEpubChapterIndex - 1, out var pHT) && pHT;
-                    bool nextHasText = _currentEpubChapterIndex < _epubSpine.Count - 1 &&
-                                      _epubChapterHasText.TryGetValue(_currentEpubChapterIndex + 1, out var nHT) && nHT;
-
-                    if (prevHasText && nextHasText) return false;
-                }
-
-                return true;
-            }
-        }
-
         // Image preloading for faster navigation
         private Services.ImageCacheManager _imageCache = null!;
         private WindowStateManager _windowState = null!;
@@ -109,6 +34,8 @@ namespace Uviewer
 
         // Refactored Services
         private Services.WindowSettingsCoordinator _windowSettingsCoordinator = null!;
+        private Services.ExplorerController _explorerController = null!;
+        private Services.BookmarkPanelController _bookmarkPanelController = null!;
         private readonly Services.AppSettingsService _appSettingsService = new();
         private readonly Services.ZoomService _zoomService = new();
         private readonly Services.ISharpeningService _sharpeningService = new Services.SharpeningService();
@@ -349,6 +276,8 @@ namespace Uviewer
                 _animatedWebpService.AnimationStopped += OnAnimatedWebpAnimationStopped;
 
                 _windowSettingsCoordinator = new Services.WindowSettingsCoordinator(this, _appSettingsService);
+                _explorerController = new Services.ExplorerController(_explorerState, _thumbnailService, DispatcherQueue);
+                _bookmarkPanelController = new Services.BookmarkPanelController(_bookmarkPanelState, _favoritesService, _recentService);
                 
                 // Load saved window position, size and maximized state
                 bool hasLoadedSettings = _windowSettingsCoordinator.ApplyWindowSettings(appWindow2);
@@ -470,9 +399,7 @@ namespace Uviewer
                     {
                         try { _current7zArchive.Dispose(); _current7zArchive = null; } catch { }
                     }
-                    _currentBitmap = null;
-                    _leftBitmap = null;
-                    _rightBitmap = null;
+                    _imageViewerState.ClearBitmaps();
 
                     _imageCache?.Dispose();
 
@@ -502,8 +429,7 @@ namespace Uviewer
 
                     // Cleanup WebDAV
                     _webDavService?.Dispose();
-                    _webDavCts?.Cancel();
-                    _webDavCts?.Dispose();
+                    _webDavState.Dispose();
 
                     // Dispose cancellation tokens
                     _imageLoadingCts?.Dispose();
@@ -830,20 +756,6 @@ namespace Uviewer
             }
         }
 
-        #region Window Settings Proxy Methods
-        // This region provides internal access for WindowSettingsCoordinator
-        internal WindowStateManager GetWindowState() => _windowState;
-        internal void SetSharpenEnabled(bool enabled) => _sharpenEnabled = enabled;
-        internal bool IsSharpenEnabled() => _sharpenEnabled;
-        internal void SetSideBySideMode(bool enabled) => _isSideBySideMode = enabled;
-        internal bool IsSideBySideMode() => _isSideBySideMode;
-        internal void SetNextImageOnRight(bool nextOnRight) => _nextImageOnRight = nextOnRight;
-        internal bool IsNextImageOnRight() => _nextImageOnRight;
-        internal ElementTheme GetCurrentTheme() => _currentTheme;
-        internal void SetMatchControlDirection(bool match) => _matchControlDirection = match;
-        internal bool IsMatchControlDirection() => _matchControlDirection;
-        #endregion
-
         #region Image Resource Helpers
 
         /// <summary>
@@ -878,33 +790,11 @@ namespace Uviewer
         );
 
         #endregion
-        internal void SetAllowMultipleInstances(bool allow) => _allowMultipleInstances = allow;
-        internal bool IsAllowMultipleInstances() => _allowMultipleInstances;
-        internal void SetAutoDoublePageForArchive(bool auto) => _autoDoublePageForArchive = auto;
-        internal bool IsAutoDoublePageForArchive() => _autoDoublePageForArchive;
+
         private static bool IsAutoDoublePageTallCandidate(double width, double height)
         {
             if (width <= 0 || height <= 0) return false;
             return height >= width * 1.2 && height <= width * 3.0;
-        }
-        internal void SetIsRegistered(bool registered) => _isRegistered = registered;
-        internal bool IsRegistered() => _isRegistered;
-
-        internal void ApplyInitialUIState()
-        {
-            UpdateSharpenButtonState();
-            UpdateSideBySideButtonState();
-            UpdateNextImageSideButtonState();
-            
-            if (MatchControlDirectionMenuItem != null) MatchControlDirectionMenuItem.IsChecked = _matchControlDirection;
-            if (AllowMultipleInstancesMenuItem != null) AllowMultipleInstancesMenuItem.IsChecked = _allowMultipleInstances;
-            if (AutoDoublePageForArchiveMenuItem != null) AutoDoublePageForArchiveMenuItem.IsChecked = _autoDoublePageForArchive;
-            if (AlwaysOnTopButton != null) AlwaysOnTopButton.IsChecked = _windowState.IsAlwaysOnTop;
-            
-            if (AppWindow.Presenter is OverlappedPresenter op)
-            {
-                op.IsAlwaysOnTop = _windowState.IsAlwaysOnTop;
-            }
         }
 
         #region Fullscreen
@@ -1547,93 +1437,5 @@ namespace Uviewer
 
         #endregion
 
-        #region IKeyboardShortcutActions Implementation
-
-        bool IKeyboardShortcutActions.IsColorPickerOpen => _isColorPickerOpen;
-        bool IKeyboardShortcutActions.IsFullscreen => _windowState.IsFullscreen;
-        bool IKeyboardShortcutActions.IsEpubMode => _isEpubMode;
-        bool IKeyboardShortcutActions.IsVerticalMode 
-        { 
-            get => _isVerticalMode; 
-            set 
-            { 
-                _isVerticalMode = value;
-                if (VerticalToggleButton != null) VerticalToggleButton.IsChecked = value;
-            }
-        }
-        bool IKeyboardShortcutActions.IsTextMode => _isTextMode;
-        bool IKeyboardShortcutActions.IsAozoraMode => _isAozoraMode;
-        bool IKeyboardShortcutActions.ShouldInvertControls => this.ShouldInvertControls;
-        int IKeyboardShortcutActions.CurrentEpubChapterIndex 
-        { 
-            get => _currentEpubChapterIndex; 
-            set => _currentEpubChapterIndex = value; 
-        }
-        int IKeyboardShortcutActions.EpubSpineCount => _epubSpine.Count;
-        int IKeyboardShortcutActions.CurrentImageIndex 
-        { 
-            get => _currentIndex; 
-            set => _currentIndex = value; 
-        }
-        int IKeyboardShortcutActions.ImageEntriesCount => _imageEntries.Count;
-        bool IKeyboardShortcutActions.HasPdfDocument => _currentPdfDocument != null;
-        bool IKeyboardShortcutActions.IsSharpenEnabled 
-        { 
-            get => _sharpenEnabled; 
-            set => _sharpenEnabled = value; 
-        }
-        bool IKeyboardShortcutActions.IsAboutDialogActive => _aboutDialog != null;
-
-        void IKeyboardShortcutActions.ToggleFullscreen() => ToggleFullscreen();
-        void IKeyboardShortcutActions.ToggleMaximizeRestore() => ToggleMaximizeRestore();
-        void IKeyboardShortcutActions.CloseApp() => CloseWindowButton_Click(CloseWindowButton, new RoutedEventArgs());
-        void IKeyboardShortcutActions.NavigateVerticalPage(int offset) => NavigateVerticalPage(offset);
-        Task IKeyboardShortcutActions.NavigateEpubAsync(int offset) => NavigateEpubAsync(offset);
-        Task IKeyboardShortcutActions.ShowEpubGoToLineDialog() => ShowEpubGoToLineDialog();
-        void IKeyboardShortcutActions.ToggleFont() => ToggleFont();
-        void IKeyboardShortcutActions.ToggleVerticalMode()
-        {
-            _isVerticalMode = !_isVerticalMode;
-            if (VerticalToggleButton != null) VerticalToggleButton.IsChecked = _isVerticalMode;
-            SaveTextSettings();
-            ToggleVerticalMode();
-        }
-        void IKeyboardShortcutActions.SaveTextSettings() => SaveTextSettings();
-        void IKeyboardShortcutActions.DecreaseTextSize() => DecreaseTextSize();
-        void IKeyboardShortcutActions.IncreaseTextSize() => IncreaseTextSize();
-        void IKeyboardShortcutActions.ToggleSidebar() => ToggleSidebar();
-        void IKeyboardShortcutActions.ToggleTheme() => ToggleTheme();
-        Task IKeyboardShortcutActions.LoadEpubChapterAsync(int index) => LoadEpubChapterAsync(index);
-        void IKeyboardShortcutActions.ToggleSideBySide() => SideBySideButton_Click(SideBySideButton, new RoutedEventArgs());
-        Task IKeyboardShortcutActions.NavigateToNextAsync(bool handled) => NavigateToNextAsync(handled);
-        Task IKeyboardShortcutActions.NavigateToPreviousAsync(bool handled) => NavigateToPreviousAsync(handled);
-        Task IKeyboardShortcutActions.DisplayCurrentImageAsync() => DisplayCurrentImageAsync();
-        Task IKeyboardShortcutActions.NavigateToFileAsync(bool forward) => NavigateToFileAsync(forward);
-        Task IKeyboardShortcutActions.AddToFavoritesAsync() => AddToFavoritesAsync();
-        void IKeyboardShortcutActions.ToggleSharpening()
-        {
-            SharpenButton.IsChecked = !(SharpenButton.IsChecked ?? false);
-            SharpenButton_Click(SharpenButton, new RoutedEventArgs());
-        }
-        Task IKeyboardShortcutActions.ShowGoToLineDialog() => ShowGoToLineDialog();
-        Task IKeyboardShortcutActions.NavigateToParentFolderAsync() => NavigateToParentFolderAsync();
-        Task IKeyboardShortcutActions.OpenFileAsync() => OpenFileAsync();
-        void IKeyboardShortcutActions.ZoomIn() => ZoomIn();
-        void IKeyboardShortcutActions.ZoomOut() => ZoomOut();
-        void IKeyboardShortcutActions.FitToWindow() => FitToWindow();
-        void IKeyboardShortcutActions.ZoomActual() => ZoomActualButton_Click(ZoomActualButton, new RoutedEventArgs());
-        void IKeyboardShortcutActions.ToggleAlwaysOnTop() => ToggleAlwaysOnTop();
-        void IKeyboardShortcutActions.ToggleGlobalTheme() => GlobalThemeToggleButton_Click(GlobalThemeToggleButton, new RoutedEventArgs());
-        void IKeyboardShortcutActions.TogglePin() => TogglePin();
-        void IKeyboardShortcutActions.HideAboutDialog()
-        {
-            if (_aboutDialog != null)
-            {
-                _aboutDialog.Hide();
-                _aboutDialog = null;
-            }
-        }
-
-        #endregion
     }
 }

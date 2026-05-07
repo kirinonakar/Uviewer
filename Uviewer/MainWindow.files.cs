@@ -395,7 +395,7 @@ namespace Uviewer
             // 이전 작업 즉시 중단
             _7zExtractCts?.Cancel();
             _imageLoadingCts?.Cancel();
-            _thumbnailLoadingCts?.Cancel();
+            _explorerState.CancelThumbnailLoading();
             _preloadManager.CancelAll();
             _globalTextCts?.Cancel();
 
@@ -622,9 +622,7 @@ namespace Uviewer
             // Clean up fast navigation
             _fastNavigationService?.StopTimers();
 
-            _currentBitmap = null;
-            _leftBitmap = null;
-            _rightBitmap = null;
+            _imageViewerState.ClearBitmaps();
 
             Cleanup7zTempData();
         }
@@ -883,8 +881,6 @@ namespace Uviewer
 
         #region Folder Explorer
         
-        private CancellationTokenSource? _thumbnailLoadingCts;
-
         private void LoadExplorerFolder(string path)
         {
             // WebDAV 모드에서 로컬 폴더로 이동 시 모드 해제
@@ -894,56 +890,24 @@ namespace Uviewer
                 _currentWebDavItemPath = null; 
             }
 
-            _currentExplorerPath = path;
-            CurrentPathText.Text = path;
-
-            _ = Task.Run(async () =>
-            {
-                try
-                {
-                    // [리팩토링] 서비스에 모든 데이터 처리 위임
-                    var newItems = await FileExplorerService.GetFolderContentsAsync(path, _explorerSortMode);
-
-                    DispatcherQueue.TryEnqueue(() =>
-                    {
-                        if (_currentExplorerPath != path) return;
-
-                        _fileItems.Clear();
-                        foreach (var item in newItems)
-                        {
-                            _fileItems.Add(item);
-                        }
-
-                        // Sync selection if an image is already loaded
-                        if (_currentIndex >= 0 && _imageEntries != null && _currentIndex < _imageEntries.Count)
-                        {
-                            SyncSidebarSelection(_imageEntries[_currentIndex]);
-                        }
-
-                        // Start loading thumbnails
-                        _thumbnailLoadingCts?.Cancel();
-                        _thumbnailLoadingCts = new CancellationTokenSource();
-                        _ = LoadThumbnailsAsync(_thumbnailLoadingCts.Token);
-                    });
-                }
-                catch (Exception ex)
-                {
-                    DispatcherQueue.TryEnqueue(() =>
-                    {
-                        CurrentPathText.Text = $"오류: {ex.Message}";
-                    });
-                }
-            });
+            _explorerController.LoadFolder(
+                path,
+                currentPath => CurrentPathText.Text = currentPath,
+                ex => CurrentPathText.Text = $"오류: {ex.Message}",
+                SyncCurrentExplorerSelection);
         }
 
-        private async Task LoadThumbnailsAsync(CancellationToken token)
+        private void SyncCurrentExplorerSelection()
         {
-            await _thumbnailService.LoadThumbnailsAsync(_fileItems, DispatcherQueue, token);
+            if (_currentIndex >= 0 && _imageEntries != null && _currentIndex < _imageEntries.Count)
+            {
+                SyncSidebarSelection(_imageEntries[_currentIndex]);
+            }
         }
 
         private void ToggleExplorerViewButton_Click(object sender, RoutedEventArgs e)
         {
-            _isExplorerGrid = !_isExplorerGrid;
+            _explorerController.ToggleViewMode();
             UpdateExplorerView();
         }
 
@@ -1267,21 +1231,21 @@ namespace Uviewer
 
         private void SortByName_Click(object sender, RoutedEventArgs e)
         {
-            _explorerSortMode = ExplorerSortMode.Name;
+            _explorerController.SetSortMode(ExplorerSortMode.Name);
             UpdateSortIcon();
             RefreshExplorer();
         }
 
         private void SortByDateDesc_Click(object sender, RoutedEventArgs e)
         {
-            _explorerSortMode = ExplorerSortMode.DateDesc;
+            _explorerController.SetSortMode(ExplorerSortMode.DateDesc);
             UpdateSortIcon();
             RefreshExplorer();
         }
 
         private void SortByDateAsc_Click(object sender, RoutedEventArgs e)
         {
-            _explorerSortMode = ExplorerSortMode.DateAsc;
+            _explorerController.SetSortMode(ExplorerSortMode.DateAsc);
             UpdateSortIcon();
             RefreshExplorer();
         }

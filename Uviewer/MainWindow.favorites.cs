@@ -4,7 +4,6 @@ using Microsoft.UI.Xaml.Media;
 using SharpCompress.Archives;
 using System;
 using System.Collections.Generic;
-using System.Collections.ObjectModel;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
@@ -16,15 +15,6 @@ namespace Uviewer
 {
     public sealed partial class MainWindow : Window
     {
-        private bool _isNavigatingRecent = false;
-
-        // UI Collections
-        private ObservableCollection<BookmarkViewModel> _fileFavoriteItems = new();
-        private ObservableCollection<BookmarkViewModel> _folderFavoriteItems = new();
-        private ObservableCollection<BookmarkViewModel> _recentItemsList = new();
-
-
-
         private const string TextSettingsFilePath = "text_settings.json";
         private string GetTextSettingsFilePath() => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "Uviewer", TextSettingsFilePath);
 
@@ -36,30 +26,7 @@ namespace Uviewer
 
         private void UpdateFavoritesMenu()
         {
-            // Update the source collections
-            var fileFavorites = _favoritesService.Favorites
-                .Where(f => f.Type != "Folder")
-                .OrderByDescending(f => f.IsPinned)
-                .ThenByDescending(f => f.CreatedAt);
-            
-            var folderFavorites = _favoritesService.Favorites
-                .Where(f => f.Type == "Folder")
-                .OrderByDescending(f => f.IsPinned)
-                .ThenByDescending(f => f.CreatedAt);
-
-            // Sync File Favorites
-            _fileFavoriteItems.Clear();
-            foreach (var fav in fileFavorites)
-            {
-                _fileFavoriteItems.Add(CreateBookmarkViewModel(fav));
-            }
-
-            // Sync Folder Favorites
-            _folderFavoriteItems.Clear();
-            foreach (var fav in folderFavorites)
-            {
-                _folderFavoriteItems.Add(CreateBookmarkViewModel(fav));
-            }
+            _bookmarkPanelController.RefreshFavorites();
 
             // Bind to controls
             FileFavoritesList.ItemsSource = _fileFavoriteItems;
@@ -73,56 +40,6 @@ namespace Uviewer
             
             SidebarFolderFavoritesList.ItemsSource = _folderFavoriteItems;
             SidebarFolderFavoritesList.EmptyMessage = Strings.NoFavorites;
-        }
-
-        private BookmarkViewModel CreateBookmarkViewModel(FavoriteItem fav)
-        {
-            bool isImageFile = fav.Type == "File" && !string.IsNullOrEmpty(fav.Path) && 
-                               FileExplorerService.SupportedImageExtensions.Contains(Path.GetExtension(fav.Path).ToLowerInvariant());
-
-            string posString = "";
-            if (!isImageFile)
-            {
-                if (fav.Path.EndsWith(".epub", StringComparison.OrdinalIgnoreCase))
-                    posString = $" (Ch.{fav.ChapterIndex + 1} P.{fav.SavedPage + 1} L.{fav.SavedLine})";
-                else if (fav.Type == "File" && !fav.Path.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase))
-                    posString = $" (Line {fav.SavedLine})";
-                else if (fav.SavedPage > 0 || fav.ChapterIndex > 0) 
-                    posString = $" ({(fav.ChapterIndex > 0 ? $"Ch.{fav.ChapterIndex + 1} " : "")}P.{fav.SavedPage + 1})";
-            }
-
-            string tooltipText = fav.Path + (string.IsNullOrEmpty(posString) ? "" : $"\n{posString.Trim(' ', '(', ')')}");
-            if (fav.IsWebDav && !string.IsNullOrEmpty(fav.WebDavServerName))
-                tooltipText = $"[{fav.WebDavServerName}] {tooltipText}";
-            if (fav.Type != "Folder" && !isImageFile)
-                tooltipText += $"\n{Strings.ProgressLabel}: {fav.Progress:F1}%";
-
-            return BookmarkViewModel.FromFavorite(fav, posString, tooltipText);
-        }
-
-        private BookmarkViewModel CreateBookmarkViewModel(RecentItem recent)
-        {
-            bool isImageFile = recent.Type == "File" && !string.IsNullOrEmpty(recent.Path) && 
-                               FileExplorerService.SupportedImageExtensions.Contains(Path.GetExtension(recent.Path).ToLowerInvariant());
-
-            string posString = "";
-            if (!isImageFile)
-            {
-                if (recent.Path.EndsWith(".epub", StringComparison.OrdinalIgnoreCase))
-                    posString = $" (Ch.{recent.ChapterIndex + 1} P.{recent.SavedPage + 1} L.{recent.SavedLine})";
-                else if (recent.Type == "File" && !recent.Path.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase))
-                    posString = $" (Line {recent.SavedLine})";
-                else if (recent.SavedPage > 0 || recent.ChapterIndex > 0) 
-                    posString = $" ({(recent.ChapterIndex > 0 ? $"Ch.{recent.ChapterIndex + 1} " : "")}P.{recent.SavedPage + 1})";
-            }
-
-            string tooltipText = recent.Path + (string.IsNullOrEmpty(posString) ? "" : $"\n{posString.Trim(' ', '(', ')')}");
-            if (recent.IsWebDav && !string.IsNullOrEmpty(recent.WebDavServerName))
-                tooltipText = $"[{recent.WebDavServerName}] {tooltipText}";
-            if (recent.Type != "Folder" && !isImageFile)
-                tooltipText += $"\n{Strings.ProgressLabel}: {recent.Progress:F1}%";
-
-            return BookmarkViewModel.FromRecent(recent, posString, tooltipText);
         }
 
         // Event Handlers for BookmarkListControl
@@ -809,13 +726,7 @@ namespace Uviewer
 
         private void UpdateRecentMenu()
         {
-            var recentItems = _recentService.RecentItems.OrderByDescending(r => r.AccessedAt);
-            
-            _recentItemsList.Clear();
-            foreach (var r in recentItems)
-            {
-                _recentItemsList.Add(CreateBookmarkViewModel(r));
-            }
+            _bookmarkPanelController.RefreshRecent();
 
             RecentList.ItemsSource = _recentItemsList;
             RecentList.EmptyMessage = Strings.NoRecentFiles;

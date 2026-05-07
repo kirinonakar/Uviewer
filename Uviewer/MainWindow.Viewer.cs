@@ -1654,9 +1654,7 @@ namespace Uviewer
 
             _animatedWebpService.Stop();
 
-            _currentBitmap = null;
-            _leftBitmap = null;
-            _rightBitmap = null;
+            _imageViewerState.ClearBitmaps();
 
 
             if (MainCanvas != null) MainCanvas.Invalidate();

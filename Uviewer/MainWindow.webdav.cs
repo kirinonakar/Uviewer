@@ -19,10 +19,22 @@ namespace Uviewer
     public sealed partial class MainWindow : Window
     {
         private readonly WebDavService _webDavService = new();
-        private string? _currentWebDavPath;
-        private string? _currentWebDavItemPath; // 현재 열려있는 WebDAV 파일의 전체 경로 (네비게이션용)
-        private bool _isWebDavMode = false;
-        private CancellationTokenSource? _webDavCts;
+        private readonly WebDavState _webDavState = new();
+        private string? _currentWebDavPath
+        {
+            get => _webDavState.CurrentPath;
+            set => _webDavState.CurrentPath = value;
+        }
+        private string? _currentWebDavItemPath
+        {
+            get => _webDavState.CurrentItemPath;
+            set => _webDavState.CurrentItemPath = value;
+        }
+        private bool _isWebDavMode
+        {
+            get => _webDavState.IsWebDavMode;
+            set => _webDavState.IsWebDavMode = value;
+        }
 
         #region WebDAV UI
 
@@ -296,12 +308,11 @@ namespace Uviewer
 
             FileNameText.Text = Strings.WebDavConnecting;
 
-            _webDavCts?.Cancel();
-            _webDavCts = new CancellationTokenSource();
+            var token = _webDavState.RestartOperation();
 
             try
             {
-                var connected = await _webDavService.ConnectAsync(serverInfo, _webDavCts.Token);
+                var connected = await _webDavService.ConnectAsync(serverInfo, token);
                 if (!connected)
                 {
                     FileNameText.Text = Strings.WebDavConnectionFailed;
@@ -334,9 +345,7 @@ namespace Uviewer
             if (!_webDavService.IsConnected || _webDavService.CurrentServer == null)
                 return;
 
-            _webDavCts?.Cancel();
-            _webDavCts = new CancellationTokenSource();
-            var token = _webDavCts.Token;
+            var token = _webDavState.RestartOperation();
 
             try
             {
@@ -346,50 +355,18 @@ namespace Uviewer
                 CurrentPathText.Text = $"WebDAV: {_webDavService.CurrentServer.ServerName}{remotePath}";
 
                 ClearImageResources();
-                _fileItems.Clear();
+                _explorerState.ReplaceItems(System.Array.Empty<FileItem>());
                 _imageEntries.Clear();
                 _currentIndex = -1;
 
-                // 상위 폴더 항목
-                if (remotePath != "/")
+                var parentItem = WebDavExplorerItemFactory.CreateParentItem(remotePath);
+                if (parentItem != null)
                 {
-                    var parentPath = remotePath.TrimEnd('/');
-                    var lastSlash = parentPath.LastIndexOf('/');
-                    var parent = lastSlash > 0 ? parentPath.Substring(0, lastSlash + 1) : "/";
-
-                    _fileItems.Add(new FileItem
-                    {
-                        Name = "..",
-                        FullPath = parent,
-                        IsDirectory = true,
-                        IsParentDirectory = true,
-                        IsWebDav = true,
-                        WebDavPath = parent
-                    });
+                    _fileItems.Add(parentItem);
                 }
 
                 var items = await _webDavService.ListFolderAsync(remotePath, token);
                 if (token.IsCancellationRequested) return;
-
-                // [Sort] Apply current explorer sort mode while keeping directories at top
-                IEnumerable<WebDavItem> sortedItems;
-                switch (_explorerSortMode)
-                {
-                    case ExplorerSortMode.DateDesc:
-                        sortedItems = items
-                            .OrderByDescending(i => i.IsDirectory)
-                            .ThenByDescending(i => i.LastModified);
-                        break;
-                    case ExplorerSortMode.DateAsc:
-                        sortedItems = items
-                            .OrderByDescending(i => i.IsDirectory)
-                            .ThenBy(i => i.LastModified);
-                        break;
-                    default:
-                        // ListFolderAsync already sorts properly for Name mode
-                        sortedItems = items;
-                        break;
-                }
 
                 if (items.Count == 0 && remotePath != "/")
                 {
@@ -400,34 +377,8 @@ namespace Uviewer
                     FileNameText.Text = "WebDAV: 원격 서버에 파일이 없거나 경로가 잘못되었습니다.";
                 }
 
-                foreach (var item in sortedItems)
-                {
-                    var name = item.Name;
-                    var ext = Path.GetExtension(name).ToLowerInvariant();
-
-                    var isImage = FileExplorerService.SupportedImageExtensions.Contains(ext);
-                    var isArchive = FileExplorerService.SupportedArchiveExtensions.Contains(ext);
-                    var isText = FileExplorerService.SupportedTextExtensions.Contains(ext);
-                    var isEpub = FileExplorerService.SupportedEpubExtensions.Contains(ext);
-                    var isPdf = FileExplorerService.SupportedPdfExtensions.Contains(ext);
-
-                    if (item.IsDirectory || isImage || isArchive || isText || isEpub || isPdf)
-                    {
-                        _fileItems.Add(new FileItem
-                        {
-                            Name = name,
-                            FullPath = item.FullPath,
-                            IsDirectory = item.IsDirectory,
-                            IsImage = isImage,
-                            IsArchive = isArchive,
-                            IsText = isText,
-                            IsEpub = isEpub,
-                            IsPdf = isPdf,
-                            IsWebDav = true,
-                            WebDavPath = item.FullPath
-                        });
-                    }
-                }
+                var explorerItems = WebDavExplorerItemFactory.CreateFolderItems(remotePath, items, _explorerSortMode);
+                _explorerState.ReplaceItems(explorerItems);
             }
             catch (OperationCanceledException) { }
             catch (Exception ex)
@@ -483,12 +434,11 @@ namespace Uviewer
             ClearImageResources();
             FileNameText.Text = item.Name + Strings.Loading;
 
-            _webDavCts?.Cancel();
-            _webDavCts = new CancellationTokenSource();
+            var token = _webDavState.RestartOperation();
 
             try
             {
-                var tempPath = await _webDavService.DownloadToTempFileAsync(item.WebDavPath, _webDavCts.Token);
+                var tempPath = await _webDavService.DownloadToTempFileAsync(item.WebDavPath, token);
                 if (string.IsNullOrEmpty(tempPath))
                 {
                     FileNameText.Text = "다운로드 실패";
@@ -520,7 +470,7 @@ namespace Uviewer
 
                     var file = await StorageFile.GetFileFromPathAsync(tempPath);
                     var entry = _currentIndex >= 0 ? _imageEntries[_currentIndex] : null;
-                    await LoadEpubFileAsync(file, entry, _webDavCts.Token);
+                    await LoadEpubFileAsync(file, entry, token);
                 }
                 else
                 {
@@ -575,13 +525,12 @@ namespace Uviewer
             ClearImageResources();
             FileNameText.Text = item.Name + Strings.Loading;
 
-            _webDavCts?.Cancel();
-            _webDavCts = new CancellationTokenSource();
+            var token = _webDavState.RestartOperation();
 
             try
             {
                 // Do NOT use 'using' - SharpCompress needs the stream to stay alive
-                var stream = await _webDavService.DownloadFileAsync(item.WebDavPath, _webDavCts.Token);
+                var stream = await _webDavService.DownloadFileAsync(item.WebDavPath, token);
                 if (stream == null)
                 {
                     FileNameText.Text = "다운로드 실패";

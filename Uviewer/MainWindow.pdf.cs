@@ -190,9 +190,7 @@ namespace Uviewer
 
             _fastNavigationService?.StopTimers();
 
-            _currentBitmap = null;
-            _leftBitmap = null;
-            _rightBitmap = null;
+            _imageViewerState.ClearBitmaps();
         }
 
         /// <summary>
