@@ -387,6 +387,7 @@ namespace Uviewer
 
                     // Cancel any ongoing operations
                     _imageLoadingCts?.Cancel();
+                    ShutdownPdfResources();
                     // Clean up fast navigation timer
                     _fastNavigationService?.Dispose();
 

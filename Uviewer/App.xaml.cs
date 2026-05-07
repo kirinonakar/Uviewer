@@ -41,6 +41,14 @@ namespace Uviewer
         private static bool _isComActivation = false;
         private static System.Threading.Timer? _exitTimer;
         private static Microsoft.UI.Dispatching.DispatcherQueue? _dispatcherQueue;
+        private static int _comExitRequested;
+        private static int _comExitCompleted;
+        private static int _comActiveCallCount;
+        private static int _comServerLockCount;
+        private static long _comStartedTicks;
+        private const int ComIdleExitTimeoutMs = 60000;
+        private const int ComMaxLifetimeMs = 300000;
+        private const int ComExitFallbackDelayMs = 1500;
 
         // 추가 1: GC(가비지 컬렉터) 수집을 방지하기 위한 정적 변수
         private static UviewerExplorerCommandFactory? _commandFactory;
@@ -66,6 +74,7 @@ namespace Uviewer
             if (cmdLine.Contains("-Embedding", StringComparison.OrdinalIgnoreCase))
             {
                 _isComActivation = true;
+                _comStartedTicks = DateTime.UtcNow.Ticks;
                 try
                 {
                     Guid clsid = Guid.Parse("D9614E4F-E02D-4E3F-8C3B-76C1B323E0B9");
@@ -73,29 +82,20 @@ namespace Uviewer
                     // 정적 변수에 할당하여 앱이 살아있는 동안 Factory가 삭제되지 않도록 보호
                     _commandFactory = new UviewerExplorerCommandFactory();
                     IntPtr factoryPtr = Marshal.GetIUnknownForObject(_commandFactory);
-
-                    CoRegisterClassObject(ref clsid, factoryPtr, 4, 1, out _comCookie);
+                    try
+                    {
+                        int hr = CoRegisterClassObject(ref clsid, factoryPtr, 4, 1, out _comCookie);
+                        if (hr < 0) Marshal.ThrowExceptionForHR(hr);
+                    }
+                    finally
+                    {
+                        Marshal.Release(factoryPtr);
+                    }
 
                     _exitTimer = new System.Threading.Timer((_) =>
                     {
-                        Interlocked.Exchange(ref _exitTimer, null)?.Dispose();
-                        _dispatcherQueue?.TryEnqueue(() =>
-                        {
-                            // 1. COM 등록을 가장 먼저 해제합니다 (탐색기와의 연결 끊기)
-                            if (_comCookie != 0)
-                            {
-                                CoRevokeClassObject(_comCookie);
-                                _comCookie = 0;
-                            }
-
-                            // 2. 참조 해제
-                            _commandFactory = null;
-
-                            // 3. Application.Current.Exit() 대신 확실한 강제 종료 사용
-                            // 이렇게 해야 백그라운드에 좀비 프로세스가 남지 않고 CPU 12% 점유 버그가 해결됩니다.
-                            Environment.Exit(0);
-                        });
-                    }, null, 5000, Timeout.Infinite);
+                        RequestComExit(0);
+                    }, null, ComIdleExitTimeoutMs, Timeout.Infinite);
                 }
                 catch (Exception ex)
                 {
@@ -133,10 +133,137 @@ namespace Uviewer
             }
         }
 
+        private void RequestComExit(int exitCode)
+        {
+            if (Volatile.Read(ref _comExitCompleted) != 0) return;
+            if (ShouldDeferComExit())
+            {
+                ScheduleComExitTimer();
+                return;
+            }
+
+            if (Interlocked.Exchange(ref _comExitRequested, 1) != 0) return;
+
+            bool queued = false;
+            try
+            {
+                queued = _dispatcherQueue?.TryEnqueue(() => CompleteComExit(exitCode)) == true;
+            }
+            catch { }
+
+            if (!queued)
+            {
+                CompleteComExit(exitCode);
+                return;
+            }
+
+            // Dispatcher가 종료 직전에 멈춰 있으면 TryEnqueue가 성공해도 실행되지 않을 수 있습니다.
+            // 이 보조 경로가 COM 전용 프로세스가 한 코어를 잡고 남는 상황을 끝냅니다.
+            ThreadPool.QueueUserWorkItem(_ =>
+            {
+                Thread.Sleep(ComExitFallbackDelayMs);
+                if (Volatile.Read(ref _comExitCompleted) == 0)
+                {
+                    CompleteComExit(exitCode);
+                }
+            });
+        }
+
+        private void CompleteComExit(int exitCode)
+        {
+            if (ShouldDeferComExit())
+            {
+                Interlocked.Exchange(ref _comExitRequested, 0);
+                ScheduleComExitTimer();
+                return;
+            }
+
+            if (Interlocked.Exchange(ref _comExitCompleted, 1) != 0) return;
+            Interlocked.Exchange(ref _exitTimer, null)?.Dispose();
+
+            try
+            {
+                if (_comCookie != 0)
+                {
+                    CoRevokeClassObject(_comCookie);
+                    _comCookie = 0;
+                }
+            }
+            catch { }
+
+            _commandFactory = null;
+            Environment.Exit(exitCode);
+        }
+
+        private static bool ShouldDeferComExit()
+        {
+            if (IsComMaxLifetimeExceeded()) return false;
+
+            return Volatile.Read(ref _comActiveCallCount) > 0 ||
+                Volatile.Read(ref _comServerLockCount) > 0;
+        }
+
+        private static bool IsComMaxLifetimeExceeded()
+        {
+            long startedTicks = Volatile.Read(ref _comStartedTicks);
+            if (startedTicks <= 0) return false;
+
+            long elapsedTicks = DateTime.UtcNow.Ticks - startedTicks;
+            return elapsedTicks >= TimeSpan.FromMilliseconds(ComMaxLifetimeMs).Ticks;
+        }
+
+        private static void ScheduleComExitTimer()
+        {
+            if (!_isComActivation) return;
+            if (Volatile.Read(ref _comExitCompleted) != 0) return;
+
+            try
+            {
+                _exitTimer?.Change(ComIdleExitTimeoutMs, Timeout.Infinite);
+            }
+            catch { }
+        }
+
+        public static void EnterComCall()
+        {
+            if (!_isComActivation) return;
+
+            Interlocked.Increment(ref _comActiveCallCount);
+            MarkActivity();
+        }
+
+        public static void LeaveComCall()
+        {
+            if (!_isComActivation) return;
+
+            if (Interlocked.Decrement(ref _comActiveCallCount) < 0)
+            {
+                Interlocked.Exchange(ref _comActiveCallCount, 0);
+            }
+            MarkActivity();
+        }
+
+        public static void SetComServerLock(bool locked)
+        {
+            if (!_isComActivation) return;
+
+            if (locked)
+            {
+                Interlocked.Increment(ref _comServerLockCount);
+            }
+            else if (Interlocked.Decrement(ref _comServerLockCount) < 0)
+            {
+                Interlocked.Exchange(ref _comServerLockCount, 0);
+            }
+
+            MarkActivity();
+        }
+
         private static long _lastActivityTicks = 0;
         public static void MarkActivity()
         {
             if (!_isComActivation) return;
+            if (Volatile.Read(ref _comExitCompleted) != 0) return;
             
             // 1초 미만의 짧은 주기로 호출될 경우 타이머 리셋 무시 (부하 감소)
             long now = DateTime.UtcNow.Ticks;
@@ -145,7 +272,7 @@ namespace Uviewer
             
             try
             {
-                _exitTimer?.Change(5000, Timeout.Infinite);
+                _exitTimer?.Change(ComIdleExitTimeoutMs, Timeout.Infinite);
             }
             catch { }
         }

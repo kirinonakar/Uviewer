@@ -1,6 +1,6 @@
 using System;
-using System.Runtime.InteropServices;
 using System.IO;
+using System.Runtime.InteropServices;
 
 namespace Uviewer
 {
@@ -67,10 +67,10 @@ namespace Uviewer
     {
         public int GetTitle(IntPtr psiItemArray, out IntPtr ppszName)
         {
+            App.EnterComCall();
             ppszName = IntPtr.Zero;
             try
             {
-                // App.MarkActivity() 제거: Explorer가 렌더링을 위해 매우 빈번하게 호출하므로 오버헤드 방지
                 ppszName = Marshal.StringToCoTaskMemUni("Open in Uviewer");
                 return 0; // S_OK
             }
@@ -78,10 +78,15 @@ namespace Uviewer
             {
                 return unchecked((int)0x80004005); // E_FAIL
             }
+            finally
+            {
+                App.LeaveComCall();
+            }
         }
 
         public int GetIcon(IntPtr psiItemArray, out IntPtr ppszIcon)
         {
+            App.EnterComCall();
             ppszIcon = IntPtr.Zero;
             try
             {
@@ -93,22 +98,43 @@ namespace Uviewer
             {
                 return unchecked((int)0x80004005); // E_FAIL
             }
+            finally
+            {
+                App.LeaveComCall();
+            }
         }
 
         public int GetToolTip(IntPtr psiItemArray, out IntPtr ppszInfotip)
         {
+            App.EnterComCall();
             ppszInfotip = IntPtr.Zero;
-            return unchecked((int)0x80004001); // E_NOTIMPL
+            try
+            {
+                return unchecked((int)0x80004001); // E_NOTIMPL
+            }
+            finally
+            {
+                App.LeaveComCall();
+            }
         }
 
         public int GetCanonicalName(out Guid pguidCommandName)
         {
+            App.EnterComCall();
             pguidCommandName = Guid.Empty;
-            return unchecked((int)0x80004001); // E_NOTIMPL
+            try
+            {
+                return unchecked((int)0x80004001); // E_NOTIMPL
+            }
+            finally
+            {
+                App.LeaveComCall();
+            }
         }
 
         public int GetState(IntPtr psiItemArray, bool fOkToBeSlow, out uint pCommandState)
         {
+            App.EnterComCall();
             pCommandState = 0; // ECS_ENABLED
             try
             {
@@ -118,33 +144,46 @@ namespace Uviewer
             {
                 return unchecked((int)0x80004005); // E_FAIL
             }
+            finally
+            {
+                App.LeaveComCall();
+            }
         }
 
         public int Invoke(IntPtr psiItemArray, IntPtr pbc)
         {
+            App.EnterComCall();
             try
             {
-                // Invoke는 사용자가 실제 클릭 시에만 호출되므로 여기서 수명 연장 타이머를 갱신합니다.
-                App.MarkActivity();
-
                 if (psiItemArray != IntPtr.Zero)
                 {
-                    // IntPtr로 받은 후 안전하게 수동 캐스팅
-                    var array = (IShellItemArray)Marshal.GetObjectForIUnknown(psiItemArray);
-                    array.GetCount(out uint count);
-                    if (count > 0)
-                    {
-                        array.GetItemAt(0, out IShellItem item);
-                        item.GetDisplayName(0x80058000, out string path); // SIGDN_FILESYSPATH
+                    IShellItemArray? array = null;
+                    IShellItem? item = null;
 
-                        System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+                    try
+                    {
+                        array = (IShellItemArray)Marshal.GetObjectForIUnknown(psiItemArray);
+                        array.GetCount(out uint count);
+                        if (count > 0)
                         {
-                            FileName = Path.Combine(AppContext.BaseDirectory, "Uviewer.exe"),
-                            Arguments = $"\"{path}\"",
-                            UseShellExecute = true
-                        });
+                            array.GetItemAt(0, out item);
+                            item.GetDisplayName(0x80058000, out string path); // SIGDN_FILESYSPATH
+
+                            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+                            {
+                                FileName = Path.Combine(AppContext.BaseDirectory, "Uviewer.exe"),
+                                Arguments = $"\"{path}\"",
+                                UseShellExecute = true
+                            });
+                        }
+                    }
+                    finally
+                    {
+                        if (item != null) Marshal.ReleaseComObject(item);
+                        if (array != null) Marshal.ReleaseComObject(array);
                     }
                 }
+
                 return 0; // S_OK
             }
             catch (Exception ex)
@@ -152,18 +191,38 @@ namespace Uviewer
                 System.Diagnostics.Debug.WriteLine($"Invoke error: {ex.Message}");
                 return unchecked((int)0x80004005); // E_FAIL
             }
+            finally
+            {
+                App.LeaveComCall();
+            }
         }
 
         public int GetFlags(out uint pdwFlags)
         {
+            App.EnterComCall();
             pdwFlags = 0;
-            return 0; // S_OK
+            try
+            {
+                return 0; // S_OK
+            }
+            finally
+            {
+                App.LeaveComCall();
+            }
         }
 
         public int EnumSubCommands(out IntPtr ppEnum)
         {
+            App.EnterComCall();
             ppEnum = IntPtr.Zero;
-            return unchecked((int)0x80004001); // E_NOTIMPL
+            try
+            {
+                return unchecked((int)0x80004001); // E_NOTIMPL
+            }
+            finally
+            {
+                App.LeaveComCall();
+            }
         }
     }
 
@@ -174,6 +233,7 @@ namespace Uviewer
     {
         [PreserveSig]
         int CreateInstance(IntPtr pUnkOuter, ref Guid riid, out IntPtr ppvObject);
+
         [PreserveSig]
         int LockServer(bool fLock);
     }
@@ -184,10 +244,14 @@ namespace Uviewer
     {
         public int CreateInstance(IntPtr pUnkOuter, ref Guid riid, out IntPtr ppvObject)
         {
+            App.EnterComCall();
             ppvObject = IntPtr.Zero;
 
             if (pUnkOuter != IntPtr.Zero)
+            {
+                App.LeaveComCall();
                 return unchecked((int)0x80040110); // CLASS_E_NOAGGREGATION
+            }
 
             try
             {
@@ -201,10 +265,15 @@ namespace Uviewer
             {
                 return unchecked((int)0x80004005); // E_FAIL
             }
+            finally
+            {
+                App.LeaveComCall();
+            }
         }
 
         public int LockServer(bool fLock)
         {
+            App.SetComServerLock(fLock);
             return 0; // S_OK
         }
     }

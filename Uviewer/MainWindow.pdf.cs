@@ -49,6 +49,7 @@ namespace Uviewer
                 try
                 {
                     CloseCurrentPdfInternal();
+                    _currentPdfPath = pdfPath;
 
 
                     var file = await StorageFile.GetFileFromPathAsync(pdfPath);
@@ -68,15 +69,20 @@ namespace Uviewer
                     _imageEntries = newEntries;
 
                     // Load TOC with PdfPig in background
+                    string tocPdfPath = pdfPath;
                     _ = Task.Run(async () =>
                     {
                         try
                         {
-                            _tocService.SetProvider(new PdfTocProvider(pdfPath));
+                            _tocService.SetProvider(new PdfTocProvider(tocPdfPath));
                             await _tocService.LoadTocAsync();
+
+                            if (!IsCurrentPdfPath(tocPdfPath)) return;
                             
                             DispatcherQueue.TryEnqueue(() =>
                             {
+                                if (!IsCurrentPdfPath(tocPdfPath)) return;
+
                                 if (PdfTocButton != null)
                                 {
                                     PdfTocButton.Visibility = Visibility.Visible;
@@ -148,6 +154,7 @@ namespace Uviewer
 
         private async Task<bool> CloseCurrentPdfAsync() // 동기 메서드 대신 비동기로 변경하여 UI 프리징 방지
         {
+            CancelPdfOperations();
             if (_currentPdfDocument == null) return true;
 
             // UI 스레드를 막지 않고 비동기로 락 획득 대기
@@ -171,6 +178,8 @@ namespace Uviewer
 
         private void CloseCurrentPdfInternal()
         {
+            CancelPdfOperations();
+
             // PDF Document 참조 해제
             _currentPdfPath = null;
             var oldDoc = _currentPdfDocument;
@@ -191,6 +200,31 @@ namespace Uviewer
             _fastNavigationService?.StopTimers();
 
             _imageViewerState.ClearBitmaps();
+        }
+
+        private bool IsCurrentPdfPath(string pdfPath)
+        {
+            return _currentPdfDocument != null &&
+                string.Equals(_currentPdfPath, pdfPath, StringComparison.OrdinalIgnoreCase);
+        }
+
+        private void CancelPdfOperations()
+        {
+            try { _pdfZoomRerenderCts?.Cancel(); } catch { }
+            try { _preloadManager?.CancelAll(); } catch { }
+            try { _smoothZoomTimer?.Stop(); } catch { }
+        }
+
+        private void ShutdownPdfResources()
+        {
+            CloseCurrentPdfInternal();
+
+            try { _pdfZoomRerenderCts?.Dispose(); } catch { }
+            _pdfZoomRerenderCts = null;
+
+            try { _pdfLock.Dispose(); } catch { }
+            try { _pdfRenderSemaphore.Dispose(); } catch { }
+            try { _pdfCurrentPageSemaphore.Dispose(); } catch { }
         }
 
         /// <summary>
