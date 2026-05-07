@@ -44,6 +44,7 @@ namespace Uviewer
         private readonly IKeyboardShortcutService _keyboardShortcutService = new KeyboardShortcutService();
         private readonly Services.TocService _tocService = new();
         private readonly Services.ImageResourceService _imageResourceService;
+        private bool _isWindowClosing;
 
         // ImageResourceService를 _sharpeningService 다음에 생성해야 하므로
         // 필드 초기화 식 대신 생성자 내부에서 초기화합니다.
@@ -377,6 +378,8 @@ namespace Uviewer
             // Subscribe to window closed event to save settings
             this.Closed += async (s, e) =>
             {
+                _isWindowClosing = true;
+                bool wasPdfOpen = _currentPdfDocument != null;
                 _preloadManager?.Dispose();
                 try
                 {
@@ -402,7 +405,10 @@ namespace Uviewer
                     }
                     _imageViewerState.ClearBitmaps();
 
-                    _imageCache?.Dispose();
+                    if (!wasPdfOpen)
+                    {
+                        _imageCache?.Dispose();
+                    }
 
                     // 이미지 엔트리의 파일 경로 참조 해제
                     if (_imageEntries != null)
@@ -410,9 +416,12 @@ namespace Uviewer
                         foreach (var entry in _imageEntries) entry.FilePath = null;
                     }
 
-                    // Native 리소스와 파일 핸들을 즉시 해제하기 위해 GC 강제 실행
-                    GC.Collect();
-                    GC.WaitForPendingFinalizers();
+                    if (!wasPdfOpen)
+                    {
+                        // Native 리소스와 파일 핸들을 즉시 해제하기 위해 GC 강제 실행
+                        GC.Collect();
+                        GC.WaitForPendingFinalizers();
+                    }
 
                     Cleanup7zTempData(immediate: true);
                     WebDavService.CleanupTempFiles();

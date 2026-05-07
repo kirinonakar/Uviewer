@@ -33,6 +33,8 @@ namespace Uviewer
 
         private async Task LoadImagesFromPdfAsync(string pdfPath)
         {
+            if (_isWindowClosing) return;
+
             _currentPdfPath = pdfPath;
             _preloadManager.CancelAll();
             _imageLoadingCts?.Cancel(); // Cancel any ongoing image load
@@ -186,16 +188,19 @@ namespace Uviewer
             _currentPdfDocument = null;
             _tocService.Clear();
 
-            // UI 스레드에서 버튼 가리기
-            DispatcherQueue.TryEnqueue(() =>
+            if (!_isWindowClosing)
             {
-                if (PdfTocButton != null) PdfTocButton.Visibility = Visibility.Collapsed;
-                if (PdfGoToPageButton != null) PdfGoToPageButton.Visibility = Visibility.Collapsed;
-                if (PdfSeparator != null) PdfSeparator.Visibility = Visibility.Collapsed;
-                Title = "Uviewer - Image & Text Viewer";
-            });
+                // UI 스레드에서 버튼 가리기
+                DispatcherQueue.TryEnqueue(() =>
+                {
+                    if (PdfTocButton != null) PdfTocButton.Visibility = Visibility.Collapsed;
+                    if (PdfGoToPageButton != null) PdfGoToPageButton.Visibility = Visibility.Collapsed;
+                    if (PdfSeparator != null) PdfSeparator.Visibility = Visibility.Collapsed;
+                    Title = "Uviewer - Image & Text Viewer";
+                });
 
-            _imageCache?.ClearAll();
+                _imageCache?.ClearAll();
+            }
 
             _fastNavigationService?.StopTimers();
 
@@ -217,14 +222,12 @@ namespace Uviewer
 
         private void ShutdownPdfResources()
         {
-            CloseCurrentPdfInternal();
-
-            try { _pdfZoomRerenderCts?.Dispose(); } catch { }
-            _pdfZoomRerenderCts = null;
-
-            try { _pdfLock.Dispose(); } catch { }
-            try { _pdfRenderSemaphore.Dispose(); } catch { }
-            try { _pdfCurrentPageSemaphore.Dispose(); } catch { }
+            CancelPdfOperations();
+            _currentPdfPath = null;
+            _currentPdfDocument = null;
+            _tocService.Clear();
+            _fastNavigationService?.StopTimers();
+            _imageViewerState.ClearBitmaps();
         }
 
         /// <summary>
@@ -244,6 +247,8 @@ namespace Uviewer
             CancellationToken token = default,
             bool isPreload = false)
         {
+            if (_isWindowClosing || token.IsCancellationRequested) return null;
+
             // 로컬 변수에 캡처하여 도중 _currentPdfDocument가 null이 되어도 크래시 방지
             var pdfDoc = _currentPdfDocument;
             if (pdfDoc == null || pageIndex >= pdfDoc.PageCount) return null;
@@ -307,7 +312,7 @@ namespace Uviewer
                 await semaphore.WaitAsync(token);
                 try
                 {
-                    if (token.IsCancellationRequested) return null;
+                    if (_isWindowClosing || token.IsCancellationRequested) return null;
                     await pdfPage.RenderToStreamAsync(stream, options).AsTask(token);
                 }
                 finally
@@ -315,7 +320,7 @@ namespace Uviewer
                     semaphore.Release();
                 }
 
-                if (token.IsCancellationRequested) return null;
+                if (_isWindowClosing || token.IsCancellationRequested) return null;
 
                 stream.Seek(0);
 
@@ -323,6 +328,11 @@ namespace Uviewer
                 var device = canvas.Device ?? Microsoft.Graphics.Canvas.CanvasDevice.GetSharedDevice();
                 // 스트림에 담긴 픽셀을 HiDPI 보정 없이 1:1로 읽기 위해 96 DPI 옵션 명시
                 var bitmap = await CanvasBitmap.LoadAsync(device, stream, 96.0f);
+                if (_isWindowClosing || token.IsCancellationRequested)
+                {
+                    bitmap.Dispose();
+                    return null;
+                }
                 return bitmap;
             }
             catch (OperationCanceledException)
@@ -415,6 +425,7 @@ namespace Uviewer
         {
             try
             {
+                if (_isWindowClosing) return;
                 if (_currentPdfDocument == null || _currentBitmap == null) return;
                 if (_currentIndex < 0 || _currentIndex >= _imageEntries.Count) return;
 
@@ -432,7 +443,7 @@ namespace Uviewer
                 // [최적화] isPreload=false → _pdfCurrentPageSemaphore 사용으로 프리로드에 의해 블록되지 않음
                 var newBitmap = await LoadPdfPageBitmapAsync(entry.PdfPageIndex, canvas, token, isPreload: false);
 
-                if (token.IsCancellationRequested || newBitmap == null)
+                if (_isWindowClosing || token.IsCancellationRequested || newBitmap == null)
                 {
                     if (newBitmap != null) _imageCache.SafeDisposeBitmap(newBitmap);
                     return;
