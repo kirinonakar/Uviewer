@@ -19,6 +19,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Windows.Storage;
 using Uviewer.Models;
+using Uviewer.Renderers;
 using Uviewer.Services;
 using Visibility = Microsoft.UI.Xaml.Visibility;
 
@@ -1249,113 +1250,19 @@ namespace Uviewer
 
         private void MainCanvas_Draw(CanvasControl sender, CanvasDrawEventArgs args)
         {
-            var currentBitmap = _currentBitmap;
-            if (currentBitmap != null)
-            {
-                try
-                {
-                    if (!TryGetBitmapSize(currentBitmap, out var imageSize)) return;
-
-                    var ds = args.DrawingSession;
-                    var canvasSize = sender.Size;
-
-                    // Calculate fit ratio
-                    var fitRatio = Math.Min(canvasSize.Width / imageSize.Width, canvasSize.Height / imageSize.Height);
-
-                    // Apply zoom level on top of fit
-                    var scaledSize = new Windows.Foundation.Size(imageSize.Width * fitRatio * _zoomLevel, imageSize.Height * fitRatio * _zoomLevel);
-
-                    // Center the image
-                    var position = new Windows.Foundation.Point(
-                        (canvasSize.Width - scaledSize.Width) / 2,
-                        (canvasSize.Height - scaledSize.Height) / 2);
-
-                    if (_currentPdfDocument != null || (_zoomLevel > 1.01 && !_isCurrentViewSideBySide))
-                    {
-                        // PDF 또는 확대된 단일 이미지는 항상 연속 스크롤 모드 지원
-                        double maxPan = Math.Max(0, (scaledSize.Height - canvasSize.Height) / 2);
-                        double clampMargin = canvasSize.Height + 500; // 화면 높이 기반으로 제한 값 확장
-                        if (_pdfPanY > maxPan + clampMargin) _pdfPanY = maxPan + clampMargin;
-                        if (_pdfPanY < -maxPan - clampMargin) _pdfPanY = -maxPan - clampMargin;
-
-
-                        // Drawing with pan (X, Y)
-                        position.X = (canvasSize.Width - scaledSize.Width) / 2 + _pdfPanX;
-                        position.Y = (canvasSize.Height - scaledSize.Height) / 2 + _pdfPanY;
-                        var destRect = new Windows.Foundation.Rect(position, scaledSize);
-
-                        if (_currentPdfDocument != null)
-                            ds.DrawImage(currentBitmap, destRect);
-                        else
-                            ds.DrawImage(currentBitmap, destRect, currentBitmap.Bounds, 1.0f, CanvasImageInterpolation.HighQualityCubic);
-
-                        double gap = 20 * _zoomLevel;
-
-                        // Draw previous images/pages (up to 5)
-                        double currentY_top = position.Y;
-                        for (int i = 1; i <= 5; i++)
-                        {
-                            int prevIdx = _currentIndex - i;
-                            if (prevIdx < 0) break;
-
-                            CanvasBitmap? prev = (_sharpenEnabled && _currentPdfDocument == null) ? _imageCache.GetSharpenedImage(prevIdx) : null;
-                            if (prev == null) prev = _imageCache.GetPreloadedImage(prevIdx, _zoomLevel);
-                            if (prev != null && TryGetBitmapSize(prev, out var prevSize) && prev != currentBitmap)
-                            {
-                                var pFit = Math.Min(canvasSize.Width / prevSize.Width, canvasSize.Height / prevSize.Height);
-                                var pScaledSize = new Windows.Foundation.Size(prevSize.Width * pFit * _zoomLevel, prevSize.Height * pFit * _zoomLevel);
-                                var pPos = new Windows.Foundation.Point((canvasSize.Width - pScaledSize.Width) / 2 + _pdfPanX, currentY_top - pScaledSize.Height - gap);
-                                if (_currentPdfDocument != null)
-                                    ds.DrawImage(prev, new Windows.Foundation.Rect(pPos, pScaledSize));
-                                else
-                                    ds.DrawImage(prev, new Windows.Foundation.Rect(pPos, pScaledSize), prev.Bounds, 1.0f, CanvasImageInterpolation.HighQualityCubic);
-                                currentY_top = pPos.Y;
-
-                                // Stop if even this page is way above screen
-                                if (currentY_top + pScaledSize.Height < -500) break;
-                            }
-                            else if (prev == currentBitmap) continue; // Skip duplicates
-                            else break; // Missing preload, can't draw further
-                        }
-
-                        // Draw next images/pages (up to 5)
-                        double currentY_bottom = position.Y + scaledSize.Height;
-                        for (int i = 1; i <= 5; i++)
-                        {
-                            int nextIdx = _currentIndex + i;
-                            if (nextIdx >= _imageEntries.Count) break;
-
-                            CanvasBitmap? next = (_sharpenEnabled && _currentPdfDocument == null) ? _imageCache.GetSharpenedImage(nextIdx) : null;
-                            if (next == null) next = _imageCache.GetPreloadedImage(nextIdx, _zoomLevel);
-                            if (next != null && TryGetBitmapSize(next, out var nextSize) && next != currentBitmap)
-                            {
-                                var nFit = Math.Min(canvasSize.Width / nextSize.Width, canvasSize.Height / nextSize.Height);
-                                var nScaledSize = new Windows.Foundation.Size(nextSize.Width * nFit * _zoomLevel, nextSize.Height * nFit * _zoomLevel);
-                                var nPos = new Windows.Foundation.Point((canvasSize.Width - nScaledSize.Width) / 2 + _pdfPanX, currentY_bottom + gap);
-                                if (_currentPdfDocument != null)
-                                    ds.DrawImage(next, new Windows.Foundation.Rect(nPos, nScaledSize));
-                                else
-                                    ds.DrawImage(next, new Windows.Foundation.Rect(nPos, nScaledSize), next.Bounds, 1.0f, CanvasImageInterpolation.HighQualityCubic);
-                                currentY_bottom = nPos.Y + nScaledSize.Height;
-
-                                // Stop if even this page is way below screen
-                                if (nPos.Y > canvasSize.Height + 500) break;
-                            }
-                            else if (next == currentBitmap) continue; // Skip duplicates
-                            else break;
-                        }
-                    }
-                    else
-                    {
-                        var destRect = new Windows.Foundation.Rect(position, scaledSize);
-                        ds.DrawImage(currentBitmap, destRect, currentBitmap.Bounds, 1.0f, CanvasImageInterpolation.HighQualityCubic);
-                    }
-                }
-                catch (Exception)
-                {
-                    // 그리는 도중 이미지가 해제되면 무시
-                }
-            }
+            ImageCanvasRenderer.DrawMainCanvas(
+                sender,
+                args,
+                _currentBitmap,
+                _imageEntries,
+                _imageCache,
+                _currentIndex,
+                _zoomLevel,
+                _currentPdfDocument != null,
+                _isCurrentViewSideBySide,
+                _sharpenEnabled,
+                _pdfPanX,
+                ref _pdfPanY);
         }
 
         private void LeftCanvas_CreateResources(CanvasControl sender, CanvasCreateResourcesEventArgs args)
@@ -1365,34 +1272,7 @@ namespace Uviewer
 
         private void LeftCanvas_Draw(CanvasControl sender, CanvasDrawEventArgs args)
         {
-            var leftBitmap = _leftBitmap;
-            if (leftBitmap != null)
-            {
-                try
-                {
-                    if (!TryGetBitmapSize(leftBitmap, out var imageSize)) return;
-
-                    var ds = args.DrawingSession;
-                    var canvasSize = sender.Size;
-
-                    // Calculate fit ratio for full canvas width (each canvas is already half the screen)
-                    var fitRatio = Math.Min(canvasSize.Width / imageSize.Width, canvasSize.Height / imageSize.Height);
-
-                    // Apply zoom level on top of fit
-                    var scaledSize = new Windows.Foundation.Size(imageSize.Width * fitRatio * _zoomLevel, imageSize.Height * fitRatio * _zoomLevel);
-
-                    // Align to RIGHT edge (to make images touch in the center)
-                    var position = new Windows.Foundation.Point(
-                        canvasSize.Width - scaledSize.Width,
-                        (canvasSize.Height - scaledSize.Height) / 2);
-
-
-
-                    var destRect = new Windows.Foundation.Rect(position, scaledSize);
-                    ds.DrawImage(leftBitmap, destRect, leftBitmap.Bounds, 1.0f, CanvasImageInterpolation.HighQualityCubic);
-                }
-                catch (Exception) { }
-            }
+            ImageCanvasRenderer.DrawSideCanvas(sender, args, _leftBitmap, _zoomLevel, alignRight: true);
         }
 
         private void RightCanvas_CreateResources(CanvasControl sender, CanvasCreateResourcesEventArgs args)
@@ -1402,34 +1282,7 @@ namespace Uviewer
 
         private void RightCanvas_Draw(CanvasControl sender, CanvasDrawEventArgs args)
         {
-            var rightBitmap = _rightBitmap;
-            if (rightBitmap != null)
-            {
-                try
-                {
-                    if (!TryGetBitmapSize(rightBitmap, out var imageSize)) return;
-
-                    var ds = args.DrawingSession;
-                    var canvasSize = sender.Size;
-
-                    // Calculate fit ratio for full canvas width (each canvas is already half the screen)
-                    var fitRatio = Math.Min(canvasSize.Width / imageSize.Width, canvasSize.Height / imageSize.Height);
-
-                    // Apply zoom level on top of fit
-                    var scaledSize = new Windows.Foundation.Size(imageSize.Width * fitRatio * _zoomLevel, imageSize.Height * fitRatio * _zoomLevel);
-
-                    // Align to LEFT edge (to make images touch in the center)
-                    var position = new Windows.Foundation.Point(
-                        0,
-                        (canvasSize.Height - scaledSize.Height) / 2);
-
-
-
-                    var destRect = new Windows.Foundation.Rect(position, scaledSize);
-                    ds.DrawImage(rightBitmap, destRect, rightBitmap.Bounds, 1.0f, CanvasImageInterpolation.HighQualityCubic);
-                }
-                catch (Exception) { }
-            }
+            ImageCanvasRenderer.DrawSideCanvas(sender, args, _rightBitmap, _zoomLevel, alignRight: false);
         }
 
         #endregion
