@@ -37,7 +37,7 @@ namespace Uviewer.Models
     public class AozoraItalic { public string Text { get; set; } = ""; }
     public class AozoraCode { public string Text { get; set; } = ""; }
     public class AozoraHighlight { public string Text { get; set; } = ""; }
-    public class AozoraMath { public string Text { get; set; } = ""; public bool DisplayMode { get; set; } = false; }
+    public class AozoraMath { public string Text { get; set; } = ""; public bool DisplayMode { get; set; } = false; public bool IsBold { get; set; } = false; }
     public class AozoraLineBreak { }
     public class AozoraRuby { public string BaseText { get; set; } = ""; public string RubyText { get; set; } = ""; public bool IsBold { get; set; } = false; }
     public class AozoraTCY { public string Text { get; set; } = ""; public bool IsBold { get; set; } = false; }

@@ -230,6 +230,7 @@ namespace Uviewer.Renderers
                         var rendered = NormalizeVerticalText(KatexStandaloneRenderer.RenderToText(math.Text));
                         sb.Append(rendered);
                         mathRanges.Add((start, rendered.Length));
+                        if (math.IsBold) boldRanges.Add((start, rendered.Length));
                     }
                     else if (inline is AozoraTCY tcy)
                     {

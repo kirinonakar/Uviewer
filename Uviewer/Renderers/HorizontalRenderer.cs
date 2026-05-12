@@ -251,6 +251,7 @@ namespace Uviewer.Renderers
                         var rendered = KatexStandaloneRenderer.RenderToText(math.Text);
                         sb.Append(rendered);
                         mathRanges.Add((start, rendered.Length));
+                        if (math.IsBold) boldRanges.Add((start, rendered.Length));
                     }
                     else if (inline is AozoraTCY tcy)
                     {
@@ -444,20 +445,93 @@ namespace Uviewer.Renderers
             Color color,
             float fontSize)
         {
+            var lineBounds = BuildLineBounds(layout);
+
             foreach (var range in ranges)
             {
                 if (range.length <= 0) continue;
                 var regions = layout.GetCharacterRegions(range.start, range.length);
+                int lineIndex = FindLineIndex(lineBounds, range.start, 0);
+
                 foreach (var region in regions)
                 {
                     var bounds = region.LayoutBounds;
+                    var line = lineBounds.Count > 0 ? lineBounds[Math.Min(lineIndex, lineBounds.Count - 1)] : default;
+                    var highlightBounds = GetHighlightVerticalBounds(line, bounds, fontSize);
+
                     float x = drawX + (float)bounds.Left - 2f;
-                    float y = drawY + (float)bounds.Top + fontSize * 0.18f;
+                    float y = drawY + highlightBounds.y;
                     float width = Math.Max(2f, (float)bounds.Width + 4f);
-                    float height = Math.Max(fontSize * 0.7f, (float)bounds.Height * 0.72f);
+                    float height = highlightBounds.height;
                     ds.FillRectangle(x, y, width, height, color);
+
+                    if (lineBounds.Count > 0 && lineIndex < lineBounds.Count - 1)
+                        lineIndex++;
                 }
             }
+        }
+
+        private readonly struct LineBounds
+        {
+            public LineBounds(int start, int end, float top, float height, float baseline)
+            {
+                Start = start;
+                End = end;
+                Top = top;
+                Height = height;
+                Baseline = baseline;
+            }
+
+            public int Start { get; }
+            public int End { get; }
+            public float Top { get; }
+            public float Height { get; }
+            public float Baseline { get; }
+        }
+
+        private static List<LineBounds> BuildLineBounds(CanvasTextLayout layout)
+        {
+            var result = new List<LineBounds>();
+            int start = 0;
+            float top = 0f;
+
+            foreach (var metric in layout.LineMetrics)
+            {
+                int charCount = Math.Max(0, metric.CharacterCount);
+                int end = start + charCount;
+                result.Add(new LineBounds(start, end, top, metric.Height, metric.Baseline));
+                start = end;
+                top += metric.Height;
+            }
+
+            return result;
+        }
+
+        private static int FindLineIndex(List<LineBounds> lines, int characterIndex, int minIndex)
+        {
+            if (lines.Count == 0) return 0;
+
+            int start = Math.Max(0, Math.Min(minIndex, lines.Count - 1));
+            for (int i = start; i < lines.Count; i++)
+            {
+                if (characterIndex < lines[i].End || i == lines.Count - 1)
+                    return i;
+            }
+
+            return lines.Count - 1;
+        }
+
+        private static (float y, float height) GetHighlightVerticalBounds(LineBounds line, Windows.Foundation.Rect characterBounds, float fontSize)
+        {
+            if (line.Height <= 0)
+            {
+                float fallbackHeight = Math.Max(fontSize * 0.7f, (float)characterBounds.Height * 0.72f);
+                return ((float)characterBounds.Top + fontSize * 0.18f, fallbackHeight);
+            }
+
+            float height = fontSize * 1.05f;
+            float y = line.Top + line.Baseline - (fontSize * 0.9f);
+            return (y, height);
         }
     }
 }

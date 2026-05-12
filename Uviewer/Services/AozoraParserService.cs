@@ -771,7 +771,7 @@ namespace Uviewer.Services
                     if (close > i + 1)
                     {
                         Flush();
-                        result.Add(new AozoraBold { Text = content.Substring(i + 2, close - i - 2) });
+                        AddBoldInlines(result, ParseMarkdownInlines(content.Substring(i + 2, close - i - 2)));
                         i = close + 1;
                         continue;
                     }
@@ -795,6 +795,22 @@ namespace Uviewer.Services
 
             Flush();
             return result;
+        }
+
+        private static void AddBoldInlines(List<object> result, List<object> inlines)
+        {
+            foreach (var inline in inlines)
+            {
+                if (inline is string text) result.Add(new AozoraBold { Text = text });
+                else if (inline is AozoraBold bold) result.Add(bold);
+                else if (inline is AozoraItalic italic) result.Add(new AozoraBold { Text = italic.Text });
+                else if (inline is AozoraCode code) result.Add(new AozoraBold { Text = code.Text });
+                else if (inline is AozoraHighlight highlight) result.Add(new AozoraHighlight { Text = highlight.Text });
+                else if (inline is AozoraMath math) result.Add(new AozoraMath { Text = math.Text, DisplayMode = math.DisplayMode, IsBold = true });
+                else if (inline is AozoraRuby ruby) result.Add(new AozoraRuby { BaseText = ruby.BaseText, RubyText = ruby.RubyText, IsBold = true });
+                else if (inline is AozoraTCY tcy) result.Add(new AozoraTCY { Text = tcy.Text, IsBold = true });
+                else result.Add(inline);
+            }
         }
 
         private static int FindClosingInlineDollar(string text, int start)
