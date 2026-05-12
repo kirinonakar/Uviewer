@@ -12,8 +12,6 @@ using System.Collections.Generic;
 using System.IO;
 using System.IO.Compression;
 using System.Linq;
-using System.Text;
-using System.Text.RegularExpressions;
 using Windows.Foundation;
 using Windows.UI;
 using System.Threading;
@@ -37,6 +35,7 @@ namespace Uviewer
         private object _epubLock = new object();
         private SemaphoreSlim _epubArchiveLock = new SemaphoreSlim(1, 1);
         private SemaphoreSlim _epubNavigationLock = new SemaphoreSlim(1, 1);
+        private readonly EpubDocumentService _epubDocumentService = new();
 
         private bool _isEpubMode = false;
         public int PendingEpubChapterIndex { get; set; } = -1;
@@ -65,30 +64,6 @@ namespace Uviewer
         private CancellationTokenSource? _epubPreloadCts;
 
         // 이미지 캐시는 _imageResourceService로 통합됨 (접두어 "epub:")
-
-        // Optimized Static Regexes
-        private static readonly Regex RxEpubFullPath = new Regex("full-path=[\"']([^\"']+)[\"']", RegexOptions.IgnoreCase | RegexOptions.Compiled);
-        private static readonly Regex RxEpubItem = new Regex("<item\\s+[^>]*>", RegexOptions.IgnoreCase | RegexOptions.Compiled);
-        private static readonly Regex RxEpubId = new Regex("id=[\"']([^\"']+)[\"']", RegexOptions.IgnoreCase | RegexOptions.Compiled);
-        private static readonly Regex RxEpubHref = new Regex("href=[\"']([^\"']+)[\"']", RegexOptions.IgnoreCase | RegexOptions.Compiled);
-        private static readonly Regex RxEpubNavProp = new Regex("properties=[\"'][^\"']*nav[^\"']*[\"']", RegexOptions.IgnoreCase | RegexOptions.Compiled);
-        private static readonly Regex RxEpubItemRef = new Regex("<itemref[^>]*idref=[\"']([^\"']+)[\"']", RegexOptions.IgnoreCase | RegexOptions.Compiled);
-        private static readonly Regex RxEpubSpineToc = new Regex("<spine[^>]*toc=[\"']([^\"']+)[\"']", RegexOptions.IgnoreCase | RegexOptions.Compiled);
-        private static readonly Regex RxEpubImgTag = new Regex("(<(?:img|image)\\b[^>]*>)", RegexOptions.IgnoreCase | RegexOptions.Singleline | RegexOptions.Compiled);
-        private static readonly Regex RxEpubIsImg = new Regex("^<(?:img|image)\\b", RegexOptions.IgnoreCase | RegexOptions.Compiled);
-        private static readonly Regex RxEpubAnyTag = new Regex("<[^>]+>", RegexOptions.Compiled);
-        private static readonly Regex RxEpubSrc = new Regex("(?:src|xlink:href)=[\"']([^\"']+)[\"']", RegexOptions.IgnoreCase | RegexOptions.Compiled);
-        private static readonly Regex RxEpubScript = new Regex(@"<script[^>]*>[\s\S]*?</script>", RegexOptions.IgnoreCase | RegexOptions.Compiled);
-        private static readonly Regex RxEpubStyle = new Regex(@"<style[^>]*>[\s\S]*?</style>", RegexOptions.IgnoreCase | RegexOptions.Compiled);
-        private static readonly Regex RxEpubBr = new Regex(@"<br\s*/?>", RegexOptions.IgnoreCase | RegexOptions.Compiled);
-        private static readonly Regex RxEpubRuby = new Regex(@"<ruby[^>]*>(.*?)</ruby>\s*", RegexOptions.IgnoreCase | RegexOptions.Singleline | RegexOptions.Compiled);
-        private static readonly Regex RxEpubRp = new Regex(@"<rp[^>]*>.*?</rp>", RegexOptions.IgnoreCase | RegexOptions.Singleline | RegexOptions.Compiled);
-        private static readonly Regex RxEpubRt = new Regex(@"<rt[^>]*>(.*?)</rt>", RegexOptions.IgnoreCase | RegexOptions.Singleline | RegexOptions.Compiled);
-        private static readonly Regex RxEpubRubySplit = new Regex(@"(\{\{RUBY\|.*?\}\})", RegexOptions.Compiled);
-        private static readonly Regex RxEpubXmlns = new Regex("xmlns=\"[^\"]*\"", RegexOptions.Compiled);
-        private static readonly Regex RxEpubHeading = new Regex(@"<(h[1-6])[^>]*>(.*?)</\1>", RegexOptions.IgnoreCase | RegexOptions.Singleline | RegexOptions.Compiled);
-        // private static readonly Regex RxEpubTitle = ... (Removed as requested)
-
 
         public int CurrentEpubChapterIndex => _currentEpubChapterIndex;
         public int CurrentEpubPageIndex => _currentEpubPageIndex;
@@ -217,12 +192,11 @@ namespace Uviewer
                  var stream = await file.OpenStreamForReadAsync();
                  _currentEpubArchive = new ZipArchive(stream, ZipArchiveMode.Read);
                 
-                 // 1. Parse Container
-                 var rootPath = await ParseEpubContainerAsync();
-                 if (string.IsNullOrEmpty(rootPath)) throw new Exception("Invalid container.xml");
-                 
-                 // 2. Parse OPF
-                 await ParseEpubOpfAsync(rootPath);
+                 var packageInfo = await _epubDocumentService.LoadPackageInfoAsync(_currentEpubArchive, _epubArchiveLock);
+                 if (string.IsNullOrEmpty(packageInfo.RootPath)) throw new Exception("Invalid container.xml");
+
+                 _epubSpine = packageInfo.Spine;
+                 _epubTocPath = packageInfo.TocPath;
                  
                  if (_epubSpine.Count == 0) throw new Exception("No content found in EPUB");
                  
@@ -375,110 +349,6 @@ namespace Uviewer
             Title = "Uviewer - Image & Text Viewer";
         }
 
-        private async Task<string> ParseEpubContainerAsync()
-        {
-            var entry = _currentEpubArchive?.GetEntry("META-INF/container.xml");
-            if (entry == null) return "";
-
-            string content;
-            await _epubArchiveLock.WaitAsync();
-            try
-            {
-                using var stream = entry.Open();
-                using var reader = new StreamReader(stream);
-                content = await reader.ReadToEndAsync();
-            }
-            finally
-            {
-                _epubArchiveLock.Release();
-            }
-            
-            // Regex to find full-path
-            var match = RxEpubFullPath.Match(content);
-            if (match.Success) return match.Groups[1].Value;
-            
-            return "";
-        }
-
-        private async Task ParseEpubOpfAsync(string opfPath)
-        {
-            var entry = _currentEpubArchive?.GetEntry(opfPath);
-            if (entry == null) return;
-            
-            _epubTocPath = null; // Reset
-
-            string content;
-            await _epubArchiveLock.WaitAsync();
-            try
-            {
-                using var stream = entry.Open();
-                using var reader = new StreamReader(stream);
-                content = await reader.ReadToEndAsync();
-            }
-            finally
-            {
-                _epubArchiveLock.Release();
-            }
-            
-            // Extract Manifest
-            var manifest = new Dictionary<string, string>(); // id -> href
-            string opfDir = Path.GetDirectoryName(opfPath)?.Replace("\\", "/") ?? "";
-
-            var itemMatches = RxEpubItem.Matches(content);
-            foreach (Match m in itemMatches)
-            {
-                string tagContent = m.Value;
-                var idMatch = RxEpubId.Match(tagContent);
-                var hrefMatch = RxEpubHref.Match(tagContent);
-
-                if (idMatch.Success && hrefMatch.Success)
-                {
-                    string id = idMatch.Groups[1].Value;
-                    string href = hrefMatch.Groups[1].Value;
-                    manifest[id] = href;
-
-                    // Check for EPUB 3 nav property
-                    if (RxEpubNavProp.IsMatch(tagContent))
-                    {
-                        _epubTocPath = string.IsNullOrEmpty(opfDir) ? href : opfDir + "/" + href;
-                    }
-                }
-            }
-            
-            // Extract Spine
-            _epubSpine.Clear();
-            var itemRefMatches = RxEpubItemRef.Matches(content);
-            
-            foreach (Match m in itemRefMatches)
-            {
-                string id = m.Groups[1].Value;
-                if (manifest.ContainsKey(id))
-                {
-                    string href = manifest[id];
-                    // Resolve relative path
-                    string fullPath = string.IsNullOrEmpty(opfDir) ? href : opfDir + "/" + href;
-                    _epubSpine.Add(fullPath);
-                }
-            }
-            
-            // Try to find TOC path if not already found (EPUB 2 fallback)
-            if (string.IsNullOrEmpty(_epubTocPath))
-            {
-                var spineMatch = RxEpubSpineToc.Match(content);
-                if (spineMatch.Success)
-                {
-                    string tocId = spineMatch.Groups[1].Value;
-                    if (manifest.ContainsKey(tocId))
-                    {
-                         string href = manifest[tocId];
-                         _epubTocPath = string.IsNullOrEmpty(opfDir) ? href : opfDir + "/" + href;
-                    }
-                }
-            }
-        }
-
-
-
         private async Task PreloadEpubChaptersAsync(int currentIndex)
         {
             _epubPreloadCts?.Cancel();
@@ -499,25 +369,11 @@ namespace Uviewer
                 {
                     if (token.IsCancellationRequested) return;
                     if (_epubPreloadCache.ContainsKey(idx)) continue;
+                    if (_currentEpubArchive == null) return;
 
                     string path = _epubSpine[idx];
-                    var entry = _currentEpubArchive?.GetEntry(path);
-                    if (entry == null) continue;
-
-                    string html;
-                    await _epubArchiveLock.WaitAsync();
-                    try
-                    {
-                        using (var stream = entry.Open())
-                        using (var reader = new StreamReader(stream))
-                        {
-                            html = await reader.ReadToEndAsync();
-                        }
-                    }
-                    finally
-                    {
-                        _epubArchiveLock.Release();
-                    }
+                    string? html = await _epubDocumentService.ReadEntryTextAsync(_currentEpubArchive, path, _epubArchiveLock);
+                    if (html == null) continue;
 
                     if (token.IsCancellationRequested) return;
 
@@ -594,60 +450,14 @@ namespace Uviewer
 
         // --- Core Rendering Logic ---
 
-        // Helper for path resolution
-        private string ResolveRelativePath(string baseXhtmlPath, string relativePath)
-        {
-            try
-            {
-                if (string.IsNullOrEmpty(relativePath)) return "";
-
-                // Decoded URL chars (e.g. %20)
-                relativePath = Uri.UnescapeDataString(relativePath);
-
-                if (relativePath.StartsWith("/"))
-                {
-                    return relativePath.TrimStart('/');
-                }
-
-                string baseDir = Path.GetDirectoryName(baseXhtmlPath)?.Replace("\\", "/") ?? "";
-                
-                // Combine
-                string combined = string.IsNullOrEmpty(baseDir) 
-                    ? relativePath 
-                    : baseDir + "/" + relativePath;
-                
-                // Canonicalize (resolve .. and .)
-                var parts = combined.Replace("\\", "/").Split('/');
-                var stack = new Stack<string>();
-                
-                foreach (var part in parts)
-                {
-                    if (part == "." || string.IsNullOrEmpty(part)) continue;
-                    if (part == "..")
-                    {
-                        if (stack.Count > 0) stack.Pop();
-                    }
-                    else
-                    {
-                        stack.Push(part);
-                    }
-                }
-                
-                var result = string.Join("/", stack.Reverse());
-                return result;
-            }
-            catch
-            {
-                return relativePath;
-            }
-        }
-
         private async Task<List<EpubWin2DPage>> RenderEpubPagesAsync(string html, string currentPath, int pinBlockIndex = -1)
         {
             var pages = new List<EpubWin2DPage>();
 
             // EPUB 챕터의 블록을 AozoraBindingModel로 파싱 (세로 모드와 동일한 파이프라인 활용)
-            var allBlocks = ParseEpubHtmlToAozoraBlocks(html, currentPath, _currentEpubChapterIndex);
+            var parseResult = _epubDocumentService.ParseHtmlToAozoraBlocks(html, currentPath, _currentEpubChapterIndex);
+            var allBlocks = parseResult.Blocks;
+            _textTotalLineCountInSource = parseResult.TotalLineCount;
 
             if (allBlocks.Count == 0) return pages;
 
@@ -1361,18 +1171,11 @@ namespace Uviewer
             else
             {
                 // Not cached, must load now
+                if (_currentEpubArchive == null) return;
                 string path = _epubSpine[chapterIndex];
-                var entry = _currentEpubArchive?.GetEntry(path);
-                if (entry != null)
+                string? html = await _epubDocumentService.ReadEntryTextAsync(_currentEpubArchive, path, _epubArchiveLock);
+                if (html != null)
                 {
-                    string html;
-                    await _epubArchiveLock.WaitAsync();
-                    try {
-                        using var s = entry.Open();
-                        using var r = new StreamReader(s);
-                        html = await r.ReadToEndAsync();
-                    } finally { _epubArchiveLock.Release(); }
-                    
                     var pages = await RenderEpubPagesAsync(html, path);
                     _epubPreloadCache[chapterIndex] = pages;
                 }
@@ -1411,19 +1214,10 @@ namespace Uviewer
                 }
                 else
                 {
+                    if (_currentEpubArchive == null) return;
                     string path = _epubSpine[index];
-                    var entry = _currentEpubArchive?.GetEntry(path);
-                    if (entry == null) return;
-
-                    string html;
-                    await _epubArchiveLock.WaitAsync();
-                    try
-                    {
-                        using var stream = entry.Open();
-                        using var reader = new StreamReader(stream);
-                        html = await reader.ReadToEndAsync();
-                    }
-                    finally { _epubArchiveLock.Release(); }
+                    string? html = await _epubDocumentService.ReadEntryTextAsync(_currentEpubArchive, path, _epubArchiveLock);
+                    if (html == null) return;
 
                     pages = await RenderEpubPagesAsync(html, path, pinBlockIndex: targetBlockIndex);
                     _epubPreloadCache[index] = pages;
@@ -1439,17 +1233,10 @@ namespace Uviewer
                     int nextIdx = index + 1;
                     if (nextIdx < _epubSpine.Count && !_epubPreloadCache.ContainsKey(nextIdx))
                     {
-                        var entry = _currentEpubArchive?.GetEntry(_epubSpine[nextIdx]);
-                        if (entry != null)
+                        if (_currentEpubArchive == null) return;
+                        string? nextHtml = await _epubDocumentService.ReadEntryTextAsync(_currentEpubArchive, _epubSpine[nextIdx], _epubArchiveLock);
+                        if (nextHtml != null)
                         {
-                            string nextHtml;
-                            await _epubArchiveLock.WaitAsync();
-                            try {
-                                using var s = entry.Open();
-                                using var r = new StreamReader(s);
-                                nextHtml = await r.ReadToEndAsync();
-                            } finally { _epubArchiveLock.Release(); }
-                            
                             var nextPages = await RenderEpubPagesAsync(nextHtml, _epubSpine[nextIdx]);
                             _epubPreloadCache[nextIdx] = nextPages;
                         }
@@ -1739,261 +1526,15 @@ namespace Uviewer
         private async Task<List<AozoraBindingModel>> GetEpubChapterAsAozoraBlocksAsync(int index)
         {
             if (index < 0 || index >= _epubSpine.Count) return new List<AozoraBindingModel>();
+            if (_currentEpubArchive == null) return new List<AozoraBindingModel>();
 
             string path = _epubSpine[index];
-            var entry = _currentEpubArchive?.GetEntry(path);
-            if (entry == null) return new List<AozoraBindingModel>();
+            string? html = await _epubDocumentService.ReadEntryTextAsync(_currentEpubArchive, path, _epubArchiveLock);
+            if (html == null) return new List<AozoraBindingModel>();
 
-            string html;
-            await _epubArchiveLock.WaitAsync();
-            try
-            {
-                using var stream = entry.Open();
-                using var reader = new StreamReader(stream);
-                html = await reader.ReadToEndAsync();
-            }
-            finally
-            {
-                _epubArchiveLock.Release();
-            }
-
-            return ParseEpubHtmlToAozoraBlocks(html, path, index);
-        }
-
-        private List<AozoraBindingModel> ParseEpubHtmlToAozoraBlocks(string html, string currentPath, int chapterIndex)
-        {
-            var blocks = new List<AozoraBindingModel>();
-            
-            // ...
-            
-            
-            // Cleanup
-            html = RxEpubScript.Replace(html, "");
-            html = RxEpubStyle.Replace(html, "");
-            
-            // Pre-process special tags
-            html = RxEpubBr.Replace(html, "\n");
-
-            // (Title extraction and prepending removed as requested)
-
-            // Split by Image tags
-            var segments = RxEpubImgTag.Split(html);
-            int lineNum = 1;
-            bool hasImages = html.Contains("<img", StringComparison.OrdinalIgnoreCase) || html.Contains("<image", StringComparison.OrdinalIgnoreCase);
-            bool isFirstContent = true;
-
-            foreach (var segment in segments)
-            {
-                if (string.IsNullOrWhiteSpace(segment)) continue;
-
-                if (RxEpubIsImg.IsMatch(segment))
-                {
-                    var match = RxEpubSrc.Match(segment);
-                    if (match.Success)
-                    {
-                        string src = match.Groups[1].Value;
-                        string fullPath = ResolveRelativePath(currentPath, src);
-
-                        var block = new AozoraBindingModel { SourceLineNumber = lineNum++, EpubChapterIndex = chapterIndex };
-                        block.Inlines.Add(new AozoraImage { Source = fullPath });
-                        blocks.Add(block);
-                        isFirstContent = false;
-                    }
-                }
-                else
-                {
-                    // Text segment
-                    var textBlocks = ParseHtmlToAozoraTextBlocks(segment, ref lineNum, chapterIndex);
-
-                    // If this is the first content and chapter has images, skip short title-like text segments
-                    if (isFirstContent && hasImages)
-                    {
-                        string plainText = RxEpubAnyTag.Replace(segment, "");
-                        plainText = System.Net.WebUtility.HtmlDecode(plainText).Trim();
-                        // If total text in this segment is short (< 150 chars), skip it as a likely title
-                        if (plainText.Length > 0 && plainText.Length < 150)
-                        {
-                            isFirstContent = false;
-                            continue;
-                        }
-                    }
-
-                    if (textBlocks.Count > 0)
-                    {
-                        blocks.AddRange(textBlocks);
-                        isFirstContent = false;
-                    }
-                }
-            }
-
-            _textTotalLineCountInSource = lineNum - 1;
-
-            // 문단이 긴 경우 문장 단위로 블록 분리 (Aozora와 일치)
-            var splitBlocks = new List<AozoraBindingModel>();
-            foreach (var block in blocks)
-            {
-                splitBlocks.AddRange(AozoraParserService.SplitBlockBySentences(block));
-            }
-            return splitBlocks;
-        }
-
-        private List<AozoraBindingModel> ParseHtmlToAozoraTextBlocks(string html, ref int lineNum, int chapterIndex)
-        {
-            var blocks = new List<AozoraBindingModel>();
-
-            // --- Ruby Processing ---
-            html = RxEpubRuby.Replace(html, m => 
-            {
-                string rubyContent = m.Groups[1].Value;
-                rubyContent = RxEpubRp.Replace(rubyContent, "");
-                
-                StringBuilder sb = new StringBuilder();
-                var rtMatches = RxEpubRt.Matches(rubyContent);
-                
-                int lastIndex = 0;
-                foreach (Match rtMatch in rtMatches)
-                {
-                    string basePart = rubyContent.Substring(lastIndex, rtMatch.Index - lastIndex);
-                    string rtPart = rtMatch.Groups[1].Value;
-                    
-                    string baseText = RxEpubAnyTag.Replace(basePart, "").Trim();
-                    string rtText = RxEpubAnyTag.Replace(rtPart, "").Trim();
-                    
-                    if (!string.IsNullOrEmpty(baseText) || !string.IsNullOrEmpty(rtText))
-                    {
-                        sb.Append($"{{{{RUBY|{baseText}|~|{rtText}}}}}");
-                    }
-                    lastIndex = rtMatch.Index + rtMatch.Length;
-                }
-                
-                if (lastIndex < rubyContent.Length)
-                {
-                    string tailText = RxEpubAnyTag.Replace(rubyContent.Substring(lastIndex), "").Trim();
-                    if (!string.IsNullOrEmpty(tailText)) sb.Append(tailText);
-                }
-                
-                return sb.ToString();
-            });
-            
-            // headings handle - replace with markers to preserve them after tag stripping
-            html = RxEpubHeading.Replace(html, m => 
-            {
-                string level = m.Groups[1].Value.Substring(1);
-                string content = m.Groups[2].Value;
-                return $"\n\n@@HEADING_{level}@@{content}@@HEADING_END@@\n\n";
-            });
-
-            // 블록 태그(p, div, li, blockquote 등)를 이중 개행(\n\n)으로 치환하여 문단을 확실히 분리합니다.
-            // h1~h6는 위에서 이미 마커로 치환했으므로 여기서는 제외하거나 중복 처리되어도 무방합니다.
-            html = Regex.Replace(html, @"</?(?:p|div|li|blockquote|tr|table|ul|ol)[^>]*>", "\n\n", RegexOptions.IgnoreCase);
-
-            // Strip remaining tags
-            html = RxEpubAnyTag.Replace(html, ""); 
-            html = System.Net.WebUtility.HtmlDecode(html);
-            
-            html = html.Replace("\r\n", "\n").Replace("\r", "\n");
-            // 여러 개의 연속된 빈 줄을 2개(새 문단 기준)로 줄임
-            html = Regex.Replace(html, @"\n{3,}", "\n\n");
-            
-            var lines = html.Split('\n');
-            bool isNewParagraph = true;
-            
-
-            foreach (var line in lines)
-            {
-                if (string.IsNullOrWhiteSpace(line)) 
-                {
-                    isNewParagraph = true;
-                    continue;
-                }
-                
-                // 불필요한 공백 치환 (단일 띄어쓰기는 보존하여 Aozora 파서와 호환 유지)
-                string cleanLine = line.Replace('\u00A0', ' ').TrimEnd('\r', '\n', ' ');
-                if (isNewParagraph) cleanLine = cleanLine.TrimStart();
-                if (string.IsNullOrWhiteSpace(cleanLine)) continue;
-
-                // Handle heading markers
-                var headingMatch = Regex.Match(cleanLine, @"@@HEADING_(\d)@@(.*?)@@HEADING_END@@", RegexOptions.Singleline);
-                if (headingMatch.Success)
-                {
-                    int level = int.Parse(headingMatch.Groups[1].Value);
-                    string headingText = headingMatch.Groups[2].Value;
-                    // Tag stripping already happened to the whole html, but just in case
-                    headingText = RxEpubAnyTag.Replace(headingText, "");
-                    headingText = System.Net.WebUtility.HtmlDecode(headingText).Trim();
-
-                    if (string.IsNullOrEmpty(headingText)) continue;
-
-                    AozoraBindingModel headingBlock = new AozoraBindingModel 
-                    { 
-                        SourceLineNumber = lineNum++, 
-                        EpubChapterIndex = chapterIndex,
-                        HeadingLevel = level,
-                        IsBold = true,
-                        Alignment = TextAlignment.Center // Headings are often centered
-                    };
-
-                    // Apply heading styles
-                    if (level == 1)
-                    {
-                        headingBlock.FontSizeScale = 1.7;
-                        headingBlock.Margin = new Thickness(0, 0, 0, 40);
-                    }
-                    else if (level == 2)
-                    {
-                        headingBlock.FontSizeScale = 1.5;
-                        headingBlock.Margin = new Thickness(0, 0, 0, 30);
-                    }
-                    else
-                    {
-                        headingBlock.FontSizeScale = 1.3;
-                        headingBlock.Margin = new Thickness(0, 0, 0, 20);
-                    }
-
-                    headingBlock.Inlines.Add(headingText);
-                    blocks.Add(headingBlock);
-                    isNewParagraph = true;
-                    continue;
-                }
-                
-                var tokens = RxEpubRubySplit.Split(cleanLine);
-                
-                AozoraBindingModel currentBlock = new AozoraBindingModel 
-                { 
-                    SourceLineNumber = lineNum++, 
-                    EpubChapterIndex = chapterIndex,
-                    IsParagraphContinuation = !isNewParagraph
-                };
-
-                foreach (var token in tokens)
-                {
-                    // 루비 텍스트인 경우 내부를 건드리지 않고 보호합니다.
-                    if (token.StartsWith("{{RUBY|"))
-                    {
-                        var content = token.Substring(7, token.Length - 9);
-                        var parts = content.Split(new[] { "|~|" }, StringSplitOptions.None);
-                        if (parts.Length == 2)
-                        {
-                            currentBlock.Inlines.Add(new AozoraRuby { BaseText = parts[0], RubyText = parts[1] });
-                        }
-                    }
-                    else if (!string.IsNullOrEmpty(token))
-                    {
-                        currentBlock.Inlines.Add(token);
-                    }
-                }
-                
-                // 루프 종료 후 남은 인라인 처리
-                if (currentBlock.Inlines.Count > 0)
-                {
-                    blocks.Add(currentBlock);
-                }
-                
-                // 다음 줄은 빈 줄(개행)이 나타나지 않는 한 현재 문단과 이어집니다.
-                isNewParagraph = false;
-            }
-            
-            return blocks;
+            var parseResult = _epubDocumentService.ParseHtmlToAozoraBlocks(html, path, index);
+            _textTotalLineCountInSource = parseResult.TotalLineCount;
+            return parseResult.Blocks;
         }
     }
 
