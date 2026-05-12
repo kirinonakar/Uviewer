@@ -1,5 +1,6 @@
 using Microsoft.Graphics.Canvas;
 using Microsoft.Graphics.Canvas.UI.Xaml;
+using Microsoft.UI.Xaml;
 using System;
 using System.Collections.Generic;
 using Uviewer.Models;
@@ -103,6 +104,31 @@ namespace Uviewer.Renderers
             {
                 // Bitmap resources can be released while Win2D is drawing.
             }
+        }
+
+        public static void DrawBitmapFit(
+            CanvasDrawingSession ds,
+            CanvasBitmap bitmap,
+            Rect bounds,
+            HorizontalAlignment horizontalAlignment = HorizontalAlignment.Center)
+        {
+            if (!TryGetBitmapSize(bitmap, out var imageSize)) return;
+            if (bounds.Width <= 0 || bounds.Height <= 0) return;
+
+            var fitRatio = Math.Min(bounds.Width / imageSize.Width, bounds.Height / imageSize.Height);
+            var scaledSize = new Size(imageSize.Width * fitRatio, imageSize.Height * fitRatio);
+
+            double x = bounds.X + (bounds.Width - scaledSize.Width) / 2;
+            if (horizontalAlignment == HorizontalAlignment.Left) x = bounds.X;
+            else if (horizontalAlignment == HorizontalAlignment.Right) x = bounds.X + bounds.Width - scaledSize.Width;
+
+            double y = bounds.Y + (bounds.Height - scaledSize.Height) / 2;
+            ds.DrawImage(
+                bitmap,
+                new Rect(x, y, scaledSize.Width, scaledSize.Height),
+                bitmap.Bounds,
+                1.0f,
+                CanvasImageInterpolation.HighQualityCubic);
         }
 
         private static void DrawAdjacentImages(

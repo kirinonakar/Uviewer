@@ -1270,13 +1270,11 @@ namespace Uviewer
             {
                 if (_isVerticalMode)
                 {
-                    _verticalNavHistory.Clear();
                     await RenderVerticalDynamicPageAsync(0);
                     UpdateTextStatusBar();
                 }
                 else if (_isAozoraMode && _aozoraBlocks.Count > 0)
                 {
-                    _aozoraNavHistory.Clear();
                     await RenderAozoraDynamicPage(0);
                     UpdateAozoraStatusBar();
                 }
@@ -1290,13 +1288,11 @@ namespace Uviewer
             {
                 if (_isVerticalMode)
                 {
-                    _verticalNavHistory.Clear();
                     await RenderVerticalDynamicPageAsync(999999);
                     UpdateTextStatusBar();
                 }
                 else if (_isAozoraMode && _aozoraBlocks.Count > 0)
                 {
-                    _aozoraNavHistory.Clear();
                     // Start rendering from slightly before the end to fill the last page
                     int lastIdx = Math.Max(0, _aozoraBlocks.Count - 5);
                     await RenderAozoraDynamicPage(lastIdx);
@@ -1484,7 +1480,6 @@ namespace Uviewer
                     targetIdx = i;
                 }
 
-                _aozoraNavHistory.Clear();
                 await RenderAozoraDynamicPage(targetIdx);
                 UpdateAozoraStatusBar();
             }

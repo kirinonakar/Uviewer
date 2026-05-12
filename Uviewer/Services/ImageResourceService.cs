@@ -104,10 +104,7 @@ namespace Uviewer.Services
                 // (A) EPUB 아카이브
                 if (ctx.IsEpubMode && ctx.EpubArchive != null)
                 {
-                    string normPath = relativePath.Replace('\\', '/');
-                    return ctx.EpubArchive.Entries.Any(e =>
-                        e.FullName.Replace('\\', '/') == normPath ||
-                        string.Equals(e.FullName.Replace('\\', '/'), normPath, StringComparison.OrdinalIgnoreCase));
+                    return FindEpubEntryLoose(ctx.EpubArchive, relativePath) != null;
                 }
 
                 // (B) WebDAV
@@ -185,7 +182,8 @@ namespace Uviewer.Services
             CanvasDevice device,
             ViewingContext ctx,
             bool sharpenEnabled,
-            SharpenParams sharpenParams)
+            SharpenParams sharpenParams,
+            Func<bool>? shouldKeepLoadedBitmap = null)
         {
             int loadVersion;
 
@@ -256,11 +254,18 @@ namespace Uviewer.Services
                 }
 
                 bool discardLoadedBitmap = false;
+                if (shouldKeepLoadedBitmap != null && !shouldKeepLoadedBitmap())
+                {
+                    discardLoadedBitmap = true;
+                }
+
                 lock (_lock)
                 {
-                    if (loadVersion != _cacheVersion || !_cache.ContainsKey(cacheKey))
+                    if (discardLoadedBitmap || loadVersion != _cacheVersion || !_cache.ContainsKey(cacheKey))
                     {
                         discardLoadedBitmap = true;
+                        if (loadVersion == _cacheVersion)
+                            _cache.Remove(cacheKey);
                     }
                     else
                     {
@@ -381,11 +386,7 @@ namespace Uviewer.Services
             // (A) EPUB 아카이브
             if (ctx.IsEpubMode && ctx.EpubArchive != null && ctx.EpubArchiveLock != null)
             {
-                string normPath = relativePath.Replace('\\', '/');
-                var entry = ctx.EpubArchive.Entries.FirstOrDefault(e =>
-                        e.FullName.Replace('\\', '/') == normPath)
-                    ?? ctx.EpubArchive.Entries.FirstOrDefault(e =>
-                        string.Equals(e.FullName.Replace('\\', '/'), normPath, StringComparison.OrdinalIgnoreCase));
+                var entry = FindEpubEntryLoose(ctx.EpubArchive, relativePath);
 
                 if (entry != null)
                 {
@@ -494,6 +495,31 @@ namespace Uviewer.Services
                 ? subPath
                 : (baseDir.TrimEnd('/') + "/" + subPath);
             return targetKey.Replace("/./", "/");
+        }
+
+        private static System.IO.Compression.ZipArchiveEntry? FindEpubEntryLoose(
+            System.IO.Compression.ZipArchive archive,
+            string relativePath)
+        {
+            string normPath = relativePath.Replace('\\', '/').TrimStart('/');
+            var entry = archive.Entries.FirstOrDefault(e =>
+                    e.FullName.Replace('\\', '/') == normPath)
+                ?? archive.Entries.FirstOrDefault(e =>
+                    string.Equals(e.FullName.Replace('\\', '/'), normPath, StringComparison.OrdinalIgnoreCase));
+
+            if (entry != null) return entry;
+
+            string fileName = GetFileNameFromZipPath(normPath);
+            if (string.IsNullOrEmpty(fileName)) return null;
+
+            return archive.Entries.FirstOrDefault(e =>
+                string.Equals(GetFileNameFromZipPath(e.FullName.Replace('\\', '/')), fileName, StringComparison.OrdinalIgnoreCase));
+        }
+
+        private static string GetFileNameFromZipPath(string path)
+        {
+            int lastSlash = path.LastIndexOf('/');
+            return lastSlash >= 0 ? path.Substring(lastSlash + 1) : Path.GetFileName(path);
         }
 
         private static bool IsBitmapUsable(CanvasBitmap bitmap)

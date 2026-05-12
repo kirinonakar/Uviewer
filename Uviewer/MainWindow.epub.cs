@@ -346,13 +346,7 @@ namespace Uviewer
 
             try
             {
-                // Preload next 3 and previous 1
-                var indicesToPreload = new List<int>();
-                for (int i = 1; i <= 3; i++)
-                {
-                    if (currentIndex + i < _epubSpine.Count) indicesToPreload.Add(currentIndex + i);
-                }
-                if (currentIndex - 1 >= 0) indicesToPreload.Add(currentIndex - 1);
+                var indicesToPreload = _epubPageFlowService.GetPreloadChapterIndices(currentIndex, _epubSpine.Count);
 
                 foreach (int idx in indicesToPreload)
                 {
@@ -385,9 +379,7 @@ namespace Uviewer
                 // Keep cache size reasonable (current + 3 ahead + 1 behind)
                 if (_epubPreloadCache.Count > 8)
                 {
-                    var keysToRemove = _epubPreloadCache.Keys
-                        .Where(k => (k < currentIndex - 1) || (k > currentIndex + 3))
-                        .ToList();
+                    var keysToRemove = _epubPageFlowService.GetPreloadKeysToRemove(_epubPreloadCache.Keys, currentIndex);
                     foreach (var k in keysToRemove) _epubPreloadCache.Remove(k);
                 }
             }
@@ -540,19 +532,7 @@ namespace Uviewer
             {
                 var ds = args.DrawingSession;
                 var canvasSize = sender.Size;
-                var imageSize = bitmap.Size;
-
-                var fitRatio = Math.Min(canvasSize.Width / imageSize.Width, canvasSize.Height / imageSize.Height);
-                var scaledSize = new Windows.Foundation.Size(imageSize.Width * fitRatio, imageSize.Height * fitRatio);
-
-                float posX = 0;
-                if (align == HorizontalAlignment.Center) posX = (float)(canvasSize.Width - scaledSize.Width) / 2;
-                else if (align == HorizontalAlignment.Right) posX = (float)(canvasSize.Width - scaledSize.Width);
-                else posX = 0;
-
-                float posY = (float)(canvasSize.Height - scaledSize.Height) / 2;
-
-                ds.DrawImage(bitmap, new Rect(posX, posY, (float)scaledSize.Width, (float)scaledSize.Height), bitmap.Bounds, 1.0f, CanvasImageInterpolation.HighQualityCubic);
+                ImageCanvasRenderer.DrawBitmapFit(ds, bitmap, new Rect(0, 0, canvasSize.Width, canvasSize.Height), align);
             }
             catch (Exception ex)
             {
@@ -690,92 +670,26 @@ namespace Uviewer
             if (_imageResourceService.TryGetCached(cacheKey) != null) return;
             var archiveAtStart = _currentEpubArchive;
             var filePathAtStart = _currentEpubFilePath;
+            if (archiveAtStart == null) return;
 
             var device = EpubTextCanvas?.Device ?? CanvasDevice.GetSharedDevice();
-            // EPUB \uc774\ubbf8\uc9c0\ub294 \ud56d\uc0c1 EPUB \ubaa8\ub4dc\uc774\uba70, \uce90\uc2dc \ud0a4 \uc811\ub450\uc5b4\uac00 "epub:"
-            // \uc11c\ube44\uc2a4\ub294 \uc704\uce58 \ud574\uc11d\uc744 ViewingContext\uc5d0 \ub9e1\uae30\uc9c0\ub9cc,
-            // EPUB \uc774\ubbf8\uc9c0\ub294 FindEntryLoose\ub97c \ud1b5\ud574 \ud558\ub294 \uae30\uc874 \ub85c\uc9c1 \uc720\uc9c0\ub97c \uc704\ud574
-            // \uc5ec\uae30\uc5d0\uc11c \ubc14\uc774\ud2b8\ub97c \ub9c8\ub828\ud55c \ud6c4 \uc11c\ube44\uc2a4\ub85c \uc804\ub2ec
-            try
-            {
-                var entry = FindEntryLoose(imagePath);
-                if (entry == null) return;
+            bool IsStillCurrentEpub() =>
+                ReferenceEquals(_currentEpubArchive, archiveAtStart) &&
+                string.Equals(_currentEpubFilePath, filePathAtStart, StringComparison.OrdinalIgnoreCase);
 
-                byte[] bytes;
-                await _epubArchiveLock.WaitAsync();
-                try
+            await LoadImageResourceAndInvalidateAsync(
+                imagePath,
+                cacheKey,
+                device,
+                () =>
                 {
-                    using var ms = new MemoryStream();
-                    using var es = entry.Open();
-                    await es.CopyToAsync(ms);
-                    bytes = ms.ToArray();
-                }
-                finally { _epubArchiveLock.Release(); }
+                    if (!_isEpubMode || CurrentEpubWin2DPage?.IsImagePage != true) return;
 
-                using var ras = new InMemoryRandomAccessStream();
-                using (var writer = new DataWriter(ras))
-                {
-                    writer.WriteBytes(bytes);
-                    await writer.StoreAsync();
-                    await writer.FlushAsync();
-                    writer.DetachStream();
-                }
-                ras.Seek(0);
-
-                var originalBitmap = await CanvasBitmap.LoadAsync(device, ras);
-                CanvasBitmap finalBitmap = originalBitmap;
-
-                if (_sharpenEnabled)
-                {
-                    var sp = CreateSharpenParams();
-                    var sharpened = await _sharpeningService.ApplySharpenToBitmapAsync(
-                        originalBitmap, sp.UpscaleFactor, sp.SharpenAmount, sp.SharpenThreshold,
-                        sp.UnsharpAmount, sp.UnsharpRadius, skipUpscale: false);
-                    if (sharpened != null && sharpened != originalBitmap)
-                    {
-                        finalBitmap = sharpened;
-                        originalBitmap.Dispose();
-                    }
-                }
-
-                if (archiveAtStart == null ||
-                    !ReferenceEquals(_currentEpubArchive, archiveAtStart) ||
-                    !string.Equals(_currentEpubFilePath, filePathAtStart, StringComparison.OrdinalIgnoreCase))
-                {
-                    finalBitmap.Dispose();
-                    return;
-                }
-
-                // \uc11c\ube44\uc2a4 \uce90\uc2dc\uc5d0 \uc800\uc7a5 (epub: \uc811\ub450\uc5b4)
-                // \uc11c\ube44\uc2a4 \ub0b4\ubd80 _lock\uc774 \uc874\uc7ac\ud558\ubbc0\ub85c \ubc14\uc9c1 \ud638\ucd9c \uac00\ub2a5
-                var finalRef = finalBitmap;
-                action_store_epub_bitmap(cacheKey, finalRef);
-
-                this.DispatcherQueue.TryEnqueue(() =>
-                {
-                    if (_isEpubMode && CurrentEpubWin2DPage?.IsImagePage == true)
-                    {
-                         EpubCanvasDisplay?.Invalidate();
-                         EpubCanvasDisplayLeft?.Invalidate();
-                         EpubCanvasDisplayRight?.Invalidate();
-                    }
-                });
-            }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"LoadEpubImageForWin2DAsync failed: {ex.Message}");
-            }
-        }
-
-        // EPUB 비트맵을 서비스 캐시에 직접 저장하는 헬퍼
-        private void action_store_epub_bitmap(string cacheKey, CanvasBitmap bitmap)
-        {
-            // ImageResourceService.LoadAsync를 우회하여 이미 준비된 bitmap을 직접 저장.
-            // TryGetCached로 null 확인 후 두 번 로드 방지.
-            // _imageResourceService 내부 캐시에 직접 접근할 수 없으므로
-            // 서비스의 LoadAsync 흐름과 동일하게 null sentinel이 이미 없으면 추가.
-            // 실제로는 서비스를 통해 저장.
-            _imageResourceService.StoreBitmap(cacheKey, bitmap);
+                    EpubCanvasDisplay?.Invalidate();
+                    EpubCanvasDisplayLeft?.Invalidate();
+                    EpubCanvasDisplayRight?.Invalidate();
+                },
+                shouldKeepLoadedBitmap: IsStillCurrentEpub);
         }
 
 
@@ -825,14 +739,6 @@ namespace Uviewer
                 EpubCanvasDisplayLeft.Invalidate();
                 EpubCanvasDisplayRight.Invalidate();
             }
-        }
-
-        private ZipArchiveEntry? FindEntryLoose(string path)
-        {
-            var entry = _currentEpubArchive?.GetEntry(path);
-            if (entry != null) return entry;
-            string name = Path.GetFileName(path);
-            return _currentEpubArchive?.Entries.FirstOrDefault(e => e.Name.Equals(name, StringComparison.OrdinalIgnoreCase));
         }
 
         private object? EpubSelectedItem 
@@ -1112,59 +1018,13 @@ namespace Uviewer
                     }
                 }
 
-                int finalTargetPage = 0;
-
-                if (targetBlockIndex >= 0)
-                {
-                    for (int i = 0; i < pages.Count; i++)
-                    {
-                        var p = pages[i];
-                        if (p.Blocks != null && p.Blocks.Count > 0)
-                        {
-                            // 병합된 블록으로 인해 Count가 축소되는 문제를 해결하기 위해 다음 페이지의 시작 인덱스와 비교
-                            int nextStart = (i + 1 < pages.Count) ? pages[i + 1].StartBlockIndex : int.MaxValue;
-                            
-                            if (targetBlockIndex >= p.StartBlockIndex && targetBlockIndex < nextStart)
-                            {
-                                finalTargetPage = i;
-                                break;
-                            }
-                        }
-                    }
-                }
-                else if (targetLine > 1)
-                {
-                    for (int i = 0; i < pages.Count; i++)
-                    {
-                        var p = pages[i];
-                        if (p.Blocks != null && p.Blocks.Count > 0)
-                        {
-                            // 라인 번호도 동일하게 다음 페이지의 시작 라인과 비교하여 누락 방지
-                            int pageStartLine = p.Blocks.First().SourceLineNumber;
-                            int nextStartLine = (i + 1 < pages.Count && pages[i + 1].Blocks != null && pages[i + 1].Blocks.Count > 0) 
-                                ? pages[i + 1].Blocks.First().SourceLineNumber 
-                                : int.MaxValue;
-
-                            if (targetLine >= pageStartLine && targetLine < nextStartLine)
-                            {
-                                finalTargetPage = i;
-                                break;
-                            }
-                        }
-                    }
-                }
-                else if (targetPage > 0)
-                {
-                    finalTargetPage = Math.Min(targetPage, pages.Count - 1);
-                }
-                else if (progress.HasValue)
-                {
-                    finalTargetPage = (int)(Math.Max(0, pages.Count - 1) * progress.Value);
-                }
-                else if (fromEnd && pages.Count > 0)
-                {
-                    finalTargetPage = pages.Count - 1;
-                }
+                int finalTargetPage = _epubPageFlowService.FindTargetPage(
+                    pages,
+                    targetBlockIndex,
+                    targetLine,
+                    targetPage,
+                    progress,
+                    fromEnd);
                 
                 // SetEpubPageIndex 호출 전, 타겟 페이지가 이미지인 경우 세로 모드처럼 미리 로드 대기 (첫 로딩 시 캔버스 갱신 누락 방지)
                 if (pages.Count > 0 && finalTargetPage >= 0 && finalTargetPage < pages.Count)
@@ -1217,55 +1077,18 @@ namespace Uviewer
             // 이미지 페이지 처리
             if (page.IsImagePage)
             {
-                bool nextIsImage = false;
-                bool canSideBySide = _isSideBySideMode;
-                // 자동 2장보기 옵션이 켜져 있는 경우 비율에 따른 자동 판단
-                if (_autoDoublePageForArchive)
-                {
-                    {
-                        var bmp = _imageResourceService.TryGetCached(Services.ImageResourceService.GetEpubCacheKey(page.ImagePath));
-                        if (bmp != null)
-                        {
-                            float imgW = (float)bmp.Size.Width;
-                            float imgH = (float)bmp.Size.Height;
+                int nextChapIndex = _currentEpubChapterIndex;
+                int nextPgIndex = index + 1;
+                if (nextPgIndex >= _epubWin2DPages.Count) { nextChapIndex++; nextPgIndex = 0; }
+                var nextPage = GetEpubWin2DPage(nextChapIndex, nextPgIndex);
 
-                            if (IsAutoDoublePageTallCandidate(imgW, imgH))
-                            {
-                                canSideBySide = true;
-                            }
-                            else if (imgW >= imgH * 1.2f || imgH > imgW * 3.0f)
-                            {
-                                canSideBySide = false;
-                            }
-                            else
-                            {
-                                canSideBySide = _isSideBySideMode;
-                            }
-                        }
-                    }
-                }
-
-                if (canSideBySide)
-                {
-                    int nextChapIndex = _currentEpubChapterIndex;
-                    int nextPgIndex = index + 1;
-                    if (nextPgIndex >= _epubWin2DPages.Count) { nextChapIndex++; nextPgIndex = 0; }
-                    var pg2 = GetEpubWin2DPage(nextChapIndex, nextPgIndex);
-                    
-                    if (pg2 != null && pg2.IsImagePage)
-                    {
-                        bool nextShouldForceSingle = false;
-                        if (_autoDoublePageForArchive)
-                        {
-                            var bmp2 = _imageResourceService.TryGetCached(Services.ImageResourceService.GetEpubCacheKey(pg2.ImagePath));
-                            if (bmp2 != null && !IsAutoDoublePageTallCandidate(bmp2.Size.Width, bmp2.Size.Height))
-                                nextShouldForceSingle = true;
-                        }
-                        if (!nextShouldForceSingle) nextIsImage = true;
-                    }
-                }
-
-                _isEpubShowingTwoPages = nextIsImage;
+                _isEpubShowingTwoPages = _epubPageFlowService.ShouldShowImageSideBySide(
+                    page,
+                    nextPage,
+                    _isSideBySideMode,
+                    _autoDoublePageForArchive,
+                    GetCachedEpubImageSize,
+                    IsAutoDoublePageTallCandidate);
                 
                 if (EpubTextCanvas.Visibility != Visibility.Collapsed) EpubTextCanvas.Visibility = Visibility.Collapsed;
                 ShowEpubImagePage(page);
@@ -1282,6 +1105,12 @@ namespace Uviewer
             }
 
             UpdateEpubStatus();
+        }
+
+        private EpubImageSize? GetCachedEpubImageSize(string imagePath)
+        {
+            var bitmap = _imageResourceService.TryGetCached(Services.ImageResourceService.GetEpubCacheKey(imagePath));
+            return bitmap == null ? null : new EpubImageSize(bitmap.Size.Width, bitmap.Size.Height);
         }
 
         // --- Epub Settings Logic ---
@@ -1329,17 +1158,12 @@ namespace Uviewer
 
         private Brush GetEpubThemeForeground()
         {
-            if (_settingsManager.ThemeIndex == 2) return new SolidColorBrush(Microsoft.UI.ColorHelper.FromArgb(255, 204, 204, 204)); // Dark theme
-            if (_settingsManager.ThemeIndex == 3 && _settingsManager.CustomForegroundColor.HasValue) return new SolidColorBrush(_settingsManager.CustomForegroundColor.Value);
-            return new SolidColorBrush(Colors.Black);
+            return new SolidColorBrush(_settingsManager.GetThemeForegroundColor());
         }
         
         private Brush GetEpubThemeBackground()
         {
-             if (_settingsManager.ThemeIndex == 0) return new SolidColorBrush(Colors.White);
-             if (_settingsManager.ThemeIndex == 1) return new SolidColorBrush(Microsoft.UI.ColorHelper.FromArgb(255, 255, 249, 235)); // Beige
-             if (_settingsManager.ThemeIndex == 3 && _settingsManager.CustomBackgroundColor.HasValue) return new SolidColorBrush(_settingsManager.CustomBackgroundColor.Value);
-             return new SolidColorBrush(Microsoft.UI.ColorHelper.FromArgb(255, 30, 30, 30)); // Dark
+             return new SolidColorBrush(_settingsManager.GetThemeBackgroundColor());
         }
         
 

@@ -100,17 +100,27 @@ namespace Uviewer.Services
         // --- Theme Helpers ---
         public Brush GetThemeBackground()
         {
-            if (ThemeIndex == 0) return new SolidColorBrush(Colors.White);
-            if (ThemeIndex == 1) return new SolidColorBrush(Microsoft.UI.ColorHelper.FromArgb(255, 255, 249, 235)); // Beige
-            if (ThemeIndex == 3 && CustomBackgroundColor.HasValue) return new SolidColorBrush(CustomBackgroundColor.Value);
-            return new SolidColorBrush(Microsoft.UI.ColorHelper.FromArgb(255, 30, 30, 30)); // Dark
+            return new SolidColorBrush(GetThemeBackgroundColor());
         }
 
         public Brush GetThemeForeground()
         {
-            if (ThemeIndex == 2) return new SolidColorBrush(Microsoft.UI.ColorHelper.FromArgb(255, 204, 204, 204)); // Dark theme
-            if (ThemeIndex == 3 && CustomForegroundColor.HasValue) return new SolidColorBrush(CustomForegroundColor.Value);
-            return new SolidColorBrush(Colors.Black); // Default White/Beige theme text color
+            return new SolidColorBrush(GetThemeForegroundColor());
+        }
+
+        public Color GetThemeBackgroundColor()
+        {
+            if (ThemeIndex == 0) return Colors.White;
+            if (ThemeIndex == 1) return Microsoft.UI.ColorHelper.FromArgb(255, 255, 249, 235); // Beige
+            if (ThemeIndex == 3 && CustomBackgroundColor.HasValue) return CustomBackgroundColor.Value;
+            return Microsoft.UI.ColorHelper.FromArgb(255, 30, 30, 30); // Dark
+        }
+
+        public Color GetThemeForegroundColor()
+        {
+            if (ThemeIndex == 2) return Microsoft.UI.ColorHelper.FromArgb(255, 204, 204, 204); // Dark theme
+            if (ThemeIndex == 3 && CustomForegroundColor.HasValue) return CustomForegroundColor.Value;
+            return Colors.Black; // Default White/Beige theme text color
         }
 
         // --- Color Utilities ---

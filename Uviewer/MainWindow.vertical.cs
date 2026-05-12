@@ -37,7 +37,6 @@ namespace Uviewer
         private VerticalPageInfo _currentVerticalPageInfo;
         private int _currentVerticalStartBlockIndex = 0;
         private int _currentVerticalEndBlockIndex = 0;
-        private Stack<int> _verticalNavHistory = new();
         
         // 백그라운드 전체 페이지 계산용 상태
         private int _verticalTotalPages = 0;
@@ -96,7 +95,6 @@ namespace Uviewer
             _currentVerticalPageInfo = new VerticalPageInfo { Blocks = new List<AozoraBindingModel>(), StartLine = 1 };
             _currentVerticalStartBlockIndex = 0;
             _currentVerticalEndBlockIndex = 0;
-            _verticalNavHistory.Clear();
             _imageResourceService.ClearTextEntries(); // vertical 이미지 캐시/누락 목록 초기화
             _verticalTotalPages = 0;
             _isVerticalPageCalcCompleted = false;
@@ -292,7 +290,6 @@ namespace Uviewer
             var token = _currentVerticalRenderCts.Token;
 
             // _verticalImageCache.Clear(); // <-- 깜박임 방지를 위해 즉시 지우지 않고 새 페이지 준비 시 덮어씀
-            _verticalNavHistory.Clear();
             _pendingVerticalScrollLine = targetLine;
             _pendingVerticalStartBlockIndex = targetBlockIndex;
             ClearBackwardCache(); // <-- 캐시 초기화 추가
@@ -489,195 +486,38 @@ namespace Uviewer
                 float availableWidth = (float)VerticalTextCanvas.ActualWidth - 40;
                 var device = VerticalTextCanvas.Device;
 
-                await Task.Run(async () =>
+                var result = await _aozoraPageMapCalculator.CalculateAsync(
+                    _aozoraBlocks,
+                    new AozoraBlockPaginationContext(
+                        device,
+                        availableWidth,
+                        availableHeight,
+                        _settingsManager.FontSize,
+                        _settingsManager.FontFamily,
+                        GetFontWeightForFamily,
+                        DoesVerticalImageExist,
+                        _isSideBySideMode || _autoDoublePageForArchive,
+                        ShouldPairTextImage),
+                    AozoraPageOrientation.Vertical,
+                    token);
+
+                if (result == null || token.IsCancellationRequested) return;
+
+                DispatcherQueue.TryEnqueue(() =>
                 {
-                    int pageCount = 1;
-                    float currentPageWidth = 0;
-                    var blockToPageMap = new Dictionary<int, int>();
-                    AozoraBindingModel? currentMergedBlock = null;
-                    float currentMergedBlockWidth = 0;
-
-                    for (int i = 0; i < _aozoraBlocks.Count; i++)
-                    {
-                        if (token.IsCancellationRequested) return;
-                        
-                        var block = _aozoraBlocks[i];
-
-                        // 페이지 시작 부분의 빈 줄(공백) 건너뛰기 - 빈 페이지 방지
-                        if (currentPageWidth == 0 && block.IsBlankLine && !block.HasImage && !block.IsPageBreak)
-                        {
-                            blockToPageMap[i] = pageCount;
-                            continue;
-                        }
-
-                        if (block.HasImage || block.IsPageBreak)
-                        {
-                            if (currentPageWidth > 0)
-                            {
-                                pageCount++;
-                                currentPageWidth = 0;
-                            }
-
-                            blockToPageMap[i] = pageCount;
-                            
-                            if (block.IsPageBreak)
-                            {
-                                if (i < _aozoraBlocks.Count - 1)
-                                {
-                                    pageCount++;
-                                }
-                                currentMergedBlock = null;
-                                currentMergedBlockWidth = 0;
-                                continue;
-                            }
-
-                            // 이미지 존재 여부를 확인하여 없는 경우 페이지로 계산하지 않음
-                            var aozoraImg = block.Inlines.OfType<AozoraImage>().FirstOrDefault();
-                            if (aozoraImg != null && !DoesVerticalImageExist(aozoraImg.Source))
-                            {
-                                continue;
-                            }
-
-                            // [추가] 2장보기 페어링 처리
-                            if (_isSideBySideMode || _autoDoublePageForArchive)
-                            {
-                                bool firstIsTall = !_autoDoublePageForArchive;
-                                if (aozoraImg != null)
-                                {
-                                    var bmp1 = _imageResourceService.TryGetCached(Services.ImageResourceService.GetTextCacheKey(aozoraImg.Source));
-                                    if (bmp1 != null)
-                                    {
-                                        firstIsTall = _autoDoublePageForArchive
-                                            ? IsAutoDoublePageTallCandidate(bmp1.Size.Width, bmp1.Size.Height)
-                                            : bmp1.Size.Width < bmp1.Size.Height * 1.2f;
-                                    }
-                                }
-
-                                if (firstIsTall && i < _aozoraBlocks.Count - 1)
-                                {
-                                    // 다음 블록이 이미지인지 확인 (공백 무시 가능)
-                                    int nextI = i + 1;
-                                    while (nextI < _aozoraBlocks.Count)
-                                    {
-                                        var nextB = _aozoraBlocks[nextI];
-                                        if (nextB.HasImage)
-                                        {
-                                            var nextImg = nextB.Inlines.OfType<AozoraImage>().FirstOrDefault();
-                                            if (nextImg != null && DoesVerticalImageExist(nextImg.Source))
-                                            {
-                                                bool secondIsTall = !_autoDoublePageForArchive;
-                                                {
-                                                    var bmp2 = _imageResourceService.TryGetCached(Services.ImageResourceService.GetTextCacheKey(nextImg.Source));
-                                                    if (bmp2 != null)
-                                                    {
-                                                        secondIsTall = _autoDoublePageForArchive
-                                                            ? IsAutoDoublePageTallCandidate(bmp2.Size.Width, bmp2.Size.Height)
-                                                            : bmp2.Size.Width < bmp2.Size.Height * 1.2f;
-                                                    }
-                                                }
-
-                                                if (secondIsTall)
-                                                {
-                                                    blockToPageMap[nextI] = pageCount;
-                                                    i = nextI; // 해당 인덱스까지 소비함
-                                                }
-                                            }
-                                            break;
-                                        }
-                                        bool isWS = nextB.Inlines.All(inline => (inline is string s && string.IsNullOrWhiteSpace(s)) || (inline is AozoraLineBreak));
-                                        if (!isWS) break;
-                                        blockToPageMap[nextI] = pageCount; 
-                                        nextI++;
-                                    }
-                                }
-                            }
-
-                            if (i < _aozoraBlocks.Count - 1)
-                            {
-                                pageCount++;
-                            }
-                            currentMergedBlock = null;
-                            currentMergedBlockWidth = 0;
-                            continue;
-                        }
-
-                        // 💡 문단 이어붙이기(Paragraph Continuation) 논리 추가
-                        if (block.IsParagraphContinuation && currentMergedBlock != null && !block.IsTable && block.HeadingLevel == 0)
-                        {
-                            var tempMerged = AozoraParserService.CloneBlockProperties(currentMergedBlock, true);
-                            tempMerged.Inlines.AddRange(block.Inlines);
-
-                            float fontSize = (float)(_settingsManager.FontSize * tempMerged.FontSizeScale);
-                            float newWidth = MeasureVerticalBlockWidth(device, tempMerged, availableHeight, fontSize);
-                            float widthDiff = newWidth - currentMergedBlockWidth;
-                            float leftToleranceMerged = fontSize * 0.8f;
-
-                            if (currentPageWidth + widthDiff > (availableWidth + leftToleranceMerged) && currentPageWidth > 0)
-                            {
-                                pageCount++;
-                                currentPageWidth = 0;
-                            }
-                            else
-                            {
-                                // 병합 성공
-                                blockToPageMap[i] = pageCount;
-                                currentPageWidth += widthDiff;
-                                currentMergedBlock = tempMerged;
-                                currentMergedBlockWidth = newWidth;
-                                continue;
-                            }
-                        }
-
-                        float fontSizeBase = (float)(_settingsManager.FontSize * block.FontSizeScale);
-                        float blockWidth = MeasureVerticalBlockWidth(device, block, availableHeight, fontSizeBase);
-                        
-                        // 💡 테두리(Keigakomi) 마진 논리 추가
-                        bool isKeigakomi = block.BorderColor != null || block.BorderThickness.Top > 0;
-                        bool wasKeigakomi = currentMergedBlock != null && (currentMergedBlock.BorderColor != null || currentMergedBlock.BorderThickness.Top > 0);
-
-                        if (isKeigakomi && !wasKeigakomi) blockWidth += 20f;
-                        if (!isKeigakomi && wasKeigakomi) blockWidth += 20f;
-
-                        // [수정] 세로 모드는 Tolerance를 0.8배로 허용
-                        float leftTolerance = fontSizeBase * 0.8f;
-                        if (currentPageWidth > 0 && currentPageWidth + blockWidth > (availableWidth + leftTolerance))
-                        {
-                            pageCount++;
-                            currentPageWidth = 0;
-                        }
-
-                        blockToPageMap[i] = pageCount;
-                        currentPageWidth += blockWidth;
-
-                        if (!block.IsTable && !block.IsPageBreak && block.HeadingLevel == 0)
-                        {
-                            currentMergedBlock = block;
-                            currentMergedBlockWidth = blockWidth;
-                        }
-                        else
-                        {
-                            currentMergedBlock = null;
-                        }
-                        
-                        if (i % 50 == 0) await Task.Delay(1, token);
-                    }
-                    
                     if (token.IsCancellationRequested) return;
 
-                    DispatcherQueue.TryEnqueue(() =>
-                    {
-                        _verticalBlockToPageMap = blockToPageMap;
-                        _verticalTotalPages = pageCount;
-                        _isVerticalPageCalcCompleted = true;
-                        
-                        if (_verticalBlockToPageMap.TryGetValue(_currentVerticalStartBlockIndex, out int cp))
-                            _verticalCalculatedCurrentPage = cp;
-                        else
-                            _verticalCalculatedCurrentPage = 1;
-                            
-                        UpdateVerticalStatusBar();
-                    });
-                }, token);
+                    _verticalBlockToPageMap = result.BlockToPageMap;
+                    _verticalTotalPages = result.TotalPages;
+                    _isVerticalPageCalcCompleted = true;
+
+                    if (_verticalBlockToPageMap.TryGetValue(_currentVerticalStartBlockIndex, out int cp))
+                        _verticalCalculatedCurrentPage = cp;
+                    else
+                        _verticalCalculatedCurrentPage = 1;
+
+                    UpdateVerticalStatusBar();
+                });
             }
             catch (OperationCanceledException) { }
             catch (Exception ex)
@@ -688,265 +528,34 @@ namespace Uviewer
 
         private List<AozoraBindingModel> PaginateAozoraPage(ref int index, List<AozoraBindingModel> blocks, float availableWidth, float availableHeight, Microsoft.Graphics.Canvas.CanvasDevice? device = null)
         {
-            var pageBlocks = new List<AozoraBindingModel>();
-            float usedWidth = 0;
-
-            AozoraBindingModel? currentMergedBlock = null;
-            float currentMergedBlockWidth = 0;
-
-            while (index < blocks.Count)
-            {
-                var block = blocks[index];
-
-                // [추가] 페이지 시작 시 빈 줄(공백) 건너뛰기 - 빈 페이지 방지
-                if (pageBlocks.Count == 0 && block.IsBlankLine && !block.HasImage && !block.IsPageBreak)
-                {
-                    index++;
-                    continue;
-                }
-
-                if (block.HasImage || block.IsPageBreak)
-                {
-                    // If the current page already has content, break to start a new page.
-                    // Otherwise, if it's a page break at the start of a page, just skip it.
-                    if (pageBlocks.Count > 0) break;
-
-                    if (block.IsPageBreak)
-                    {
-                        index++;
-                        continue; // Skip the page break block itself if at the start of a page
-                    }
-
-                    // Handle image block
-                    var aozoraImg = block.Inlines.OfType<AozoraImage>().FirstOrDefault();
-                    if (aozoraImg != null && !DoesVerticalImageExist(aozoraImg.Source))
-                    {
-                        index++;
-                        continue;
-                    }
-                    
-                    pageBlocks.Add(block);
-                    index++;
-                    currentMergedBlock = null;
-
-                    if (_isSideBySideMode || _autoDoublePageForArchive)
-                    {
-                        // Check first image ratio
-                        bool firstIsTall = !_autoDoublePageForArchive;
-                        var firstImg = block.Inlines.OfType<AozoraImage>().FirstOrDefault();
-                        if (firstImg != null)
-                        {
-                            var bmp1 = _imageResourceService.TryGetCached(Services.ImageResourceService.GetTextCacheKey(firstImg.Source));
-                            if (bmp1 != null)
-                            {
-                                firstIsTall = _autoDoublePageForArchive
-                                    ? IsAutoDoublePageTallCandidate(bmp1.Size.Width, bmp1.Size.Height)
-                                    : bmp1.Size.Width < bmp1.Size.Height * 1.2f;
-                            }
-                        }
-
-                        if (firstIsTall)
-                        {
-                            while (index < blocks.Count)
-                            {
-                                var nextBlock = blocks[index];
-                                if (nextBlock.HasImage)
-                                {
-                                    var nextImg = nextBlock.Inlines.OfType<AozoraImage>().FirstOrDefault();
-                                    if (nextImg != null && DoesVerticalImageExist(nextImg.Source))
-                                    {
-                                        // Check second image ratio
-                                        bool secondIsTall = !_autoDoublePageForArchive;
-                                        {
-                                            var bmp2 = _imageResourceService.TryGetCached(Services.ImageResourceService.GetTextCacheKey(nextImg.Source));
-                                            if (bmp2 != null)
-                                            {
-                                                secondIsTall = _autoDoublePageForArchive
-                                                    ? IsAutoDoublePageTallCandidate(bmp2.Size.Width, bmp2.Size.Height)
-                                                    : bmp2.Size.Width < bmp2.Size.Height * 1.2f;
-                                            }
-                                        }
-
-                                        if (secondIsTall)
-                                        {
-                                            pageBlocks.Add(nextBlock);
-                                            index++;
-                                        }
-                                        break; 
-                                    }
-                                }
-                                bool isWhitespace = nextBlock.Inlines.All(inline => 
-                                    (inline is string s && string.IsNullOrWhiteSpace(s)) || (inline is AozoraLineBreak));
-                                
-                                if (isWhitespace) { index++; continue; }
-                                break; 
-                            }
-                        }
-                    }
-                    break;
-                }
-
-                // 1. 이어지는 문장 합치기 시도
-                if (block.IsParagraphContinuation && currentMergedBlock != null && !block.IsTable && block.HeadingLevel == 0)
-                {
-                    var tempMerged = AozoraParserService.CloneBlockProperties(currentMergedBlock, true);
-                    tempMerged.Inlines.AddRange(block.Inlines); // 기존 문단에 텍스트 이어붙이기
-
-                    float fontSize = (float)(_settingsManager.FontSize * tempMerged.FontSizeScale);
-                    float newWidth = MeasureVerticalBlockWidth(device, tempMerged, availableHeight, fontSize);
-                    float widthDiff = newWidth - currentMergedBlockWidth;
-                    
-                    // [수정] Tolerance 0.8배 적용
-                    float leftToleranceMerged = fontSize * 0.8f;
-
-                    if (usedWidth + widthDiff > (availableWidth + leftToleranceMerged) && pageBlocks.Count > 0)
-                    {
-                        break; 
-                    }
-
-                    // 병합 성공: 현재 페이지 마지막 블록을 교체
-                    pageBlocks[pageBlocks.Count - 1] = tempMerged;
-                    currentMergedBlock = tempMerged;
-                    usedWidth += widthDiff;
-                    currentMergedBlockWidth = newWidth;
-                    index++;
-                    continue;
-                }
-
-                // 2. 새 문단 또는 일반 블록
-                float fontSizeBase = (float)(_settingsManager.FontSize * block.FontSizeScale);
-                float blockWidth = MeasureVerticalBlockWidth(device, block, availableHeight, fontSizeBase);
-                // [수정]
-                float leftTolerance = fontSizeBase * 0.8f;
-
-                // [추가] 박스 진입/이탈 시 양옆 여백(Padding)을 페이지 너비에 반영
-                bool isKeigakomi = block.BorderColor != null || block.BorderThickness.Top > 0;
-                bool wasKeigakomi = pageBlocks.Count > 0 && (pageBlocks[pageBlocks.Count - 1].BorderColor != null || pageBlocks[pageBlocks.Count - 1].BorderThickness.Top > 0);
-
-                if (isKeigakomi && !wasKeigakomi) blockWidth += 20f; // 박스 시작 우측 여백
-                if (!isKeigakomi && wasKeigakomi) blockWidth += 20f; // 박스 종료 좌측 여백
-
-                if (pageBlocks.Count > 0 && usedWidth + blockWidth > (availableWidth + leftTolerance))
-                {
-                    break; 
-                }
-
-                var blockCopy = AozoraParserService.CloneBlockProperties(block, true);
-                pageBlocks.Add(blockCopy);
-                usedWidth += blockWidth;
-
-                if (!block.IsTable && !block.IsPageBreak && block.HeadingLevel == 0)
-                {
-                    currentMergedBlock = blockCopy;
-                    currentMergedBlockWidth = blockWidth;
-                }
-                else
-                {
-                    currentMergedBlock = null;
-                }
-
-                index++;
-                if (usedWidth >= (availableWidth + leftTolerance)) break;
-            }
-            return pageBlocks;
+            return _aozoraBlockPaginator.PaginateVerticalPage(
+                ref index,
+                blocks,
+                new AozoraBlockPaginationContext(
+                    device,
+                    availableWidth,
+                    availableHeight,
+                    _settingsManager.FontSize,
+                    _settingsManager.FontFamily,
+                    GetFontWeightForFamily,
+                    DoesVerticalImageExist,
+                    _isSideBySideMode || _autoDoublePageForArchive,
+                    ShouldPairTextImage));
         }
 
-        private float MeasureVerticalBlockWidth(CanvasDevice? device, AozoraBindingModel block, float availableHeight, float fontSize)
+        private bool ShouldPairTextImage(string source)
         {
-            // 👉 세로 모드: IsVertical=true로 키 생성 (가로 모드와 캐시 분리 - 높이 vs 너비 오염 방지)
-            int contentHash = block.Inlines.Count > 0 ? block.Inlines[0].GetHashCode() : 0;
-            var cacheKey = new BlockCacheKey(block.SourceLineNumber, block.Inlines.Count, contentHash, isVertical: true);
-            
-            if (_blockMeasureCache.TryGetValue(cacheKey, out float cachedWidth))
-                return cachedWidth;
-
-            if (device == null) return fontSize * 2.0f;
-
-            // Build text same as in Draw method
-            StringBuilder sb = new StringBuilder();
-            var boldRanges = new List<(int start, int length)>();
-            var italicRanges = new List<(int start, int length)>();
-
-            foreach (var inline in block.Inlines)
+            bool isTall = !_autoDoublePageForArchive;
+            var bitmap = _imageResourceService.TryGetCached(ImageResourceService.GetTextCacheKey(source));
+            if (bitmap != null)
             {
-                int start = sb.Length;
-                if (inline is string s) sb.Append(VerticalRenderer.NormalizeVerticalText(s));
-                else if (inline is AozoraRuby ruby)
-                {
-                    var normBase = VerticalRenderer.NormalizeVerticalText(ruby.BaseText);
-                    sb.Append(normBase);
-                    if (ruby.IsBold) boldRanges.Add((start, normBase.Length));
-                }
-                else if (inline is AozoraBold bold)
-                {
-                    var normText = VerticalRenderer.NormalizeVerticalText(bold.Text);
-                    sb.Append(normText);
-                    boldRanges.Add((start, normText.Length));
-                }
-                else if (inline is AozoraItalic italic)
-                {
-                    var normText = VerticalRenderer.NormalizeVerticalText(italic.Text);
-                    sb.Append(normText);
-                    italicRanges.Add((start, normText.Length));
-                }
-                else if (inline is AozoraCode code) sb.Append(VerticalRenderer.NormalizeVerticalText(code.Text));
-                else if (inline is AozoraHighlight highlight) sb.Append(VerticalRenderer.NormalizeVerticalText(highlight.Text));
-                else if (inline is AozoraMath math)
-                {
-                    var normText = VerticalRenderer.NormalizeVerticalText(KatexStandaloneRenderer.RenderToText(math.Text));
-                    sb.Append(normText);
-                    if (math.IsBold) boldRanges.Add((start, normText.Length));
-                }
-                else if (inline is AozoraTCY tcy)
-                {
-                    var normText = VerticalRenderer.NormalizeVerticalText(tcy.Text);
-                    sb.Append(normText);
-                    if (tcy.IsBold) boldRanges.Add((start, normText.Length));
-                }
-                else if (inline is AozoraLineBreak) sb.Append("\n");
-            }
-            if (block.IsTable && block.TableRows.Count > 0)
-            {
-                foreach (var row in block.TableRows) sb.AppendLine(string.Join(" | ", row));
+                isTall = _autoDoublePageForArchive
+                    ? IsAutoDoublePageTallCandidate(bitmap.Size.Width, bitmap.Size.Height)
+                    : bitmap.Size.Width < bitmap.Size.Height * 1.2f;
             }
 
-            string text = sb.ToString();
-            if (string.IsNullOrEmpty(text)) text = " ";
-
-            using var format = new CanvasTextFormat
-            {
-                FontSize = fontSize,
-                FontFamily = block.FontFamily ?? _settingsManager.FontFamily,
-                FontWeight = GetFontWeightForFamily(block.FontFamily ?? _settingsManager.FontFamily),
-                Direction = CanvasTextDirection.TopToBottomThenRightToLeft,
-                WordWrapping = CanvasWordWrapping.EmergencyBreak,
-                LineSpacing = fontSize * 1.8f,
-                VerticalGlyphOrientation = CanvasVerticalGlyphOrientation.Default,
-                VerticalAlignment = CanvasVerticalAlignment.Center
-            };
-
-            float fontSizeBase = (float)(fontSize); // Assuming argument is already scaled
-            float indentY = (float)(block.BlockIndentChars * fontSizeBase);
-            float actualHeight = Math.Max(fontSizeBase, availableHeight - indentY);
-
-            // Using same measureWidth (fontSize * 2f) as in Draw method
-            using var layout = new CanvasTextLayout(device, text, format, fontSize * 2.0f, actualHeight);
-            
-            if (block.IsBold) layout.SetFontWeight(0, text.Length, Microsoft.UI.Text.FontWeights.Bold);
-            foreach (var r in boldRanges) layout.SetFontWeight(r.start, r.length, Microsoft.UI.Text.FontWeights.Bold);
-            foreach (var r in italicRanges) layout.SetFontStyle(r.start, r.length, Windows.UI.Text.FontStyle.Italic);           
-            float boundsWidth = (float)layout.LayoutBounds.Width;
-            float spacing = fontSize * (block.IsBlankLine ? 0.2f : 0.6f);
-            
-            float result = boundsWidth + spacing;
-            if (block.IsBlankLine) result = (boundsWidth * 0.5f) + spacing;
-            
-            // 👉 절대 .Count 검사 없이 바로 저장
-            _blockMeasureCache[cacheKey] = result;
-
-            return result;
+            return isTall;
         }
-
         private void VerticalTextCanvas_CreateResources(CanvasControl sender, Microsoft.Graphics.Canvas.UI.CanvasCreateResourcesEventArgs args)
         {
         }
@@ -1009,17 +618,12 @@ namespace Uviewer
 
         private Color GetVerticalTextColor()
         {
-            if (_settingsManager.ThemeIndex == 2) return Microsoft.UI.ColorHelper.FromArgb(255, 204, 204, 204); // Dark theme matching GetThemeForeground
-            if (_settingsManager.ThemeIndex == 3 && _settingsManager.CustomForegroundColor.HasValue) return _settingsManager.CustomForegroundColor.Value;
-            return Colors.Black; // Light and Beige themes
+            return _settingsManager.GetThemeForegroundColor();
         }
 
         private Color GetVerticalBackgroundColor()
         {
-            if (_settingsManager.ThemeIndex == 0) return Colors.White;
-            if (_settingsManager.ThemeIndex == 1) return Microsoft.UI.ColorHelper.FromArgb(255, 255, 249, 235); // Beige
-            if (_settingsManager.ThemeIndex == 3 && _settingsManager.CustomBackgroundColor.HasValue) return _settingsManager.CustomBackgroundColor.Value;
-            return Microsoft.UI.ColorHelper.FromArgb(255, 30, 30, 30); // Dark
+            return _settingsManager.GetThemeBackgroundColor();
         }
 
         private Color GetVerticalAppBackgroundColor()
@@ -1088,23 +692,12 @@ namespace Uviewer
                     if (blocks != null && _currentVerticalStartBlockIndex > 0)
                     {
                         int targetIdx = _currentVerticalStartBlockIndex;
-                        int bestStart = 0;
 
                         float availWidth = (float)(VerticalTextCanvas?.ActualWidth ?? 1000) - 40;
                         float availHeight = (float)(VerticalTextCanvas?.ActualHeight ?? 800) - 40;
                         var device = VerticalTextCanvas?.Device ?? Microsoft.Graphics.Canvas.CanvasDevice.GetSharedDevice();
 
-                        // 💡 이동 전 캐시 유효성 철저히 검증
-                        ValidateBackwardCache(availWidth, availHeight, _settingsManager.FontSize, true, targetIdx);
-
-                        lock (_backwardPageCache)
-                        {
-                            if (!_backwardPageCache.TryGetValue(targetIdx, out bestStart))
-                            {
-                                bestStart = FindPreviousPageStart(targetIdx, blocks, availWidth, availHeight, device, true);
-                                _backwardPageCache[targetIdx] = bestStart;
-                            }
-                        }
+                        int bestStart = GetOrFindPreviousPageStart(targetIdx, blocks, availWidth, availHeight, device, true);
 
                         await RenderVerticalDynamicPageAsync(bestStart);
                         if (_isVerticalPageCalcCompleted) { _verticalCalculatedCurrentPage = Math.Max(1, _verticalCalculatedCurrentPage - 1); UpdateVerticalStatusBar(); }
@@ -1306,23 +899,7 @@ namespace Uviewer
             {
                 try
                 {
-                    float canvasW = (float)rect.Width;
-                    float canvasH = (float)rect.Height;
-                    float imgW = (float)bitmap.Size.Width;
-                    float imgH = (float)bitmap.Size.Height;
-
-                    float scale = Math.Min(canvasW / imgW, canvasH / imgH);
-
-                    float drawW = imgW * scale;
-                    float drawH = imgH * scale;
-
-                    float drawX = (float)rect.X + (canvasW - drawW) / 2;
-                    if (align == HorizontalAlignment.Left) drawX = (float)rect.X;
-                    else if (align == HorizontalAlignment.Right) drawX = (float)rect.X + (canvasW - drawW);
-
-                    float drawY = (float)rect.Y + (canvasH - drawH) / 2;
-
-                    ds.DrawImage(bitmap, new Rect(drawX, drawY, drawW, drawH), bitmap.Bounds, 1.0f, CanvasImageInterpolation.HighQualityCubic);
+                    ImageCanvasRenderer.DrawBitmapFit(ds, bitmap, rect, align);
                 }
                 catch (Exception ex)
                 {
@@ -1342,28 +919,27 @@ namespace Uviewer
         private async Task LoadVerticalImageAsync(string relativePath)
         {
             string cacheKey = Services.ImageResourceService.GetTextCacheKey(relativePath);
-            var device      = VerticalTextCanvas?.Device ?? Microsoft.Graphics.Canvas.CanvasDevice.GetSharedDevice();
-            var ctx         = CreateViewingContext();
-            var sp          = CreateSharpenParams();
+            var device = VerticalTextCanvas?.Device ?? Microsoft.Graphics.Canvas.CanvasDevice.GetSharedDevice();
 
-            var bitmap = await _imageResourceService.LoadAsync(cacheKey, relativePath, device, ctx, _sharpenEnabled, sp);
-
-            if (bitmap != null)
-            {
-                this.DispatcherQueue.TryEnqueue(() => VerticalTextCanvas?.Invalidate());
-            }
-            else if (_isWebDavMode)
-            {
-                // WebDAV 누락 이미지: 현재 페이지에서 다시 계산
-                this.DispatcherQueue.TryEnqueue(() =>
+            await LoadImageResourceAndInvalidateAsync(
+                relativePath,
+                cacheKey,
+                device,
+                () => VerticalTextCanvas?.Invalidate(),
+                () =>
                 {
-                    int currentLine = 1;
-                    if (_aozoraBlocks.Count > 0 && _currentVerticalStartBlockIndex >= 0 && _currentVerticalStartBlockIndex < _aozoraBlocks.Count)
-                        currentLine = _aozoraBlocks[_currentVerticalStartBlockIndex].SourceLineNumber;
+                    if (!_isWebDavMode) return;
 
-                    _ = PrepareVerticalTextAsync(currentLine, -1, _globalTextCts?.Token ?? default);
+                    // WebDAV 누락 이미지: 현재 페이지에서 다시 계산
+                    this.DispatcherQueue.TryEnqueue(() =>
+                    {
+                        int currentLine = 1;
+                        if (_aozoraBlocks.Count > 0 && _currentVerticalStartBlockIndex >= 0 && _currentVerticalStartBlockIndex < _aozoraBlocks.Count)
+                            currentLine = _aozoraBlocks[_currentVerticalStartBlockIndex].SourceLineNumber;
+
+                        _ = PrepareVerticalTextAsync(currentLine, -1, _globalTextCts?.Token ?? default);
+                    });
                 });
-            }
         }
 
     }

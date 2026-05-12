@@ -44,6 +44,11 @@ namespace Uviewer
         private readonly IAnimatedWebpService _animatedWebpService = null!;
         private readonly IKeyboardShortcutService _keyboardShortcutService = new KeyboardShortcutService();
         private readonly Services.TocService _tocService = new();
+        private readonly Services.AozoraBlockMeasurer _aozoraBlockMeasurer = new();
+        private readonly Services.AozoraBlockPaginator _aozoraBlockPaginator;
+        private readonly Services.AozoraPageMapCalculator _aozoraPageMapCalculator;
+        private readonly Services.AozoraPreviousPageCache _aozoraPreviousPageCache;
+        private readonly Services.EpubPageFlowService _epubPageFlowService = new();
         private readonly Services.ImageResourceService _imageResourceService;
         private bool _isWindowClosing;
 
@@ -217,6 +222,9 @@ namespace Uviewer
         {
             // _imageResourceService는 _sharpeningService에 의존하므로 생성자 시작 시 초기화
             _imageResourceService = new Services.ImageResourceService(_sharpeningService);
+            _aozoraBlockPaginator = new Services.AozoraBlockPaginator(_aozoraBlockMeasurer);
+            _aozoraPageMapCalculator = new Services.AozoraPageMapCalculator(_aozoraBlockMeasurer);
+            _aozoraPreviousPageCache = new Services.AozoraPreviousPageCache(_aozoraBlockMeasurer, _aozoraBlockPaginator);
 
             InitializeComponent();
             _textDialogService = new Services.TextDialogService(RootGrid);
@@ -786,6 +794,37 @@ namespace Uviewer
             UnsharpAmount:   (float)ImageOptions.UnsharpAmount,
             UnsharpRadius:   (float)ImageOptions.UnsharpRadius
         );
+
+        private async Task LoadImageResourceAndInvalidateAsync(
+            string resourcePath,
+            string cacheKey,
+            CanvasDevice device,
+            Action invalidate,
+            Action? onMissing = null,
+            Func<bool>? shouldKeepLoadedBitmap = null)
+        {
+            var bitmap = await _imageResourceService.LoadAsync(
+                cacheKey,
+                resourcePath,
+                device,
+                CreateViewingContext(),
+                _sharpenEnabled,
+                CreateSharpenParams(),
+                shouldKeepLoadedBitmap);
+
+            if (bitmap != null)
+            {
+                DispatcherQueue.TryEnqueue(() =>
+                {
+                    if (shouldKeepLoadedBitmap != null && !shouldKeepLoadedBitmap()) return;
+                    invalidate();
+                });
+            }
+            else
+            {
+                onMissing?.Invoke();
+            }
+        }
 
         #endregion
 
