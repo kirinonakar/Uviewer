@@ -181,15 +181,14 @@ namespace Uviewer
                 // 아카이브 탐색 시 백그라운드 추출 위치 재조정 신호 전송 (큰 폭의 이동 시에만)
                 if (_current7zArchive != null)
                 {
-                    if (Math.Abs(_currentIndex - _lastIndexFor7zJump) > 2)
+                    if (_sevenZipExtraction.ShouldSignalJump(_currentIndex, 2))
                     {
                         Signal7zJump();
-                        _lastIndexFor7zJump = _currentIndex;
                     }
                 }
                 else
                 {
-                    _lastIndexFor7zJump = _currentIndex;
+                    _sevenZipExtraction.MarkCurrentIndex(_currentIndex);
                 }
 
                 _animatedWebpService.Stop();

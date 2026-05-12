@@ -36,23 +36,12 @@ namespace Uviewer
         private SemaphoreSlim _epubArchiveLock = new SemaphoreSlim(1, 1);
         private SemaphoreSlim _epubNavigationLock = new SemaphoreSlim(1, 1);
         private readonly EpubDocumentService _epubDocumentService = new();
+        private readonly EpubPaginationService _epubPaginationService = new();
 
         private bool _isEpubMode = false;
         public int PendingEpubChapterIndex { get; set; } = -1;
         public int PendingEpubPageIndex { get; set; } = -1;
         private int _pendingEpubStartBlockIndex = -1;
-
-        // Win2D 기반 EPUB 페이지 정보
-        public class EpubWin2DPage
-        {
-            public List<AozoraBindingModel> Blocks { get; set; } = new();
-            public int StartBlockIndex { get; set; }
-            public int StartLine { get; set; }
-            public int LineCount { get; set; }
-            public int TotalLinesInChapter { get; set; }
-            public bool IsImagePage { get; set; }
-            public string ImagePath { get; set; } = "";
-        }
 
         private List<EpubWin2DPage> _epubWin2DPages = new();
         private int _currentEpubPageIndex = 0;
@@ -452,15 +441,6 @@ namespace Uviewer
 
         private async Task<List<EpubWin2DPage>> RenderEpubPagesAsync(string html, string currentPath, int pinBlockIndex = -1)
         {
-            var pages = new List<EpubWin2DPage>();
-
-            // EPUB 챕터의 블록을 AozoraBindingModel로 파싱 (세로 모드와 동일한 파이프라인 활용)
-            var parseResult = _epubDocumentService.ParseHtmlToAozoraBlocks(html, currentPath, _currentEpubChapterIndex);
-            var allBlocks = parseResult.Blocks;
-            _textTotalLineCountInSource = parseResult.TotalLineCount;
-
-            if (allBlocks.Count == 0) return pages;
-
             // 레이아웃 동기화로 정확해진 ActualWidth 사용
             float availableWidth = (float)(EpubArea?.ActualWidth ?? 0);
             if (availableWidth < 50) 
@@ -476,137 +456,26 @@ namespace Uviewer
                 if (availableHeight < 50) availableHeight = 800;
             }
 
-            // 렌더링 시와 동일한 마진을 사용하여 페이지 분할
-            float marginTop = 30f, marginBottom = 10f;
-            float marginRight = 40f, marginLeft = 40f; 
-            
-            if (_isVerticalMode)
-            {
-                marginTop = 20f; marginBottom = 20f;
-                marginRight = 30f; marginLeft = 25f; 
-            }
-            
-            float maxWidth = availableWidth - (marginRight + marginLeft);
-            float pageHeight = availableHeight - (marginTop + marginBottom);
-
-            // 세로 모드일 때는 42자 너비 제한을 풀어서 화면 전체를 줄(Column)로 채울 수 있게 함
-            if (!_isVerticalMode)
-            {
-                float limitedWidth = (float)(_settingsManager.FontSize * 42); 
-                if (maxWidth > limitedWidth) maxWidth = limitedWidth; 
-            }
-
-            if (maxWidth < 100) maxWidth = 100;
-            if (pageHeight < 100) pageHeight = 100;
-
             var device = EpubTextCanvas?.Device ?? CanvasDevice.GetSharedDevice();
-            int totalBlocks = allBlocks.Count;
-            int maxSourceLine = allBlocks[allBlocks.Count - 1].SourceLineNumber;
 
-            // 특정 블록을 페이지 시작점으로 고정(Pin)하는 방식 도입
-            if (pinBlockIndex >= 0 && pinBlockIndex < totalBlocks)
-            {
-                // 1. Pin 지점부터 끝까지 정방향 계산
-                int forwardIdx = pinBlockIndex;
-                while (forwardIdx < totalBlocks)
-                {
-                    var page = PaginateNextEpubPage(ref forwardIdx, allBlocks, maxWidth, pageHeight, device);
-                    if (page != null) pages.Add(page);
-                    else forwardIdx++;
+            var result = await _epubPaginationService.CreatePagesAsync(
+                new EpubPaginationRequest(
+                    html,
+                    currentPath,
+                    _currentEpubChapterIndex,
+                    availableWidth,
+                    availableHeight,
+                    _settingsManager.FontSize,
+                    _isVerticalMode,
+                    pinBlockIndex,
+                    device),
+                _epubDocumentService,
+                PaginateAozoraPage,
+                PaginateHorizontalAozoraPage,
+                FindPreviousPageStart);
 
-                    if (forwardIdx % 100 == 0) await Task.Delay(1);
-                }
-
-                // 2. Pin 지점 이전은 역방향으로 거슬러 올라가며 계산
-                int backwardIdx = pinBlockIndex;
-                while (backwardIdx > 0)
-                {
-                    // FindPreviousPageStart(aozora.cs)와 동일한 알고리즘 — 중복 메서드 제거 후 공용 메서드 재사용
-                    int prevStart = FindPreviousPageStart(backwardIdx, allBlocks, maxWidth, pageHeight, device, _isVerticalMode);
-                    if (prevStart >= backwardIdx) break; // 더 이상 거슬러 올라갈 수 없음
-
-                    int tempIdx = prevStart;
-                    var page = PaginateNextEpubPage(ref tempIdx, allBlocks, maxWidth, pageHeight, device);
-                    if (page != null) pages.Insert(0, page);
-                    
-                    backwardIdx = prevStart;
-                    if (backwardIdx % 100 == 0) await Task.Delay(1);
-                }
-            }
-            else
-            {
-                // 3. 표준 정방향 계산 (0번 블록부터)
-                int i = 0;
-                while (i < totalBlocks)
-                {
-                    var page = PaginateNextEpubPage(ref i, allBlocks, maxWidth, pageHeight, device);
-                    if (page != null) pages.Add(page);
-                    else i++;
-
-                    if (i % 100 == 0) await Task.Delay(1);
-                }
-            }
-
-            // TotalLinesInChapter 역산
-            int total = Math.Max(1, maxSourceLine);
-            foreach (var p in pages) p.TotalLinesInChapter = total;
-
-            return pages;
-        }
-
-        private EpubWin2DPage? PaginateNextEpubPage(ref int index, List<AozoraBindingModel> allBlocks, float maxWidth, float pageHeight, CanvasDevice? device)
-        {
-            if (index >= allBlocks.Count) return null;
-
-            var block = allBlocks[index];
-
-            // 이미지 블록
-            if (block.HasImage)
-            {
-                var imgSrc = block.Inlines.OfType<AozoraImage>().FirstOrDefault()?.Source ?? "";
-                var p = new EpubWin2DPage
-                {
-                    Blocks = new List<AozoraBindingModel> { block },
-                    IsImagePage = true,
-                    ImagePath = imgSrc,
-                    StartBlockIndex = index,
-                    StartLine = block.SourceLineNumber,
-                    LineCount = 1
-                };
-                index++;
-                return p;
-            }
-
-            // 페이지 분리 기호 건너뜀
-            if (block.IsPageBreak)
-            {
-                index++;
-                return PaginateNextEpubPage(ref index, allBlocks, maxWidth, pageHeight, device);
-            }
-
-            // 텍스트 블록 페이지 분할
-            int pageStart = index;
-            List<AozoraBindingModel> pageBlocks;
-
-            if (_isVerticalMode)
-                pageBlocks = PaginateAozoraPage(ref index, allBlocks, maxWidth, pageHeight, device);
-            else
-                pageBlocks = PaginateHorizontalAozoraPage(ref index, allBlocks, maxWidth, pageHeight, device);
-
-            if (pageBlocks.Count == 0)
-            {
-                index++;
-                return null;
-            }
-
-            return new EpubWin2DPage
-            {
-                Blocks = pageBlocks,
-                IsImagePage = false,
-                StartBlockIndex = pageStart,
-                StartLine = pageBlocks[0].SourceLineNumber,
-                LineCount = pageBlocks.Count
-            };
+            _textTotalLineCountInSource = result.TotalLineCount;
+            return result.Pages;
         }
 
         // FindPreviousEpubPageStart 제거됨 — aozora.cs의 FindPreviousPageStart(isVertical 파라미터)로 통합

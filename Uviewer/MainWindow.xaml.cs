@@ -78,23 +78,11 @@ namespace Uviewer
         [System.Runtime.InteropServices.DllImport("user32.dll", CharSet = System.Runtime.InteropServices.CharSet.Unicode)]
         private static extern int MessageBox(IntPtr hWnd, string text, string caption, uint type);
 
-        // 7z background extraction
-        private string? _current7zTempFolder;
-        private CancellationTokenSource? _7zExtractCts;
-        private CancellationTokenSource _7zJumpCts = new();
-        private int _lastIndexFor7zJump = -1;
+        private readonly Services.SevenZipExtractionCoordinator _sevenZipExtraction = new();
 
         private void Signal7zJump()
         {
-            try
-            {
-                _lastIndexFor7zJump = _currentIndex;
-                var old = _7zJumpCts;
-                _7zJumpCts = new CancellationTokenSource();
-                old.Cancel();
-                old.Dispose();
-            }
-            catch { }
+            _sevenZipExtraction.SignalJump(_currentIndex);
         }
 
 
@@ -118,7 +106,7 @@ namespace Uviewer
                 UpdateRecentMenu();
 
                 // Clean up any stale/incomplete temp files at startup
-                CleanupZeroByteTempFiles();
+                _sevenZipExtraction.CleanupZeroByteTempFiles();
 
                 if (!string.IsNullOrEmpty(launchFilePath))
                 {
@@ -423,7 +411,7 @@ namespace Uviewer
                         GC.WaitForPendingFinalizers();
                     }
 
-                    Cleanup7zTempData(immediate: true);
+                    _sevenZipExtraction.CleanupTempData(immediate: true);
                     WebDavService.CleanupTempFiles();
 
                     // Save settings
