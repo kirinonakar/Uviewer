@@ -1034,7 +1034,7 @@
             </Border.Shadow>
             <StackPanel Orientation="Horizontal" Spacing="12">
                 <FontIcon x:Name="NotificationIcon" Glyph="&#xE735;" Foreground="Gold" FontSize="20"/>
-                <TextBlock x:Name="NotificationText" Text="즐겨찾기에 추가되었습니다" 
+                <TextBlock x:Name="NotificationText" Text="" 
                            VerticalAlignment="Center" FontWeight="SemiBold"/>
             </StackPanel>
         </Border>

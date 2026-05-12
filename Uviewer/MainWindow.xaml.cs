@@ -585,7 +585,6 @@ namespace Uviewer
                 AutoDoublePageForArchiveMenuItem.Text = Strings.AutoDoublePageForArchive;
             }
             if (AboutMenuItem != null) AboutMenuItem.Text = Strings.About;
-            if (NotificationText != null) NotificationText.Text = Strings.AddedToFavoritesNotification;
 
             if (LanguageMenuItem != null) LanguageMenuItem.Text = Strings.LanguageSelection;
             if (LangAutoItem != null) LangAutoItem.Text = Strings.LanguageAuto;

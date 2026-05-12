@@ -76,7 +76,7 @@ namespace Uviewer.Services
             }
         }
 
-        public async Task AddOrUpdateFavoriteAsync(FavoriteItem favorite, bool isManualSave)
+        public async Task<bool> AddOrUpdateFavoriteAsync(FavoriteItem favorite, bool isManualSave)
         {
             string normPath = favorite.Path.Replace('\\', '/').TrimEnd('/');
             FavoriteItem? existing = _favorites.FirstOrDefault(f => 
@@ -90,7 +90,7 @@ namespace Uviewer.Services
             {
                 if (!isManualSave)
                 {
-                    return; 
+                    return false; 
                 }
 
                 // Update properties in-place instead of removing and re-adding
@@ -109,10 +109,14 @@ namespace Uviewer.Services
             else
             {
                 _favorites.Add(favorite);
+                await SaveFavoritesAsync();
+                FavoritesUpdated?.Invoke(this, EventArgs.Empty);
+                return true;
             }
 
             await SaveFavoritesAsync();
             FavoritesUpdated?.Invoke(this, EventArgs.Empty);
+            return false;
         }
 
         public async Task RemoveFavoriteAsync(FavoriteItem favorite)

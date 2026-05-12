@@ -359,11 +359,14 @@ namespace Uviewer
                         IsPinned = false
                     };
 
-                    await _favoritesService.AddOrUpdateFavoriteAsync(favorite, isManualSave);
-                    System.Diagnostics.Debug.WriteLine($"Added favorite: {favorite.Name}");
+                    bool wasAdded = await _favoritesService.AddOrUpdateFavoriteAsync(favorite, isManualSave);
+                    System.Diagnostics.Debug.WriteLine(wasAdded ? $"Added favorite: {favorite.Name}" : $"Updated favorite: {favorite.Name}");
                     UpdateFavoritesMenu();
-                    System.Diagnostics.Debug.WriteLine("Favorite added and saved successfully");
-                    ShowNotification(Strings.AddedToFavoritesNotification, "\uE735", "Gold");
+                    System.Diagnostics.Debug.WriteLine("Favorite saved successfully");
+                    if (wasAdded)
+                    {
+                        ShowNotification(Strings.AddedToFavoritesNotification, "\uE735", "Gold");
+                    }
                 }
                 else
                 {
