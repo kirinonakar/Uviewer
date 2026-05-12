@@ -8,6 +8,14 @@ using Uviewer.Models;
 
 namespace Uviewer.Services
 {
+    public enum FavoriteSaveResult
+    {
+        Unchanged,
+        Added,
+        Updated,
+        PositionUpdated
+    }
+
     public class FavoritesService
     {
         private ObservableCollection<FavoriteItem> _favorites = new();
@@ -76,7 +84,7 @@ namespace Uviewer.Services
             }
         }
 
-        public async Task<bool> AddOrUpdateFavoriteAsync(FavoriteItem favorite, bool isManualSave)
+        public async Task<FavoriteSaveResult> AddOrUpdateFavoriteAsync(FavoriteItem favorite, bool isManualSave)
         {
             string normPath = favorite.Path.Replace('\\', '/').TrimEnd('/');
             FavoriteItem? existing = _favorites.FirstOrDefault(f => 
@@ -90,8 +98,10 @@ namespace Uviewer.Services
             {
                 if (!isManualSave)
                 {
-                    return false; 
+                    return FavoriteSaveResult.Unchanged; 
                 }
+
+                bool positionChanged = HasPositionChanged(existing, favorite);
 
                 // Update properties in-place instead of removing and re-adding
                 existing.Name = favorite.Name;
@@ -105,18 +115,45 @@ namespace Uviewer.Services
                 existing.IsVertical = favorite.IsVertical;
                 existing.Progress = favorite.Progress;
                 // IsPinned and CreatedAt remain unchanged
+
+                await SaveFavoritesAsync();
+                FavoritesUpdated?.Invoke(this, EventArgs.Empty);
+                return positionChanged ? FavoriteSaveResult.PositionUpdated : FavoriteSaveResult.Updated;
             }
             else
             {
                 _favorites.Add(favorite);
                 await SaveFavoritesAsync();
                 FavoritesUpdated?.Invoke(this, EventArgs.Empty);
-                return true;
+                return FavoriteSaveResult.Added;
+            }
+        }
+
+        private static bool HasPositionChanged(FavoriteItem existing, FavoriteItem favorite)
+        {
+            return !string.Equals(existing.ArchiveEntryKey, favorite.ArchiveEntryKey, StringComparison.Ordinal) ||
+                   !NullableDoubleEquals(existing.ScrollOffset, favorite.ScrollOffset) ||
+                   existing.SavedPage != favorite.SavedPage ||
+                   existing.ChapterIndex != favorite.ChapterIndex ||
+                   existing.SavedLine != favorite.SavedLine ||
+                   existing.SavedBlockIndex != favorite.SavedBlockIndex ||
+                   existing.IsVertical != favorite.IsVertical ||
+                   !DoubleEquals(existing.Progress, favorite.Progress);
+        }
+
+        private static bool NullableDoubleEquals(double? left, double? right)
+        {
+            if (!left.HasValue || !right.HasValue)
+            {
+                return left.HasValue == right.HasValue;
             }
 
-            await SaveFavoritesAsync();
-            FavoritesUpdated?.Invoke(this, EventArgs.Empty);
-            return false;
+            return DoubleEquals(left.Value, right.Value);
+        }
+
+        private static bool DoubleEquals(double left, double right)
+        {
+            return Math.Abs(left - right) < 0.001;
         }
 
         public async Task RemoveFavoriteAsync(FavoriteItem favorite)

@@ -359,13 +359,17 @@ namespace Uviewer
                         IsPinned = false
                     };
 
-                    bool wasAdded = await _favoritesService.AddOrUpdateFavoriteAsync(favorite, isManualSave);
-                    System.Diagnostics.Debug.WriteLine(wasAdded ? $"Added favorite: {favorite.Name}" : $"Updated favorite: {favorite.Name}");
+                    FavoriteSaveResult saveResult = await _favoritesService.AddOrUpdateFavoriteAsync(favorite, isManualSave);
+                    System.Diagnostics.Debug.WriteLine(saveResult == FavoriteSaveResult.Added ? $"Added favorite: {favorite.Name}" : $"Updated favorite: {favorite.Name}");
                     UpdateFavoritesMenu();
                     System.Diagnostics.Debug.WriteLine("Favorite saved successfully");
-                    if (wasAdded)
+                    if (saveResult == FavoriteSaveResult.Added)
                     {
                         ShowNotification(Strings.AddedToFavoritesNotification, "\uE735", "Gold");
+                    }
+                    else if (saveResult == FavoriteSaveResult.PositionUpdated)
+                    {
+                        ShowNotification(Strings.FavoritePositionUpdatedNotification, "\uE735", "Gold");
                     }
                 }
                 else

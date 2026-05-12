@@ -268,6 +268,9 @@
   <data name="AddedToFavoritesNotification" xml:space="preserve">
     <value>즐겨찾기에 추가되었습니다</value>
   </data>
+  <data name="FavoritePositionUpdatedNotification" xml:space="preserve">
+    <value>즐겨찾기 위치가 업데이트되었습니다</value>
+  </data>
   <data name="Loading" xml:space="preserve">
     <value> (로딩중...)</value>
   </data>

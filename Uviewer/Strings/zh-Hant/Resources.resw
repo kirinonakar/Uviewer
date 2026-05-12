@@ -268,6 +268,9 @@
   <data name="AddedToFavoritesNotification" xml:space="preserve">
     <value>已加入收藏</value>
   </data>
+  <data name="FavoritePositionUpdatedNotification" xml:space="preserve">
+    <value>收藏位置已更新</value>
+  </data>
   <data name="Loading" xml:space="preserve">
     <value> (載入中...)</value>
   </data>

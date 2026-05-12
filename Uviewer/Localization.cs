@@ -90,6 +90,7 @@ namespace Uviewer
         public static string FileSelectPlaceholder => GetString("FileSelectPlaceholder");
         public static string LoadImageError => GetString("LoadImageError");
         public static string AddedToFavoritesNotification => GetString("AddedToFavoritesNotification");
+        public static string FavoritePositionUpdatedNotification => GetString("FavoritePositionUpdatedNotification");
         public static string Loading => GetString("Loading");
         public static string AddToFavorites => GetString("AddToFavorites");
         public static string DialogTitle => GetString("DialogTitle");
