@@ -1021,6 +1021,8 @@ namespace Uviewer
                     italicRanges.Add((start, italic.Text.Length));
                 }
                 else if (inline is AozoraCode code) sb.Append(code.Text);
+                else if (inline is AozoraHighlight highlight) sb.Append(highlight.Text);
+                else if (inline is AozoraMath math) sb.Append(KatexStandaloneRenderer.RenderToText(math.Text));
                 else if (inline is AozoraTCY tcy)
                 {
                     sb.Append(tcy.Text);

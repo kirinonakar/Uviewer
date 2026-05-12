@@ -890,6 +890,8 @@ namespace Uviewer
                     italicRanges.Add((start, normText.Length));
                 }
                 else if (inline is AozoraCode code) sb.Append(VerticalRenderer.NormalizeVerticalText(code.Text));
+                else if (inline is AozoraHighlight highlight) sb.Append(VerticalRenderer.NormalizeVerticalText(highlight.Text));
+                else if (inline is AozoraMath math) sb.Append(VerticalRenderer.NormalizeVerticalText(KatexStandaloneRenderer.RenderToText(math.Text)));
                 else if (inline is AozoraTCY tcy)
                 {
                     var normText = VerticalRenderer.NormalizeVerticalText(tcy.Text);

@@ -11,6 +11,7 @@ using Windows.Foundation;
 using Windows.UI;
 using Windows.UI.Text;
 using Uviewer.Models;
+using Uviewer.Services;
 
 namespace Uviewer.Renderers
 {
@@ -191,6 +192,8 @@ namespace Uviewer.Renderers
                 var boldRanges = new List<(int start, int length)>();
                 var tcyRanges = new List<(int start, int length)>();
                 var italicRanges = new List<(int start, int length)>();
+                var highlightRanges = new List<(int start, int length)>();
+                var mathRanges = new List<(int start, int length)>();
 
                 foreach (var inline in block.Inlines)
                 {
@@ -216,6 +219,18 @@ namespace Uviewer.Renderers
                         italicRanges.Add((start, normText.Length));
                     }
                     else if (inline is AozoraCode code) sb.Append(NormalizeVerticalText(code.Text));
+                    else if (inline is AozoraHighlight highlight)
+                    {
+                        var normText = NormalizeVerticalText(highlight.Text);
+                        sb.Append(normText);
+                        highlightRanges.Add((start, normText.Length));
+                    }
+                    else if (inline is AozoraMath math)
+                    {
+                        var rendered = NormalizeVerticalText(KatexStandaloneRenderer.RenderToText(math.Text));
+                        sb.Append(rendered);
+                        mathRanges.Add((start, rendered.Length));
+                    }
                     else if (inline is AozoraTCY tcy)
                     {
                         var normText = NormalizeVerticalText(tcy.Text);
@@ -241,6 +256,11 @@ namespace Uviewer.Renderers
                 if (block.IsBold) textLayout.SetFontWeight(0, blockText.Length, FontWeights.Bold);
                 foreach (var r in boldRanges) textLayout.SetFontWeight(r.start, r.length, FontWeights.Bold);
                 foreach (var r in italicRanges) textLayout.SetFontStyle(r.start, r.length, Windows.UI.Text.FontStyle.Italic);
+                foreach (var r in mathRanges)
+                {
+                    textLayout.SetFontFamily(r.start, r.length, "Cambria Math");
+                    textLayout.SetFontStyle(r.start, r.length, Windows.UI.Text.FontStyle.Italic);
+                }
 
                 var bounds = textLayout.LayoutBounds;
                 float currentLineThickness = (float)bounds.Width;
@@ -283,6 +303,7 @@ namespace Uviewer.Renderers
 
                 float drawX = currentX - (float)(bounds.X + bounds.Width);
 
+                DrawRangeBackgrounds(ds, textLayout, highlightRanges, drawX, drawY, ColorHelper.FromArgb(120, 255, 230, 96), fontSize);
                 ds.DrawTextLayout(textLayout, drawX, drawY, textColor);
 
                 using var rubyFormat = new CanvasTextFormat
@@ -341,6 +362,31 @@ namespace Uviewer.Renderers
                 {
                     ds.DrawRectangle(boxLeft - boxPad, boxTop - boxPad, boxRight - boxLeft + boxPad * 2, boxBottom - boxTop + boxPad * 2, boxColor, 1.5f);
                     isBoxing = false;
+                }
+            }
+        }
+
+        private static void DrawRangeBackgrounds(
+            CanvasDrawingSession ds,
+            CanvasTextLayout layout,
+            List<(int start, int length)> ranges,
+            float drawX,
+            float drawY,
+            Color color,
+            float fontSize)
+        {
+            foreach (var range in ranges)
+            {
+                if (range.length <= 0) continue;
+                var regions = layout.GetCharacterRegions(range.start, range.length);
+                foreach (var region in regions)
+                {
+                    var bounds = region.LayoutBounds;
+                    float x = drawX + (float)bounds.Left + fontSize * 0.15f;
+                    float y = drawY + (float)bounds.Top - 2f;
+                    float width = Math.Max(fontSize * 0.7f, (float)bounds.Width * 0.72f);
+                    float height = Math.Max(2f, (float)bounds.Height + 4f);
+                    ds.FillRectangle(x, y, width, height, color);
                 }
             }
         }

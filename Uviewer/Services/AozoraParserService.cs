@@ -454,6 +454,12 @@ namespace Uviewer.Services
                     continue;
                 }
 
+                if (TryParseMarkdownDisplayMath(lines, ref i, sourceLine, out var mathModel))
+                {
+                    blocks.Add(mathModel);
+                    continue;
+                }
+
                 if (content.Trim().StartsWith("|"))
                 {
                     var tableLines = new List<string>();
@@ -595,49 +601,16 @@ namespace Uviewer.Services
                     content = currentContent;
                 }
 
-                content = Regex.Replace(content, @"`(.+?)`", "{{CODE|$1}}");
                 content = Regex.Replace(content, @"<br\s*/?>", "{{BR}}", RegexOptions.IgnoreCase);
                 content = Regex.Replace(content, @"<img\s+src=[""'](.+?)[""']\s*/?>", "{{IMG|$1}}", RegexOptions.IgnoreCase);
                 content = Regex.Replace(content, @"［＃挿絵\s*[（\(\[［]\s*([^）\)\]］]+?)\s*[）\)\]］].*?］", "{{IMG|$1}}");
-                content = Regex.Replace(content, @"(\*\*|__)(.*?)\1", "{{BOLD|$2}}");
-                content = Regex.Replace(content, @"(\*|_)(.*?)\1", "{{ITALIC|$2}}");
 
-                string pattern = @"(\{\{CODE\|.*?\}\}|\{\{BOLD\|.*?\}\}|\{\{ITALIC\|.*?\}\}|\{\{BR\}\}|\{\{IMG\|.*?\}\})";
-                var parts = Regex.Split(content, pattern);
-
-                foreach (var part in parts)
+                foreach (var inline in ParseMarkdownInlines(content))
                 {
-                    if (string.IsNullOrEmpty(part)) continue;
-
-                    if (part.StartsWith("{{CODE|"))
-                    {
-                        var inner = part.Substring(7, part.Length - 9);
-                        blockModel.Inlines.Add(new AozoraCode { Text = inner });
-                    }
-                    else if (part.StartsWith("{{IMG|"))
-                    {
-                        var src = part.Substring(6, part.Length - 8);
-                        blockModel.Inlines.Add(new AozoraImage { Source = src });
-                    }
-                    else if (part == "{{BR}}")
-                    {
-                        blockModel.Inlines.Add(new AozoraLineBreak());
-                    }
-                    else if (part.StartsWith("{{BOLD|"))
-                    {
-                        var inner = part.Substring(7, part.Length - 9);
-                        blockModel.Inlines.Add(new AozoraBold { Text = inner });
-                    }
-                    else if (part.StartsWith("{{ITALIC|"))
-                    {
-                        var inner = part.Substring(9, part.Length - 11);
-                        blockModel.Inlines.Add(new AozoraItalic { Text = inner });
-                    }
-                    else
-                    {
-                        blockModel.Inlines.Add(part);
-                    }
+                    blockModel.Inlines.Add(inline);
                 }
+
+                if (blockModel.Inlines.Count == 0) blockModel.Inlines.Add("");
 
                 blocks.Add(blockModel);
             }
@@ -649,6 +622,208 @@ namespace Uviewer.Services
             }
 
             return (splitBlocks, lines.Length);
+        }
+
+        private static bool TryParseMarkdownDisplayMath(string[] lines, ref int index, int sourceLine, out AozoraBindingModel model)
+        {
+            model = new AozoraBindingModel();
+            string content = lines[index];
+            string trimmed = content.Trim();
+            bool bracketMath = trimmed.StartsWith(@"\[");
+
+            if (!trimmed.StartsWith("$$") && !bracketMath) return false;
+
+            string opener = bracketMath ? @"\[" : "$$";
+            string closer = bracketMath ? @"\]" : "$$";
+            string math = trimmed.Substring(opener.Length);
+            bool closed = false;
+
+            int sameLineClose = FindUnescaped(math, closer, 0);
+            if (sameLineClose >= 0)
+            {
+                math = math.Substring(0, sameLineClose);
+                closed = true;
+            }
+            else
+            {
+                var sb = new StringBuilder(math);
+                int k = index + 1;
+                while (k < lines.Length)
+                {
+                    string line = lines[k];
+                    int close = FindUnescaped(line, closer, 0);
+                    if (close >= 0)
+                    {
+                        sb.Append('\n');
+                        sb.Append(line.Substring(0, close));
+                        closed = true;
+                        break;
+                    }
+
+                    sb.Append('\n');
+                    sb.Append(line);
+                    k++;
+                }
+
+                if (closed) index = k;
+                math = sb.ToString();
+            }
+
+            if (!closed) return false;
+
+            model = new AozoraBindingModel
+            {
+                SourceLineNumber = sourceLine,
+                Alignment = TextAlignment.Center,
+                FontSizeScale = 1.15,
+                Margin = new Thickness(0, 8, 0, 12)
+            };
+            model.Inlines.Add(new AozoraMath { Text = math.Trim(), DisplayMode = true });
+            return true;
+        }
+
+        private static List<object> ParseMarkdownInlines(string content)
+        {
+            var result = new List<object>();
+            var text = new StringBuilder();
+
+            void Flush()
+            {
+                if (text.Length == 0) return;
+                result.Add(text.ToString());
+                text.Clear();
+            }
+
+            for (int i = 0; i < content.Length; i++)
+            {
+                if (content.AsSpan(i).StartsWith("{{BR}}".AsSpan()))
+                {
+                    Flush();
+                    result.Add(new AozoraLineBreak());
+                    i += "{{BR}}".Length - 1;
+                    continue;
+                }
+
+                if (content.AsSpan(i).StartsWith("{{IMG|".AsSpan()))
+                {
+                    int close = content.IndexOf("}}", i + 6, StringComparison.Ordinal);
+                    if (close >= 0)
+                    {
+                        Flush();
+                        result.Add(new AozoraImage { Source = content.Substring(i + 6, close - i - 6) });
+                        i = close + 1;
+                        continue;
+                    }
+                }
+
+                if (content[i] == '`')
+                {
+                    int close = FindUnescaped(content, "`", i + 1);
+                    if (close > i)
+                    {
+                        Flush();
+                        result.Add(new AozoraCode { Text = content.Substring(i + 1, close - i - 1) });
+                        i = close;
+                        continue;
+                    }
+                }
+
+                if (content.AsSpan(i).StartsWith("==".AsSpan()))
+                {
+                    int close = FindUnescaped(content, "==", i + 2);
+                    if (close > i + 1)
+                    {
+                        Flush();
+                        result.Add(new AozoraHighlight { Text = content.Substring(i + 2, close - i - 2) });
+                        i = close + 1;
+                        continue;
+                    }
+                }
+
+                if (content.AsSpan(i).StartsWith(@"\(".AsSpan()))
+                {
+                    int close = FindUnescaped(content, @"\)", i + 2);
+                    if (close > i)
+                    {
+                        Flush();
+                        result.Add(new AozoraMath { Text = content.Substring(i + 2, close - i - 2) });
+                        i = close + 1;
+                        continue;
+                    }
+                }
+
+                if (content[i] == '$' && (i + 1 >= content.Length || content[i + 1] != '$') && !IsEscaped(content, i))
+                {
+                    int close = FindClosingInlineDollar(content, i + 1);
+                    if (close > i)
+                    {
+                        Flush();
+                        result.Add(new AozoraMath { Text = content.Substring(i + 1, close - i - 1) });
+                        i = close;
+                        continue;
+                    }
+                }
+
+                if (content.AsSpan(i).StartsWith("**".AsSpan()) || content.AsSpan(i).StartsWith("__".AsSpan()))
+                {
+                    string marker = content.Substring(i, 2);
+                    int close = FindUnescaped(content, marker, i + 2);
+                    if (close > i + 1)
+                    {
+                        Flush();
+                        result.Add(new AozoraBold { Text = content.Substring(i + 2, close - i - 2) });
+                        i = close + 1;
+                        continue;
+                    }
+                }
+
+                if ((content[i] == '*' || content[i] == '_') && !IsEscaped(content, i))
+                {
+                    string marker = content[i].ToString();
+                    int close = FindUnescaped(content, marker, i + 1);
+                    if (close > i)
+                    {
+                        Flush();
+                        result.Add(new AozoraItalic { Text = content.Substring(i + 1, close - i - 1) });
+                        i = close;
+                        continue;
+                    }
+                }
+
+                text.Append(content[i]);
+            }
+
+            Flush();
+            return result;
+        }
+
+        private static int FindClosingInlineDollar(string text, int start)
+        {
+            for (int i = start; i < text.Length; i++)
+            {
+                if (text[i] != '$' || IsEscaped(text, i)) continue;
+                if (i + 1 < text.Length && text[i + 1] == '$') continue;
+                return i;
+            }
+            return -1;
+        }
+
+        private static int FindUnescaped(string text, string value, int start)
+        {
+            int index = text.IndexOf(value, start, StringComparison.Ordinal);
+            while (index >= 0)
+            {
+                if (!IsEscaped(text, index)) return index;
+                index = text.IndexOf(value, index + value.Length, StringComparison.Ordinal);
+            }
+            return -1;
+        }
+
+        private static bool IsEscaped(string text, int index)
+        {
+            int slashCount = 0;
+            for (int i = index - 1; i >= 0 && text[i] == '\\'; i--) slashCount++;
+            return slashCount % 2 == 1;
         }
 
         private static double ConvertFullWidthToDouble(string input)
