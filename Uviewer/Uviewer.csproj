@@ -59,8 +59,8 @@
     <ProjectCapability Include="Msix" />
   </ItemGroup>
   <ItemGroup>
-    <PackageReference Include="Microsoft.Windows.SDK.BuildTools" Version="10.0.28000.1721" />
-    <PackageReference Include="Microsoft.WindowsAppSDK" Version="1.8.260416003" />
+    <PackageReference Include="Microsoft.Windows.SDK.BuildTools" Version="10.0.28000.1839" />
+    <PackageReference Include="Microsoft.WindowsAppSDK" Version="2.0.1" />
     <PackageReference Include="PdfPig" Version="0.1.14" />
     <PackageReference Include="SevenZipExtractor" Version="1.0.19" />
     <PackageReference Include="SharpCompress" Version="0.48.0" />
