@@ -37,6 +37,7 @@ namespace Uviewer
         private Services.WindowSettingsCoordinator _windowSettingsCoordinator = null!;
         private Services.ExplorerController _explorerController = null!;
         private Services.BookmarkPanelController _bookmarkPanelController = null!;
+        private Services.FavoritesController _favoritesController = null!;
         private readonly Services.AppSettingsService _appSettingsService = new();
         private readonly Services.ZoomService _zoomService = new();
         private readonly Services.ISharpeningService _sharpeningService = new Services.SharpeningService();
@@ -276,6 +277,7 @@ namespace Uviewer
                 _windowSettingsCoordinator = new Services.WindowSettingsCoordinator(this, _appSettingsService);
                 _explorerController = new Services.ExplorerController(_explorerState, _thumbnailService, DispatcherQueue);
                 _bookmarkPanelController = new Services.BookmarkPanelController(_bookmarkPanelState, _favoritesService, _recentService);
+                _favoritesController = new Services.FavoritesController(_favoritesService, _bookmarkPanelController);
                 
                 // Load saved window position, size and maximized state
                 bool hasLoadedSettings = _windowSettingsCoordinator.ApplyWindowSettings(appWindow2);

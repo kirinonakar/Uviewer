@@ -26,7 +26,7 @@ namespace Uviewer
 
         private void UpdateFavoritesMenu()
         {
-            _bookmarkPanelController.RefreshFavorites();
+            _favoritesController.RefreshFavorites();
 
             // Bind to controls
             FileFavoritesList.ItemsSource = _fileFavoriteItems;
@@ -85,8 +85,7 @@ namespace Uviewer
             {
                 if (e.OriginalItem is FavoriteItem fav)
                 {
-                    await _favoritesService.TogglePinAsync(fav);
-                    UpdateFavoritesMenu();
+                    await _favoritesController.TogglePinAsync(fav);
                 }
             }
             catch (OperationCanceledException) { }
@@ -134,247 +133,20 @@ namespace Uviewer
         }
 
 
-        // [수정] 수동 저장 여부를 구분하기 위해 isManualSave 파라미터 추가 (기본값 true)
         private async Task AddToFavoritesAsync(bool isManualSave = true)
         {
             try
             {
-                System.Diagnostics.Debug.WriteLine("=== AddToFavoritesAsync called ===");
-
-                string name = "";
-                string path = "";
-                string type = "";
-                string? archiveEntryKey = null;
-
-                System.Diagnostics.Debug.WriteLine($"_currentArchive: {_currentArchive != null}");
-                System.Diagnostics.Debug.WriteLine($"_currentArchivePath: {_currentArchivePath}");
-                System.Diagnostics.Debug.WriteLine($"_currentExplorerPath: {_currentExplorerPath}");
-                System.Diagnostics.Debug.WriteLine($"_currentIndex: {_currentIndex}");
-                System.Diagnostics.Debug.WriteLine($"_imageEntries.Count: {_imageEntries.Count}");
-
-                // Show current favorites
-                System.Diagnostics.Debug.WriteLine($"Current favorites count: {_favoritesService.Favorites.Count}");
-                foreach (var fav in _favoritesService.Favorites)
+                var saveResult = await _favoritesController.AddCurrentAsync(
+                    CreateFavoriteCaptureContext(),
+                    isManualSave);
+                if (saveResult == FavoriteSaveResult.Added)
                 {
-                    System.Diagnostics.Debug.WriteLine($"  - {fav.Name} ({fav.Type}): {fav.Path}");
+                    ShowNotification(Strings.AddedToFavoritesNotification, "\uE735", "Gold");
                 }
-
-                if (_isTextMode && !string.IsNullOrEmpty(_currentTextFilePath))
+                else if (saveResult == FavoriteSaveResult.PositionUpdated)
                 {
-                    name = Path.GetFileName(_currentTextFilePath);
-                    path = _currentTextFilePath;
-                    type = "File";
-                    if (!_isWebDavMode) CheckAndAddFolderToFavorites(Path.GetDirectoryName(path));
-                }
-                else if (_isEpubMode && !string.IsNullOrEmpty(_currentEpubFilePath))
-                {
-                    name = Path.GetFileName(_currentEpubFilePath);
-                    path = _currentEpubFilePath;
-                    type = "File";
-                    if (!_isWebDavMode) CheckAndAddFolderToFavorites(Path.GetDirectoryName(path));
-                }
-                else if ((_currentArchive != null || _current7zArchive != null) && !string.IsNullOrEmpty(_currentArchivePath))
-                {
-                    if (_currentIndex >= 0 && _currentIndex < _imageEntries.Count)
-                    {
-                        var currentEntry = _imageEntries[_currentIndex];
-                        name = $"{Path.GetFileName(_currentArchivePath)} - {currentEntry.DisplayName}";
-                        path = _currentArchivePath;
-                        type = "Archive";
-                        archiveEntryKey = currentEntry.ArchiveEntryKey;
-                        if (!_isWebDavMode) CheckAndAddFolderToFavorites(Path.GetDirectoryName(_currentArchivePath));
-                    }
-                }
-                else if (_currentIndex >= 0 && _currentIndex < _imageEntries.Count && 
-                         (EmptyStatePanel == null || EmptyStatePanel.Visibility == Visibility.Collapsed))
-                {
-                    var currentEntry = _imageEntries[_currentIndex];
-                    if (!string.IsNullOrEmpty(currentEntry.FilePath))
-                    {
-                        name = currentEntry.DisplayName;
-                        path = currentEntry.FilePath;
-                        type = "File";
-                        if (!_isWebDavMode) CheckAndAddFolderToFavorites(Path.GetDirectoryName(path));
-                    }
-                }
-                else if (!string.IsNullOrEmpty(_currentExplorerPath) || (_isWebDavMode && !string.IsNullOrEmpty(_currentWebDavPath)))
-                {
-                    if (!string.IsNullOrEmpty(_currentExplorerPath))
-                    {
-                        name = Path.GetFileName(_currentExplorerPath);
-                        if (string.IsNullOrEmpty(name))
-                            name = _currentExplorerPath;
-                        path = _currentExplorerPath;
-                        type = "Folder";
-                    }
-                    else
-                    {
-                        // WebDAV Folder - will be refined in the WebDAV block below
-                        type = "Folder";
-                        path = _currentWebDavPath!;
-                        name = Path.GetFileName(path.TrimEnd('/')) ?? "";
-                    }
-                }
-
-                string? webDavServerName = null;
-                bool isWebDav = false;
-
-                if (_isWebDavMode && _webDavService.CurrentServer != null)
-                {
-                    isWebDav = true;
-                    webDavServerName = _webDavService.CurrentServer.ServerName;
-                    
-                    if (type == "Archive")
-                    {
-                        if (path.StartsWith("WebDAV:"))
-                            path = path.Substring(7);
-                        
-                        // Use original filename for WebDAV archive
-                        if (!string.IsNullOrEmpty(_currentWebDavItemPath))
-                        {
-                            // [수정] WebDAV 아카이브의 경우 path를 로컬 temp 경로가 아닌 원본 WebDAV 경로로 설정
-                            path = _currentWebDavItemPath;
-
-                            string origArchiveName = Path.GetFileName(_currentWebDavItemPath);
-                            if (_currentIndex >= 0 && _currentIndex < _imageEntries.Count)
-                            {
-                                name = $"{origArchiveName} - {_imageEntries[_currentIndex].DisplayName}";
-                            }
-                        }
-                        CheckAndAddFolderToFavorites(_currentWebDavPath);
-                    }
-                    else if (type == "File")
-                    {
-                        if (!string.IsNullOrEmpty(_currentWebDavItemPath))
-                        {
-                            path = _currentWebDavItemPath;
-                            name = Path.GetFileName(_currentWebDavItemPath);
-                        }
-                        CheckAndAddFolderToFavorites(_currentWebDavPath);
-                    }
-                    else if (type == "Folder")
-                    {
-                        if (!string.IsNullOrEmpty(_currentWebDavPath))
-                        {
-                            path = _currentWebDavPath;
-                            name = Path.GetFileName(path.TrimEnd('/'));
-                            if (string.IsNullOrEmpty(name)) name = _webDavService.CurrentServer.ServerName;
-                        }
-                    }
-                }
-
-                System.Diagnostics.Debug.WriteLine($"Final values - Name: '{name}', Path: '{path}', Type: '{type}'");
-
-                if (!string.IsNullOrEmpty(name) && !string.IsNullOrEmpty(path))
-                {
-
-
-                    int savedPage = 0;
-                    int savedLine = 1;
-                    int savedBlockIndex = -1;
-                    if (_isEpubMode)
-                    {
-                        savedPage = CurrentEpubPageIndex;
-                        savedBlockIndex = CurrentEpubWin2DPage?.StartBlockIndex ?? -1;
-                        if (_isVerticalMode)
-                        {
-                            // [수정] EPUB 세로 모드일 때는 텍스트 뷰어(CurrentVerticalPageInfo)가 아닌 EPUB 페이지를 참조해야 함
-                            savedLine = CurrentEpubWin2DPage?.StartLine ?? 1;
-                            savedPage = 0; 
-                        }
-                        else if (_epubWin2DPages != null && CurrentEpubPageIndex >= 0 && CurrentEpubPageIndex < _epubWin2DPages.Count)
-                        {
-                            var page = _epubWin2DPages[CurrentEpubPageIndex];
-                            if (!page.IsImagePage)
-                            {
-                                savedLine = page.StartLine;
-                            }
-                            else if (_aozoraBlocks != null)
-                            {
-                                var targetBlock = _aozoraBlocks.FirstOrDefault(b => b.Inlines.OfType<AozoraImage>().Any(img => img.Source == page.ImagePath));
-                                if (targetBlock != null) savedLine = targetBlock.SourceLineNumber;
-                                else savedLine = 1;
-                            }
-                        }
-                    }
-                    else if (_isTextMode)
-                    {
-                        if (_isVerticalMode)
-                        {
-                            savedLine = _currentVerticalPageInfo.StartLine;
-                        }
-                        else if (_isAozoraMode && _aozoraBlocks.Count > 0 && _currentAozoraStartBlockIndex >= 0 && _currentAozoraStartBlockIndex < _aozoraBlocks.Count)
-                        {
-                            savedLine = _aozoraBlocks[_currentAozoraStartBlockIndex].SourceLineNumber;
-                        }
-                        else if (TextScrollViewer != null)
-                        {
-                            savedLine = GetTopVisibleLineIndex();
-                        }
-                    }
-                    else if (_currentPdfDocument != null || _currentArchive != null || _current7zArchive != null)
-                    {
-                        savedPage = _currentIndex;
-                    }
-
-                    double calcProgress = 0;
-                    int chapterIndex = _isEpubMode ? CurrentEpubChapterIndex : 0;
-                    if (_isEpubMode && _epubSpine.Count > 0)
-                    {
-                        int totalPages = _epubPages.Count > 0 ? _epubPages.Count : 1;
-                        double chapterProg = (double)chapterIndex / _epubSpine.Count;
-                        double pageProg = (double)savedPage / totalPages / _epubSpine.Count;
-                        calcProgress = Math.Min((chapterProg + pageProg) * 100.0, 100);
-                    }
-                    else if (_isTextMode)
-                    {
-                        int totalLines = _textTotalLineCountInSource > 0 ? _textTotalLineCountInSource : _aozoraTotalLineCountInSource;
-                        if (totalLines > 0)
-                            calcProgress = Math.Min((double)savedLine / totalLines * 100.0, 100);
-                    }
-                    else if ((_currentArchive != null || _current7zArchive != null) && _imageEntries.Count > 0)
-                    {
-                        calcProgress = Math.Min((double)(_currentIndex + 1) / _imageEntries.Count * 100.0, 100);
-                    }
-                    else if (_imageEntries.Count > 0 && _currentIndex >= 0)
-                    {
-                        calcProgress = Math.Min((double)(_currentIndex + 1) / _imageEntries.Count * 100.0, 100);
-                    }
-
-                    var favorite = new FavoriteItem
-                    {
-                        Name = name,
-                        Path = path,
-                        Type = type,
-                        ArchiveEntryKey = archiveEntryKey,
-                        ScrollOffset = (_isTextMode && TextScrollViewer != null) ? TextScrollViewer.VerticalOffset : null,
-                        SavedPage = savedPage,
-                        SavedLine = savedLine,
-                        SavedBlockIndex = savedBlockIndex,
-                        ChapterIndex = chapterIndex,
-                        IsWebDav = isWebDav,
-                        WebDavServerName = webDavServerName,
-                        IsVertical = _isVerticalMode,
-                        Progress = Math.Max(calcProgress, 0),
-                        IsPinned = false
-                    };
-
-                    FavoriteSaveResult saveResult = await _favoritesService.AddOrUpdateFavoriteAsync(favorite, isManualSave);
-                    System.Diagnostics.Debug.WriteLine(saveResult == FavoriteSaveResult.Added ? $"Added favorite: {favorite.Name}" : $"Updated favorite: {favorite.Name}");
-                    UpdateFavoritesMenu();
-                    System.Diagnostics.Debug.WriteLine("Favorite saved successfully");
-                    if (saveResult == FavoriteSaveResult.Added)
-                    {
-                        ShowNotification(Strings.AddedToFavoritesNotification, "\uE735", "Gold");
-                    }
-                    else if (saveResult == FavoriteSaveResult.PositionUpdated)
-                    {
-                        ShowNotification(Strings.FavoritePositionUpdatedNotification, "\uE735", "Gold");
-                    }
-                }
-                else
-                {
-                    System.Diagnostics.Debug.WriteLine("Cannot add favorite - missing name or path");
+                    ShowNotification(Strings.FavoritePositionUpdatedNotification, "\uE735", "Gold");
                 }
             }
             catch (Exception ex)
@@ -388,10 +160,7 @@ namespace Uviewer
         {
             try
             {
-                System.Diagnostics.Debug.WriteLine($"Removing favorite: {favorite.Name}");
-                await _favoritesService.RemoveFavoriteAsync(favorite);
-                UpdateFavoritesMenu();
-                System.Diagnostics.Debug.WriteLine($"Favorite removed successfully");
+                await _favoritesController.RemoveAsync(favorite);
             }
             catch (Exception ex)
             {
@@ -404,272 +173,11 @@ namespace Uviewer
         {
             try
             {
-
-
-                if (favorite.IsWebDav && !string.IsNullOrEmpty(favorite.WebDavServerName))
-                {
-                     // WebDAV Bookmark handling
-                     try
-                     {
-                         // 1. Connect to server if needed
-                         if (!_isWebDavMode || _webDavService.CurrentServer?.ServerName != favorite.WebDavServerName)
-                         {
-                             await ConnectToWebDavServerAsync(favorite.WebDavServerName);
-                             // Connection failed?
-                             if (!_isWebDavMode) return;
-                         }
-
-                         // 2. Open file/folder
-                         var fileItem = new FileItem
-                         {
-                             Name = favorite.Name, // This might differ from actual filename but ext check uses it
-                             WebDavPath = favorite.Path,
-                             IsWebDav = true,
-                             IsDirectory = favorite.Type == "Folder",
-                             IsArchive = favorite.Type == "Archive",
-                             // We need to set flags for OpenWebDavFileAsync
-                         };
-                         // Re-derive flags based on path extension, strictly for opening logic
-                         string ext = Path.GetExtension(favorite.Path).ToLowerInvariant();
-                         fileItem.IsImage = FileExplorerService.SupportedImageExtensions.Contains(ext);
-                         fileItem.IsText = FileExplorerService.SupportedTextExtensions.Contains(ext);
-                         fileItem.IsEpub = FileExplorerService.SupportedEpubExtensions.Contains(ext);
-
-                         // Load parent folder in explorer for files and archives
-                         if (favorite.Type != "Folder")
-                         {
-                              var parentPath = Path.GetDirectoryName(favorite.Path)?.Replace("\\", "/");
-                              if (!string.IsNullOrEmpty(parentPath))
-                              {
-                                   // Ensure it starts with / if not empty, though GetDirectoryName might strip it or handle it weirdly for unix paths on windows
-                                   // WebDAV paths usually start with /
-                                   if (!parentPath.StartsWith("/")) parentPath = "/" + parentPath;
-                                   await LoadWebDavFolderAsync(parentPath);
-                              }
-                              else
-                              {
-                                   // Root
-                                   await LoadWebDavFolderAsync("/");
-                              }
-                         }
-
-                         if (favorite.Type == "Folder")
-                         {
-                             await LoadWebDavFolderAsync(favorite.Path);
-                         }
-                         else if (favorite.Type == "Archive")
-                         {
-                             // [수정] WebDAV에서도 .7z의 경우 OpenWebDavFileAsync를 통해 다운로드 후 로컬처럼 추출하도록 수정합니다.
-                             if (ext == ".7z")
-                             {
-                                 await OpenWebDavFileAsync(fileItem);
-                             }
-                             else
-                             {
-                                 await OpenWebDavArchiveAsync(fileItem);
-                             }
-                             
-                             // Restore Archive Position
-                             if (!string.IsNullOrEmpty(favorite.ArchiveEntryKey))
-                             {
-                                 var entryIndex = _imageEntries.FindIndex(e => e.ArchiveEntryKey == favorite.ArchiveEntryKey);
-                                 if (entryIndex >= 0)
-                                 {
-                                     _currentIndex = entryIndex;
-                                     await DisplayCurrentImageAsync();
-                                     
-                                     if (favorite.ScrollOffset.HasValue && TextScrollViewer != null)
-                                     {
-                                         await Task.Delay(100);
-                                         TextScrollViewer.ChangeView(null, favorite.ScrollOffset.Value, null);
-                                         UpdateTextStatusBar();
-                                      }
-                                 }
-                             }
-                         }
-                         else // File
-                         {
-                             // Set pending values for restoration
-                             if (fileItem.IsEpub)
-                             {
-                                  PendingEpubChapterIndex = favorite.ChapterIndex;
-                                  PendingEpubPageIndex = favorite.SavedPage;
-                                 _pendingEpubStartBlockIndex = favorite.SavedBlockIndex;
-                                  // [추가] EPUB 모드에서도 저장된 정확한 줄 번호를 복구하도록 변수에 할당합니다.
-                                  _aozoraPendingTargetLine = favorite.SavedLine > 1 ? favorite.SavedLine : 1;
-                             }
-                             else if (fileItem.IsText)
-                             {
-                                  _aozoraPendingTargetLine = favorite.SavedLine > 1 ? favorite.SavedLine : (favorite.SavedPage > 0 ? -favorite.SavedPage : 1);
-                             }
-
-                             await OpenWebDavFileAsync(fileItem);
-                             
-                             if (!fileItem.IsEpub && !fileItem.IsText && favorite.Type == "File" && favorite.ScrollOffset.HasValue && TextScrollViewer != null) 
-                             {
-                                  // For simple text viewing if IsText was somehow false but type is file? Unlikely.
-                                  // Handled by LoadImageFromFileAsync logic generally.
-                             }
-                         }
-                         return; // Exit after WebDAV handling
-                     }
-                     catch (Exception ex)
-                     {
-                         System.Diagnostics.Debug.WriteLine($"Error opening WebDAV favorite: {ex.Message}");
-                         ShowNotification($"WebDAV 즐겨찾기 열기 실패: {ex.Message}");
-                         return;
-                     }
-                 }
-
-                switch (favorite.Type)
-                {
-                    case "Folder":
-                        if (Directory.Exists(favorite.Path))
-                        {
-                            LoadExplorerFolder(favorite.Path);
-                        }
-                        else
-                        {
-                            ShowNotification(Strings.FileNotFound, "\uE7BA", "Red");
-                        }
-                        break;
-                    case "File":
-                        if (File.Exists(favorite.Path))
-                        {
-                            // Set pending values for EPUB
-                            if (favorite.Path.EndsWith(".epub", StringComparison.OrdinalIgnoreCase))
-                            {
-                                PendingEpubChapterIndex = favorite.ChapterIndex;
-                                PendingEpubPageIndex = favorite.SavedPage;
-                                _pendingEpubStartBlockIndex = favorite.SavedBlockIndex;
-                            }
-                            else if (favorite.Path.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase))
-                            {
-                                _pendingPdfPageIndex = favorite.SavedPage;
-                            }
-
-                            // Set pending target line BEFORE loading triggers
-                            // Unified navigation: Set pending target line for both modes
-                            // DisplayLoadedText will handle the actual scrolling/rendering
-                            _aozoraPendingTargetLine = favorite.SavedLine > 1 ? favorite.SavedLine : (favorite.SavedPage > 0 ? -favorite.SavedPage : 1);
-
-                            // Load explorer parent folder
-                            var parentDir = Path.GetDirectoryName(favorite.Path);
-                            if (!string.IsNullOrEmpty(parentDir) && Directory.Exists(parentDir))
-                            {
-                                 LoadExplorerFolder(parentDir);
-                            }
-                            
-                            var file = await StorageFile.GetFileFromPathAsync(favorite.Path);
-                            
-                            if (favorite.Path.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase))
-                            {
-                                await LoadImagesFromPdfAsync(favorite.Path);
-                            }
-                            else
-                            {
-                                await LoadImageFromFileAsync(file);
-                            }
-                        }
-                        else
-                        {
-                            ShowNotification(Strings.FileNotFound, "\uE7BA", "Red");
-                        }
-                        break;
-                    case "Archive":
-                        if (File.Exists(favorite.Path))
-                        {
-                            // First navigate to the archive file's folder
-                            var archiveFolder = Path.GetDirectoryName(favorite.Path);
-                            if (!string.IsNullOrEmpty(archiveFolder) && Directory.Exists(archiveFolder))
-                            {
-                                LoadExplorerFolder(archiveFolder);
-
-                                // Then open the archive and navigate to specific entry
-                                if (!string.IsNullOrEmpty(favorite.ArchiveEntryKey))
-                                {
-                                    await LoadImagesFromArchiveAsync(favorite.Path);
-                                    var entryIndex = _imageEntries.FindIndex(e => e.ArchiveEntryKey == favorite.ArchiveEntryKey);
-                                    if (entryIndex >= 0)
-                                    {
-                                        _currentIndex = entryIndex;
-                                        await DisplayCurrentImageAsync();
-                                        
-                                        // Restore scroll if text
-                                        if (favorite.ScrollOffset.HasValue && TextScrollViewer != null) 
-                                        {
-                                             // Wait a bit for layout
-                                             await Task.Delay(100);
-                                             TextScrollViewer.ChangeView(null, favorite.ScrollOffset.Value, null);
-                                             UpdateTextStatusBar();
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                        break;
-                }
-                
-                // For File Types
-                if (favorite.Type == "File")
-                {
-                    if (favorite.Path.EndsWith(".epub", StringComparison.OrdinalIgnoreCase))
-                    {
-                         // Handled via PendingEpubChapterIndex/PageIndex during load
-                    }
-                    else 
-                    {
-                        if (_isAozoraMode)
-                        {
-                            // Already handled via pending target line
-                        }
-                        else if (favorite.ScrollOffset.HasValue && TextScrollViewer != null && favorite.SavedLine <= 1)
-                        {
-                             // Fallback to offset if no line saved
-                             TextScrollViewer.ChangeView(null, favorite.ScrollOffset.Value, null);
-                             UpdateTextStatusBar();
-                        }
-                    }
-                }
+                await _favoritesController.NavigateAsync(favorite, this);
             }
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"Error navigating to favorite: {ex.Message}");
-            }
-        }
-
-        private void CheckAndAddFolderToFavorites(string? folderPath)
-        {
-            if (string.IsNullOrEmpty(folderPath)) return;
-
-            string folderName = "";
-            bool isWebDav = _isWebDavMode;
-            string? webDavServerName = _webDavService.CurrentServer?.ServerName;
-
-            if (isWebDav)
-            {
-                folderName = Path.GetFileName(folderPath.TrimEnd('/'));
-                if (string.IsNullOrEmpty(folderName)) folderName = webDavServerName ?? "WebDAV";
-            }
-            else
-            {
-                if (!Directory.Exists(folderPath)) return;
-                folderName = Path.GetFileName(folderPath);
-                if (string.IsNullOrEmpty(folderName)) folderName = folderPath;
-            }
-
-            // Check if folder bookmark already exists
-            if (!_favoritesService.AnyFolderFavoriteExists(folderPath, isWebDav, webDavServerName))
-            {
-                var folderFavorite = new FavoriteItem
-                {
-                    Name = folderName,
-                    Path = folderPath,
-                    Type = "Folder",
-                    IsWebDav = isWebDav,
-                    WebDavServerName = webDavServerName
-                };
-                _ = _favoritesService.AddOrUpdateFavoriteAsync(folderFavorite, true);
             }
         }
 
