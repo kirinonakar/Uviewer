@@ -65,8 +65,8 @@
     <PackageReference Include="SevenZipExtractor" Version="1.0.19" />
     <PackageReference Include="SharpCompress" Version="0.48.0" />
     <PackageReference Include="Microsoft.Graphics.Win2D" Version="1.4.0" />
-    <PackageReference Include="System.Management" Version="10.0.7" />
-    <PackageReference Include="System.Security.Cryptography.ProtectedData" Version="10.0.7" />
+    <PackageReference Include="System.Management" Version="10.0.8" />
+    <PackageReference Include="System.Security.Cryptography.ProtectedData" Version="10.0.8" />
     <PackageReference Include="WebDav.Client" Version="2.9.0" />
   </ItemGroup>
 
