@@ -32,6 +32,7 @@ namespace Uviewer
         private WindowStateManager _windowState = null!;
         private readonly Services.IThumbnailService _thumbnailService = new Services.ThumbnailService();
         private Services.PreloadManager _preloadManager = null!;
+        private Services.ImageBitmapLoader _imageBitmapLoader = null!;
 
         // Refactored Services
         private Services.WindowSettingsCoordinator _windowSettingsCoordinator = null!;
@@ -343,6 +344,7 @@ namespace Uviewer
 
                 _imageCache = new Services.ImageCacheManager(DispatcherQueue);
                 _preloadManager = new Services.PreloadManager(_imageCache, DispatcherQueue);
+                _imageBitmapLoader = new Services.ImageBitmapLoader(_imageCache, _sharpeningService, DispatcherQueue);
 
                 // Apply Localization
                 ApplyLocalization();

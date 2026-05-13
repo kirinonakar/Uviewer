@@ -4,13 +4,10 @@ using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
-using SevenZipExtractor;
 using System;
-using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using Windows.Storage;
 using Uviewer.Models;
 using Uviewer.Services;
 using Visibility = Microsoft.UI.Xaml.Visibility;
@@ -754,90 +751,26 @@ namespace Uviewer
             }
         }
 
-        private async Task<CanvasBitmap?> LoadImageBitmapAsync(ImageEntry entry, CanvasControl canvas, CancellationToken token = default)
-        {
-            try
-            {
-                if (token.IsCancellationRequested) return null;
-                var entryIndex = _imageEntries.IndexOf(entry);
-                if (entryIndex >= 0)
-                {
-                    var cachedBitmap = _imageCache.GetPreloadedImage(entryIndex, _zoomLevel);
-                    if (cachedBitmap != null)
-                    {
-                        if (_sharpenEnabled)
-                        {
-                            var sharpenedBitmap = _imageCache.GetSharpenedImage(entryIndex);
-                            if (sharpenedBitmap != null) return sharpenedBitmap;
+        private Services.ImageBitmapLoaderContext CreateImageBitmapLoaderContext()
+            => new(
+                ImageEntries: _imageEntries,
+                CurrentIndex: _currentIndex,
+                ZoomLevel: _zoomLevel,
+                SharpenEnabled: _sharpenEnabled,
+                SharpenParams: CreateSharpenParams(),
+                IsPdfMode: _currentPdfDocument != null,
+                IsWebDavMode: _isWebDavMode,
+                CurrentArchive: _currentArchive,
+                Current7zArchive: _current7zArchive,
+                ArchiveLock: _archiveLock,
+                WebDavService: _webDavService,
+                MainCanvas: MainCanvas,
+                LoadPdfPageBitmapAsync: (pageIndex, canvas, token, isPreload) =>
+                    LoadPdfPageBitmapAsync(pageIndex, canvas, token, isPreload),
+                InvalidateCanvas: () => MainCanvas?.Invalidate());
 
-                            var sharpened = await _sharpeningService.ApplySharpenToBitmapAsync(cachedBitmap, (float)ImageOptions.UpscaleFactor, (float)ImageOptions.SharpenAmount, (float)ImageOptions.SharpenThreshold, (float)ImageOptions.UnsharpAmount, (float)ImageOptions.UnsharpRadius, skipUpscale: false);
-                            if (sharpened != null)
-                            {
-                                _imageCache.CacheSharpenedImage(entryIndex, sharpened, _currentIndex);
-                                return sharpened;
-                            }
-                        }
-                        return cachedBitmap;
-                    }
-                }
-
-                CanvasBitmap? originalBitmap = null;
-
-                // 2. 이미지 소스에 따라 로드
-                if (entry.FilePath != null)
-                {
-                    // 로컬 파일 (애니메이션 WebP가 아닌 경우 여기로 옴)
-                    originalBitmap = await LoadImageFromPathAsync(entry.FilePath, canvas);
-                }
-                else if (entry.IsArchiveEntry && (_currentArchive != null || _current7zArchive != null))
-                {
-                    // [중요] 압축 파일 내 이미지는 WebP 여부 상관없이 여기서 로드 (Win2D LoadAsync 사용)
-                    originalBitmap = await LoadImageFromArchiveEntryAsync(entry.ArchiveEntryKey!, canvas, token);
-                }
-                else if (entry.IsWebDavEntry && _isWebDavMode)
-                {
-                    // WebDAV file not yet downloaded
-                    try
-                    {
-                        var tempPath = await _webDavService.DownloadToTempFileAsync(entry.WebDavPath!, token);
-                        if (!string.IsNullOrEmpty(tempPath))
-                        {
-                            entry.FilePath = tempPath;
-                            originalBitmap = await LoadImageFromPathAsync(tempPath, canvas);
-                        }
-                    }
-                    catch (Exception ex)
-                    {
-                        System.Diagnostics.Debug.WriteLine($"Error downloading WebDAV image for display: {ex.Message}");
-                    }
-                }
-
-                // 3. 로드 실패 시 null 반환
-                if (originalBitmap == null) return null;
-
-                // 4. 샤픈 효과 적용
-                if (_sharpenEnabled && !entry.IsPdfEntry)
-                {
-                    var sharpened = _imageCache.GetSharpenedImage(entryIndex);
-                    if (sharpened != null) return sharpened;
-
-                    sharpened = await _sharpeningService.ApplySharpenToBitmapAsync(originalBitmap, (float)ImageOptions.UpscaleFactor, (float)ImageOptions.SharpenAmount, (float)ImageOptions.SharpenThreshold, (float)ImageOptions.UnsharpAmount, (float)ImageOptions.UnsharpRadius, skipUpscale: false);
-                    if (sharpened != null && sharpened != originalBitmap)
-                    {
-                        _imageCache.CacheSharpenedImage(entryIndex, sharpened, _currentIndex);
-                        _imageCache.SafeDisposeBitmap(originalBitmap); // Dispose original as we now have sharpened version
-                        return sharpened;
-                    }
-                }
-
-                return originalBitmap;
-            }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"Error loading image bitmap: {ex.Message}");
-                return null;
-            }
-        }
+        private Task<CanvasBitmap?> LoadImageBitmapAsync(ImageEntry entry, CanvasControl canvas, CancellationToken token = default)
+            => _imageBitmapLoader.LoadImageBitmapAsync(entry, canvas, CreateImageBitmapLoaderContext(), token);
 
         private async void SharpenButton_Click(object sender, RoutedEventArgs e)
         {
@@ -1016,136 +949,6 @@ namespace Uviewer
             _autoDoublePageForArchive = AutoDoublePageForArchiveMenuItem.IsChecked;
             _windowSettingsCoordinator.SaveWindowSettings();
             _ = DisplayCurrentImageAsync();
-        }
-
-        private async Task<CanvasBitmap?> LoadImageFromPathAsync(string filePath, CanvasControl canvas)
-        {
-            try
-            {
-                var file = await StorageFile.GetFileFromPathAsync(filePath);
-                using var stream = await file.OpenAsync(FileAccessMode.Read);
-                // [안정성 수정] CanvasControl 대신 Device를 사용하여 백그라운드 스레드에서도 안전하게 로드
-                var device = canvas.Device ?? CanvasDevice.GetSharedDevice();
-                return await CanvasBitmap.LoadAsync(device, stream, 96.0f);
-            }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"Error loading image from path: {ex.Message}");
-                return null;
-            }
-        }
-
-        private async Task<CanvasBitmap?> LoadImageFromArchiveEntryAsync(string entryKey, CanvasControl canvas, CancellationToken token)
-{
-    if (token.IsCancellationRequested) return null;
-
-    // [스크롤 버벅임 최적화] 이미 백그라운드에서 압축 해제하여 파일이 존재한다면 Lock 없이 즉시 로드
-    var imageEntry = _imageEntries.FirstOrDefault(e => e.ArchiveEntryKey == entryKey);
-    if (imageEntry != null && !string.IsNullOrEmpty(imageEntry.FilePath) && File.Exists(imageEntry.FilePath))
-    {
-        return await LoadImageFromPathAsync(imageEntry.FilePath, canvas);
-    }
-
-    using var memoryStream = new MemoryStream();
-
-    // 1. [Lock 구간] 아카이브에서 데이터만 빠르게 메모리로 복사
-    bool archiveLockReleased = false;
-    await _archiveLock.WaitAsync(token);
-    try
-    {
-        // [Race Condition 방지] Lock을 기다리는 사이에 백그라운드 스레드가 압축을 풀었을 수 있음
-        // [안정성 수정] Lock 내에서 UI 바운드 호출 시 데드락 가능 → 경로만 캡처, Lock 해제 후 로드
-        if (imageEntry != null && !string.IsNullOrEmpty(imageEntry.FilePath) && File.Exists(imageEntry.FilePath))
-        {
-            var cachedPath = imageEntry.FilePath;
-            _archiveLock.Release();
-            archiveLockReleased = true;
-            return await LoadImageFromPathAsync(cachedPath, canvas);
-        }
-
-        if (_currentArchive != null)
-        {
-            var archiveEntry = _currentArchive.Entries.FirstOrDefault(e => e.Key == entryKey);
-            if (archiveEntry == null) return null;
-
-            using var entryStream = archiveEntry.OpenEntryStream();
-            await entryStream.CopyToAsync(memoryStream, token);
-        }
-        else if (_current7zArchive != null)
-        {
-            var archiveEntry = _current7zArchive.Entries.FirstOrDefault(e => e.FileName == entryKey);
-            if (archiveEntry == null) return null;
-
-            archiveEntry.Extract(memoryStream);
-        }
-        else
-        {
-            return null;
-        }
-    }
-    catch (Exception ex)
-    {
-        System.Diagnostics.Debug.WriteLine($"Archive Stream Error: {ex.Message}");
-        return null;
-    }
-    finally
-    {
-        if (!archiveLockReleased) _archiveLock.Release();
-    }
-
-    memoryStream.Position = 0;
-    if (token.IsCancellationRequested) return null;
-
-    // 2. [Lock 해제 후] 디코딩 수행 (여기가 CPU를 많이 쓰므로 락 밖에서 해야 함)
-    try
-    {
-        return await CanvasBitmap.LoadAsync(canvas.Device ?? CanvasDevice.GetSharedDevice(), memoryStream.AsRandomAccessStream(), 96.0f);
-    }
-    catch (Exception ex)
-    {
-        System.Diagnostics.Debug.WriteLine($"Win2D Load Error: {ex.Message}");
-        return null;
-    }
-}
-
-
-        private async Task<byte[]?> LoadBytesFromArchiveEntryAsync(string entryKey, CancellationToken token)
-        {
-            if (token.IsCancellationRequested) return null;
-
-            await _archiveLock.WaitAsync(token);
-            try
-            {
-                if (_currentArchive != null)
-                {
-                    var archiveEntry = _currentArchive.Entries.FirstOrDefault(e => e.Key == entryKey);
-                    if (archiveEntry == null) return null;
-
-                    using var entryStream = archiveEntry.OpenEntryStream();
-                    using var memoryStream = new MemoryStream();
-                    await entryStream.CopyToAsync(memoryStream, token);
-                    return memoryStream.ToArray();
-                }
-                else if (_current7zArchive != null)
-                {
-                    var archiveEntry = _current7zArchive.Entries.FirstOrDefault(e => e.FileName == entryKey);
-                    if (archiveEntry == null) return null;
-
-                    using var memoryStream = new MemoryStream();
-                    archiveEntry.Extract(memoryStream);
-                    return memoryStream.ToArray();
-                }
-                return null;
-            }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"Archive Byte Load Error: {ex.Message}");
-                return null;
-            }
-            finally
-            {
-                _archiveLock.Release();
-            }
         }
 
         private void ShowImageUI()
@@ -1861,101 +1664,8 @@ namespace Uviewer
             }
         }
 
-        private async Task<CanvasBitmap?> LoadBitmapForPreloadAsync(ImageEntry entry, CancellationToken token)
-        {
-            CanvasBitmap? bitmap = null;
-            try
-            {
-                // [수정] 이미 프리로드된 경우 중복 로드를 피하기 위해 메모리에서 가져옴
-                var entryIndex = _imageEntries.IndexOf(entry);
-                if (entryIndex >= 0)
-                {
-                    bitmap = _imageCache.GetPreloadedImage(entryIndex);
-                }
-
-                if (bitmap != null && entry.IsPdfEntry && _currentPdfDocument != null)
-                {
-                    float dpiScale = MainCanvas.Dpi / 96.0f > 0 ? MainCanvas.Dpi / 96.0f : 1.0f;
-                    
-                    double canvasW = MainCanvas.Size.Width > 0 ? MainCanvas.Size.Width : 1000;
-                    double canvasH = MainCanvas.Size.Height > 0 ? MainCanvas.Size.Height : 1000;
-                    double pageAR = bitmap.Size.Height > 0 ? bitmap.Size.Width / bitmap.Size.Height : 1.0;
-                    double targetW = Math.Clamp((pageAR > (canvasW / canvasH) ? canvasW : canvasH * pageAR) * _zoomLevel, 1920.0 / dpiScale, 6016.0 / dpiScale);
-
-                    // 캐시에 있던 해상도가 우리가 당장 필요한 목표치보다 현저히 작으면 버림
-                    if (bitmap.Size.Width < targetW * 0.9)
-                    {
-                        bitmap = null; // 조건 미달 시 새로 로드하도록 null 처리
-                    }
-                }
-
-                if (bitmap == null)
-                {
-                    if (entry.IsPdfEntry && _currentPdfDocument != null)
-                    {
-                        bitmap = await LoadPdfPageBitmapAsync(entry.PdfPageIndex, MainCanvas, token, isPreload: true);
-                    }
-                    else if (entry.FilePath != null)
-                    {
-                        bitmap = await LoadImageFromPathAsync(entry.FilePath, MainCanvas);
-                    }
-                    else if (entry.IsArchiveEntry && (_currentArchive != null || _current7zArchive != null))
-                    {
-                        bitmap = await LoadImageFromArchiveEntryAsync(entry.ArchiveEntryKey!, MainCanvas, token);
-                    }
-                    else if (entry.IsWebDavEntry && _isWebDavMode && !token.IsCancellationRequested)
-                    {
-                        var tempPath = await _webDavService.DownloadToTempFileAsync(entry.WebDavPath!, token);
-                        if (!string.IsNullOrEmpty(tempPath) && !token.IsCancellationRequested)
-                        {
-                            entry.FilePath = tempPath;
-                            bitmap = await LoadImageFromPathAsync(tempPath, MainCanvas);
-                        }
-                    }
-                }
-
-                // [수정] 프리로드된 이미지에도 샤프닝 사전 적용 (확대 스크롤 시 샤프닝 유지용)
-                if (bitmap != null && _sharpenEnabled && !entry.IsPdfEntry && !token.IsCancellationRequested)
-                {
-                    if (entryIndex >= 0)
-                    {
-                        var capturedBitmap = bitmap;
-                        _ = Task.Run(async () =>
-                        {
-                            try
-                            {
-                                if (token.IsCancellationRequested) return;
-                                if (_imageCache.GetSharpenedImage(entryIndex) != null) return;
-
-                                var sharpened = await _sharpeningService.ApplySharpenToBitmapAsync(
-                                    capturedBitmap,
-                                    (float)ImageOptions.UpscaleFactor,
-                                    (float)ImageOptions.SharpenAmount,
-                                    (float)ImageOptions.SharpenThreshold,
-                                    (float)ImageOptions.UnsharpAmount,
-                                    (float)ImageOptions.UnsharpRadius,
-                                    skipUpscale: false);
-
-                                if (sharpened != null && sharpened != capturedBitmap && !token.IsCancellationRequested)
-                                {
-                                    _imageCache.CacheSharpenedImage(entryIndex, sharpened, _currentIndex);
-                                    DispatcherQueue.TryEnqueue(() => MainCanvas?.Invalidate());
-                                }
-                                // [안정성 수정] 취소되었거나 캐시 불필요 시 새로 생성된 비트맵 해제하여 GPU 메모리 누수 방지
-                                else if (sharpened != null && sharpened != capturedBitmap)
-                                {
-                                    _imageCache.SafeDisposeBitmap(sharpened);
-                                }
-                            }
-                            catch { }
-                        }, token);
-                    }
-                }
-            }
-            catch { }
-
-            return bitmap;
-        }
+        private Task<CanvasBitmap?> LoadBitmapForPreloadAsync(ImageEntry entry, CancellationToken token)
+            => _imageBitmapLoader.LoadBitmapForPreloadAsync(entry, CreateImageBitmapLoaderContext(), token);
 
         #endregion
 
