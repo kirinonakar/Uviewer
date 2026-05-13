@@ -22,6 +22,7 @@ namespace Uviewer.Renderers
             bool isPdfMode,
             bool isCurrentViewSideBySide,
             bool sharpenEnabled,
+            bool preferAnimationSpeed,
             double panX,
             ref double panY)
         {
@@ -48,7 +49,7 @@ namespace Uviewer.Renderers
 
                     position.X = (canvasSize.Width - scaledSize.Width) / 2 + panX;
                     position.Y = (canvasSize.Height - scaledSize.Height) / 2 + panY;
-                    DrawBitmap(ds, currentBitmap, new Rect(position, scaledSize), isPdfMode);
+                    DrawBitmap(ds, currentBitmap, new Rect(position, scaledSize), isPdfMode, preferAnimationSpeed);
 
                     double gap = 20 * zoomLevel;
                     DrawAdjacentImages(
@@ -64,11 +65,12 @@ namespace Uviewer.Renderers
                         panX,
                         position.Y,
                         scaledSize.Height,
-                        gap);
+                        gap,
+                        preferAnimationSpeed);
                 }
                 else
                 {
-                    DrawBitmap(ds, currentBitmap, new Rect(position, scaledSize), isPdfMode: false);
+                    DrawBitmap(ds, currentBitmap, new Rect(position, scaledSize), false, preferAnimationSpeed);
                 }
             }
             catch
@@ -144,7 +146,8 @@ namespace Uviewer.Renderers
             double panX,
             double currentY,
             double currentHeight,
-            double gap)
+            double gap,
+            bool preferAnimationSpeed)
         {
             double currentTop = currentY;
             for (int i = 1; i <= 5; i++)
@@ -162,7 +165,7 @@ namespace Uviewer.Renderers
                         (canvasSize.Width - scaledSize.Width) / 2 + panX,
                         currentTop - scaledSize.Height - gap);
 
-                    DrawBitmap(ds, prev, new Rect(position, scaledSize), isPdfMode);
+                    DrawBitmap(ds, prev, new Rect(position, scaledSize), isPdfMode, preferAnimationSpeed);
                     currentTop = position.Y;
 
                     if (currentTop + scaledSize.Height < -500) break;
@@ -193,7 +196,7 @@ namespace Uviewer.Renderers
                         (canvasSize.Width - scaledSize.Width) / 2 + panX,
                         currentBottom + gap);
 
-                    DrawBitmap(ds, next, new Rect(position, scaledSize), isPdfMode);
+                    DrawBitmap(ds, next, new Rect(position, scaledSize), isPdfMode, preferAnimationSpeed);
                     currentBottom = position.Y + scaledSize.Height;
 
                     if (position.Y > canvasSize.Height + 500) break;
@@ -213,7 +216,8 @@ namespace Uviewer.Renderers
             CanvasDrawingSession ds,
             CanvasBitmap bitmap,
             Rect destination,
-            bool isPdfMode)
+            bool isPdfMode,
+            bool preferAnimationSpeed = false)
         {
             if (isPdfMode)
             {
@@ -221,7 +225,10 @@ namespace Uviewer.Renderers
             }
             else
             {
-                ds.DrawImage(bitmap, destination, bitmap.Bounds, 1.0f, CanvasImageInterpolation.HighQualityCubic);
+                var interpolation = preferAnimationSpeed
+                    ? CanvasImageInterpolation.Linear
+                    : CanvasImageInterpolation.HighQualityCubic;
+                ds.DrawImage(bitmap, destination, bitmap.Bounds, 1.0f, interpolation);
             }
         }
 

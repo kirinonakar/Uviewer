@@ -107,6 +107,7 @@ namespace Uviewer
         private int _pendingPdfPageIndex = -1;
 
         private bool _sharpenEnabled;
+        private bool _isAnimatedFrameActive;
         public ImageProcessingViewModel ImageOptions { get; } = new();
 
         private double _pdfPanY = 0;

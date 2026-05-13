@@ -474,6 +474,7 @@ namespace Uviewer
             if (_currentIndex < 0 || _currentIndex >= _imageEntries.Count) return;
 
             var entry = _imageEntries[_currentIndex];
+            _isAnimatedFrameActive = false;
             _animatedWebpService.Stop(); // 기존 애니메이션 중단
 
             try
@@ -598,6 +599,7 @@ namespace Uviewer
 
         private void OnAnimatedWebpFrameUpdated(object? sender, CanvasBitmap newBitmap)
         {
+            _isAnimatedFrameActive = true;
             var oldBitmap = _currentBitmap;
             _currentBitmap = newBitmap;
 
@@ -613,6 +615,7 @@ namespace Uviewer
         {
             try
             {
+                _isAnimatedFrameActive = false;
                 var bitmap = _currentBitmap;
                 if (bitmap != null && _animatedWebpService.IsBitmapInCache(bitmap))
                 {

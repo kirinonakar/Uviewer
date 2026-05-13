@@ -1300,6 +1300,7 @@ namespace Uviewer
                 _currentPdfDocument != null,
                 _isCurrentViewSideBySide,
                 _sharpenEnabled,
+                _isAnimatedFrameActive,
                 _pdfPanX,
                 ref _pdfPanY);
         }
