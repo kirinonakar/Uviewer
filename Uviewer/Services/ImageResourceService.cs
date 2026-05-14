@@ -293,6 +293,31 @@ namespace Uviewer.Services
             }
         }
 
+        public Task PreloadTextImagesAsync(
+            IEnumerable<AozoraBindingModel> blocks,
+            CanvasDevice device,
+            ViewingContext ctx,
+            bool sharpenEnabled,
+            SharpenParams sharpenParams)
+        {
+            var loadTasks = blocks
+                .Where(block => block.HasImage)
+                .Select(block => block.Inlines.OfType<AozoraImage>().FirstOrDefault()?.Source)
+                .Where(source => !string.IsNullOrEmpty(source))
+                .Select(async source =>
+                {
+                    string relativePath = source!;
+                    string cacheKey = GetTextCacheKey(relativePath);
+                    if (TryGetCached(cacheKey) == null)
+                    {
+                        await LoadAsync(cacheKey, relativePath, device, ctx, sharpenEnabled, sharpenParams);
+                    }
+                })
+                .ToList();
+
+            return Task.WhenAll(loadTasks);
+        }
+
         // ------------------------------------------------------------------
         // 캐시 관리
         // ------------------------------------------------------------------

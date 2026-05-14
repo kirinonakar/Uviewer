@@ -1461,24 +1461,7 @@ namespace Uviewer
 
             if (_isAozoraMode && _aozoraBlocks.Count > 0)
             {
-                // Find block by line number
-                int targetIdx = 0;
-                for (int i = 0; i < _aozoraBlocks.Count; i++)
-                {
-                    if (_aozoraBlocks[i].SourceLineNumber >= line)
-                    {
-                        if (_aozoraBlocks[i].SourceLineNumber == line)
-                        {
-                            targetIdx = i;
-                        }
-                        else
-                        {
-                            targetIdx = i > 0 ? i - 1 : 0;
-                        }
-                        break;
-                    }
-                    targetIdx = i;
-                }
+                int targetIdx = _textBlockDocumentService.FindStartBlockIndex(_aozoraBlocks, line);
 
                 await RenderAozoraDynamicPage(targetIdx);
                 UpdateAozoraStatusBar();
@@ -1652,13 +1635,10 @@ namespace Uviewer
                 if (isAtBottom) currentLine = total;
                 if (currentLine > total) currentLine = total;
 
-                // Start-based line progress (Consistent with Aozora and Vertical modes)
-                double progress = isAtBottom ? 100.0 : (total > 1 ? (double)(currentLine - 1) / (total - 1) * 100.0 : 100.0);
-                if (progress > 100) progress = 100;
-                if (progress < 0) progress = 0;
+                double progress = _readingProgressService.CalculateLineProgress(currentLine, total, isAtBottom);
 
                 ImageInfoText.Text = Strings.LineInfo(currentLine, total);
-                TextProgressText.Text = $"{progress:F1}%";
+                TextProgressText.Text = _readingProgressService.FormatPercent(progress);
 
                 // Update Page Info if calculated
                 if (_isPageCalculationCompleted && _textLinePages != null && _textTotalPages > 0)
@@ -1673,8 +1653,7 @@ namespace Uviewer
                     int calcCurrentPage = _textLinePages[lineIdx];
 
                     if (_textTotalPages < 1) _textTotalPages = 1;
-                    if (calcCurrentPage > _textTotalPages) calcCurrentPage = _textTotalPages;
-                    if (calcCurrentPage < 1) calcCurrentPage = 1;
+                    calcCurrentPage = _readingProgressService.ClampPage(calcCurrentPage, _textTotalPages);
 
                     ImageIndexText.Text = $"{calcCurrentPage} / {_textTotalPages}";
                 }

@@ -27,14 +27,8 @@ namespace Uviewer
         private int? _pendingVerticalScrollLine = null;
         private int _pendingVerticalStartBlockIndex = -1;
 
-        private struct VerticalPageInfo
-        {
-            public List<AozoraBindingModel> Blocks;
-            public int StartLine;
-        }
-
         // 가상화 렌더링을 위한 단일 페이지 캐시 및 네비게이션 상태
-        private VerticalPageInfo _currentVerticalPageInfo;
+        private ReaderPageInfo _currentVerticalPageInfo;
         private int _currentVerticalStartBlockIndex = 0;
         private int _currentVerticalEndBlockIndex = 0;
         
@@ -92,7 +86,7 @@ namespace Uviewer
         {
             _currentVerticalRenderCts?.Cancel();
             _verticalPageCalcCts?.Cancel();
-            _currentVerticalPageInfo = new VerticalPageInfo { Blocks = new List<AozoraBindingModel>(), StartLine = 1 };
+            _currentVerticalPageInfo = ReaderPageInfo.Empty;
             _currentVerticalStartBlockIndex = 0;
             _currentVerticalEndBlockIndex = 0;
             _imageResourceService.ClearTextEntries(); // vertical 이미지 캐시/누락 목록 초기화
@@ -302,24 +296,13 @@ namespace Uviewer
                 {
                     _aozoraBlocks = await Task.Run(() => 
                     {
-                        List<AozoraBindingModel> blocks;
-                        int lineCount;
+                        var document = _textBlockDocumentService.Parse(
+                            _currentTextContent,
+                            _isMarkdownRenderMode,
+                            _settingsManager.FontSize);
 
-                        if (_isMarkdownRenderMode)
-                        {
-                            var result = AozoraParserService.ParseMarkdownContent(_currentTextContent);
-                            blocks = result.Blocks;
-                            lineCount = result.SourceLineCount;
-                        }
-                        else
-                        {
-                            var result = AozoraParserService.ParseAozoraContent(_currentTextContent, _settingsManager.FontSize);
-                            blocks = result.Blocks;
-                            lineCount = result.SourceLineCount;
-                        }
-
-                        DispatcherQueue.TryEnqueue(() => { _textTotalLineCountInSource = lineCount; });
-                        return blocks;
+                        DispatcherQueue.TryEnqueue(() => { _textTotalLineCountInSource = document.SourceLineCount; });
+                        return document.Blocks;
                     });
                 }
 
@@ -337,39 +320,13 @@ namespace Uviewer
                     // 기존 while 루프를 지우고 단 한 줄로 교체
                     startIdx = FindPreviousPageStart(targetIdx, _aozoraBlocks, availWidth, availHeight, device, true);
                 }
-                 else if (targetLine < 0) 
+                else
                 {
-                    startIdx = Math.Max(0, _aozoraBlocks.Count - 15);
-                }
-                else if (targetBlockIndex >= 0)
-                {
-                    startIdx = Math.Clamp(targetBlockIndex, 0, _aozoraBlocks.Count - 1);
-                }
-                else if (_aozoraBlocks.Count > 0)
-                {
-                    // [수정] O(N) 선형 탐색을 O(log N) 이진 탐색으로 변경하여 즉시 탐색
-                    int left = 0;
-                    int right = _aozoraBlocks.Count - 1;
-                    
-                    while (left <= right)
-                    {
-                        int mid = left + (right - left) / 2;
-                        if (_aozoraBlocks[mid].SourceLineNumber == targetLine)
-                        {
-                            startIdx = mid;
-                            // [수정] 동일한 라인의 여러 조각 중 가장 첫 번째 조각을 찾기 위해 탐색을 멈추지 않고 계속 진행
-                            right = mid - 1; 
-                        }
-                        else if (_aozoraBlocks[mid].SourceLineNumber < targetLine)
-                        {
-                            startIdx = mid; // 현재까지 발견된 가장 가까운 인덱스 기록
-                            left = mid + 1;
-                        }
-                        else
-                        {
-                            right = mid - 1;
-                        }
-                    }
+                    startIdx = _textBlockDocumentService.FindStartBlockIndex(
+                        _aozoraBlocks,
+                        targetLine,
+                        targetBlockIndex,
+                        NegativeLineTargetBehavior.NearEnd);
                 }
 
                 if (VerticalTextCanvas != null) VerticalTextCanvas.Visibility = Visibility.Visible;
@@ -397,7 +354,7 @@ namespace Uviewer
             // [수정] 블록이 없더라도 화면을 갱신(Invalidate)해야 이전 페이지의 잔상이 지워지고 스턱된 느낌이 사라집니다.
             if (_aozoraBlocks == null || _aozoraBlocks.Count == 0)
             {
-                _currentVerticalPageInfo = new VerticalPageInfo { Blocks = new List<AozoraBindingModel>(), StartLine = 1 };
+                _currentVerticalPageInfo = ReaderPageInfo.Empty;
                 if (token.IsCancellationRequested) return;
                 if (VerticalTextCanvas != null) VerticalTextCanvas.Invalidate();
                 UpdateVerticalStatusBar();
@@ -436,29 +393,14 @@ namespace Uviewer
             // [이미지 프리로딩] EPUB 등에서 이미지 교체 시 깜박임을 방지하기 위해 렌더링 전 이미지를 미리 로드합니다.
             if (pageBlocks.Any(b => b.HasImage))
             {
-                var ctx           = CreateViewingContext();
-                var sp            = CreateSharpenParams();
+                var ctx = CreateViewingContext();
+                var sp = CreateSharpenParams();
                 var preloadDevice = VerticalTextCanvas?.Device ?? Microsoft.Graphics.Canvas.CanvasDevice.GetSharedDevice();
-                var loadTasks = pageBlocks.Where(b => b.HasImage)
-                    .Select(async b =>
-                    {
-                        var src = b.Inlines.OfType<AozoraImage>().FirstOrDefault()?.Source;
-                        if (!string.IsNullOrEmpty(src))
-                        {
-                            string cacheKey = Services.ImageResourceService.GetTextCacheKey(src);
-                            if (_imageResourceService.TryGetCached(cacheKey) == null)
-                                await _imageResourceService.LoadAsync(cacheKey, src, preloadDevice, ctx, _sharpenEnabled, sp);
-                        }
-                    }).ToList();
-                await Task.WhenAll(loadTasks);
+                await _imageResourceService.PreloadTextImagesAsync(pageBlocks, preloadDevice, ctx, _sharpenEnabled, sp);
             }
             if (token.IsCancellationRequested) return;
             
-            _currentVerticalPageInfo = new VerticalPageInfo 
-            { 
-                Blocks = pageBlocks, 
-                StartLine = pageBlocks.Count > 0 ? pageBlocks[0].SourceLineNumber : 1 
-            };
+            _currentVerticalPageInfo = ReaderPageInfo.FromBlocks(pageBlocks);
 
             VerticalTextCanvas?.Invalidate();
             UpdateVerticalStatusBar();
@@ -735,22 +677,14 @@ namespace Uviewer
             int totalLines = _textTotalLineCountInSource;
             if (totalLines <= 1 && !string.IsNullOrEmpty(_currentTextContent))
             {
-                int count = 1;
-                foreach (char c in _currentTextContent)
-                {
-                    if (c == '\n') count++;
-                }
-                totalLines = count;
+                totalLines = _textBlockDocumentService.CountNormalizedLines(_currentTextContent);
                 _textTotalLineCountInSource = totalLines;
             }
             
             ImageInfoText.Text = Strings.LineInfo(currentLine, totalLines);
 
-            // Start-based line progress
-            double progress = totalLines > 1 ? (double)(currentLine - 1) / (totalLines - 1) * 100.0 : 100.0;
-            if (progress > 100) progress = 100;
-            if (progress < 0) progress = 0;
-            TextProgressText.Text = $"{progress:F1}%";
+            double progress = _readingProgressService.CalculateLineProgress(currentLine, totalLines);
+            TextProgressText.Text = _readingProgressService.FormatPercent(progress);
 
             if (_isVerticalPageCalcCompleted)
             {
@@ -760,7 +694,8 @@ namespace Uviewer
                     _verticalCalculatedCurrentPage = mappedPage;
                 }
 
-                ImageIndexText.Text = $"{_verticalCalculatedCurrentPage} / {totalPages}";
+                currentPage = _readingProgressService.ClampPage(_verticalCalculatedCurrentPage, totalPages);
+                ImageIndexText.Text = $"{currentPage} / {totalPages}";
             }
             else
             {

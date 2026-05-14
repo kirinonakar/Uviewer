@@ -402,14 +402,11 @@ namespace Uviewer
             int currentLine = pg?.StartLine ?? 1;
             int totalLines = pg?.TotalLinesInChapter ?? 1;
 
-            double totalProgress = 0;
-            if (_epubSpine.Count > 0)
-            {
-                double chapterProgress = (double)_currentEpubChapterIndex / _epubSpine.Count;
-                double pageProgressInChapter = (double)(currentPage - 1) / totalPages / _epubSpine.Count;
-                totalProgress = (chapterProgress + pageProgressInChapter) * 100.0;
-                if (totalProgress > 100) totalProgress = 100;
-            }
+            double totalProgress = _readingProgressService.CalculateEpubProgress(
+                _currentEpubChapterIndex,
+                _epubSpine.Count,
+                currentPage,
+                totalPages);
 
             if (ImageInfoText != null)
             {
@@ -418,7 +415,7 @@ namespace Uviewer
 
             if (TextProgressText != null)
             {
-                TextProgressText.Text = $"{totalProgress:F1}%";
+                TextProgressText.Text = _readingProgressService.FormatPercent(totalProgress);
             }
             
             if (ImageIndexText != null)
@@ -810,32 +807,11 @@ namespace Uviewer
                          return;
                      }
 
-                     // Find page that contains this line
-                    for (int i = 0; i < _epubWin2DPages.Count; i++)
-                    {
-                        var p = _epubWin2DPages[i];
-                        if (p.Blocks != null && p.Blocks.Count > 0)
-                        {
-                            int start = p.Blocks.First().SourceLineNumber;
-                            int end = p.Blocks.Last().SourceLineNumber;
-                            
-                            if (targetLine >= start && targetLine <= end)
-                            {
-                                SetEpubPageIndex(i);
-                                return;
-                            }
-                            if (i == _epubWin2DPages.Count - 1 && targetLine >= start)
-                            {
-                                SetEpubPageIndex(i);
-                                return;
-                            }
-                        }
-                    }
-                     
-                     // Fallback
-                     int pageIndex = targetLine - 1;
+                     int pageIndex = _epubPageFlowService.FindPageByLine(_epubWin2DPages, targetLine);
                      if (pageIndex >= 0 && pageIndex < _epubWin2DPages.Count)
+                     {
                          SetEpubPageIndex(pageIndex);
+                     }
                  }
              }
 

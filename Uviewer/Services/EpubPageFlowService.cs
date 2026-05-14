@@ -133,7 +133,7 @@ namespace Uviewer.Services
             return 0;
         }
 
-        private static int FindPageByLine(IReadOnlyList<EpubWin2DPage> pages, int targetLine)
+        public int FindPageByLine(IReadOnlyList<EpubWin2DPage> pages, int targetLine)
         {
             for (int i = 0; i < pages.Count; i++)
             {

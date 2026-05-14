@@ -28,14 +28,8 @@ namespace Uviewer
         private int _aozoraTotalLineCount = 0;
         private int _aozoraTotalLineCountInSource = 0;
 
-        private struct AozoraPageInfo
-        {
-            public List<AozoraBindingModel> Blocks;
-            public int StartLine;
-        }
-
         // Win2D Rendering State
-        private AozoraPageInfo _currentAozoraPageInfo;
+        private ReaderPageInfo _currentAozoraPageInfo;
         private int _currentAozoraStartBlockIndex = 0;
         private int _currentAozoraEndBlockIndex = 0;
         // 이미지 캐시는 _imageResourceService 로 통합됨 (접두어 "text:")
@@ -327,40 +321,10 @@ namespace Uviewer
         // [핵심 추가] 이미 파싱된 블록이 존재한다면 불필요한 재파싱을 생략하여 즉시 렌더링 (폰트 크기가 달라도 블록은 재사용 가능)
         if (_aozoraBlocks != null && _aozoraBlocks.Count > 0)
         {
-            if (targetBlockIndex >= 0)
-            {
-                startIdx = Math.Clamp(targetBlockIndex, 0, _aozoraBlocks.Count - 1);
-            }
-            else if (targetLine > 1)
-            {
-                // O(log N) 이진 탐색으로 즉시 탐색
-                int left = 0;
-                int right = _aozoraBlocks.Count - 1;
-                
-                while (left <= right)
-                {
-                    int mid = left + (right - left) / 2;
-                    if (_aozoraBlocks[mid].SourceLineNumber == targetLine)
-                    {
-                        startIdx = mid;
-                        right = mid - 1; // 동일한 라인 넘버 중 가장 첫 번째 블록을 찾기 위함
-                    }
-                    else if (_aozoraBlocks[mid].SourceLineNumber < targetLine)
-                    {
-                        startIdx = mid;
-                        left = mid + 1;
-                    }
-                    else
-                    {
-                        right = mid - 1;
-                    }
-                }
-            }
-            else if (targetLine < 0)
-            {
-                int targetPage = -targetLine;
-                startIdx = Math.Min((targetPage - 1) * 30, Math.Max(0, _aozoraBlocks.Count - 1));
-            }
+            startIdx = _textBlockDocumentService.FindStartBlockIndex(
+                _aozoraBlocks,
+                targetLine,
+                targetBlockIndex);
 
             _currentAozoraStartBlockIndex = startIdx;
 
@@ -385,22 +349,7 @@ namespace Uviewer
         {
             if (token.IsCancellationRequested) return;
 
-            List<AozoraBindingModel> parsedBlocks;
-            int sourceLineCount;
-
-            if (_isMarkdownRenderMode)
-            {
-                var result = AozoraParserService.ParseMarkdownContent(rawContent);
-                parsedBlocks = result.Blocks;
-                sourceLineCount = result.SourceLineCount;
-            }
-            else
-            {
-                // 서비스 클래스에서 Preprocess와 파싱, 그리고 TotalLineCount 반환을 한 번에 처리합니다.
-                var result = AozoraParserService.ParseAozoraContent(rawContent, _settingsManager.FontSize);
-                parsedBlocks = result.Blocks;
-                sourceLineCount = result.SourceLineCount;
-            }
+            var document = _textBlockDocumentService.Parse(rawContent, _isMarkdownRenderMode, _settingsManager.FontSize);
 
             if (token.IsCancellationRequested) return;
 
@@ -409,37 +358,20 @@ namespace Uviewer
             {
                 if (token.IsCancellationRequested) return;
 
-                _aozoraBlocks = parsedBlocks;
+                _aozoraBlocks = document.Blocks;
                 _aozoraTotalLineCount = _aozoraBlocks.Count;
-                _aozoraTotalLineCountInSource = sourceLineCount;
-                _textTotalLineCountInSource = sourceLineCount;
+                _aozoraTotalLineCountInSource = document.SourceLineCount;
+                _textTotalLineCountInSource = document.SourceLineCount;
 
                 // Update TOC with parsed blocks
                 _tocService.SetProvider(new TextTocProvider(_currentTextContent, _aozoraBlocks));
                 _ = _tocService.LoadTocAsync(token);
 
                 // 목표 라인(TargetLine) 또는 블록 인덱스 탐색
-                int startIdx = 0;
-                if (targetBlockIndex >= 0)
-                {
-                    startIdx = Math.Clamp(targetBlockIndex, 0, _aozoraBlocks.Count - 1);
-                }
-                else if (targetLine > 1)
-                {
-                    for (int i = 0; i < _aozoraBlocks.Count; i++)
-                    {
-                        if (_aozoraBlocks[i].SourceLineNumber >= targetLine)
-                        {
-                            startIdx = (_aozoraBlocks[i].SourceLineNumber == targetLine) ? i : (i > 0 ? i - 1 : 0);
-                            break;
-                        }
-                    }
-                }
-                else if (targetLine < 0)
-                {
-                    int targetPage = -targetLine;
-                    startIdx = Math.Min((targetPage - 1) * 30, Math.Max(0, _aozoraBlocks.Count - 1));
-                }
+                int startIdx = _textBlockDocumentService.FindStartBlockIndex(
+                    _aozoraBlocks,
+                    targetLine,
+                    targetBlockIndex);
 
                 _currentAozoraStartBlockIndex = startIdx;
 
@@ -493,7 +425,7 @@ namespace Uviewer
         {
             if (AozoraTextCanvas == null || _aozoraBlocks == null || _aozoraBlocks.Count == 0)
             {
-                _currentAozoraPageInfo = new AozoraPageInfo { Blocks = new List<AozoraBindingModel>(), StartLine = 1 };
+                _currentAozoraPageInfo = ReaderPageInfo.Empty;
                 if (AozoraTextCanvas != null) AozoraTextCanvas.Invalidate();
                 UpdateAozoraStatusBar();
                 return;
@@ -524,29 +456,14 @@ namespace Uviewer
             // [이미지 프리로딩] 깜박임 방지를 위해 렌더링 전 이미지를 미리 로드합니다.
             if (pageBlocks.Any(b => b.HasImage))
             {
-                var ctx          = CreateViewingContext();
-                var sp           = CreateSharpenParams();
+                var ctx = CreateViewingContext();
+                var sp = CreateSharpenParams();
                 var preloadDevice = AozoraTextCanvas?.Device ?? Microsoft.Graphics.Canvas.CanvasDevice.GetSharedDevice();
-                var loadTasks = pageBlocks.Where(b => b.HasImage)
-                    .Select(async b =>
-                    {
-                        var src = b.Inlines.OfType<AozoraImage>().FirstOrDefault()?.Source;
-                        if (!string.IsNullOrEmpty(src))
-                        {
-                            string cacheKey = Services.ImageResourceService.GetTextCacheKey(src);
-                            if (_imageResourceService.TryGetCached(cacheKey) == null)
-                                await _imageResourceService.LoadAsync(cacheKey, src, preloadDevice, ctx, _sharpenEnabled, sp);
-                        }
-                    }).ToList();
-                await Task.WhenAll(loadTasks);
+                await _imageResourceService.PreloadTextImagesAsync(pageBlocks, preloadDevice, ctx, _sharpenEnabled, sp);
             }
 
             _currentAozoraEndBlockIndex = index > startIdx ? index - 1 : startIdx;
-            _currentAozoraPageInfo = new AozoraPageInfo
-            {
-                Blocks = pageBlocks,
-                StartLine = pageBlocks.Count > 0 ? pageBlocks[0].SourceLineNumber : 1
-            };
+            _currentAozoraPageInfo = ReaderPageInfo.FromBlocks(pageBlocks);
 
             AozoraTextCanvas?.Invalidate();
             UpdateAozoraStatusBar();
@@ -739,14 +656,11 @@ namespace Uviewer
             int totalLines = _aozoraTotalLineCountInSource;
             if (totalLines < 1) totalLines = 1;
 
-            // Start-based progress (0% at the very beginning)
-            double progress = totalLines > 1 ? (double)(startLine - 1) / (totalLines - 1) * 100.0 : 100.0;
-            if (progress > 100) progress = 100;
-            if (progress < 0) progress = 0;
+            double progress = _readingProgressService.CalculateLineProgress(startLine, totalLines);
 
             ImageInfoText.Text = Strings.LineInfo(startLine, totalLines);
             _ = AddToRecentAsync(true);
-            TextProgressText.Text = $"{progress:F1}%";
+            TextProgressText.Text = _readingProgressService.FormatPercent(progress);
 
             if (_isAozoraPageCalcCompleted)
             {
@@ -756,8 +670,7 @@ namespace Uviewer
                     _aozoraCalculatedCurrentPage = mappedPage;
                 }
 
-                int curPage = _aozoraCalculatedCurrentPage;
-                if (curPage > _aozoraTotalPages) curPage = _aozoraTotalPages;
+                int curPage = _readingProgressService.ClampPage(_aozoraCalculatedCurrentPage, _aozoraTotalPages);
                 ImageIndexText.Text = $"{curPage} / {_aozoraTotalPages}";
             }
             else
@@ -776,28 +689,7 @@ namespace Uviewer
                 return;
             }
 
-            int left = 0;
-            int right = _aozoraBlocks.Count - 1;
-            int startIdx = 0;
-
-            while (left <= right)
-            {
-                int mid = left + (right - left) / 2;
-                if (_aozoraBlocks[mid].SourceLineNumber == targetLine)
-                {
-                    startIdx = mid;
-                    break;
-                }
-                else if (_aozoraBlocks[mid].SourceLineNumber < targetLine)
-                {
-                    startIdx = mid;
-                    left = mid + 1;
-                }
-                else
-                {
-                    right = mid - 1;
-                }
-            }
+            int startIdx = _textBlockDocumentService.FindStartBlockIndex(_aozoraBlocks, targetLine);
 
             _ = RenderAozoraDynamicPage(startIdx);
             StartAozoraPageCalculationAsync(); 
