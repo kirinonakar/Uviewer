@@ -20,6 +20,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Runtime.InteropServices;
 using System.Diagnostics.CodeAnalysis;
+using Microsoft.Win32;
 using Microsoft.Windows.AppLifecycle;
 
 // To learn more about WinUI, the WinUI project structure,
@@ -398,6 +399,9 @@ namespace Uviewer
         [System.Runtime.InteropServices.DllImport("user32.dll", CharSet = System.Runtime.InteropServices.CharSet.Unicode)]
         private static extern int MessageBox(IntPtr hWnd, string text, string caption, uint type);
 
+        [DllImport("shell32.dll")]
+        private static extern void SHChangeNotify(uint wEventId, uint uFlags, IntPtr dwItem1, IntPtr dwItem2);
+
         /// <summary>
         /// Invoked when the application is launched.
         /// </summary>
@@ -420,8 +424,6 @@ namespace Uviewer
 
         private void RegisterFileAssociations()
         {
-            if (_isRegistered) return;
-
             // Packaged 앱(MSIX)은 Manifest에서 이미 연결되어 있으므로 중복 등록을 피합니다.
             // 이렇게 하면 매번 실행 시 발생하는 쉘 리프레시를 원천적으로 방지할 수 있습니다.
             if (IsPackaged())
@@ -431,6 +433,9 @@ namespace Uviewer
                 return;
             }
 
+            string executablePath = GetExecutablePath();
+            if (_isRegistered && IsOpenWithApplicationMetadataCurrent(executablePath)) return;
+
             try
             {
                 string[] extensions = { 
@@ -439,7 +444,10 @@ namespace Uviewer
                     ".zip", ".rar", ".7z", ".tar", ".gz", ".cbz", ".cbr", 
                     ".epub", ".pdf" 
                 };
-                ActivationRegistrationManager.RegisterForFileTypeActivation(extensions, null, "Uviewer File", null, "");
+                string? logoPath = GetAssociationLogoPath();
+                ActivationRegistrationManager.RegisterForFileTypeActivation(extensions, logoPath, "Uviewer", null, executablePath);
+                RegisterOpenWithApplicationMetadata(executablePath);
+                SHChangeNotify(0x08000000, 0x0000, IntPtr.Zero, IntPtr.Zero); // SHCNE_ASSOCCHANGED
                 
                 _isRegistered = true;
                 SaveRegistrationStatus();
@@ -448,6 +456,86 @@ namespace Uviewer
             {
                 System.Diagnostics.Debug.WriteLine($"Error registering file associations: {ex.Message}");
             }
+        }
+
+        private static string GetExecutablePath()
+        {
+            if (!string.IsNullOrWhiteSpace(Environment.ProcessPath))
+            {
+                return Environment.ProcessPath;
+            }
+
+            return System.IO.Path.Combine(AppContext.BaseDirectory, "Uviewer.exe");
+        }
+
+        private static string? GetAssociationLogoPath()
+        {
+            string assetsDirectory = System.IO.Path.Combine(AppContext.BaseDirectory, "Assets");
+            string[] candidates =
+            {
+                "Uviewer.ico",
+                "Uviewer2.png",
+                "uviewer_icon_original.png"
+            };
+
+            foreach (string candidate in candidates)
+            {
+                string path = System.IO.Path.Combine(assetsDirectory, candidate);
+                if (File.Exists(path))
+                {
+                    return path;
+                }
+            }
+
+            return null;
+        }
+
+        private static string GetExecutableIconReference(string executablePath)
+        {
+            return $"\"{executablePath}\",0";
+        }
+
+        private static bool IsOpenWithApplicationMetadataCurrent(string executablePath)
+        {
+            try
+            {
+                string applicationKeyPath = GetOpenWithApplicationKeyPath(executablePath);
+                using RegistryKey? applicationKey = Registry.CurrentUser.OpenSubKey(applicationKeyPath);
+                string? applicationIcon = applicationKey?.GetValue("ApplicationIcon") as string;
+                return string.Equals(applicationIcon, GetExecutableIconReference(executablePath), StringComparison.OrdinalIgnoreCase);
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        private static void RegisterOpenWithApplicationMetadata(string executablePath)
+        {
+            try
+            {
+                string applicationKeyPath = GetOpenWithApplicationKeyPath(executablePath);
+                string iconReference = GetExecutableIconReference(executablePath);
+                using RegistryKey? applicationKey = Registry.CurrentUser.CreateSubKey(applicationKeyPath);
+                applicationKey?.SetValue("ApplicationName", "Uviewer", RegistryValueKind.String);
+                applicationKey?.SetValue("ApplicationDescription", "Uviewer", RegistryValueKind.String);
+                applicationKey?.SetValue("ApplicationIcon", iconReference, RegistryValueKind.String);
+
+                using RegistryKey? defaultIconKey = applicationKey?.CreateSubKey("DefaultIcon");
+                defaultIconKey?.SetValue("", iconReference, RegistryValueKind.String);
+
+                using RegistryKey? commandKey = applicationKey?.CreateSubKey(@"shell\open\command");
+                commandKey?.SetValue("", $"\"{executablePath}\" \"%1\"", RegistryValueKind.String);
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error registering Open With metadata: {ex.Message}");
+            }
+        }
+
+        private static string GetOpenWithApplicationKeyPath(string executablePath)
+        {
+            return $@"Software\Classes\Applications\{System.IO.Path.GetFileName(executablePath)}";
         }
 
         private bool IsPackaged()

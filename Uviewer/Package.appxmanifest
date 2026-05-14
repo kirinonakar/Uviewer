@@ -39,7 +39,7 @@
         </com:Extension>
         <uap:Extension Category="windows.fileTypeAssociation">
           <uap:FileTypeAssociation Name="uviewer">
-            <uap:Logo>Assets\StoreLogo.png</uap:Logo>
+            <uap:Logo>Assets\Uviewer.ico</uap:Logo>
             <uap:DisplayName>Uviewer File</uap:DisplayName>
             <uap:SupportedFileTypes>
               <uap:FileType>.jpg</uap:FileType>
