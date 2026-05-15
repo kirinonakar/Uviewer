@@ -474,8 +474,7 @@ namespace Uviewer
             string[] candidates =
             {
                 "Uviewer.ico",
-                "Uviewer2.png",
-                "uviewer_icon_original.png"
+                "Uviewer2.png"
             };
 
             foreach (string candidate in candidates)
