@@ -430,20 +430,14 @@ namespace Uviewer
 
         private async Task<List<EpubWin2DPage>> RenderEpubPagesAsync(string html, string currentPath, int pinBlockIndex = -1)
         {
-            // 레이아웃 동기화로 정확해진 ActualWidth 사용
-            float availableWidth = (float)(EpubArea?.ActualWidth ?? 0);
-            if (availableWidth < 50) 
-            {
-                availableWidth = (float)(RootGrid?.ActualWidth ?? AppWindow.Size.Width / (RootGrid?.XamlRoot?.RasterizationScale ?? 1.0));
-                if (availableWidth < 50) availableWidth = 800; // Final safe fallback if hidden
-            }
-
-            float availableHeight = (float)(EpubArea?.ActualHeight ?? 0);
-            if (availableHeight < 50) 
-            {
-                availableHeight = (float)(RootGrid?.ActualHeight ?? AppWindow.Size.Height / (RootGrid?.XamlRoot?.RasterizationScale ?? 1.0));
-                if (availableHeight < 50) availableHeight = 800;
-            }
+            var viewport = _readerLayoutService.CreateEpubViewport(
+                EpubArea?.ActualWidth ?? 0,
+                EpubArea?.ActualHeight ?? 0,
+                RootGrid?.ActualWidth ?? 0,
+                RootGrid?.ActualHeight ?? 0,
+                AppWindow.Size.Width,
+                AppWindow.Size.Height,
+                RootGrid?.XamlRoot?.RasterizationScale ?? 1.0);
 
             var device = EpubTextCanvas?.Device ?? CanvasDevice.GetSharedDevice();
 
@@ -452,8 +446,8 @@ namespace Uviewer
                     html,
                     currentPath,
                     _currentEpubChapterIndex,
-                    availableWidth,
-                    availableHeight,
+                    viewport.Width,
+                    viewport.Height,
                     _settingsManager.FontSize,
                     _isVerticalMode,
                     pinBlockIndex,
@@ -557,20 +551,17 @@ namespace Uviewer
 
             if (_isVerticalMode)
             {
-                float marginTop = 20f;
-                float marginBottom = 20f;
-                float marginRight = 30f;
-                float marginLeft = 25f; // 페이지 분할 시와 동일하게 25 사용
+                var margins = ReaderPageMargins.EpubVerticalText;
                 
                 VerticalRenderer.RenderBlocks(
                     ds: ds,
                     blocks: pg.Blocks,
                     textColor: textColor,
                     canvasSize: size,
-                    marginTop: marginTop,
-                    marginBottom: marginBottom,
-                    marginRight: marginRight,
-                    marginLeft: marginLeft,
+                    marginTop: margins.Top,
+                    marginBottom: margins.Bottom,
+                    marginRight: margins.Right,
+                    marginLeft: margins.Left,
                     baseFontSize: _settingsManager.FontSize,
                     defaultFontFamily: _settingsManager.FontFamily,
                     getFontWeight: GetFontWeightForFamily
@@ -578,17 +569,16 @@ namespace Uviewer
             }
             else
             {
+                var margins = ReaderPageMargins.HorizontalText;
                 float limitedWidth = (float)(_settingsManager.FontSize * 42);
-                float marginLeft = 40f; 
-                float contentWidth = Math.Min(limitedWidth, (float)size.Width - 80f);
-                float marginTop = 30f;
+                float contentWidth = Math.Min(limitedWidth, (float)size.Width - margins.Horizontal);
 
                 HorizontalRenderer.RenderBlocks(
                     ds: ds,
                     blocks: pg.Blocks,
                     textColor: textColor,
-                    marginLeft: marginLeft,
-                    marginTop: marginTop,
+                    marginLeft: margins.Left,
+                    marginTop: margins.Top,
                     maxWidth: contentWidth,
                     baseFontSize: _settingsManager.FontSize,
                     defaultFontFamily: _settingsManager.FontFamily,

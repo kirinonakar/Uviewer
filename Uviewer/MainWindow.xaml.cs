@@ -51,6 +51,7 @@ namespace Uviewer
         private readonly Services.AozoraPageMapCalculator _aozoraPageMapCalculator;
         private readonly Services.AozoraPreviousPageCache _aozoraPreviousPageCache;
         private readonly Services.EpubPageFlowService _epubPageFlowService = new();
+        private readonly Services.ReaderLayoutService _readerLayoutService = new();
         private readonly Services.TextBlockDocumentService _textBlockDocumentService = new();
         private readonly Services.ReadingProgressService _readingProgressService = new();
         private readonly Services.ImageResourceService _imageResourceService;

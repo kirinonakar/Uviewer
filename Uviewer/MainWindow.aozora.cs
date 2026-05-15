@@ -29,11 +29,28 @@ namespace Uviewer
         private int _aozoraTotalLineCountInSource = 0;
 
         // Win2D Rendering State
-        private ReaderPageInfo _currentAozoraPageInfo;
-        private int _currentAozoraStartBlockIndex = 0;
-        private int _currentAozoraEndBlockIndex = 0;
+        private readonly ReaderPageState _aozoraPageState = new();
+        private ReaderPageInfo _currentAozoraPageInfo
+        {
+            get => _aozoraPageState.CurrentPage;
+            set => _aozoraPageState.CurrentPage = value;
+        }
+        private int _currentAozoraStartBlockIndex
+        {
+            get => _aozoraPageState.StartBlockIndex;
+            set => _aozoraPageState.StartBlockIndex = value;
+        }
+        private int _currentAozoraEndBlockIndex
+        {
+            get => _aozoraPageState.EndBlockIndex;
+            set => _aozoraPageState.EndBlockIndex = value;
+        }
         // 이미지 캐시는 _imageResourceService 로 통합됨 (접두어 "text:")
-        private Dictionary<int, int> _aozoraBlockToPageMap = new();
+        private Dictionary<int, int> _aozoraBlockToPageMap
+        {
+            get => _aozoraPageState.BlockToPageMap;
+            set => _aozoraPageState.BlockToPageMap = value;
+        }
 
         private void ClearBackwardCache() => _aozoraPreviousPageCache.Clear();
 
@@ -81,21 +98,15 @@ namespace Uviewer
             if (currentStartIdx <= 0 || _aozoraBlocks == null || _aozoraBlocks.Count == 0) return;
 
             float availWidth = isVertical ? (float)(VerticalTextCanvas?.ActualWidth ?? 0) : (float)(AozoraTextCanvas?.ActualWidth ?? 0);
-            if (availWidth < 100) availWidth = (float)(RootGrid?.ActualWidth ?? 800) - 80;
-            availWidth -= isVertical ? 40 : 80;
-
             float availHeight = isVertical ? (float)(VerticalTextCanvas?.ActualHeight ?? 0) : (float)(AozoraTextCanvas?.ActualHeight ?? 0);
-            if (availHeight < 100) availHeight = (float)(RootGrid?.ActualHeight ?? 800) - 80;
-            availHeight -= 40;
+            var layout = isVertical
+                ? _readerLayoutService.CreateVerticalTextLayout(availWidth, availHeight, RootGrid?.ActualWidth ?? 0, RootGrid?.ActualHeight ?? 0)
+                : _readerLayoutService.CreateHorizontalTextLayout(availWidth, availHeight, RootGrid?.ActualWidth ?? 0, RootGrid?.ActualHeight ?? 0, _isMarkdownRenderMode, GetUrlMaxWidth());
 
             var device = isVertical ? VerticalTextCanvas?.Device : AozoraTextCanvas?.Device;
             device ??= Microsoft.Graphics.Canvas.CanvasDevice.GetSharedDevice();
             
-            float maxWidth = availWidth;
-            if (!isVertical)
-                maxWidth = _isMarkdownRenderMode ? availWidth : Math.Min(availWidth, (float)GetUrlMaxWidth());
-
-            var context = CreatePreviousPageContext(device, maxWidth, availHeight, isVertical);
+            var context = CreatePreviousPageContext(device, layout.MaxWidth, layout.AvailableHeight, isVertical);
             _aozoraPreviousPageCache.StartCaching(
                 currentStartIdx,
                 _aozoraBlocks,
@@ -104,10 +115,22 @@ namespace Uviewer
         }
 
         // Page Calculation
-        private int _aozoraTotalPages = 0;
-        private bool _isAozoraPageCalcCompleted = false;
+        private int _aozoraTotalPages
+        {
+            get => _aozoraPageState.TotalPages;
+            set => _aozoraPageState.TotalPages = value;
+        }
+        private bool _isAozoraPageCalcCompleted
+        {
+            get => _aozoraPageState.IsPageCalculationCompleted;
+            set => _aozoraPageState.IsPageCalculationCompleted = value;
+        }
         private System.Threading.CancellationTokenSource? _aozoraPageCalcCts;
-        private int _aozoraCalculatedCurrentPage = 1;
+        private int _aozoraCalculatedCurrentPage
+        {
+            get => _aozoraPageState.CalculatedCurrentPage;
+            set => _aozoraPageState.CalculatedCurrentPage = value;
+        }
 
         // Settings
         public class AozoraSettings
@@ -425,7 +448,7 @@ namespace Uviewer
         {
             if (AozoraTextCanvas == null || _aozoraBlocks == null || _aozoraBlocks.Count == 0)
             {
-                _currentAozoraPageInfo = ReaderPageInfo.Empty;
+                _aozoraPageState.SetEmptyPage();
                 if (AozoraTextCanvas != null) AozoraTextCanvas.Invalidate();
                 UpdateAozoraStatusBar();
                 return;
@@ -434,24 +457,18 @@ namespace Uviewer
             startIdx = Math.Max(0, Math.Min(startIdx, _aozoraBlocks.Count - 1));
             _currentAozoraStartBlockIndex = startIdx;
 
-            // [수정] 아래쪽 마진(marginBottom)을 10으로 확 줄여 하단 끝까지 텍스트를 밀어 넣습니다.
-            float marginTop = 30, marginBottom = 10, marginRight = 40, marginLeft = 40;
-            float availableHeight = (float)AozoraTextCanvas.ActualHeight;
-            if (availableHeight < 100) availableHeight = (float)RootGrid.ActualHeight - 200;
-            if (availableHeight < 100) availableHeight = 800;
-            availableHeight -= (marginTop + marginBottom);
-
-            float availableWidth = (float)AozoraTextCanvas.ActualWidth;
-            if (availableWidth < 50) availableWidth = (float)(RootGrid?.ActualWidth ?? 900) - 100;
-            if (availableWidth < 50) availableWidth = 800; // Final safe fallback
-            availableWidth -= (marginRight + marginLeft);
-
-            float maxWidth = _isMarkdownRenderMode ? availableWidth : Math.Min(availableWidth, (float)GetUrlMaxWidth());
+            var layout = _readerLayoutService.CreateHorizontalTextLayout(
+                AozoraTextCanvas.ActualWidth,
+                AozoraTextCanvas.ActualHeight,
+                RootGrid?.ActualWidth ?? 0,
+                RootGrid?.ActualHeight ?? 0,
+                _isMarkdownRenderMode,
+                GetUrlMaxWidth());
 
             int index = startIdx;
             var device = AozoraTextCanvas.Device ?? Microsoft.Graphics.Canvas.CanvasDevice.GetSharedDevice();
 
-            var pageBlocks = PaginateHorizontalAozoraPage(ref index, _aozoraBlocks, maxWidth, availableHeight, device);
+            var pageBlocks = PaginateHorizontalAozoraPage(ref index, _aozoraBlocks, layout.MaxWidth, layout.AvailableHeight, device);
 
             // [이미지 프리로딩] 깜박임 방지를 위해 렌더링 전 이미지를 미리 로드합니다.
             if (pageBlocks.Any(b => b.HasImage))
@@ -462,8 +479,7 @@ namespace Uviewer
                 await _imageResourceService.PreloadTextImagesAsync(pageBlocks, preloadDevice, ctx, _sharpenEnabled, sp);
             }
 
-            _currentAozoraEndBlockIndex = index > startIdx ? index - 1 : startIdx;
-            _currentAozoraPageInfo = ReaderPageInfo.FromBlocks(pageBlocks);
+            _aozoraPageState.SetPage(pageBlocks, startIdx, index);
 
             AozoraTextCanvas?.Invalidate();
             UpdateAozoraStatusBar();
@@ -480,26 +496,24 @@ namespace Uviewer
                 _aozoraPageCalcCts = new System.Threading.CancellationTokenSource();
                 var token = _aozoraPageCalcCts.Token;
 
-                _isAozoraPageCalcCompleted = false;
-                _aozoraTotalPages = 0;
-                _aozoraCalculatedCurrentPage = 1;
+                _aozoraPageState.ResetPageCalculation();
                 UpdateAozoraStatusBar();
 
                 if (AozoraTextCanvas == null || AozoraTextCanvas.ActualHeight <= 0 || AozoraTextCanvas.ActualWidth <= 0) return;
 
-                // [수정] 백그라운드 페이지 계산도 렌더링 마진(상하 40, 좌우 80)과 일치시킵니다.
-                float availableWidth = (float)AozoraTextCanvas.ActualWidth - 80;
-                float availableHeight = (float)AozoraTextCanvas.ActualHeight - 40; 
-
-                float maxWidth = _isMarkdownRenderMode ? availableWidth : Math.Min(availableWidth, (float)GetUrlMaxWidth());
+                var layout = _readerLayoutService.CreateHorizontalPageMapLayout(
+                    AozoraTextCanvas.ActualWidth,
+                    AozoraTextCanvas.ActualHeight,
+                    _isMarkdownRenderMode,
+                    GetUrlMaxWidth());
                 var device = AozoraTextCanvas.Device;
 
                 var result = await _aozoraPageMapCalculator.CalculateAsync(
                     _aozoraBlocks,
                     new AozoraBlockPaginationContext(
                         device,
-                        maxWidth,
-                        availableHeight,
+                        layout.MaxWidth,
+                        layout.AvailableHeight,
                         _settingsManager.FontSize,
                         _settingsManager.FontFamily,
                         GetFontWeightForFamily,
@@ -513,14 +527,8 @@ namespace Uviewer
                 {
                     if (token.IsCancellationRequested) return;
 
-                    _aozoraBlockToPageMap = result.BlockToPageMap;
-                    _aozoraTotalPages = result.TotalPages;
-                    _isAozoraPageCalcCompleted = true;
-
-                    if (_aozoraBlockToPageMap.TryGetValue(_currentAozoraStartBlockIndex, out int cp))
-                    {
-                        _aozoraCalculatedCurrentPage = cp;
-                    }
+                    _aozoraPageState.SetPageMap(result.BlockToPageMap, result.TotalPages);
+                    _aozoraPageState.SyncCalculatedCurrentPageFromMap();
                     UpdateAozoraStatusBar();
                 });
             }
@@ -564,9 +572,8 @@ namespace Uviewer
 
             var page = _currentAozoraPageInfo;
 
-            float marginTop = 30;
-            float marginLeft = 40;
-            float availableWidth = (float)size.Width - 80;
+            var margins = ReaderPageMargins.HorizontalText;
+            float availableWidth = (float)size.Width - margins.Horizontal;
             float maxWidth = _isMarkdownRenderMode ? availableWidth : Math.Min(availableWidth, (float)GetUrlMaxWidth());
 
             var imgBlocks = page.Blocks.Where(b => b.HasImage).ToList();
@@ -582,8 +589,8 @@ namespace Uviewer
                 ds: ds,
                 blocks: page.Blocks,
                 textColor: textColor,
-                marginLeft: marginLeft,
-                marginTop: marginTop,
+                marginLeft: margins.Left,
+                marginTop: margins.Top,
                 maxWidth: maxWidth,
                 baseFontSize: _settingsManager.FontSize,
                 defaultFontFamily: _settingsManager.FontFamily,
@@ -624,7 +631,7 @@ namespace Uviewer
                 {
                     // 💡 History Push 완전히 제거됨
                     _ = RenderAozoraDynamicPage(_currentAozoraEndBlockIndex + 1);
-                    if (_isAozoraPageCalcCompleted) _aozoraCalculatedCurrentPage++; 
+                    if (_isAozoraPageCalcCompleted) _aozoraPageState.AdvanceCalculatedPage(1);
                     UpdateAozoraStatusBar();
                 }
             }
@@ -634,15 +641,19 @@ namespace Uviewer
                 {
                     int targetIdx = _currentAozoraStartBlockIndex;
 
-                    float availWidth = (float)(AozoraTextCanvas?.ActualWidth ?? 1000) - 80;
-                    float availHeight = (float)(AozoraTextCanvas?.ActualHeight ?? 800) - 40;
-                    float maxWidth = _isMarkdownRenderMode ? availWidth : Math.Min(availWidth, (float)GetUrlMaxWidth());
+                    var layout = _readerLayoutService.CreateHorizontalTextLayout(
+                        AozoraTextCanvas?.ActualWidth ?? 0,
+                        AozoraTextCanvas?.ActualHeight ?? 0,
+                        RootGrid?.ActualWidth ?? 0,
+                        RootGrid?.ActualHeight ?? 0,
+                        _isMarkdownRenderMode,
+                        GetUrlMaxWidth());
                     var device = AozoraTextCanvas?.Device ?? Microsoft.Graphics.Canvas.CanvasDevice.GetSharedDevice();
 
-                    int bestStart = GetOrFindPreviousPageStart(targetIdx, _aozoraBlocks, maxWidth, availHeight, device, false);
+                    int bestStart = GetOrFindPreviousPageStart(targetIdx, _aozoraBlocks, layout.MaxWidth, layout.AvailableHeight, device, false);
 
                     _ = RenderAozoraDynamicPage(bestStart);
-                    if (_isAozoraPageCalcCompleted) _aozoraCalculatedCurrentPage = Math.Max(1, _aozoraCalculatedCurrentPage - 1); 
+                    if (_isAozoraPageCalcCompleted) _aozoraPageState.AdvanceCalculatedPage(-1);
                     UpdateAozoraStatusBar();
                 }
             }
@@ -665,10 +676,7 @@ namespace Uviewer
             if (_isAozoraPageCalcCompleted)
             {
                 // 점프(Home/End/이동) 시에도 페이지 번호 즉시 반영
-                if (_aozoraBlockToPageMap != null && _aozoraBlockToPageMap.TryGetValue(_currentAozoraStartBlockIndex, out int mappedPage))
-                {
-                    _aozoraCalculatedCurrentPage = mappedPage;
-                }
+                _aozoraPageState.SyncCalculatedCurrentPageFromMap();
 
                 int curPage = _readingProgressService.ClampPage(_aozoraCalculatedCurrentPage, _aozoraTotalPages);
                 ImageIndexText.Text = $"{curPage} / {_aozoraTotalPages}";

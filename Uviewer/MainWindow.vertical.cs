@@ -28,16 +28,45 @@ namespace Uviewer
         private int _pendingVerticalStartBlockIndex = -1;
 
         // 가상화 렌더링을 위한 단일 페이지 캐시 및 네비게이션 상태
-        private ReaderPageInfo _currentVerticalPageInfo;
-        private int _currentVerticalStartBlockIndex = 0;
-        private int _currentVerticalEndBlockIndex = 0;
+        private readonly ReaderPageState _verticalPageState = new();
+        private ReaderPageInfo _currentVerticalPageInfo
+        {
+            get => _verticalPageState.CurrentPage;
+            set => _verticalPageState.CurrentPage = value;
+        }
+        private int _currentVerticalStartBlockIndex
+        {
+            get => _verticalPageState.StartBlockIndex;
+            set => _verticalPageState.StartBlockIndex = value;
+        }
+        private int _currentVerticalEndBlockIndex
+        {
+            get => _verticalPageState.EndBlockIndex;
+            set => _verticalPageState.EndBlockIndex = value;
+        }
         
         // 백그라운드 전체 페이지 계산용 상태
-        private int _verticalTotalPages = 0;
-        private bool _isVerticalPageCalcCompleted = false;
-        private Dictionary<int, int> _verticalBlockToPageMap = new();
+        private int _verticalTotalPages
+        {
+            get => _verticalPageState.TotalPages;
+            set => _verticalPageState.TotalPages = value;
+        }
+        private bool _isVerticalPageCalcCompleted
+        {
+            get => _verticalPageState.IsPageCalculationCompleted;
+            set => _verticalPageState.IsPageCalculationCompleted = value;
+        }
+        private Dictionary<int, int> _verticalBlockToPageMap
+        {
+            get => _verticalPageState.BlockToPageMap;
+            set => _verticalPageState.BlockToPageMap = value;
+        }
         private System.Threading.CancellationTokenSource? _verticalPageCalcCts;
-        private int _verticalCalculatedCurrentPage = 1;
+        private int _verticalCalculatedCurrentPage
+        {
+            get => _verticalPageState.CalculatedCurrentPage;
+            set => _verticalPageState.CalculatedCurrentPage = value;
+        }
         private CancellationTokenSource? _currentVerticalRenderCts;
         private Microsoft.UI.Dispatching.DispatcherQueueTimer? _verticalResizeTimer;
 
@@ -86,14 +115,9 @@ namespace Uviewer
         {
             _currentVerticalRenderCts?.Cancel();
             _verticalPageCalcCts?.Cancel();
-            _currentVerticalPageInfo = ReaderPageInfo.Empty;
-            _currentVerticalStartBlockIndex = 0;
-            _currentVerticalEndBlockIndex = 0;
+            _verticalPageState.Clear();
             _imageResourceService.ClearTextEntries(); // vertical 이미지 캐시/누락 목록 초기화
-            _verticalTotalPages = 0;
-            _isVerticalPageCalcCompleted = false;
             _pendingVerticalStartBlockIndex = -1;
-            _verticalCalculatedCurrentPage = 1;
             ClearBackwardCache();
             VerticalTextCanvas?.Invalidate();
             UpdateVerticalStatusBar();
@@ -313,12 +337,15 @@ namespace Uviewer
                 if (targetLine == 999999 && _aozoraBlocks.Count > 0)
                 {
                     int targetIdx = _aozoraBlocks.Count;
-                    float availWidth = (float)(VerticalTextCanvas?.ActualWidth ?? 1000) - 40;
-                    float availHeight = (float)(VerticalTextCanvas?.ActualHeight ?? 800) - 40;
+                    var layout = _readerLayoutService.CreateVerticalTextLayout(
+                        VerticalTextCanvas?.ActualWidth ?? 0,
+                        VerticalTextCanvas?.ActualHeight ?? 0,
+                        RootGrid?.ActualWidth ?? 0,
+                        RootGrid?.ActualHeight ?? 0);
                     var device = VerticalTextCanvas?.Device ?? Microsoft.Graphics.Canvas.CanvasDevice.GetSharedDevice();
 
                     // 기존 while 루프를 지우고 단 한 줄로 교체
-                    startIdx = FindPreviousPageStart(targetIdx, _aozoraBlocks, availWidth, availHeight, device, true);
+                    startIdx = FindPreviousPageStart(targetIdx, _aozoraBlocks, layout.AvailableWidth, layout.AvailableHeight, device, true);
                 }
                 else
                 {
@@ -354,7 +381,7 @@ namespace Uviewer
             // [수정] 블록이 없더라도 화면을 갱신(Invalidate)해야 이전 페이지의 잔상이 지워지고 스턱된 느낌이 사라집니다.
             if (_aozoraBlocks == null || _aozoraBlocks.Count == 0)
             {
-                _currentVerticalPageInfo = ReaderPageInfo.Empty;
+                _verticalPageState.SetEmptyPage();
                 if (token.IsCancellationRequested) return;
                 if (VerticalTextCanvas != null) VerticalTextCanvas.Invalidate();
                 UpdateVerticalStatusBar();
@@ -366,17 +393,11 @@ namespace Uviewer
             startIdx = Math.Max(0, Math.Min(startIdx, _aozoraBlocks.Count - 1));
             _currentVerticalStartBlockIndex = startIdx;
 
-            // [수정] 상하 20으로 줄여 글줄 길이를 확보하고, 왼쪽 마진(진행 방향)을 10으로 최소화.
-            float marginTop = 20, marginBottom = 20, marginRight = 30, marginLeft = 10;
-            float availableHeight = (float)VerticalTextCanvas.ActualHeight;
-            if (availableHeight < 100) availableHeight = (float)RootGrid.ActualHeight - 200;
-            if (availableHeight < 100) availableHeight = 800;
-            availableHeight -= (marginTop + marginBottom); 
-            
-            float availableWidth = (float)VerticalTextCanvas.ActualWidth;
-            if (availableWidth < 100) availableWidth = (float)RootGrid.ActualWidth - 100;
-            if (availableWidth < 100) availableWidth = 1000;
-            availableWidth -= (marginRight + marginLeft);
+            var layout = _readerLayoutService.CreateVerticalTextLayout(
+                VerticalTextCanvas.ActualWidth,
+                VerticalTextCanvas.ActualHeight,
+                RootGrid?.ActualWidth ?? 0,
+                RootGrid?.ActualHeight ?? 0);
 
             int index = startIdx;
             
@@ -385,10 +406,8 @@ namespace Uviewer
             var device = VerticalTextCanvas.Device ?? Microsoft.Graphics.Canvas.CanvasDevice.GetSharedDevice();
             
             // 디바이스를 정확히 넘겨주어 페이지를 측정합니다.
-            var pageBlocks = PaginateAozoraPage(ref index, _aozoraBlocks, availableWidth, availableHeight, device);
+            var pageBlocks = PaginateAozoraPage(ref index, _aozoraBlocks, layout.AvailableWidth, layout.AvailableHeight, device);
             if (token.IsCancellationRequested) return;
-
-            _currentVerticalEndBlockIndex = index > startIdx ? index - 1 : startIdx;
 
             // [이미지 프리로딩] EPUB 등에서 이미지 교체 시 깜박임을 방지하기 위해 렌더링 전 이미지를 미리 로드합니다.
             if (pageBlocks.Any(b => b.HasImage))
@@ -400,7 +419,7 @@ namespace Uviewer
             }
             if (token.IsCancellationRequested) return;
             
-            _currentVerticalPageInfo = ReaderPageInfo.FromBlocks(pageBlocks);
+            _verticalPageState.SetPage(pageBlocks, startIdx, index);
 
             VerticalTextCanvas?.Invalidate();
             UpdateVerticalStatusBar();
@@ -417,23 +436,21 @@ namespace Uviewer
                 _verticalPageCalcCts = new System.Threading.CancellationTokenSource();
                 var token = _verticalPageCalcCts.Token;
 
-                _isVerticalPageCalcCompleted = false;
-                _verticalTotalPages = 0;
-                _verticalCalculatedCurrentPage = 1;
+                _verticalPageState.ResetPageCalculation();
 
                 if (VerticalTextCanvas == null || VerticalTextCanvas.ActualHeight <= 0 || VerticalTextCanvas.ActualWidth <= 0) return;
 
-                // [수정] 백그라운드 계산도 상하 40, 좌우 40 공간 차감으로 맞춥니다.
-                float availableHeight = (float)VerticalTextCanvas.ActualHeight - 40;
-                float availableWidth = (float)VerticalTextCanvas.ActualWidth - 40;
+                var layout = _readerLayoutService.CreateVerticalPageMapLayout(
+                    VerticalTextCanvas.ActualWidth,
+                    VerticalTextCanvas.ActualHeight);
                 var device = VerticalTextCanvas.Device;
 
                 var result = await _aozoraPageMapCalculator.CalculateAsync(
                     _aozoraBlocks,
                     new AozoraBlockPaginationContext(
                         device,
-                        availableWidth,
-                        availableHeight,
+                        layout.AvailableWidth,
+                        layout.AvailableHeight,
                         _settingsManager.FontSize,
                         _settingsManager.FontFamily,
                         GetFontWeightForFamily,
@@ -449,13 +466,8 @@ namespace Uviewer
                 {
                     if (token.IsCancellationRequested) return;
 
-                    _verticalBlockToPageMap = result.BlockToPageMap;
-                    _verticalTotalPages = result.TotalPages;
-                    _isVerticalPageCalcCompleted = true;
-
-                    if (_verticalBlockToPageMap.TryGetValue(_currentVerticalStartBlockIndex, out int cp))
-                        _verticalCalculatedCurrentPage = cp;
-                    else
+                    _verticalPageState.SetPageMap(result.BlockToPageMap, result.TotalPages);
+                    if (!_verticalPageState.SyncCalculatedCurrentPageFromMap())
                         _verticalCalculatedCurrentPage = 1;
 
                     UpdateVerticalStatusBar();
@@ -519,11 +531,7 @@ namespace Uviewer
             if (_currentVerticalPageInfo.Blocks == null || _currentVerticalPageInfo.Blocks.Count == 0) return;
 
             var page = _currentVerticalPageInfo;
-            
-            float marginTop = 20;
-            float marginBottom = 20;
-            float marginRight = 30;
-            float marginLeft = 10;
+            var margins = ReaderPageMargins.VerticalText;
 
             var imgBlocks = page.Blocks.Where(b => b.HasImage).ToList();
             if (imgBlocks.Count > 0)
@@ -548,10 +556,10 @@ namespace Uviewer
                 blocks: page.Blocks,
                 textColor: textColor,
                 canvasSize: size,
-                marginTop: marginTop,
-                marginBottom: marginBottom,
-                marginRight: marginRight,
-                marginLeft: marginLeft,
+                marginTop: margins.Top,
+                marginBottom: margins.Bottom,
+                marginRight: margins.Right,
+                marginLeft: margins.Left,
                 baseFontSize: _settingsManager.FontSize,
                 defaultFontFamily: _settingsManager.FontFamily,
                 getFontWeight: GetFontWeightForFamily
@@ -621,7 +629,7 @@ namespace Uviewer
                     {
                         // 💡 History Push 완전히 제거됨
                         await RenderVerticalDynamicPageAsync(_currentVerticalEndBlockIndex + 1);
-                        if (_isVerticalPageCalcCompleted) { _verticalCalculatedCurrentPage++; UpdateVerticalStatusBar(); }
+                        if (_isVerticalPageCalcCompleted) { _verticalPageState.AdvanceCalculatedPage(1); UpdateVerticalStatusBar(); }
                     }
                     else if (_isEpubMode)
                     {
@@ -635,14 +643,17 @@ namespace Uviewer
                     {
                         int targetIdx = _currentVerticalStartBlockIndex;
 
-                        float availWidth = (float)(VerticalTextCanvas?.ActualWidth ?? 1000) - 40;
-                        float availHeight = (float)(VerticalTextCanvas?.ActualHeight ?? 800) - 40;
+                        var layout = _readerLayoutService.CreateVerticalTextLayout(
+                            VerticalTextCanvas?.ActualWidth ?? 0,
+                            VerticalTextCanvas?.ActualHeight ?? 0,
+                            RootGrid?.ActualWidth ?? 0,
+                            RootGrid?.ActualHeight ?? 0);
                         var device = VerticalTextCanvas?.Device ?? Microsoft.Graphics.Canvas.CanvasDevice.GetSharedDevice();
 
-                        int bestStart = GetOrFindPreviousPageStart(targetIdx, blocks, availWidth, availHeight, device, true);
+                        int bestStart = GetOrFindPreviousPageStart(targetIdx, blocks, layout.AvailableWidth, layout.AvailableHeight, device, true);
 
                         await RenderVerticalDynamicPageAsync(bestStart);
-                        if (_isVerticalPageCalcCompleted) { _verticalCalculatedCurrentPage = Math.Max(1, _verticalCalculatedCurrentPage - 1); UpdateVerticalStatusBar(); }
+                        if (_isVerticalPageCalcCompleted) { _verticalPageState.AdvanceCalculatedPage(-1); UpdateVerticalStatusBar(); }
                     }
                     else if (_isEpubMode)
                     {
@@ -689,10 +700,7 @@ namespace Uviewer
             if (_isVerticalPageCalcCompleted)
             {
                 // 점프(Home/End/이동) 시에도 페이지 번호 즉시 반영
-                if (_verticalBlockToPageMap != null && _verticalBlockToPageMap.TryGetValue(_currentVerticalStartBlockIndex, out int mappedPage))
-                {
-                    _verticalCalculatedCurrentPage = mappedPage;
-                }
+                _verticalPageState.SyncCalculatedCurrentPageFromMap();
 
                 currentPage = _readingProgressService.ClampPage(_verticalCalculatedCurrentPage, totalPages);
                 ImageIndexText.Text = $"{currentPage} / {totalPages}";

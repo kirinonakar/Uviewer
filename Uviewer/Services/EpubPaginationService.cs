@@ -132,21 +132,12 @@ namespace Uviewer.Services
 
         private static EpubPageLayout CalculateLayout(EpubPaginationRequest request)
         {
-            float marginTop = 30f;
-            float marginBottom = 10f;
-            float marginRight = 40f;
-            float marginLeft = 40f;
+            var margins = request.IsVerticalMode
+                ? ReaderPageMargins.EpubVerticalText
+                : ReaderPageMargins.HorizontalText;
 
-            if (request.IsVerticalMode)
-            {
-                marginTop = 20f;
-                marginBottom = 20f;
-                marginRight = 30f;
-                marginLeft = 25f;
-            }
-
-            float maxWidth = request.AvailableWidth - (marginRight + marginLeft);
-            float pageHeight = request.AvailableHeight - (marginTop + marginBottom);
+            float maxWidth = request.AvailableWidth - margins.Horizontal;
+            float pageHeight = request.AvailableHeight - margins.Vertical;
 
             if (!request.IsVerticalMode)
             {
