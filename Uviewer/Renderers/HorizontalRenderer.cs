@@ -123,7 +123,8 @@ namespace Uviewer.Renderers
             float maxWidth,
             double baseFontSize,
             string defaultFontFamily,
-            Func<string, FontWeight> getFontWeight)
+            Func<string, FontWeight> getFontWeight,
+            string? searchQuery = null)
         {
             float currentY = marginTop;
             bool isBoxing = false;
@@ -354,6 +355,16 @@ namespace Uviewer.Renderers
 
                 // 5. 인라인 배경 및 텍스트 본문 그리기
                 DrawRangeBackgrounds(ds, textLayout, highlightRanges, drawX, currentY, ColorHelper.FromArgb(120, 255, 230, 96), fontSize);
+                DrawRangeBackgrounds(
+                    ds,
+                    textLayout,
+                    SearchHighlightService.FindTextRanges(blockText, searchQuery)
+                        .Select(range => (start: range.Start, length: range.Length))
+                        .ToList(),
+                    drawX,
+                    currentY,
+                    SearchHighlightService.HighlightColor,
+                    fontSize);
                 ds.DrawTextLayout(textLayout, drawX, currentY, textColor);
 
                 // 6. 밑줄(헤딩) 및 좌측 선(인용구) 그리기

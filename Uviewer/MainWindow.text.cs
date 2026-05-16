@@ -1287,6 +1287,110 @@ namespace Uviewer
             }
         }
 
+        private void SetActiveSearchQuery(string? query)
+        {
+            _activeSearchQuery = string.IsNullOrWhiteSpace(query) ? null : query;
+            _activePdfSearchHighlights = Array.Empty<PdfSearchHighlight>();
+            _activePdfSearchPageIndex = -1;
+
+            InvalidateSearchHighlights();
+
+            if (_currentPdfDocument != null && _activeSearchQuery != null)
+            {
+                _ = RefreshPdfSearchHighlightsAsync(_currentIndex);
+            }
+        }
+
+        private async Task RefreshPdfSearchHighlightsAsync(int pageIndex)
+        {
+            if (_currentPdfDocument == null || string.IsNullOrEmpty(_currentPdfPath) || string.IsNullOrWhiteSpace(_activeSearchQuery))
+            {
+                return;
+            }
+
+            _searchHighlightCts?.Cancel();
+            _searchHighlightCts?.Dispose();
+            _searchHighlightCts = new CancellationTokenSource();
+            var token = _searchHighlightCts.Token;
+
+            string pdfPath = _currentPdfPath;
+            string query = _activeSearchQuery;
+
+            try
+            {
+                var highlights = await _searchHighlightService.FindPdfHighlightsAsync(pdfPath, pageIndex, query, token);
+                if (token.IsCancellationRequested) return;
+                if (!string.Equals(_currentPdfPath, pdfPath, StringComparison.OrdinalIgnoreCase)) return;
+                if (_currentIndex != pageIndex) return;
+                if (!string.Equals(_activeSearchQuery, query, StringComparison.Ordinal)) return;
+
+                _activePdfSearchHighlights = highlights;
+                _activePdfSearchPageIndex = pageIndex;
+                MainCanvas?.Invalidate();
+            }
+            catch (OperationCanceledException) { }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"PDF search highlight error: {ex.Message}");
+            }
+        }
+
+        private void InvalidateSearchHighlights()
+        {
+            ApplySearchHighlightsToRealizedText();
+            MainCanvas?.Invalidate();
+            AozoraTextCanvas?.Invalidate();
+            VerticalTextCanvas?.Invalidate();
+            EpubTextCanvas?.Invalidate();
+        }
+
+        private void ApplySearchHighlightsToRealizedText()
+        {
+            if (TextItemsRepeater == null || _textLines == null || _textLines.Count == 0) return;
+
+            try
+            {
+                int childCount = VisualTreeHelper.GetChildrenCount(TextItemsRepeater);
+                for (int i = 0; i < childCount; i++)
+                {
+                    if (VisualTreeHelper.GetChild(TextItemsRepeater, i) is TextBlock tb)
+                    {
+                        int index = TextItemsRepeater.GetElementIndex(tb);
+                        if (index >= 0 && index < _textLines.Count)
+                        {
+                            ApplySearchHighlightsToTextBlock(tb, _textLines[index].Content);
+                        }
+                    }
+                }
+            }
+            catch
+            {
+            }
+        }
+
+        private void ApplySearchHighlightsToTextBlock(TextBlock textBlock, string content)
+        {
+            textBlock.TextHighlighters.Clear();
+            var ranges = _searchHighlightService.FindRanges(content, _activeSearchQuery);
+            if (ranges.Count == 0) return;
+
+            var highlighter = new TextHighlighter
+            {
+                Background = SearchHighlightService.CreateHighlightBrush()
+            };
+
+            foreach (var range in ranges)
+            {
+                highlighter.Ranges.Add(new TextRange
+                {
+                    StartIndex = range.Start,
+                    Length = range.Length
+                });
+            }
+
+            textBlock.TextHighlighters.Add(highlighter);
+        }
+
         private async Task<IReadOnlyList<DocumentSearchMatch>> SearchCurrentDocumentAsync(string query, CancellationToken token)
         {
             if (_currentPdfDocument != null && !string.IsNullOrEmpty(_currentPdfPath))
@@ -1351,6 +1455,7 @@ namespace Uviewer
                     {
                         _currentIndex = match.PageIndex;
                         await DisplayCurrentImageAsync();
+                        await RefreshPdfSearchHighlightsAsync(match.PageIndex);
                     }
                     break;
 
@@ -1709,6 +1814,8 @@ namespace Uviewer
                 }
             }
         }
+
+        ApplySearchHighlightsToTextBlock(tb, content);
     }
 }
         // --- Input Handling ---

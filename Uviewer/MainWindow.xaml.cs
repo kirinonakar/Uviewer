@@ -47,7 +47,12 @@ namespace Uviewer
         private readonly IKeyboardShortcutService _keyboardShortcutService = new KeyboardShortcutService();
         private readonly Services.TocService _tocService = new();
         private readonly Services.DocumentSearchService _documentSearchService = new();
+        private readonly Services.SearchHighlightService _searchHighlightService = new();
         private Services.SearchOverlayService _searchOverlayService = null!;
+        private string? _activeSearchQuery;
+        private IReadOnlyList<PdfSearchHighlight> _activePdfSearchHighlights = Array.Empty<PdfSearchHighlight>();
+        private int _activePdfSearchPageIndex = -1;
+        private CancellationTokenSource? _searchHighlightCts;
         private readonly Services.AozoraBlockMeasurer _aozoraBlockMeasurer = new();
         private readonly Services.AozoraBlockPaginator _aozoraBlockPaginator;
         private readonly Services.AozoraPageMapCalculator _aozoraPageMapCalculator;
@@ -237,7 +242,8 @@ namespace Uviewer
             _searchOverlayService = new Services.SearchOverlayService(
                 SearchCurrentDocumentAsync,
                 NavigateToSearchMatchAsync,
-                GetCurrentSearchPosition);
+                GetCurrentSearchPosition,
+                SetActiveSearchQuery);
             _textDialogService = new Services.TextDialogService(RootGrid);
             LoadTextSettings();
 
@@ -1317,6 +1323,41 @@ namespace Uviewer
                 _isAnimatedFrameActive,
                 _pdfPanX,
                 ref _pdfPanY);
+
+            DrawPdfSearchHighlights(sender, args);
+        }
+
+        private void DrawPdfSearchHighlights(CanvasControl sender, CanvasDrawEventArgs args)
+        {
+            if (_currentPdfDocument == null || _currentBitmap == null) return;
+            if (_activePdfSearchPageIndex != _currentIndex || _activePdfSearchHighlights.Count == 0) return;
+            if (!TryGetBitmapSize(_currentBitmap, out var imageSize)) return;
+
+            var canvasSize = sender.Size;
+            if (canvasSize.Width <= 0 || canvasSize.Height <= 0) return;
+
+            double fitRatio = Math.Min(canvasSize.Width / imageSize.Width, canvasSize.Height / imageSize.Height);
+            var scaledSize = new Windows.Foundation.Size(
+                imageSize.Width * fitRatio * _zoomLevel,
+                imageSize.Height * fitRatio * _zoomLevel);
+            var pageRect = new Windows.Foundation.Rect(
+                (canvasSize.Width - scaledSize.Width) / 2 + _pdfPanX,
+                (canvasSize.Height - scaledSize.Height) / 2 + _pdfPanY,
+                scaledSize.Width,
+                scaledSize.Height);
+
+            foreach (var highlight in _activePdfSearchHighlights)
+            {
+                if (highlight.PageWidth <= 0 || highlight.PageHeight <= 0) continue;
+
+                double x = pageRect.X + (highlight.Left / highlight.PageWidth) * pageRect.Width;
+                double y = pageRect.Y + ((highlight.PageHeight - highlight.Top) / highlight.PageHeight) * pageRect.Height;
+                double width = Math.Max(2.0, ((highlight.Right - highlight.Left) / highlight.PageWidth) * pageRect.Width);
+                double height = Math.Max(2.0, ((highlight.Top - highlight.Bottom) / highlight.PageHeight) * pageRect.Height);
+
+                var rect = new Windows.Foundation.Rect(x - 1, y - 1, width + 2, height + 2);
+                args.DrawingSession.FillRectangle(rect, SearchHighlightService.HighlightColor);
+            }
         }
 
         private void LeftCanvas_CreateResources(CanvasControl sender, CanvasCreateResourcesEventArgs args)

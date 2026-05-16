@@ -17,6 +17,7 @@ namespace Uviewer.Services
         private readonly Func<string, CancellationToken, Task<IReadOnlyList<DocumentSearchMatch>>> _searchAsync;
         private readonly Func<DocumentSearchMatch, Task> _navigateAsync;
         private readonly Func<long> _currentPositionProvider;
+        private readonly Action<string?>? _queryChanged;
         private readonly Microsoft.UI.Dispatching.DispatcherQueue _dispatcherQueue;
         private readonly Microsoft.UI.Dispatching.DispatcherQueueTimer _debounceTimer;
 
@@ -34,11 +35,13 @@ namespace Uviewer.Services
         public SearchOverlayService(
             Func<string, CancellationToken, Task<IReadOnlyList<DocumentSearchMatch>>> searchAsync,
             Func<DocumentSearchMatch, Task> navigateAsync,
-            Func<long> currentPositionProvider)
+            Func<long> currentPositionProvider,
+            Action<string?>? queryChanged = null)
         {
             _searchAsync = searchAsync;
             _navigateAsync = navigateAsync;
             _currentPositionProvider = currentPositionProvider;
+            _queryChanged = queryChanged;
             _dispatcherQueue = DispatcherQueue.GetForCurrentThread();
             _debounceTimer = _dispatcherQueue.CreateTimer();
             _debounceTimer.Interval = TimeSpan.FromMilliseconds(250);
@@ -156,6 +159,7 @@ namespace Uviewer.Services
             _flyout.Closed += (_, _) =>
             {
                 _searchCts?.Cancel();
+                _queryChanged?.Invoke(null);
                 _flyout = null;
             };
 
@@ -193,6 +197,7 @@ namespace Uviewer.Services
 
             if (string.IsNullOrWhiteSpace(query))
             {
+                _queryChanged?.Invoke(null);
                 _matches.Clear();
                 _currentIndex = -1;
                 _hasNavigatedCurrentQuery = false;
@@ -201,6 +206,7 @@ namespace Uviewer.Services
             }
 
             SetStatus(Strings.SearchSearching);
+            _queryChanged?.Invoke(query);
 
             try
             {

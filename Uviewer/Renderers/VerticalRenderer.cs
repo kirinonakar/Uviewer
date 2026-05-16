@@ -153,7 +153,8 @@ namespace Uviewer.Renderers
             float marginLeft,
             double baseFontSize,
             string defaultFontFamily,
-            Func<string, FontWeight> getFontWeight)
+            Func<string, FontWeight> getFontWeight,
+            string? searchQuery = null)
         {
             float currentX = (float)canvasSize.Width - marginRight; 
             float startY = marginTop;
@@ -305,6 +306,16 @@ namespace Uviewer.Renderers
                 float drawX = currentX - (float)(bounds.X + bounds.Width);
 
                 DrawRangeBackgrounds(ds, textLayout, highlightRanges, drawX, drawY, ColorHelper.FromArgb(120, 255, 230, 96), fontSize);
+                DrawRangeBackgrounds(
+                    ds,
+                    textLayout,
+                    SearchHighlightService.FindTextRanges(blockText, searchQuery)
+                        .Select(range => (start: range.Start, length: range.Length))
+                        .ToList(),
+                    drawX,
+                    drawY,
+                    SearchHighlightService.HighlightColor,
+                    fontSize);
                 ds.DrawTextLayout(textLayout, drawX, drawY, textColor);
 
                 using var rubyFormat = new CanvasTextFormat

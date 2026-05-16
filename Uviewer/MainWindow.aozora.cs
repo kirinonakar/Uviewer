@@ -594,7 +594,8 @@ namespace Uviewer
                 maxWidth: maxWidth,
                 baseFontSize: _settingsManager.FontSize,
                 defaultFontFamily: _settingsManager.FontFamily,
-                getFontWeight: GetFontWeightForFamily
+                getFontWeight: GetFontWeightForFamily,
+                searchQuery: _activeSearchQuery
             );
         }
 

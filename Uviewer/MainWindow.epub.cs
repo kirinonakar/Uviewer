@@ -564,7 +564,8 @@ namespace Uviewer
                     marginLeft: margins.Left,
                     baseFontSize: _settingsManager.FontSize,
                     defaultFontFamily: _settingsManager.FontFamily,
-                    getFontWeight: GetFontWeightForFamily
+                    getFontWeight: GetFontWeightForFamily,
+                    searchQuery: _activeSearchQuery
                 );
             }
             else
@@ -582,7 +583,8 @@ namespace Uviewer
                     maxWidth: contentWidth,
                     baseFontSize: _settingsManager.FontSize,
                     defaultFontFamily: _settingsManager.FontFamily,
-                    getFontWeight: GetFontWeightForFamily
+                    getFontWeight: GetFontWeightForFamily,
+                    searchQuery: _activeSearchQuery
                 );
             }
         }
