@@ -104,9 +104,8 @@
 | |  | Blocked in Side-by-Side (2 page) mode |
 | **0**  | Global | Fit to Window |
 | **1**  | Global | Zoom Actual Size (Fit to width in PDF) |
-| **G** | Text/EPUB | Go to Line |
-| | PDF | Go to Page |
-| **Right-click G** | Text / EPUB / PDF | Open Search |
+| **G** | Text/EPUB | Go to Line (Right-click for search)|
+| | PDF | Go to Page (Right-click for search)|
 | **Space** | Image / EPUB | Toggle 2-Page View (Side-by-Side) |
 | **V** | Text / EPUB | Toggle Vertical Mode (Tategaki) |
 | **S** | Image | Toggle Sharpening (Right-click for settings) |
