@@ -107,13 +107,34 @@
     <value>폰트 변경(F) - 우클릭으로 설정</value>
   </data>
   <data name="GoToPageTooltip" xml:space="preserve">
-    <value>줄 이동(G)</value>
+    <value>줄 이동(G) - 우클릭시 검색(Ctrl+F)</value>
   </data>
   <data name="PdfGoToPageTooltip" xml:space="preserve">
-    <value>페이지 이동(G)</value>
+    <value>페이지 이동(G) - 우클릭시 검색(Ctrl+F)</value>
   </data>
   <data name="GoToPageTitle" xml:space="preserve">
     <value>페이지 이동</value>
+  </data>
+  <data name="SearchPlaceholder" xml:space="preserve">
+    <value>텍스트 검색</value>
+  </data>
+  <data name="SearchPreviousTooltip" xml:space="preserve">
+    <value>이전 결과</value>
+  </data>
+  <data name="SearchNextTooltip" xml:space="preserve">
+    <value>다음 결과</value>
+  </data>
+  <data name="SearchNoMatches" xml:space="preserve">
+    <value>검색 결과 없음</value>
+  </data>
+  <data name="SearchSearching" xml:space="preserve">
+    <value>검색 중...</value>
+  </data>
+  <data name="SearchUnavailable" xml:space="preserve">
+    <value>검색은 텍스트, EPUB, PDF 파일에서 사용할 수 있습니다.</value>
+  </data>
+  <data name="SearchMatchCounter" xml:space="preserve">
+    <value>{0} / {1}</value>
   </data>
   <data name="TextSizeDownTooltip" xml:space="preserve">
     <value>글자 작게(-)</value>

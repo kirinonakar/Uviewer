@@ -47,6 +47,8 @@ namespace Uviewer
         }
 
         bool IKeyboardShortcutActions.IsAboutDialogActive => _aboutDialog != null;
+        bool IKeyboardShortcutActions.IsSearchOverlayOpen => _searchOverlayService?.IsOpen == true;
+        bool IKeyboardShortcutActions.CanSearchCurrentDocument => CanSearchCurrentDocument;
 
         void IKeyboardShortcutActions.ToggleFullscreen() => ToggleFullscreen();
         void IKeyboardShortcutActions.ToggleMaximizeRestore() => ToggleMaximizeRestore();
@@ -93,6 +95,8 @@ namespace Uviewer
         void IKeyboardShortcutActions.ToggleAlwaysOnTop() => ToggleAlwaysOnTop();
         void IKeyboardShortcutActions.ToggleGlobalTheme() => GlobalThemeToggleButton_Click(GlobalThemeToggleButton, new RoutedEventArgs());
         void IKeyboardShortcutActions.TogglePin() => TogglePin();
+        void IKeyboardShortcutActions.ShowSearchOverlay() => ShowSearchOverlay();
+        void IKeyboardShortcutActions.HideSearchOverlay() => _searchOverlayService?.Hide();
 
         void IKeyboardShortcutActions.HideAboutDialog()
         {

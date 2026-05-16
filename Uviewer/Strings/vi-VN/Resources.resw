@@ -107,13 +107,34 @@
     <value>Đổi phông chữ (F) - Nhấp phải để cài đặt</value>
   </data>
   <data name="GoToPageTooltip" xml:space="preserve">
-    <value>Đến dòng (G)</value>
+    <value>Đến dòng (G) - Nhấp phải để tìm kiếm (Ctrl+F)</value>
   </data>
   <data name="PdfGoToPageTooltip" xml:space="preserve">
-    <value>Đến trang (G)</value>
+    <value>Đến trang (G) - Nhấp phải để tìm kiếm (Ctrl+F)</value>
   </data>
   <data name="GoToPageTitle" xml:space="preserve">
     <value>Đến trang</value>
+  </data>
+  <data name="SearchPlaceholder" xml:space="preserve">
+    <value>Tìm trong văn bản</value>
+  </data>
+  <data name="SearchPreviousTooltip" xml:space="preserve">
+    <value>Kết quả trước</value>
+  </data>
+  <data name="SearchNextTooltip" xml:space="preserve">
+    <value>Kết quả tiếp theo</value>
+  </data>
+  <data name="SearchNoMatches" xml:space="preserve">
+    <value>Không có kết quả</value>
+  </data>
+  <data name="SearchSearching" xml:space="preserve">
+    <value>Đang tìm...</value>
+  </data>
+  <data name="SearchUnavailable" xml:space="preserve">
+    <value>Tìm kiếm dùng được cho tệp văn bản, EPUB và PDF.</value>
+  </data>
+  <data name="SearchMatchCounter" xml:space="preserve">
+    <value>{0} / {1}</value>
   </data>
   <data name="TextSizeDownTooltip" xml:space="preserve">
     <value>Chữ nhỏ hơn (-)</value>

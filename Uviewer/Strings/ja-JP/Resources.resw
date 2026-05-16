@@ -107,13 +107,34 @@
     <value>フォント変更(F) - 右クリックで設定</value>
   </data>
   <data name="GoToPageTooltip" xml:space="preserve">
-    <value>行移動(G)</value>
+    <value>行移動(G) - 右クリックで検索(Ctrl+F)</value>
   </data>
   <data name="PdfGoToPageTooltip" xml:space="preserve">
-    <value>ページ移動(G)</value>
+    <value>ページ移動(G) - 右クリックで検索(Ctrl+F)</value>
   </data>
   <data name="GoToPageTitle" xml:space="preserve">
     <value>ページ移動</value>
+  </data>
+  <data name="SearchPlaceholder" xml:space="preserve">
+    <value>テキスト検索</value>
+  </data>
+  <data name="SearchPreviousTooltip" xml:space="preserve">
+    <value>前の結果</value>
+  </data>
+  <data name="SearchNextTooltip" xml:space="preserve">
+    <value>次の結果</value>
+  </data>
+  <data name="SearchNoMatches" xml:space="preserve">
+    <value>一致なし</value>
+  </data>
+  <data name="SearchSearching" xml:space="preserve">
+    <value>検索中...</value>
+  </data>
+  <data name="SearchUnavailable" xml:space="preserve">
+    <value>検索はテキスト、EPUB、PDFファイルで使用できます。</value>
+  </data>
+  <data name="SearchMatchCounter" xml:space="preserve">
+    <value>{0} / {1}</value>
   </data>
   <data name="TextSizeDownTooltip" xml:space="preserve">
     <value>文字を小さく(-)</value>

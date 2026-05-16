@@ -18,6 +18,8 @@ namespace Uviewer.Services
         bool HasPdfDocument { get; }
         bool IsSharpenEnabled { get; set; }
         bool IsAboutDialogActive { get; }
+        bool IsSearchOverlayOpen { get; }
+        bool CanSearchCurrentDocument { get; }
 
         void ToggleFullscreen();
         void ToggleMaximizeRestore();
@@ -51,5 +53,7 @@ namespace Uviewer.Services
         void ToggleGlobalTheme();
         void TogglePin();
         void HideAboutDialog();
+        void ShowSearchOverlay();
+        void HideSearchOverlay();
     }
 }

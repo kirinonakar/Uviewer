@@ -1258,6 +1258,177 @@ namespace Uviewer
             _ = ShowGoToLineDialog();
         }
 
+        private bool CanSearchCurrentDocument =>
+            (_isTextMode && !string.IsNullOrEmpty(_currentTextContent)) ||
+            (_isEpubMode && _currentEpubArchive != null && _epubSpine.Count > 0) ||
+            (_currentPdfDocument != null && !string.IsNullOrEmpty(_currentPdfPath));
+
+        private void SearchButton_RightTapped(object sender, RightTappedRoutedEventArgs e)
+        {
+            e.Handled = true;
+            ShowSearchOverlay(sender as FrameworkElement);
+        }
+
+        private void ShowSearchOverlay(FrameworkElement? anchor = null)
+        {
+            if (!CanSearchCurrentDocument)
+            {
+                ShowNotification(Strings.SearchUnavailable, "\uE721", "Gray");
+                return;
+            }
+
+            anchor ??= (_currentPdfDocument != null && PdfGoToPageButton?.Visibility == Visibility.Visible)
+                ? PdfGoToPageButton
+                : GoToPageButton;
+
+            if (anchor != null)
+            {
+                _searchOverlayService.Show(anchor);
+            }
+        }
+
+        private async Task<IReadOnlyList<DocumentSearchMatch>> SearchCurrentDocumentAsync(string query, CancellationToken token)
+        {
+            if (_currentPdfDocument != null && !string.IsNullOrEmpty(_currentPdfPath))
+            {
+                return await _documentSearchService.SearchPdfAsync(_currentPdfPath, query, token);
+            }
+
+            if (_isEpubMode && _currentEpubArchive != null && _epubSpine.Count > 0)
+            {
+                string cacheKey = $"epub:{_currentEpubFilePath ?? _currentEpubDisplayName ?? string.Empty}:{_epubSpine.Count}";
+                return await _documentSearchService.SearchEpubAsync(
+                    cacheKey,
+                    _currentEpubArchive,
+                    _epubSpine,
+                    _epubArchiveLock,
+                    _epubDocumentService,
+                    query,
+                    token);
+            }
+
+            if (_isTextMode)
+            {
+                string cacheKey = $"text:{_currentTextFilePath ?? _currentTextArchiveEntryKey ?? string.Empty}:{_settingsManager.EncodingName}:{_currentTextContent.Length}";
+                return _documentSearchService.SearchText(cacheKey, _currentTextContent, query);
+            }
+
+            return Array.Empty<DocumentSearchMatch>();
+        }
+
+        private long GetCurrentSearchPosition()
+        {
+            if (_currentPdfDocument != null)
+            {
+                return _currentIndex + 1;
+            }
+
+            if (_isEpubMode)
+            {
+                int line = CurrentEpubWin2DPage?.StartLine ?? 1;
+                return DocumentSearchService.CreateEpubSortKey(_currentEpubChapterIndex, line);
+            }
+
+            if (_isVerticalMode)
+            {
+                return Math.Max(1, _currentVerticalPageInfo.StartLine);
+            }
+
+            if (_isAozoraMode)
+            {
+                return Math.Max(1, _currentAozoraPageInfo.StartLine);
+            }
+
+            return GetTopVisibleLineIndex();
+        }
+
+        private async Task NavigateToSearchMatchAsync(DocumentSearchMatch match)
+        {
+            switch (match.Kind)
+            {
+                case DocumentSearchKind.Pdf:
+                    if (_currentPdfDocument != null && match.PageIndex >= 0 && match.PageIndex < _imageEntries.Count)
+                    {
+                        _currentIndex = match.PageIndex;
+                        await DisplayCurrentImageAsync();
+                    }
+                    break;
+
+                case DocumentSearchKind.Epub:
+                    await NavigateToEpubSearchMatchAsync(match);
+                    break;
+
+                case DocumentSearchKind.Text:
+                    await NavigateToTextSearchMatchAsync(match);
+                    break;
+            }
+        }
+
+        private async Task NavigateToTextSearchMatchAsync(DocumentSearchMatch match)
+        {
+            int line = Math.Max(1, match.LineNumber);
+
+            if (_isVerticalMode)
+            {
+                await PrepareVerticalTextAsync(line);
+                return;
+            }
+
+            if (_isAozoraMode && _aozoraBlocks.Count > 0)
+            {
+                int targetIdx = _textBlockDocumentService.FindStartBlockIndex(_aozoraBlocks, line);
+                await RenderAozoraDynamicPage(targetIdx);
+                UpdateAozoraStatusBar();
+                return;
+            }
+
+            ScrollToLine(line);
+            UpdateTextStatusBar();
+        }
+
+        private async Task NavigateToEpubSearchMatchAsync(DocumentSearchMatch match)
+        {
+            int chapterIndex = Math.Clamp(match.EpubChapterIndex, 0, Math.Max(0, _epubSpine.Count - 1));
+            int line = Math.Max(1, match.LineNumber);
+
+            if (chapterIndex != _currentEpubChapterIndex)
+            {
+                _currentEpubChapterIndex = chapterIndex;
+                await LoadEpubChapterAsync(chapterIndex, targetLine: line, targetBlockIndex: match.BlockIndex);
+                return;
+            }
+
+            if (_isVerticalMode)
+            {
+                await LoadEpubChapterAsync(chapterIndex, targetLine: line, targetBlockIndex: match.BlockIndex);
+                return;
+            }
+
+            int pageIndex = FindEpubSearchPageIndex(match);
+            if (pageIndex >= 0)
+            {
+                SetEpubPageIndex(pageIndex);
+            }
+        }
+
+        private int FindEpubSearchPageIndex(DocumentSearchMatch match)
+        {
+            if (_epubWin2DPages.Count == 0) return -1;
+
+            if (match.BlockIndex >= 0)
+            {
+                for (int i = _epubWin2DPages.Count - 1; i >= 0; i--)
+                {
+                    if (_epubWin2DPages[i].StartBlockIndex <= match.BlockIndex)
+                    {
+                        return i;
+                    }
+                }
+            }
+
+            return _epubPageFlowService.FindPageByLine(_epubWin2DPages, match.LineNumber);
+        }
+
         private async void RootGrid_Text_PreviewKeyDown(object sender, KeyRoutedEventArgs e)
         {
             if (e.Handled) return;

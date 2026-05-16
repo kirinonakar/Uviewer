@@ -21,10 +21,21 @@ namespace Uviewer.Services
 
             // --- Immediate Handled Actions (Sync) ---
 
+            if (ctrlPressed && e.Key == Windows.System.VirtualKey.F && actions.CanSearchCurrentDocument)
+            {
+                e.Handled = true;
+                actions.ShowSearchOverlay();
+                return Task.CompletedTask;
+            }
+
             if (e.Key == Windows.System.VirtualKey.Escape)
             {
                 e.Handled = true;
-                if (actions.IsAboutDialogActive)
+                if (actions.IsSearchOverlayOpen)
+                {
+                    actions.HideSearchOverlay();
+                }
+                else if (actions.IsAboutDialogActive)
                 {
                     actions.HideAboutDialog();
                 }

@@ -25,6 +25,7 @@
   - **Adjustable Styling**: Change font size, font family (toggle between two user-defined defaults), and background themes (Light/Beige/Dark/Custom). (Recommendation: We suggest installing and using [**Noto Sans/Serif CJK**](https://fonts.google.com/noto) for the best multilingual reading experience.)
   - **Vertical Mode (Tategaki)**: Comprehensive support for vertical text rendering with pixel-accurate layout.
 - **Go to Line**: Jump directly to a specific line (G).
+- **Search**: Find text in Text, EPUB, and PDF files with a compact overlay near the **G** button. Open it with **Ctrl + F** or right-click **G**, then move to previous/next matches.
 - **Table of Contents (TOC)**: Automatically extracts headings from textual documents (Markdown `#` or Aozora `［＃...］` tags) and **PDF Bookmarks** for quick navigation.
 - **Line Bookmark**: Save your reading progress (Line number) to Favorites and resume exactly where you left off.
 
@@ -98,12 +99,14 @@
 | **Ctrl + O** | Global | Open File |
 | **Ctrl + B** | Global | Toggle Sidebar |
 | **Ctrl + S** | Global | Add to Favorites |
+| **Ctrl + F** | Text / EPUB / PDF | Open Search |
 | **+ / -**  | Global | Zoom In/Out / Font Size Up/Down (-/= also works) |
 | |  | Blocked in Side-by-Side (2 page) mode |
 | **0**  | Global | Fit to Window |
 | **1**  | Global | Zoom Actual Size (Fit to width in PDF) |
 | **G** | Text/EPUB | Go to Line |
 | | PDF | Go to Page |
+| **Right-click G** | Text / EPUB / PDF | Open Search |
 | **Space** | Image / EPUB | Toggle 2-Page View (Side-by-Side) |
 | **V** | Text / EPUB | Toggle Vertical Mode (Tategaki) |
 | **S** | Image | Toggle Sharpening (Right-click for settings) |

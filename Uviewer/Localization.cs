@@ -39,6 +39,12 @@ namespace Uviewer
         public static string GoToPageTooltip => GetString("GoToPageTooltip");
         public static string PdfGoToPageTooltip => GetString("PdfGoToPageTooltip");
         public static string GoToPageTitle => GetString("GoToPageTitle");
+        public static string SearchPlaceholder => GetString("SearchPlaceholder");
+        public static string SearchPreviousTooltip => GetString("SearchPreviousTooltip");
+        public static string SearchNextTooltip => GetString("SearchNextTooltip");
+        public static string SearchNoMatches => GetString("SearchNoMatches");
+        public static string SearchSearching => GetString("SearchSearching");
+        public static string SearchUnavailable => GetString("SearchUnavailable");
         public static string TextSizeDownTooltip => GetString("TextSizeDownTooltip");
         public static string TextSizeUpTooltip => GetString("TextSizeUpTooltip");
         public static string VerticalTooltip => GetString("VerticalTooltip");
@@ -162,6 +168,7 @@ namespace Uviewer
 
         // Methods
         public static string LineInfo(int cur, int total) => string.Format(GetString("LineInfo"), cur, total);
+        public static string SearchMatchCounter(int cur, int total) => string.Format(GetString("SearchMatchCounter"), cur, total);
         public static string EpubLoadError(string msg) => string.Format(GetString("EpubLoadError"), msg);
         public static string EpubParseError(string msg) => string.Format(GetString("EpubParseError"), msg);
         public static string EpubPageInfo(int p, int tp, int l, int tl, int c, int tc) => string.Format(GetString("EpubPageInfo"), p, tp, l, tl, c, tc);

@@ -314,7 +314,7 @@
                         </Button.Flyout>
                     </Button>
 
-                    <Button x:Name="PdfGoToPageButton" Click="GoToPageButton_Click" Visibility="Collapsed" ToolTipService.ToolTip="페이지 이동(G)">
+                    <Button x:Name="PdfGoToPageButton" Click="GoToPageButton_Click" RightTapped="SearchButton_RightTapped" Visibility="Collapsed" ToolTipService.ToolTip="페이지 이동(G)">
                         <TextBlock Text="G" FontSize="14" FontWeight="Bold"/>
                     </Button>
 
@@ -399,7 +399,7 @@
                         </Button.Flyout>
                     </Button>
 
-                    <Button x:Name="GoToPageButton" Click="GoToPageButton_Click" ToolTipService.ToolTip="페이지 이동(G)">
+                    <Button x:Name="GoToPageButton" Click="GoToPageButton_Click" RightTapped="SearchButton_RightTapped" ToolTipService.ToolTip="페이지 이동(G)">
                         <TextBlock Text="G" FontSize="14" FontWeight="Bold"/>
                     </Button>
 

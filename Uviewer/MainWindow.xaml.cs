@@ -46,6 +46,8 @@ namespace Uviewer
         private readonly IAnimatedWebpService _animatedWebpService = null!;
         private readonly IKeyboardShortcutService _keyboardShortcutService = new KeyboardShortcutService();
         private readonly Services.TocService _tocService = new();
+        private readonly Services.DocumentSearchService _documentSearchService = new();
+        private Services.SearchOverlayService _searchOverlayService = null!;
         private readonly Services.AozoraBlockMeasurer _aozoraBlockMeasurer = new();
         private readonly Services.AozoraBlockPaginator _aozoraBlockPaginator;
         private readonly Services.AozoraPageMapCalculator _aozoraPageMapCalculator;
@@ -232,6 +234,10 @@ namespace Uviewer
             _aozoraPreviousPageCache = new Services.AozoraPreviousPageCache(_aozoraBlockMeasurer, _aozoraBlockPaginator);
 
             InitializeComponent();
+            _searchOverlayService = new Services.SearchOverlayService(
+                SearchCurrentDocumentAsync,
+                NavigateToSearchMatchAsync,
+                GetCurrentSearchPosition);
             _textDialogService = new Services.TextDialogService(RootGrid);
             LoadTextSettings();
 
@@ -536,6 +542,7 @@ namespace Uviewer
             ToolTipService.SetToolTip(NextFileButton, Strings.NextFileTooltip);
             ToolTipService.SetToolTip(PrevPageButton, Strings.PrevPageTooltip);
             ToolTipService.SetToolTip(NextPageButton, Strings.NextPageTooltip);
+            _searchOverlayService?.ApplyLocalization();
 
             // Texts
             // Only show placeholders when nothing is opened yet.

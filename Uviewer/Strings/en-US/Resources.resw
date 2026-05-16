@@ -107,13 +107,34 @@
     <value>Change Font (F) - Right-click for settings</value>
   </data>
   <data name="GoToPageTooltip" xml:space="preserve">
-    <value>Go to Line (G)</value>
+    <value>Go to Line (G) - Right-click to search (Ctrl+F)</value>
   </data>
   <data name="PdfGoToPageTooltip" xml:space="preserve">
-    <value>Go to Page (G)</value>
+    <value>Go to Page (G) - Right-click to search (Ctrl+F)</value>
   </data>
   <data name="GoToPageTitle" xml:space="preserve">
     <value>Go to Page</value>
+  </data>
+  <data name="SearchPlaceholder" xml:space="preserve">
+    <value>Search text</value>
+  </data>
+  <data name="SearchPreviousTooltip" xml:space="preserve">
+    <value>Previous result</value>
+  </data>
+  <data name="SearchNextTooltip" xml:space="preserve">
+    <value>Next result</value>
+  </data>
+  <data name="SearchNoMatches" xml:space="preserve">
+    <value>No matches</value>
+  </data>
+  <data name="SearchSearching" xml:space="preserve">
+    <value>Searching...</value>
+  </data>
+  <data name="SearchUnavailable" xml:space="preserve">
+    <value>Search is available for text, EPUB, and PDF files.</value>
+  </data>
+  <data name="SearchMatchCounter" xml:space="preserve">
+    <value>{0} / {1}</value>
   </data>
   <data name="TextSizeDownTooltip" xml:space="preserve">
     <value>Text Smaller (-)</value>

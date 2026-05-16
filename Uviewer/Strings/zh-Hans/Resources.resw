@@ -107,13 +107,34 @@
     <value>更改字体(F) - 右键打开设置</value>
   </data>
   <data name="GoToPageTooltip" xml:space="preserve">
-    <value>跳转到行 (G)</value>
+    <value>跳转到行 (G) - 右键搜索 (Ctrl+F)</value>
   </data>
   <data name="PdfGoToPageTooltip" xml:space="preserve">
-    <value>跳转到页面 (G)</value>
+    <value>跳转到页面 (G) - 右键搜索 (Ctrl+F)</value>
   </data>
   <data name="GoToPageTitle" xml:space="preserve">
     <value>跳转到页面</value>
+  </data>
+  <data name="SearchPlaceholder" xml:space="preserve">
+    <value>搜索文本</value>
+  </data>
+  <data name="SearchPreviousTooltip" xml:space="preserve">
+    <value>上一个结果</value>
+  </data>
+  <data name="SearchNextTooltip" xml:space="preserve">
+    <value>下一个结果</value>
+  </data>
+  <data name="SearchNoMatches" xml:space="preserve">
+    <value>无匹配项</value>
+  </data>
+  <data name="SearchSearching" xml:space="preserve">
+    <value>正在搜索...</value>
+  </data>
+  <data name="SearchUnavailable" xml:space="preserve">
+    <value>搜索可用于文本、EPUB 和 PDF 文件。</value>
+  </data>
+  <data name="SearchMatchCounter" xml:space="preserve">
+    <value>{0} / {1}</value>
   </data>
   <data name="TextSizeDownTooltip" xml:space="preserve">
     <value>缩小文字 (-)</value>
