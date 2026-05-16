@@ -95,8 +95,10 @@ namespace Uviewer.Services
 
             _searchBox = new TextBox
             {
-                Width = 260,
-                PlaceholderText = Strings.SearchPlaceholder
+                Width = 190,
+                PlaceholderText = Strings.SearchPlaceholder,
+                IsSpellCheckEnabled = false,
+                IsTextPredictionEnabled = false
             };
             _searchBox.TextChanged += (_, _) => QueueRefresh();
             _searchBox.PreviewKeyDown += SearchBox_PreviewKeyDown;
@@ -109,14 +111,16 @@ namespace Uviewer.Services
 
             _statusText = new TextBlock
             {
-                MinWidth = 54,
-                VerticalAlignment = VerticalAlignment.Center,
-                FontSize = 12
+                MaxWidth = 290,
+                TextWrapping = TextWrapping.Wrap,
+                TextTrimming = Microsoft.UI.Xaml.TextTrimming.CharacterEllipsis,
+                FontSize = 12,
+                Opacity = 0.85
             };
 
             _previewText = new TextBlock
             {
-                MaxWidth = 360,
+                MaxWidth = 290,
                 TextWrapping = TextWrapping.Wrap,
                 TextTrimming = Microsoft.UI.Xaml.TextTrimming.CharacterEllipsis,
                 FontSize = 12,
@@ -131,15 +135,16 @@ namespace Uviewer.Services
             row.Children.Add(_searchBox);
             row.Children.Add(_previousButton);
             row.Children.Add(_nextButton);
-            row.Children.Add(_statusText);
 
             var panel = new StackPanel
             {
-                Width = 430,
-                Spacing = 8,
+                Width = 310,
+                MaxWidth = 310,
+                Spacing = 6,
                 Padding = new Thickness(10)
             };
             panel.Children.Add(row);
+            panel.Children.Add(_statusText);
             panel.Children.Add(_previewText);
             panel.PreviewKeyDown += SearchPanel_PreviewKeyDown;
 
@@ -222,34 +227,41 @@ namespace Uviewer.Services
 
         private async Task NavigateAsync(int direction)
         {
-            if (_searchBox == null) return;
-
-            if (_debounceTimer.IsRunning)
+            try
             {
-                _debounceTimer.Stop();
-                await RefreshMatchesAsync();
-            }
+                if (_searchBox == null) return;
 
-            if (_matches.Count == 0)
-            {
+                if (_debounceTimer.IsRunning)
+                {
+                    _debounceTimer.Stop();
+                    await RefreshMatchesAsync();
+                }
+
+                if (_matches.Count == 0)
+                {
+                    UpdateStatus();
+                    return;
+                }
+
+                if (!_hasNavigatedCurrentQuery)
+                {
+                    long currentPosition = _currentPositionProvider();
+                    _currentIndex = direction >= 0
+                        ? FindLastBefore(currentPosition)
+                        : FindFirstAtOrAfter(currentPosition);
+                }
+
+                _currentIndex = WrapIndex(_currentIndex + direction, _matches.Count);
+                _hasNavigatedCurrentQuery = true;
+
+                var match = _matches[_currentIndex];
+                await _navigateAsync(match);
                 UpdateStatus();
-                return;
             }
-
-            if (!_hasNavigatedCurrentQuery)
+            finally
             {
-                long currentPosition = _currentPositionProvider();
-                _currentIndex = direction >= 0
-                    ? FindLastBefore(currentPosition)
-                    : FindFirstAtOrAfter(currentPosition);
+                FocusSearchBox();
             }
-
-            _currentIndex = WrapIndex(_currentIndex + direction, _matches.Count);
-            _hasNavigatedCurrentQuery = true;
-
-            var match = _matches[_currentIndex];
-            await _navigateAsync(match);
-            UpdateStatus();
         }
 
         private int FindLastBefore(long currentPosition)
@@ -305,6 +317,17 @@ namespace Uviewer.Services
                 e.Handled = true;
                 Hide();
             }
+        }
+
+        private void FocusSearchBox()
+        {
+            if (_flyout == null || _searchBox == null) return;
+
+            _dispatcherQueue.TryEnqueue(() =>
+            {
+                if (_flyout == null || _searchBox == null) return;
+                _searchBox.Focus(FocusState.Programmatic);
+            });
         }
 
         private void UpdateStatus()

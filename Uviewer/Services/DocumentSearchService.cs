@@ -8,6 +8,7 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using UglyToad.PdfPig;
+using UglyToad.PdfPig.Content;
 using Uviewer.Models;
 
 namespace Uviewer.Services
@@ -142,7 +143,7 @@ namespace Uviewer.Services
             foreach (var page in document.GetPages())
             {
                 token.ThrowIfCancellationRequested();
-                string text = page.Text ?? string.Empty;
+                string text = ExtractPdfPageText(page);
                 if (!string.IsNullOrWhiteSpace(text))
                 {
                     result.Add(new SearchableLine
@@ -208,13 +209,16 @@ namespace Uviewer.Services
         {
             if (string.IsNullOrWhiteSpace(query)) return Array.Empty<DocumentSearchMatch>();
 
-            string trimmedQuery = query.Trim();
+            string trimmedQuery = CollapseWhitespace(query);
+            string compactQuery = RemoveWhitespace(trimmedQuery);
+            bool queryContainsWhitespace = compactQuery.Length > 0 && compactQuery.Length != trimmedQuery.Length;
             var matches = new List<DocumentSearchMatch>();
 
             foreach (var line in lines)
             {
                 if (string.IsNullOrEmpty(line.Text)) continue;
-                if (_compareInfo.IndexOf(line.Text, trimmedQuery, SearchOptions) < 0) continue;
+                bool allowCompactFallback = queryContainsWhitespace || line.Kind == DocumentSearchKind.Pdf;
+                if (!ContainsSearchText(line.Text, trimmedQuery, compactQuery, allowCompactFallback)) continue;
 
                 matches.Add(new DocumentSearchMatch
                 {
@@ -229,6 +233,131 @@ namespace Uviewer.Services
             }
 
             return matches;
+        }
+
+        private bool ContainsSearchText(string text, string query, string compactQuery, bool allowCompactFallback)
+        {
+            if (_compareInfo.IndexOf(text, query, SearchOptions) >= 0) return true;
+            if (!allowCompactFallback) return false;
+
+            string compactText = RemoveWhitespace(text);
+            return compactText.Length > 0 && _compareInfo.IndexOf(compactText, compactQuery, SearchOptions) >= 0;
+        }
+
+        private static string ExtractPdfPageText(UglyToad.PdfPig.Content.Page page)
+        {
+            var candidates = new List<string>();
+
+            try
+            {
+                var words = page.GetWords();
+                if (words != null)
+                {
+                    var wordText = string.Join(" ", words
+                        .Select(w => (string?)w.Text)
+                        .Where(text => !string.IsNullOrWhiteSpace(text)));
+
+                    if (!string.IsNullOrWhiteSpace(wordText))
+                    {
+                        candidates.Add(CollapseWhitespace(wordText));
+                    }
+                }
+            }
+            catch
+            {
+            }
+
+            string letterText = ExtractPdfLettersText(page);
+            if (!string.IsNullOrWhiteSpace(letterText))
+            {
+                candidates.Add(letterText);
+            }
+
+            string rawText = CollapseWhitespace(page.Text ?? string.Empty);
+            if (!string.IsNullOrWhiteSpace(rawText))
+            {
+                candidates.Add(rawText);
+            }
+
+            if (candidates.Count == 0) return string.Empty;
+
+            return string.Join(" ", candidates
+                .Distinct(StringComparer.Ordinal)
+                .OrderByDescending(text => text.Length));
+        }
+
+        private static string ExtractPdfLettersText(UglyToad.PdfPig.Content.Page page)
+        {
+            try
+            {
+                var letters = page.Letters
+                    .Where(letter => !string.IsNullOrWhiteSpace(letter.Value))
+                    .OrderByDescending(letter => letter.StartBaseLine.Y)
+                    .ThenBy(letter => letter.StartBaseLine.X)
+                    .ToList();
+
+                if (letters.Count == 0) return string.Empty;
+
+                double averageFontSize = letters
+                    .Select(letter => Math.Max(1.0, letter.FontSize))
+                    .DefaultIfEmpty(12.0)
+                    .Average();
+
+                double lineTolerance = Math.Max(2.0, averageFontSize * 0.55);
+                var lines = new List<List<Letter>>();
+
+                foreach (var letter in letters)
+                {
+                    var line = lines.FirstOrDefault(existing =>
+                        Math.Abs(existing[0].StartBaseLine.Y - letter.StartBaseLine.Y) <= lineTolerance);
+
+                    if (line == null)
+                    {
+                        line = new List<Letter>();
+                        lines.Add(line);
+                    }
+
+                    line.Add(letter);
+                }
+
+                var sb = new StringBuilder();
+                foreach (var line in lines)
+                {
+                    var ordered = line
+                        .OrderBy(letter => letter.StartBaseLine.X)
+                        .ToList();
+
+                    Letter? previous = null;
+                    foreach (var letter in ordered)
+                    {
+                        if (previous != null && ShouldInsertPdfSpace(previous, letter))
+                        {
+                            sb.Append(' ');
+                        }
+
+                        sb.Append(letter.Value);
+                        previous = letter;
+                    }
+
+                    sb.Append(' ');
+                }
+
+                return CollapseWhitespace(sb.ToString());
+            }
+            catch
+            {
+                return string.Empty;
+            }
+        }
+
+        private static bool ShouldInsertPdfSpace(Letter previous, Letter current)
+        {
+            double gap = current.StartBaseLine.X - previous.EndBaseLine.X;
+            if (gap <= 0) return false;
+
+            double previousWidth = Math.Max(0.1, previous.Width);
+            double threshold = Math.Max(1.5, Math.Max(previousWidth * 0.45, previous.FontSize * 0.18));
+            return gap > threshold;
         }
 
         private static string GetBlockText(AozoraBindingModel block)
@@ -312,6 +441,22 @@ namespace Uviewer.Services
             }
 
             return sb.ToString().Trim();
+        }
+
+        private static string RemoveWhitespace(string text)
+        {
+            if (string.IsNullOrEmpty(text)) return string.Empty;
+
+            var sb = new StringBuilder(text.Length);
+            foreach (char c in text)
+            {
+                if (!char.IsWhiteSpace(c))
+                {
+                    sb.Append(c);
+                }
+            }
+
+            return sb.ToString();
         }
     }
 }
