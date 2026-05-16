@@ -8,6 +8,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using Windows.Foundation;
 using VirtualKey = Windows.System.VirtualKey;
 
 namespace Uviewer.Services
@@ -51,12 +52,36 @@ namespace Uviewer.Services
 
         public bool IsOpen => _flyout != null;
 
-        public void Show(FrameworkElement anchor)
+        public void Show(FrameworkElement anchor, FrameworkElement? placementRoot = null)
         {
             EnsureFlyout();
             if (_flyout == null || _searchBox == null) return;
 
-            _flyout.ShowAt(anchor);
+            if (placementRoot != null && placementRoot.ActualWidth > 0)
+            {
+                double y = 0;
+                try
+                {
+                    var anchorBottom = anchor.TransformToVisual(placementRoot)
+                        .TransformPoint(new Point(0, anchor.ActualHeight));
+                    y = Math.Max(0, anchorBottom.Y);
+                }
+                catch
+                {
+                }
+
+                var options = new FlyoutShowOptions
+                {
+                    Placement = FlyoutPlacementMode.BottomEdgeAlignedRight,
+                    Position = new Point(Math.Max(0, placementRoot.ActualWidth - 10), y)
+                };
+                _flyout.ShowAt(placementRoot, options);
+            }
+            else
+            {
+                _flyout.ShowAt(anchor);
+            }
+
             _searchBox.Focus(FocusState.Programmatic);
             _searchBox.SelectAll();
 

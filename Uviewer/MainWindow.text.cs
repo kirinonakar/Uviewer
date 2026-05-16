@@ -1283,7 +1283,7 @@ namespace Uviewer
 
             if (anchor != null)
             {
-                _searchOverlayService.Show(anchor);
+                _searchOverlayService.Show(anchor, RootGrid);
             }
         }
 
