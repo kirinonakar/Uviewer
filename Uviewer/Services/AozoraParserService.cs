@@ -881,7 +881,16 @@ namespace Uviewer.Services
                 IsParagraphContinuation = source.IsParagraphContinuation,
                 TableRowIndex = source.TableRowIndex,
                 TableRowCount = source.TableRowCount,
-                EpubChapterIndex = source.EpubChapterIndex
+                EpubChapterIndex = source.EpubChapterIndex,
+                OriginalBlockIndex = source.OriginalBlockIndex,
+                SearchSegments = source.SearchSegments
+                    .Select(segment => new AozoraSearchSegment
+                    {
+                        BlockIndex = segment.BlockIndex,
+                        Start = segment.Start,
+                        Length = segment.Length
+                    })
+                    .ToList()
             };
 
             if (source.IsTable && source.TableRows != null)

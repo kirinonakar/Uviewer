@@ -438,8 +438,37 @@ namespace Uviewer.Renderers
             IReadOnlyList<TextSearchRange> ranges)
         {
             if (currentSearchMatch == null || currentSearchMatch.Kind != renderedSearchKind || ranges.Count == 0) return -1;
+            if (currentSearchMatch.BlockIndex >= 0 && block.SearchSegments.Count > 0)
+            {
+                int occurrenceInSegment = 0;
+                for (int rangeIndex = 0; rangeIndex < ranges.Count; rangeIndex++)
+                {
+                    var range = ranges[rangeIndex];
+                    var segment = FindSearchSegment(block.SearchSegments, currentSearchMatch.BlockIndex, range.Start);
+                    if (segment == null) continue;
 
-            int blockIndex = firstBlockIndex >= 0 ? firstBlockIndex + localBlockIndex : -1;
+                    int localStart = range.Start - segment.Start;
+                    if (currentSearchMatch.MatchStart >= 0 &&
+                        localStart == currentSearchMatch.MatchStart &&
+                        range.Length == currentSearchMatch.MatchLength)
+                    {
+                        return rangeIndex;
+                    }
+
+                    if (occurrenceInSegment == currentSearchMatch.MatchIndex)
+                    {
+                        return rangeIndex;
+                    }
+
+                    occurrenceInSegment++;
+                }
+
+                return -1;
+            }
+
+            int blockIndex = block.OriginalBlockIndex >= 0
+                ? block.OriginalBlockIndex
+                : firstBlockIndex >= 0 ? firstBlockIndex + localBlockIndex : -1;
             if (blockIndex >= 0 && currentSearchMatch.BlockIndex >= 0)
             {
                 if (blockIndex != currentSearchMatch.BlockIndex) return -1;
@@ -471,6 +500,25 @@ namespace Uviewer.Renderers
             }
 
             return -1;
+        }
+
+        private static AozoraSearchSegment? FindSearchSegment(
+            IReadOnlyList<AozoraSearchSegment> segments,
+            int blockIndex,
+            int rangeStart)
+        {
+            foreach (var segment in segments)
+            {
+                if (segment.BlockIndex != blockIndex) continue;
+
+                int segmentEnd = segment.Start + Math.Max(1, segment.Length);
+                if (rangeStart >= segment.Start && rangeStart < segmentEnd)
+                {
+                    return segment;
+                }
+            }
+
+            return null;
         }
     }
 }

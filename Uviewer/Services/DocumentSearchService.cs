@@ -53,6 +53,9 @@ namespace Uviewer.Services
         private string? _epubCacheKey;
         private List<SearchableLine> _epubCache = new();
 
+        private string? _aozoraCacheKey;
+        private List<SearchableLine> _aozoraCache = new();
+
         public IReadOnlyList<DocumentSearchMatch> SearchText(string cacheKey, string content, string query)
         {
             if (!string.Equals(_textCacheKey, cacheKey, StringComparison.Ordinal))
@@ -62,6 +65,20 @@ namespace Uviewer.Services
             }
 
             return FindMatches(_textCache, query);
+        }
+
+        public IReadOnlyList<DocumentSearchMatch> SearchAozoraBlocks(
+            string cacheKey,
+            IReadOnlyList<AozoraBindingModel> blocks,
+            string query)
+        {
+            if (!string.Equals(_aozoraCacheKey, cacheKey, StringComparison.Ordinal))
+            {
+                _aozoraCacheKey = cacheKey;
+                _aozoraCache = BuildAozoraBlockLines(blocks, DocumentSearchKind.Text, epubChapterIndex: -1);
+            }
+
+            return FindMatches(_aozoraCache, query);
         }
 
         public async Task<IReadOnlyList<DocumentSearchMatch>> SearchPdfAsync(string pdfPath, string query, CancellationToken token)
@@ -93,6 +110,8 @@ namespace Uviewer.Services
             _textCache.Clear();
             _epubCacheKey = null;
             _epubCache.Clear();
+            _aozoraCacheKey = null;
+            _aozoraCache.Clear();
         }
 
         public static long CreateEpubSortKey(int chapterIndex, int lineNumber)
@@ -207,26 +226,43 @@ namespace Uviewer.Services
                 if (string.IsNullOrEmpty(html)) continue;
 
                 var parseResult = documentService.ParseHtmlToAozoraBlocks(html, path, chapterIndex);
-                for (int blockIndex = 0; blockIndex < parseResult.Blocks.Count; blockIndex++)
+                foreach (var line in BuildAozoraBlockLines(parseResult.Blocks, DocumentSearchKind.Epub, chapterIndex))
                 {
                     token.ThrowIfCancellationRequested();
-
-                    var block = parseResult.Blocks[blockIndex];
-                    if (block.HasImage) continue;
-
-                    string text = GetBlockText(block);
-                    if (string.IsNullOrWhiteSpace(text)) continue;
-
-                    result.Add(new SearchableLine
-                    {
-                        Kind = DocumentSearchKind.Epub,
-                        EpubChapterIndex = chapterIndex,
-                        BlockIndex = blockIndex,
-                        LineNumber = Math.Max(1, block.SourceLineNumber),
-                        SortKey = CreateEpubSortKey(chapterIndex, block.SourceLineNumber),
-                        Text = text
-                    });
+                    result.Add(line);
                 }
+            }
+
+            return result;
+        }
+
+        private static List<SearchableLine> BuildAozoraBlockLines(
+            IReadOnlyList<AozoraBindingModel> blocks,
+            DocumentSearchKind kind,
+            int epubChapterIndex)
+        {
+            var result = new List<SearchableLine>(blocks.Count);
+
+            for (int blockIndex = 0; blockIndex < blocks.Count; blockIndex++)
+            {
+                var block = blocks[blockIndex];
+                if (block.HasImage) continue;
+
+                string text = GetBlockText(block);
+                if (string.IsNullOrWhiteSpace(text)) continue;
+
+                int lineNumber = Math.Max(1, block.SourceLineNumber);
+                result.Add(new SearchableLine
+                {
+                    Kind = kind,
+                    EpubChapterIndex = epubChapterIndex,
+                    BlockIndex = blockIndex,
+                    LineNumber = lineNumber,
+                    SortKey = kind == DocumentSearchKind.Epub
+                        ? CreateEpubSortKey(epubChapterIndex, lineNumber)
+                        : lineNumber,
+                    Text = text
+                });
             }
 
             return result;
@@ -279,7 +315,7 @@ namespace Uviewer.Services
             return matches;
         }
 
-        private static string GetBlockText(AozoraBindingModel block)
+        public static string GetBlockText(AozoraBindingModel block)
         {
             var sb = new StringBuilder();
 

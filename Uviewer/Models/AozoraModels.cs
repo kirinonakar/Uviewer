@@ -31,6 +31,15 @@ namespace Uviewer.Models
         public bool IsParagraphContinuation { get; set; } = false;
         public int TableRowIndex { get; set; } = -1;
         public int TableRowCount { get; set; } = 0;
+        public int OriginalBlockIndex { get; set; } = -1;
+        public List<AozoraSearchSegment> SearchSegments { get; set; } = new();
+    }
+
+    public class AozoraSearchSegment
+    {
+        public int BlockIndex { get; set; } = -1;
+        public int Start { get; set; }
+        public int Length { get; set; }
     }
 
     public class AozoraBold { public string Text { get; set; } = ""; }

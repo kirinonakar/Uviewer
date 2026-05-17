@@ -1529,6 +1529,12 @@ namespace Uviewer
 
             if (_isTextMode)
             {
+                if (_isAozoraMode && _aozoraBlocks.Count > 0)
+                {
+                    string aozoraCacheKey = $"aozora:{_currentTextFilePath ?? _currentTextArchiveEntryKey ?? string.Empty}:{_currentTextContent.Length}:{_aozoraBlocks.Count}:{_isMarkdownRenderMode}";
+                    return _documentSearchService.SearchAozoraBlocks(aozoraCacheKey, _aozoraBlocks, query);
+                }
+
                 string cacheKey = $"text:{_currentTextFilePath ?? _currentTextArchiveEntryKey ?? string.Empty}:{_settingsManager.EncodingName}:{_currentTextContent.Length}";
                 return _documentSearchService.SearchText(cacheKey, _currentTextContent, query);
             }
@@ -1599,13 +1605,13 @@ namespace Uviewer
 
             if (_isVerticalMode)
             {
-                await PrepareVerticalTextAsync(line);
+                await PrepareVerticalTextAsync(line, match.BlockIndex);
                 return;
             }
 
             if (_isAozoraMode && _aozoraBlocks.Count > 0)
             {
-                int targetIdx = _textBlockDocumentService.FindStartBlockIndex(_aozoraBlocks, line);
+                int targetIdx = _textBlockDocumentService.FindStartBlockIndex(_aozoraBlocks, line, match.BlockIndex);
                 await RenderAozoraDynamicPage(targetIdx);
                 UpdateAozoraStatusBar();
                 return;

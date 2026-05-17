@@ -61,7 +61,9 @@ namespace Uviewer.Services
                 if (block.IsParagraphContinuation && currentMergedBlock != null && !block.IsTable && block.HeadingLevel == 0)
                 {
                     var tempMerged = AozoraParserService.CloneBlockProperties(currentMergedBlock, true);
+                    int segmentStart = GetRenderableSearchTextLength(tempMerged, isVertical: false);
                     tempMerged.Inlines.AddRange(block.Inlines);
+                    AddSearchSegment(tempMerged, block, index, segmentStart, isVertical: false);
 
                     float fontSize = (float)(context.FontSize * tempMerged.FontSizeScale);
                     float newHeight = _measurer.MeasureHorizontalBlockHeight(
@@ -112,7 +114,7 @@ namespace Uviewer.Services
                     break;
                 }
 
-                var blockCopy = AozoraParserService.CloneBlockProperties(block, true);
+                var blockCopy = CreatePageBlockCopy(block, index, isVertical: false);
                 pageBlocks.Add(blockCopy);
                 usedHeight += blockHeight;
 
@@ -210,7 +212,9 @@ namespace Uviewer.Services
                 if (block.IsParagraphContinuation && currentMergedBlock != null && !block.IsTable && block.HeadingLevel == 0)
                 {
                     var tempMerged = AozoraParserService.CloneBlockProperties(currentMergedBlock, true);
+                    int segmentStart = GetRenderableSearchTextLength(tempMerged, isVertical: true);
                     tempMerged.Inlines.AddRange(block.Inlines);
+                    AddSearchSegment(tempMerged, block, index, segmentStart, isVertical: true);
 
                     float fontSize = (float)(context.FontSize * tempMerged.FontSizeScale);
                     float newWidth = _measurer.MeasureVerticalBlockWidth(
@@ -259,7 +263,7 @@ namespace Uviewer.Services
                     break;
                 }
 
-                var blockCopy = AozoraParserService.CloneBlockProperties(block, true);
+                var blockCopy = CreatePageBlockCopy(block, index, isVertical: true);
                 pageBlocks.Add(blockCopy);
                 usedWidth += blockWidth;
 
@@ -278,6 +282,98 @@ namespace Uviewer.Services
             }
 
             return pageBlocks;
+        }
+
+        private static AozoraBindingModel CreatePageBlockCopy(AozoraBindingModel block, int blockIndex, bool isVertical)
+        {
+            var blockCopy = AozoraParserService.CloneBlockProperties(block, true);
+            blockCopy.OriginalBlockIndex = blockIndex;
+            blockCopy.SearchSegments.Clear();
+            blockCopy.SearchSegments.Add(new AozoraSearchSegment
+            {
+                BlockIndex = blockIndex,
+                Start = 0,
+                Length = GetRenderableSearchTextLength(blockCopy, isVertical)
+            });
+            return blockCopy;
+        }
+
+        private static void AddSearchSegment(
+            AozoraBindingModel mergedBlock,
+            AozoraBindingModel appendedBlock,
+            int appendedBlockIndex,
+            int segmentStart,
+            bool isVertical)
+        {
+            mergedBlock.SearchSegments.Add(new AozoraSearchSegment
+            {
+                BlockIndex = appendedBlockIndex,
+                Start = Math.Max(0, segmentStart),
+                Length = GetRenderableSearchTextLength(appendedBlock, isVertical)
+            });
+        }
+
+        private static int GetRenderableSearchTextLength(AozoraBindingModel block, bool isVertical)
+            => BuildRenderableSearchText(block, isVertical).Length;
+
+        private static string BuildRenderableSearchText(AozoraBindingModel block, bool isVertical)
+        {
+            var sb = new System.Text.StringBuilder();
+
+            foreach (var inline in block.Inlines)
+            {
+                switch (inline)
+                {
+                    case string text:
+                        sb.Append(NormalizeForMode(text, isVertical));
+                        break;
+                    case AozoraRuby ruby:
+                        sb.Append(NormalizeForMode(ruby.BaseText, isVertical));
+                        break;
+                    case AozoraBold bold:
+                        sb.Append(NormalizeForMode(bold.Text, isVertical));
+                        break;
+                    case AozoraItalic italic:
+                        sb.Append(NormalizeForMode(italic.Text, isVertical));
+                        break;
+                    case AozoraCode code:
+                        sb.Append(NormalizeForMode(code.Text, isVertical));
+                        break;
+                    case AozoraHighlight highlight:
+                        sb.Append(NormalizeForMode(highlight.Text, isVertical));
+                        break;
+                    case AozoraMath math:
+                        sb.Append(NormalizeForMode(KatexStandaloneRenderer.RenderToText(math.Text), isVertical));
+                        break;
+                    case AozoraTCY tcy:
+                        sb.Append(NormalizeForMode(tcy.Text, isVertical));
+                        break;
+                    case AozoraLineBreak:
+                        sb.Append('\n');
+                        break;
+                }
+            }
+
+            if (block.IsTable && block.TableRows != null && block.TableRows.Count > 0)
+            {
+                foreach (var row in block.TableRows)
+                {
+                    sb.AppendLine(string.Join(" | ", row));
+                }
+            }
+
+            return sb.ToString();
+        }
+
+        private static string NormalizeForMode(string text, bool isVertical)
+        {
+            if (!isVertical || string.IsNullOrEmpty(text)) return text;
+
+            return text
+                .Replace("!!", "‼").Replace("！！", "‼")
+                .Replace("??", "⁇").Replace("？？", "⁇")
+                .Replace("?!", "⁈").Replace("？！", "⁈")
+                .Replace("!?", "⁉").Replace("！？", "⁉");
         }
     }
 
