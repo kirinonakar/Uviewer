@@ -29,9 +29,13 @@ namespace Uviewer.Services
         private Button? _previousButton;
         private Button? _nextButton;
         private CancellationTokenSource? _searchCts;
+        private Task? _refreshTask;
+        private readonly SemaphoreSlim _navigateLock = new(1, 1);
         private List<DocumentSearchMatch> _matches = new();
         private int _currentIndex = -1;
         private bool _hasNavigatedCurrentQuery;
+        private bool _isSearching;
+        private int _searchRequestId;
 
         public SearchOverlayService(
             Func<string, CancellationToken, Task<IReadOnlyList<DocumentSearchMatch>>> searchAsync,
@@ -119,6 +123,7 @@ namespace Uviewer.Services
         {
             _searchCts?.Cancel();
             _searchCts?.Dispose();
+            _navigateLock.Dispose();
             _debounceTimer.Stop();
             _flyout?.Hide();
             _flyout = null;
@@ -227,31 +232,52 @@ namespace Uviewer.Services
 
         private async Task RefreshMatchesAsync()
         {
+            var task = RefreshMatchesCoreAsync();
+            _refreshTask = task;
+            await task;
+            if (ReferenceEquals(_refreshTask, task))
+            {
+                _refreshTask = null;
+            }
+        }
+
+        private async Task RefreshMatchesCoreAsync()
+        {
             if (_searchBox == null) return;
 
             string query = _searchBox.Text;
             _searchCts?.Cancel();
-            _searchCts?.Dispose();
-            _searchCts = new CancellationTokenSource();
+            var requestId = ++_searchRequestId;
+            var cts = new CancellationTokenSource();
+            _searchCts = cts;
             var token = _searchCts.Token;
 
             if (string.IsNullOrWhiteSpace(query))
             {
+                _isSearching = false;
                 _queryChanged?.Invoke(null);
                 _matches.Clear();
                 _currentIndex = -1;
                 _hasNavigatedCurrentQuery = false;
+                if (ReferenceEquals(_searchCts, cts)) _searchCts = null;
+                cts.Dispose();
                 UpdateStatus();
                 return;
             }
 
+            _isSearching = true;
+            _matches.Clear();
+            _currentIndex = -1;
+            _hasNavigatedCurrentQuery = false;
+            SetPreview(string.Empty);
             SetStatus(Strings.SearchSearching);
             _queryChanged?.Invoke(query);
 
+            bool keepExplicitStatus = false;
             try
             {
                 var matches = await _searchAsync(query, token);
-                if (token.IsCancellationRequested) return;
+                if (token.IsCancellationRequested || requestId != _searchRequestId) return;
 
                 _matches = matches.OrderBy(m => m.SortKey).ToList();
                 _currentIndex = -1;
@@ -267,12 +293,25 @@ namespace Uviewer.Services
                     _currentIndex = -1;
                     _hasNavigatedCurrentQuery = false;
                     SetStatus(ex.Message);
+                    keepExplicitStatus = true;
                 }
+            }
+            finally
+            {
+                if (requestId == _searchRequestId)
+                {
+                    _isSearching = false;
+                    if (ReferenceEquals(_searchCts, cts)) _searchCts = null;
+                    if (!keepExplicitStatus) UpdateStatus();
+                }
+
+                cts.Dispose();
             }
         }
 
         private async Task NavigateAsync(int direction)
         {
+            await _navigateLock.WaitAsync();
             try
             {
                 if (_searchBox == null) return;
@@ -281,6 +320,11 @@ namespace Uviewer.Services
                 {
                     _debounceTimer.Stop();
                     await RefreshMatchesAsync();
+                }
+                else if (_isSearching && _refreshTask != null)
+                {
+                    SetStatus(Strings.SearchSearching);
+                    await _refreshTask;
                 }
 
                 if (_matches.Count == 0)
@@ -306,6 +350,7 @@ namespace Uviewer.Services
             }
             finally
             {
+                _navigateLock.Release();
                 FocusSearchBox();
             }
         }
@@ -381,6 +426,13 @@ namespace Uviewer.Services
             if (_searchBox == null || string.IsNullOrWhiteSpace(_searchBox.Text))
             {
                 SetStatus(string.Empty);
+                SetPreview(string.Empty);
+                return;
+            }
+
+            if (_isSearching)
+            {
+                SetStatus(Strings.SearchSearching);
                 SetPreview(string.Empty);
                 return;
             }
