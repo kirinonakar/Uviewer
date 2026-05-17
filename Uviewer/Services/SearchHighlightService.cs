@@ -68,7 +68,7 @@ namespace Uviewer.Services
                 {
                     token.ThrowIfCancellationRequested();
 
-                    var ranges = FindTextRanges(lineMap.Text, query, allowCompactFallback: true);
+                    var ranges = FindPdfLineTextRanges(lineMap.Text, query);
                     foreach (var range in ranges)
                     {
                         token.ThrowIfCancellationRequested();
@@ -209,19 +209,23 @@ namespace Uviewer.Services
         {
             if (string.IsNullOrWhiteSpace(query)) return false;
 
-            string mappedText = ExtractPdfSearchText(page);
-            if (!string.IsNullOrWhiteSpace(mappedText) &&
-                FindTextRanges(mappedText, query, allowCompactFallback: true).Count > 0)
-            {
-                return true;
-            }
+            return CountPdfPageSearchMatches(page, query) > 0;
+        }
+
+        public static int CountPdfPageSearchMatches(Page page, string? query)
+        {
+            if (string.IsNullOrWhiteSpace(query)) return 0;
+
+            var lineMaps = BuildPdfLineTextMaps(page);
+            int count = lineMaps.Sum(line => FindPdfLineTextRanges(line.Text, query).Count);
+            if (count > 0) return count;
 
             string fallbackText = ExtractPdfPageText(page);
-            if (string.IsNullOrWhiteSpace(fallbackText)) return false;
+            if (string.IsNullOrWhiteSpace(fallbackText)) return 0;
 
             string normalizedQuery = CollapseWhitespace(query);
             string compactQuery = RemoveWhitespace(normalizedQuery);
-            return ContainsSearchText(fallbackText, normalizedQuery, compactQuery, allowCompactFallback: true);
+            return ContainsSearchText(fallbackText, normalizedQuery, compactQuery, allowCompactFallback: true) ? 1 : 0;
         }
 
         public static string CollapseWhitespace(string text)
@@ -280,6 +284,79 @@ namespace Uviewer.Services
             }
 
             return result;
+        }
+
+        private static IReadOnlyList<TextSearchRange> FindPdfLineTextRanges(string text, string? query)
+        {
+            if (string.IsNullOrEmpty(text) || string.IsNullOrWhiteSpace(query)) return Array.Empty<TextSearchRange>();
+
+            string normalizedQuery = NormalizePdfSearchText(CollapseWhitespace(query), removeWhitespace: false);
+            if (normalizedQuery.Length == 0) return Array.Empty<TextSearchRange>();
+
+            var directRanges = FindNormalizedPdfRanges(text, normalizedQuery, removeWhitespace: false);
+            if (directRanges.Count > 0) return directRanges;
+
+            string compactQuery = NormalizePdfSearchText(query, removeWhitespace: true);
+            if (compactQuery.Length == 0) return Array.Empty<TextSearchRange>();
+
+            return FindNormalizedPdfRanges(text, compactQuery, removeWhitespace: true);
+        }
+
+        private static List<TextSearchRange> FindNormalizedPdfRanges(string text, string normalizedQuery, bool removeWhitespace)
+        {
+            var result = new List<TextSearchRange>();
+            int index = 0;
+            int maxWindow = Math.Max(normalizedQuery.Length + 8, normalizedQuery.Length * 4 + 12);
+
+            while (index < text.Length)
+            {
+                if (removeWhitespace && char.IsWhiteSpace(text[index]))
+                {
+                    index++;
+                    continue;
+                }
+
+                int bestEnd = -1;
+                int limit = Math.Min(text.Length, index + maxWindow);
+                for (int end = index + 1; end <= limit; end++)
+                {
+                    string candidate = NormalizePdfSearchText(text.Substring(index, end - index), removeWhitespace);
+                    if (candidate.Length == 0) continue;
+
+                    int compare = CompareInfo.Compare(candidate, normalizedQuery, SearchOptions);
+                    if (compare == 0)
+                    {
+                        bestEnd = end;
+                        break;
+                    }
+
+                    if (candidate.Length > normalizedQuery.Length + 4)
+                    {
+                        break;
+                    }
+                }
+
+                if (bestEnd > index)
+                {
+                    result.Add(new TextSearchRange(index, bestEnd - index));
+                    index = bestEnd;
+                }
+                else
+                {
+                    index++;
+                }
+            }
+
+            return result;
+        }
+
+        private static string NormalizePdfSearchText(string text, bool removeWhitespace)
+        {
+            string normalized = removeWhitespace
+                ? RemoveWhitespace(text)
+                : CollapseWhitespace(text);
+
+            return normalized.Normalize(NormalizationForm.FormKC);
         }
 
         private static (string Text, List<int> OriginalIndexes) BuildCompactTextMap(string text)
