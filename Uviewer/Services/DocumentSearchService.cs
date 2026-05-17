@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.IO.Compression;
 using System.Linq;
 using System.Text;
@@ -37,6 +38,7 @@ namespace Uviewer.Services
         public int BlockIndex { get; init; } = -1;
         public long SortKey { get; init; }
         public string Text { get; init; } = string.Empty;
+        public string? PreviewText { get; init; }
     }
 
     public sealed class DocumentSearchService
@@ -65,13 +67,17 @@ namespace Uviewer.Services
 
         public async Task<IReadOnlyList<DocumentSearchMatch>> SearchPdfAsync(string pdfPath, string query, CancellationToken token)
         {
-            if (!string.Equals(_pdfCacheKey, pdfPath, StringComparison.OrdinalIgnoreCase))
+            string cacheKey = CreatePdfCacheKey(pdfPath);
+            if (!string.Equals(_pdfCacheKey, cacheKey, StringComparison.OrdinalIgnoreCase))
             {
-                _pdfCacheKey = pdfPath;
+                _pdfCacheKey = cacheKey;
                 _pdfCache = await Task.Run(() => BuildPdfLines(pdfPath, token), token);
             }
 
-            return FindMatches(_pdfCache, query);
+            var matches = FindMatches(_pdfCache, query);
+            if (matches.Count > 0) return matches;
+
+            return await Task.Run(() => FindPdfMatchesByPageMap(pdfPath, query, token), token);
         }
 
         public async Task<IReadOnlyList<DocumentSearchMatch>> SearchEpubAsync(
@@ -105,6 +111,23 @@ namespace Uviewer.Services
         public static long CreateEpubSortKey(int chapterIndex, int lineNumber)
             => ((long)chapterIndex * EpubChapterSortStride) + Math.Max(1, lineNumber);
 
+        private static string CreatePdfCacheKey(string pdfPath)
+        {
+            try
+            {
+                var file = new FileInfo(pdfPath);
+                if (file.Exists)
+                {
+                    return $"pdf:{file.FullName}:{file.Length}:{file.LastWriteTimeUtc.Ticks}";
+                }
+            }
+            catch
+            {
+            }
+
+            return $"pdf:{pdfPath}";
+        }
+
         private static List<SearchableLine> BuildTextLines(string content)
         {
             var lines = content.Replace("\r\n", "\n").Replace('\r', '\n').Split('\n');
@@ -133,18 +156,66 @@ namespace Uviewer.Services
             foreach (var page in document.GetPages())
             {
                 token.ThrowIfCancellationRequested();
-                string text = SearchHighlightService.ExtractPdfPageText(page);
+                string text = SearchHighlightService.ExtractPdfSearchText(page);
+                if (string.IsNullOrWhiteSpace(text))
+                {
+                    text = SearchHighlightService.ExtractPdfPageText(page);
+                }
+
                 if (!string.IsNullOrWhiteSpace(text))
                 {
+                    string previewText = SearchHighlightService.ExtractPdfPreviewText(page);
+                    if (string.IsNullOrWhiteSpace(previewText))
+                    {
+                        previewText = SearchHighlightService.ExtractPdfPageText(page);
+                    }
+
                     result.Add(new SearchableLine
                     {
                         Kind = DocumentSearchKind.Pdf,
                         PageIndex = pageIndex,
                         LineNumber = pageIndex + 1,
                         SortKey = pageIndex + 1,
-                        Text = SearchHighlightService.CollapseWhitespace(text)
+                        Text = SearchHighlightService.CollapseWhitespace(text),
+                        PreviewText = previewText
                     });
                 }
+
+                pageIndex++;
+            }
+
+            return result;
+        }
+
+        private static List<DocumentSearchMatch> FindPdfMatchesByPageMap(string pdfPath, string query, CancellationToken token)
+        {
+            var result = new List<DocumentSearchMatch>();
+
+            using var document = PdfDocument.Open(pdfPath);
+            int pageIndex = 0;
+            foreach (var page in document.GetPages())
+            {
+                token.ThrowIfCancellationRequested();
+                if (!SearchHighlightService.PdfPageContainsSearchText(page, query))
+                {
+                    pageIndex++;
+                    continue;
+                }
+
+                string previewText = SearchHighlightService.ExtractPdfPreviewText(page);
+                if (string.IsNullOrWhiteSpace(previewText))
+                {
+                    previewText = SearchHighlightService.ExtractPdfPageText(page);
+                }
+
+                result.Add(new DocumentSearchMatch
+                {
+                    Kind = DocumentSearchKind.Pdf,
+                    PageIndex = pageIndex,
+                    LineNumber = pageIndex + 1,
+                    SortKey = pageIndex + 1,
+                    Preview = CreatePreview(previewText)
+                });
 
                 pageIndex++;
             }
@@ -218,7 +289,7 @@ namespace Uviewer.Services
                     EpubChapterIndex = line.EpubChapterIndex,
                     BlockIndex = line.BlockIndex,
                     SortKey = line.SortKey,
-                    Preview = CreatePreview(line.Text)
+                    Preview = CreatePreview(line.PreviewText ?? line.Text)
                 });
             }
 

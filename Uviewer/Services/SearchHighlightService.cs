@@ -29,6 +29,7 @@ namespace Uviewer.Services
         public static readonly Color HighlightColor = ColorHelper.FromArgb(125, 255, 224, 92);
         public static SolidColorBrush CreateHighlightBrush() => new(HighlightColor);
 
+        private const char PdfLineSearchSeparator = '\uE000';
         private static readonly CompareInfo CompareInfo = CultureInfo.CurrentCulture.CompareInfo;
         private const CompareOptions SearchOptions =
             CompareOptions.IgnoreCase |
@@ -56,38 +57,38 @@ namespace Uviewer.Services
 
                 using var document = PdfDocument.Open(pdfPath);
                 var page = document.GetPage(pageIndex + 1);
-                var textMap = BuildPdfTextMap(page);
-                if (string.IsNullOrWhiteSpace(textMap.Text)) return (IReadOnlyList<PdfSearchHighlight>)Array.Empty<PdfSearchHighlight>();
-
-                var ranges = FindTextRanges(textMap.Text, query, allowCompactFallback: true);
-                if (ranges.Count == 0) return (IReadOnlyList<PdfSearchHighlight>)Array.Empty<PdfSearchHighlight>();
+                var lineMaps = BuildPdfLineTextMaps(page);
+                if (lineMaps.Count == 0) return (IReadOnlyList<PdfSearchHighlight>)Array.Empty<PdfSearchHighlight>();
 
                 var highlights = new List<PdfSearchHighlight>();
                 double pageWidth = Math.Max(1.0, page.Width);
                 double pageHeight = Math.Max(1.0, page.Height);
 
-                foreach (var range in ranges)
+                foreach (var lineMap in lineMaps)
                 {
                     token.ThrowIfCancellationRequested();
 
-                    var letters = new List<Letter>();
-                    int end = Math.Min(textMap.Letters.Count, range.Start + range.Length);
-                    for (int i = range.Start; i < end; i++)
+                    var ranges = FindTextRanges(lineMap.Text, query, allowCompactFallback: true);
+                    foreach (var range in ranges)
                     {
-                        if (textMap.Letters[i] != null)
+                        token.ThrowIfCancellationRequested();
+
+                        var letters = new List<Letter>();
+                        int end = Math.Min(lineMap.Letters.Count, range.Start + range.Length);
+                        for (int i = range.Start; i < end; i++)
                         {
-                            letters.Add(textMap.Letters[i]!);
+                            if (lineMap.Letters[i] != null)
+                            {
+                                letters.Add(lineMap.Letters[i]!);
+                            }
                         }
-                    }
 
-                    foreach (var line in GroupLettersByLine(letters))
-                    {
-                        if (line.Count == 0) continue;
+                        if (letters.Count == 0) continue;
 
-                        double left = line.Min(letter => letter.GlyphRectangleLoose.Left);
-                        double right = line.Max(letter => letter.GlyphRectangleLoose.Right);
-                        double bottom = line.Min(letter => letter.GlyphRectangleLoose.Bottom);
-                        double top = line.Max(letter => letter.GlyphRectangleLoose.Top);
+                        double left = letters.Min(letter => letter.GlyphRectangleLoose.Left);
+                        double right = letters.Max(letter => letter.GlyphRectangleLoose.Right);
+                        double bottom = letters.Min(letter => letter.GlyphRectangleLoose.Bottom);
+                        double top = letters.Max(letter => letter.GlyphRectangleLoose.Top);
 
                         if (right <= left || top <= bottom) continue;
                         highlights.Add(new PdfSearchHighlight(left, bottom, right, top, pageWidth, pageHeight));
@@ -147,9 +148,9 @@ namespace Uviewer.Services
         {
             var candidates = new List<string>();
 
+            TryAddCandidate(candidates, ExtractPdfMappedText(page));
             TryAddCandidate(candidates, ExtractContentOrderText(page));
             TryAddCandidate(candidates, ExtractPdfWordsText(page));
-            TryAddCandidate(candidates, ExtractPdfLettersText(page));
             TryAddCandidate(candidates, page.Text ?? string.Empty);
 
             if (candidates.Count == 0) return string.Empty;
@@ -157,6 +158,70 @@ namespace Uviewer.Services
             return string.Join(" ", candidates
                 .Distinct(StringComparer.Ordinal)
                 .OrderByDescending(text => text.Length));
+        }
+
+        public static string ExtractPdfPreviewText(Page page)
+        {
+            var candidates = new List<string>();
+
+            TryAddCandidate(candidates, ExtractPdfWordsText(page));
+            TryAddCandidate(candidates, ExtractContentOrderText(page));
+            TryAddCandidate(candidates, page.Text ?? string.Empty);
+
+            return candidates.Count == 0
+                ? string.Empty
+                : candidates
+                    .Distinct(StringComparer.Ordinal)
+                    .OrderByDescending(CountWhitespace)
+                    .ThenByDescending(text => text.Length)
+                    .First();
+        }
+
+        public static string ExtractPdfMappedText(Page page)
+        {
+            try
+            {
+                var textMap = BuildPdfTextMap(page);
+                return textMap.Text;
+            }
+            catch
+            {
+                return string.Empty;
+            }
+        }
+
+        public static string ExtractPdfSearchText(Page page)
+        {
+            try
+            {
+                var lineMaps = BuildPdfLineTextMaps(page);
+                return lineMaps.Count == 0
+                    ? string.Empty
+                    : string.Join(PdfLineSearchSeparator.ToString(), lineMaps.Select(line => line.Text));
+            }
+            catch
+            {
+                return string.Empty;
+            }
+        }
+
+        public static bool PdfPageContainsSearchText(Page page, string? query)
+        {
+            if (string.IsNullOrWhiteSpace(query)) return false;
+
+            string mappedText = ExtractPdfSearchText(page);
+            if (!string.IsNullOrWhiteSpace(mappedText) &&
+                FindTextRanges(mappedText, query, allowCompactFallback: true).Count > 0)
+            {
+                return true;
+            }
+
+            string fallbackText = ExtractPdfPageText(page);
+            if (string.IsNullOrWhiteSpace(fallbackText)) return false;
+
+            string normalizedQuery = CollapseWhitespace(query);
+            string compactQuery = RemoveWhitespace(normalizedQuery);
+            return ContainsSearchText(fallbackText, normalizedQuery, compactQuery, allowCompactFallback: true);
         }
 
         public static string CollapseWhitespace(string text)
@@ -267,8 +332,7 @@ namespace Uviewer.Services
         {
             try
             {
-                var textMap = BuildPdfTextMap(page);
-                return textMap.Text;
+                return ExtractPdfMappedText(page);
             }
             catch
             {
@@ -278,15 +342,41 @@ namespace Uviewer.Services
 
         private static (string Text, List<Letter?> Letters) BuildPdfTextMap(Page page)
         {
-            var lines = BuildPdfLetterLines(page);
-            if (lines.Count == 0) return (string.Empty, new List<Letter?>());
+            var lineMaps = BuildPdfLineTextMaps(page);
+            if (lineMaps.Count == 0) return (string.Empty, new List<Letter?>());
 
             var sb = new StringBuilder();
             var map = new List<Letter?>();
 
+            foreach (var lineMap in lineMaps)
+            {
+                if (lineMap.Text.Length == 0) continue;
+                if (sb.Length > 0)
+                {
+                    sb.Append(' ');
+                    map.Add(null);
+                }
+
+                sb.Append(lineMap.Text);
+                map.AddRange(lineMap.Letters);
+            }
+
+            return (sb.ToString(), map);
+        }
+
+        private static List<(string Text, List<Letter?> Letters)> BuildPdfLineTextMaps(Page page)
+        {
+            var lines = BuildPdfLetterLines(page);
+            if (lines.Count == 0) return new List<(string Text, List<Letter?> Letters)>();
+
+            var result = new List<(string Text, List<Letter?> Letters)>();
+
             foreach (var line in lines)
             {
+                var sb = new StringBuilder();
+                var map = new List<Letter?>();
                 Letter? previous = null;
+
                 foreach (var letter in line.OrderBy(letter => letter.StartBaseLine.X))
                 {
                     if (previous != null && ShouldInsertPdfSpace(previous, letter))
@@ -304,11 +394,14 @@ namespace Uviewer.Services
                     previous = letter;
                 }
 
-                sb.Append(' ');
-                map.Add(null);
+                string text = CollapseWhitespaceWithMap(sb, map);
+                if (!string.IsNullOrWhiteSpace(text))
+                {
+                    result.Add((text, map));
+                }
             }
 
-            return (CollapseWhitespaceWithMap(sb, map), map);
+            return result;
         }
 
         private static List<List<Letter>> BuildPdfLetterLines(Page page)
@@ -426,6 +519,17 @@ namespace Uviewer.Services
             {
                 candidates.Add(collapsed);
             }
+        }
+
+        private static int CountWhitespace(string text)
+        {
+            int count = 0;
+            foreach (char c in text)
+            {
+                if (char.IsWhiteSpace(c)) count++;
+            }
+
+            return count;
         }
     }
 }

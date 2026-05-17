@@ -394,9 +394,9 @@ namespace Uviewer.Renderers
                 foreach (var region in regions)
                 {
                     var bounds = region.LayoutBounds;
-                    float x = drawX + (float)bounds.Left + fontSize * 0.15f;
+                    float width = Math.Max(fontSize * 0.82f, Math.Min(fontSize * 1.12f, (float)bounds.Width * 0.72f));
+                    float x = drawX + (float)bounds.Right - width + fontSize * 0.4f;
                     float y = drawY + (float)bounds.Top - 2f;
-                    float width = Math.Max(fontSize * 0.7f, (float)bounds.Width * 0.72f);
                     float height = Math.Max(2f, (float)bounds.Height + 4f);
                     ds.FillRectangle(x, y, width, height, color);
                 }

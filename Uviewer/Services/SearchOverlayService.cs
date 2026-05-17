@@ -60,14 +60,21 @@ namespace Uviewer.Services
             if (placementRoot != null && placementRoot.ActualWidth > 0)
             {
                 double y = 0;
-                try
+                if (!ReferenceEquals(anchor, placementRoot) &&
+                    anchor.Visibility == Visibility.Visible &&
+                    anchor.ActualWidth > 0 &&
+                    anchor.ActualHeight > 0)
                 {
-                    var anchorBottom = anchor.TransformToVisual(placementRoot)
-                        .TransformPoint(new Point(0, anchor.ActualHeight));
-                    y = Math.Max(0, anchorBottom.Y);
-                }
-                catch
-                {
+                    try
+                    {
+                        var anchorBottom = anchor.TransformToVisual(placementRoot)
+                            .TransformPoint(new Point(0, anchor.ActualHeight));
+                        y = Math.Max(0, anchorBottom.Y);
+                    }
+                    catch
+                    {
+                        y = 0;
+                    }
                 }
 
                 var options = new FlyoutShowOptions
@@ -126,7 +133,9 @@ namespace Uviewer.Services
                 Width = 190,
                 PlaceholderText = Strings.SearchPlaceholder,
                 IsSpellCheckEnabled = false,
-                IsTextPredictionEnabled = false
+                IsTextPredictionEnabled = false,
+                FlowDirection = FlowDirection.LeftToRight,
+                TextAlignment = TextAlignment.Left
             };
             _searchBox.TextChanged += (_, _) => QueueRefresh();
             _searchBox.PreviewKeyDown += SearchBox_PreviewKeyDown;
@@ -143,7 +152,9 @@ namespace Uviewer.Services
                 TextWrapping = TextWrapping.Wrap,
                 TextTrimming = Microsoft.UI.Xaml.TextTrimming.CharacterEllipsis,
                 FontSize = 12,
-                Opacity = 0.85
+                Opacity = 0.85,
+                FlowDirection = FlowDirection.LeftToRight,
+                TextAlignment = TextAlignment.Left
             };
 
             _previewText = new TextBlock
@@ -152,13 +163,16 @@ namespace Uviewer.Services
                 TextWrapping = TextWrapping.Wrap,
                 TextTrimming = Microsoft.UI.Xaml.TextTrimming.CharacterEllipsis,
                 FontSize = 12,
-                Opacity = 0.72
+                Opacity = 0.72,
+                FlowDirection = FlowDirection.LeftToRight,
+                TextAlignment = TextAlignment.Left
             };
 
             var row = new StackPanel
             {
                 Orientation = Orientation.Horizontal,
-                Spacing = 6
+                Spacing = 6,
+                FlowDirection = FlowDirection.LeftToRight
             };
             row.Children.Add(_searchBox);
             row.Children.Add(_previousButton);
@@ -169,7 +183,8 @@ namespace Uviewer.Services
                 Width = 310,
                 MaxWidth = 310,
                 Spacing = 6,
-                Padding = new Thickness(10)
+                Padding = new Thickness(10),
+                FlowDirection = FlowDirection.LeftToRight
             };
             panel.Children.Add(row);
             panel.Children.Add(_statusText);

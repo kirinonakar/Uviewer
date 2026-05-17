@@ -526,8 +526,7 @@ namespace Uviewer
         {
             _isTextMode = false;
             _isEpubMode = false; // Reset Epub mode
-            _isVerticalMode = false; // [Fix] Images should always open in normal mode, not vertical
-            if (VerticalToggleButton != null) VerticalToggleButton.IsChecked = false;
+            DisableVerticalModeForImageDocument();
 
             ImageArea.Visibility = Visibility.Visible;
             TextArea.Visibility = Visibility.Collapsed;
@@ -546,6 +545,20 @@ namespace Uviewer
 
             UpdateSideBySideButtonState();
             UpdateNextImageSideButtonState();
+        }
+
+        private void DisableVerticalModeForImageDocument()
+        {
+            _isVerticalMode = false; // Images and PDFs always use horizontal/image layout.
+
+            if (_verticalKeyAttached && RootGrid != null)
+            {
+                RootGrid.PreviewKeyDown -= RootGrid_Vertical_PreviewKeyDown;
+                _verticalKeyAttached = false;
+            }
+
+            if (VerticalToggleButton != null) VerticalToggleButton.IsChecked = false;
+            if (VerticalTextCanvas != null) VerticalTextCanvas.Visibility = Visibility.Collapsed;
         }
 
         private void CloseCurrentText()
@@ -1277,9 +1290,25 @@ namespace Uviewer
                 return;
             }
 
-            anchor ??= (_currentPdfDocument != null && PdfGoToPageButton?.Visibility == Visibility.Visible)
-                ? PdfGoToPageButton
-                : GoToPageButton;
+            if (_currentPdfDocument != null)
+            {
+                DisableVerticalModeForImageDocument();
+            }
+
+            if (_currentPdfDocument != null)
+            {
+                anchor = IsVisibleSearchAnchor(anchor)
+                    ? anchor
+                    : IsVisibleSearchAnchor(PdfGoToPageButton)
+                        ? PdfGoToPageButton
+                        : IsVisibleSearchAnchor(ImageToolbarPanel)
+                            ? ImageToolbarPanel
+                            : RootGrid;
+            }
+            else
+            {
+                anchor ??= GoToPageButton;
+            }
 
             if (anchor != null)
             {
@@ -1287,8 +1316,19 @@ namespace Uviewer
             }
         }
 
+        private static bool IsVisibleSearchAnchor(FrameworkElement? element)
+            => element != null &&
+               element.Visibility == Visibility.Visible &&
+               element.ActualWidth > 0 &&
+               element.ActualHeight > 0;
+
         private void SetActiveSearchQuery(string? query)
         {
+            if (_currentPdfDocument != null)
+            {
+                DisableVerticalModeForImageDocument();
+            }
+
             _activeSearchQuery = string.IsNullOrWhiteSpace(query) ? null : query;
             _activePdfSearchHighlights = Array.Empty<PdfSearchHighlight>();
             _activePdfSearchPageIndex = -1;
@@ -1307,6 +1347,8 @@ namespace Uviewer
             {
                 return;
             }
+
+            DisableVerticalModeForImageDocument();
 
             _searchHighlightCts?.Cancel();
             _searchHighlightCts?.Dispose();
@@ -1395,6 +1437,7 @@ namespace Uviewer
         {
             if (_currentPdfDocument != null && !string.IsNullOrEmpty(_currentPdfPath))
             {
+                DisableVerticalModeForImageDocument();
                 return await _documentSearchService.SearchPdfAsync(_currentPdfPath, query, token);
             }
 

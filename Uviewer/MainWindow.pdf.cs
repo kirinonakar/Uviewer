@@ -36,6 +36,7 @@ namespace Uviewer
             if (_isWindowClosing) return;
 
             _currentPdfPath = pdfPath;
+            _documentSearchService.Clear();
             _preloadManager.CancelAll();
             _imageLoadingCts?.Cancel(); // Cancel any ongoing image load
             
@@ -70,6 +71,15 @@ namespace Uviewer
                     }
                     _imageEntries = newEntries;
 
+                    if (PdfGoToPageButton != null)
+                    {
+                        PdfGoToPageButton.Visibility = Visibility.Visible;
+                    }
+                    if (PdfSeparator != null)
+                    {
+                        PdfSeparator.Visibility = Visibility.Visible;
+                    }
+
                     // Load TOC with PdfPig in background
                     string tocPdfPath = pdfPath;
                     _ = Task.Run(async () =>
@@ -88,14 +98,6 @@ namespace Uviewer
                                 if (PdfTocButton != null)
                                 {
                                     PdfTocButton.Visibility = Visibility.Visible;
-                                }
-                                if (PdfGoToPageButton != null)
-                                {
-                                    PdfGoToPageButton.Visibility = Visibility.Visible;
-                                }
-                                if (PdfSeparator != null)
-                                {
-                                    PdfSeparator.Visibility = Visibility.Visible;
                                 }
                             });
                         }
