@@ -421,7 +421,7 @@ namespace Uviewer.Renderers
                 {
                     var bounds = region.LayoutBounds;
                     float width = Math.Max(fontSize * 0.82f, Math.Min(fontSize * 1.12f, (float)bounds.Width * 0.72f));
-                    float x = drawX + (float)bounds.Right - width + fontSize * 0.4f;
+                    float x = drawX + (float)bounds.Right - width + fontSize * 0.48f;
                     float y = drawY + (float)bounds.Top - 2f;
                     float height = Math.Max(2f, (float)bounds.Height + 4f);
                     ds.FillRectangle(x, y, width, height, color);
