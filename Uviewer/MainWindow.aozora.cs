@@ -595,7 +595,10 @@ namespace Uviewer
                 baseFontSize: _settingsManager.FontSize,
                 defaultFontFamily: _settingsManager.FontFamily,
                 getFontWeight: GetFontWeightForFamily,
-                searchQuery: _activeSearchQuery
+                searchQuery: _activeSearchQuery,
+                currentSearchMatch: GetActiveSearchMatchFor(DocumentSearchKind.Text),
+                renderedSearchKind: DocumentSearchKind.Text,
+                firstBlockIndex: _currentAozoraStartBlockIndex
             );
         }
 

@@ -24,6 +24,9 @@ namespace Uviewer.Services
         public int PageIndex { get; init; } = -1;
         public int EpubChapterIndex { get; init; } = -1;
         public int BlockIndex { get; init; } = -1;
+        public int MatchIndex { get; init; } = -1;
+        public int MatchStart { get; init; } = -1;
+        public int MatchLength { get; init; }
         public long SortKey { get; init; }
         public string Preview { get; init; } = string.Empty;
     }
@@ -117,36 +120,68 @@ namespace Uviewer.Services
         private static List<DocumentSearchMatch> FindPdfMatchesByPageMap(string pdfPath, string query, CancellationToken token)
         {
             var result = new List<DocumentSearchMatch>();
+            if (string.IsNullOrWhiteSpace(query)) return result;
 
             using var document = PdfDocument.Open(pdfPath);
             int pageIndex = 0;
             foreach (var page in document.GetPages())
             {
                 token.ThrowIfCancellationRequested();
-                int matchCount = SearchHighlightService.CountPdfPageSearchMatches(page, query);
-                if (matchCount <= 0)
+
+                string mappedText = SearchHighlightService.ExtractPdfMappedText(page);
+                var ranges = SearchHighlightService.FindPdfTextRanges(mappedText, query);
+                if (ranges.Count > 0)
+                {
+                    for (int matchIndex = 0; matchIndex < ranges.Count; matchIndex++)
+                    {
+                        token.ThrowIfCancellationRequested();
+                        var range = ranges[matchIndex];
+                        result.Add(new DocumentSearchMatch
+                        {
+                            Kind = DocumentSearchKind.Pdf,
+                            PageIndex = pageIndex,
+                            LineNumber = pageIndex + 1,
+                            MatchIndex = matchIndex,
+                            MatchStart = range.Start,
+                            MatchLength = range.Length,
+                            SortKey = pageIndex + 1,
+                            Preview = CreatePreview(mappedText, range, query)
+                        });
+                    }
+
+                    pageIndex++;
+                    continue;
+                }
+
+                string fallbackText = SearchHighlightService.ExtractPdfPageText(page);
+                if (string.IsNullOrWhiteSpace(fallbackText))
                 {
                     pageIndex++;
                     continue;
                 }
 
-                string previewText = SearchHighlightService.ExtractPdfPreviewText(page);
-                if (string.IsNullOrWhiteSpace(previewText))
+                string normalizedQuery = SearchHighlightService.CollapseWhitespace(query);
+                string compactQuery = SearchHighlightService.RemoveWhitespace(normalizedQuery);
+                if (!SearchHighlightService.ContainsSearchText(fallbackText, normalizedQuery, compactQuery, allowCompactFallback: true))
                 {
-                    previewText = SearchHighlightService.ExtractPdfPageText(page);
+                    pageIndex++;
+                    continue;
                 }
 
-                for (int matchIndex = 0; matchIndex < matchCount; matchIndex++)
+                var fallbackRanges = SearchHighlightService.FindTextRanges(fallbackText, normalizedQuery, allowCompactFallback: true);
+                result.Add(new DocumentSearchMatch
                 {
-                    result.Add(new DocumentSearchMatch
-                    {
-                        Kind = DocumentSearchKind.Pdf,
-                        PageIndex = pageIndex,
-                        LineNumber = pageIndex + 1,
-                        SortKey = pageIndex + 1,
-                        Preview = CreatePreview(previewText)
-                    });
-                }
+                    Kind = DocumentSearchKind.Pdf,
+                    PageIndex = pageIndex,
+                    LineNumber = pageIndex + 1,
+                    MatchIndex = 0,
+                    MatchStart = fallbackRanges.Count == 0 ? -1 : fallbackRanges[0].Start,
+                    MatchLength = fallbackRanges.Count == 0 ? 0 : fallbackRanges[0].Length,
+                    SortKey = pageIndex + 1,
+                    Preview = fallbackRanges.Count == 0
+                        ? CreatePreview(fallbackText)
+                        : CreatePreview(fallbackText, fallbackRanges[0], query)
+                });
 
                 pageIndex++;
             }
@@ -210,18 +245,35 @@ namespace Uviewer.Services
             {
                 if (string.IsNullOrEmpty(line.Text)) continue;
                 bool allowCompactFallback = queryContainsWhitespace || line.Kind == DocumentSearchKind.Pdf;
-                if (!SearchHighlightService.ContainsSearchText(line.Text, trimmedQuery, compactQuery, allowCompactFallback)) continue;
+                var ranges = SearchHighlightService.FindTextRanges(line.Text, trimmedQuery, allowCompactFallback);
+                if (ranges.Count == 0) continue;
 
-                matches.Add(new DocumentSearchMatch
+                string previewSource = line.PreviewText ?? line.Text;
+                IReadOnlyList<TextSearchRange> previewRanges = Array.Empty<TextSearchRange>();
+                if (line.PreviewText != null)
                 {
-                    Kind = line.Kind,
-                    LineNumber = line.LineNumber,
-                    PageIndex = line.PageIndex,
-                    EpubChapterIndex = line.EpubChapterIndex,
-                    BlockIndex = line.BlockIndex,
-                    SortKey = line.SortKey,
-                    Preview = CreatePreview(line.PreviewText ?? line.Text)
-                });
+                    previewRanges = SearchHighlightService.FindTextRanges(previewSource, trimmedQuery, allowCompactFallback);
+                }
+
+                for (int matchIndex = 0; matchIndex < ranges.Count; matchIndex++)
+                {
+                    var range = ranges[matchIndex];
+                    var previewRange = previewRanges.Count > matchIndex ? previewRanges[matchIndex] : range;
+
+                    matches.Add(new DocumentSearchMatch
+                    {
+                        Kind = line.Kind,
+                        LineNumber = line.LineNumber,
+                        PageIndex = line.PageIndex,
+                        EpubChapterIndex = line.EpubChapterIndex,
+                        BlockIndex = line.BlockIndex,
+                        MatchIndex = matchIndex,
+                        MatchStart = range.Start,
+                        MatchLength = range.Length,
+                        SortKey = line.SortKey,
+                        Preview = CreatePreview(previewSource, previewRange, trimmedQuery)
+                    });
+                }
             }
 
             return matches;
@@ -282,6 +334,49 @@ namespace Uviewer.Services
             text = SearchHighlightService.CollapseWhitespace(text);
             const int maxLength = 120;
             return text.Length <= maxLength ? text : text.Substring(0, maxLength - 1) + "...";
+        }
+
+        private static string CreatePreview(string text, TextSearchRange range, string? query)
+        {
+            if (string.IsNullOrWhiteSpace(text)) return string.Empty;
+
+            const int contextLength = 55;
+            int textLength = text.Length;
+            int matchStart = Math.Clamp(range.Start, 0, textLength);
+            int matchEnd = Math.Clamp(range.Start + Math.Max(1, range.Length), matchStart, textLength);
+            int previewStart = Math.Max(0, matchStart - contextLength);
+            int previewEnd = Math.Min(textLength, matchEnd + contextLength);
+
+            string preview = text.Substring(previewStart, previewEnd - previewStart);
+            int localMatchStart = matchStart - previewStart;
+            int localMatchEnd = Math.Min(preview.Length, matchEnd - previewStart);
+            if (!string.IsNullOrWhiteSpace(query) && localMatchStart < localMatchEnd)
+            {
+                string prefix = preview.Substring(0, localMatchStart);
+                string matchedText = preview.Substring(localMatchStart, localMatchEnd - localMatchStart);
+                string suffix = preview.Substring(localMatchEnd);
+                preview = prefix + NormalizePreviewMatch(matchedText, query) + suffix;
+            }
+
+            preview = SearchHighlightService.CollapseWhitespace(preview);
+            if (previewStart > 0) preview = "..." + preview;
+            if (previewEnd < textLength) preview += "...";
+            return preview;
+        }
+
+        private static string NormalizePreviewMatch(string matchedText, string query)
+        {
+            string normalizedMatch = SearchHighlightService.CollapseWhitespace(matchedText);
+            string normalizedQuery = SearchHighlightService.CollapseWhitespace(query);
+            string compactMatch = SearchHighlightService.RemoveWhitespace(normalizedMatch);
+            string compactQuery = SearchHighlightService.RemoveWhitespace(normalizedQuery);
+            bool matchContainsInsertedWhitespace = compactMatch.Length != normalizedMatch.Length;
+
+            return matchContainsInsertedWhitespace &&
+                compactQuery.Length > 0 &&
+                string.Equals(compactMatch, compactQuery, StringComparison.CurrentCultureIgnoreCase)
+                    ? normalizedQuery
+                    : matchedText;
         }
     }
 }

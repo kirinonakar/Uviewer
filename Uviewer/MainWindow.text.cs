@@ -1330,8 +1330,10 @@ namespace Uviewer
             }
 
             _activeSearchQuery = string.IsNullOrWhiteSpace(query) ? null : query;
+            _activeDocumentSearchMatch = null;
             _activePdfSearchHighlights = Array.Empty<PdfSearchHighlight>();
             _activePdfSearchPageIndex = -1;
+            _activePdfSearchMatchIndex = -1;
 
             InvalidateSearchHighlights();
 
@@ -1341,7 +1343,7 @@ namespace Uviewer
             }
         }
 
-        private async Task RefreshPdfSearchHighlightsAsync(int pageIndex)
+        private async Task RefreshPdfSearchHighlightsAsync(int pageIndex, int currentMatchIndex = -1)
         {
             if (_currentPdfDocument == null || string.IsNullOrEmpty(_currentPdfPath) || string.IsNullOrWhiteSpace(_activeSearchQuery))
             {
@@ -1368,6 +1370,7 @@ namespace Uviewer
 
                 _activePdfSearchHighlights = highlights;
                 _activePdfSearchPageIndex = pageIndex;
+                _activePdfSearchMatchIndex = currentMatchIndex;
                 MainCanvas?.Invalidate();
             }
             catch (OperationCanceledException) { }
@@ -1400,7 +1403,7 @@ namespace Uviewer
                         int index = TextItemsRepeater.GetElementIndex(tb);
                         if (index >= 0 && index < _textLines.Count)
                         {
-                            ApplySearchHighlightsToTextBlock(tb, _textLines[index].Content);
+                            ApplySearchHighlightsToTextBlock(tb, _textLines[index].Content, index + 1);
                         }
                     }
                 }
@@ -1410,19 +1413,22 @@ namespace Uviewer
             }
         }
 
-        private void ApplySearchHighlightsToTextBlock(TextBlock textBlock, string content)
+        private void ApplySearchHighlightsToTextBlock(TextBlock textBlock, string content, int lineNumber)
         {
             textBlock.TextHighlighters.Clear();
             var ranges = _searchHighlightService.FindRanges(content, _activeSearchQuery);
             if (ranges.Count == 0) return;
 
+            int currentRangeIndex = GetCurrentSearchRangeIndex(DocumentSearchKind.Text, lineNumber, -1, ranges);
             var highlighter = new TextHighlighter
             {
                 Background = SearchHighlightService.CreateHighlightBrush()
             };
 
-            foreach (var range in ranges)
+            for (int i = 0; i < ranges.Count; i++)
             {
+                if (i == currentRangeIndex) continue;
+                var range = ranges[i];
                 highlighter.Ranges.Add(new TextRange
                 {
                     StartIndex = range.Start,
@@ -1430,7 +1436,74 @@ namespace Uviewer
                 });
             }
 
-            textBlock.TextHighlighters.Add(highlighter);
+            if (highlighter.Ranges.Count > 0)
+            {
+                textBlock.TextHighlighters.Add(highlighter);
+            }
+
+            if (currentRangeIndex >= 0 && currentRangeIndex < ranges.Count)
+            {
+                var currentRange = ranges[currentRangeIndex];
+                var currentHighlighter = new TextHighlighter
+                {
+                    Background = new SolidColorBrush(SearchHighlightService.CurrentHighlightColor)
+                };
+                currentHighlighter.Ranges.Add(new TextRange
+                {
+                    StartIndex = currentRange.Start,
+                    Length = currentRange.Length
+                });
+                textBlock.TextHighlighters.Add(currentHighlighter);
+            }
+        }
+
+        private DocumentSearchMatch? GetActiveSearchMatchFor(DocumentSearchKind kind)
+        {
+            if (_activeDocumentSearchMatch == null || _activeDocumentSearchMatch.Kind != kind) return null;
+            if (kind == DocumentSearchKind.Epub &&
+                _activeDocumentSearchMatch.EpubChapterIndex != _currentEpubChapterIndex)
+            {
+                return null;
+            }
+
+            return _activeDocumentSearchMatch;
+        }
+
+        private int GetCurrentSearchRangeIndex(
+            DocumentSearchKind kind,
+            int lineNumber,
+            int blockIndex,
+            IReadOnlyList<TextSearchRange> ranges)
+        {
+            var match = GetActiveSearchMatchFor(kind);
+            if (match == null || ranges.Count == 0) return -1;
+
+            if (blockIndex >= 0 && match.BlockIndex >= 0)
+            {
+                if (blockIndex != match.BlockIndex) return -1;
+            }
+            else if (match.LineNumber != lineNumber)
+            {
+                return -1;
+            }
+
+            if (match.MatchIndex >= 0 && match.MatchIndex < ranges.Count)
+            {
+                return match.MatchIndex;
+            }
+
+            if (match.MatchStart >= 0)
+            {
+                for (int i = 0; i < ranges.Count; i++)
+                {
+                    if (ranges[i].Start == match.MatchStart && ranges[i].Length == match.MatchLength)
+                    {
+                        return i;
+                    }
+                }
+            }
+
+            return -1;
         }
 
         private async Task<IReadOnlyList<DocumentSearchMatch>> SearchCurrentDocumentAsync(string query, CancellationToken token)
@@ -1491,14 +1564,17 @@ namespace Uviewer
 
         private async Task NavigateToSearchMatchAsync(DocumentSearchMatch match)
         {
+            _activeDocumentSearchMatch = match;
+
             switch (match.Kind)
             {
                 case DocumentSearchKind.Pdf:
                     if (_currentPdfDocument != null && match.PageIndex >= 0 && match.PageIndex < _imageEntries.Count)
                     {
+                        _activePdfSearchMatchIndex = match.MatchIndex;
                         _currentIndex = match.PageIndex;
                         await DisplayCurrentImageAsync();
-                        await RefreshPdfSearchHighlightsAsync(match.PageIndex);
+                        await RefreshPdfSearchHighlightsAsync(match.PageIndex, match.MatchIndex);
                     }
                     break;
 
@@ -1509,6 +1585,11 @@ namespace Uviewer
                 case DocumentSearchKind.Text:
                     await NavigateToTextSearchMatchAsync(match);
                     break;
+            }
+
+            if (match.Kind != DocumentSearchKind.Pdf)
+            {
+                InvalidateSearchHighlights();
             }
         }
 
@@ -1858,7 +1939,7 @@ namespace Uviewer
             }
         }
 
-        ApplySearchHighlightsToTextBlock(tb, content);
+        ApplySearchHighlightsToTextBlock(tb, content, args.Index + 1);
     }
 }
         // --- Input Handling ---

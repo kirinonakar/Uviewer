@@ -563,7 +563,10 @@ namespace Uviewer
                 baseFontSize: _settingsManager.FontSize,
                 defaultFontFamily: _settingsManager.FontFamily,
                 getFontWeight: GetFontWeightForFamily,
-                searchQuery: _activeSearchQuery
+                searchQuery: _activeSearchQuery,
+                currentSearchMatch: GetActiveSearchMatchFor(_isEpubMode ? DocumentSearchKind.Epub : DocumentSearchKind.Text),
+                renderedSearchKind: _isEpubMode ? DocumentSearchKind.Epub : DocumentSearchKind.Text,
+                firstBlockIndex: _currentVerticalStartBlockIndex
             );
         }
 

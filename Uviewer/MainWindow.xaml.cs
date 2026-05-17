@@ -50,8 +50,10 @@ namespace Uviewer
         private readonly Services.SearchHighlightService _searchHighlightService = new();
         private Services.SearchOverlayService _searchOverlayService = null!;
         private string? _activeSearchQuery;
+        private DocumentSearchMatch? _activeDocumentSearchMatch;
         private IReadOnlyList<PdfSearchHighlight> _activePdfSearchHighlights = Array.Empty<PdfSearchHighlight>();
         private int _activePdfSearchPageIndex = -1;
+        private int _activePdfSearchMatchIndex = -1;
         private CancellationTokenSource? _searchHighlightCts;
         private readonly Services.AozoraBlockMeasurer _aozoraBlockMeasurer = new();
         private readonly Services.AozoraBlockPaginator _aozoraBlockPaginator;
@@ -1346,9 +1348,9 @@ namespace Uviewer
                 scaledSize.Width,
                 scaledSize.Height);
 
-            foreach (var highlight in _activePdfSearchHighlights)
+            void DrawHighlight(PdfSearchHighlight highlight, Windows.UI.Color color)
             {
-                if (highlight.PageWidth <= 0 || highlight.PageHeight <= 0) continue;
+                if (highlight.PageWidth <= 0 || highlight.PageHeight <= 0) return;
 
                 double x = pageRect.X + (highlight.Left / highlight.PageWidth) * pageRect.Width;
                 double y = pageRect.Y + ((highlight.PageHeight - highlight.Top) / highlight.PageHeight) * pageRect.Height;
@@ -1356,7 +1358,19 @@ namespace Uviewer
                 double height = Math.Max(2.0, ((highlight.Top - highlight.Bottom) / highlight.PageHeight) * pageRect.Height);
 
                 var rect = new Windows.Foundation.Rect(x - 1, y - 1, width + 2, height + 2);
-                args.DrawingSession.FillRectangle(rect, SearchHighlightService.HighlightColor);
+                args.DrawingSession.FillRectangle(rect, color);
+            }
+
+            foreach (var highlight in _activePdfSearchHighlights)
+            {
+                if (highlight.MatchIndex == _activePdfSearchMatchIndex) continue;
+                DrawHighlight(highlight, SearchHighlightService.HighlightColor);
+            }
+
+            foreach (var highlight in _activePdfSearchHighlights)
+            {
+                if (highlight.MatchIndex != _activePdfSearchMatchIndex) continue;
+                DrawHighlight(highlight, SearchHighlightService.CurrentHighlightColor);
             }
         }
 

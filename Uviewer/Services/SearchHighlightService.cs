@@ -22,11 +22,13 @@ namespace Uviewer.Services
         double Right,
         double Top,
         double PageWidth,
-        double PageHeight);
+        double PageHeight,
+        int MatchIndex);
 
     public sealed class SearchHighlightService
     {
         public static readonly Color HighlightColor = ColorHelper.FromArgb(125, 255, 224, 92);
+        public static readonly Color CurrentHighlightColor = ColorHelper.FromArgb(170, 255, 132, 0);
         public static SolidColorBrush CreateHighlightBrush() => new(HighlightColor);
 
         private const char PdfLineSearchSeparator = '\uE000';
@@ -67,10 +69,11 @@ namespace Uviewer.Services
                 double pageWidth = Math.Max(1.0, page.Width);
                 double pageHeight = Math.Max(1.0, page.Height);
 
-                foreach (var range in ranges)
+                for (int matchIndex = 0; matchIndex < ranges.Count; matchIndex++)
                 {
                     token.ThrowIfCancellationRequested();
 
+                    var range = ranges[matchIndex];
                     var letters = new List<Letter>();
                     int end = Math.Min(textMap.Letters.Count, range.Start + range.Length);
                     for (int i = range.Start; i < end; i++)
@@ -91,7 +94,7 @@ namespace Uviewer.Services
                         double top = line.Max(letter => letter.GlyphRectangleLoose.Top);
 
                         if (right <= left || top <= bottom) continue;
-                        highlights.Add(new PdfSearchHighlight(left, bottom, right, top, pageWidth, pageHeight));
+                        highlights.Add(new PdfSearchHighlight(left, bottom, right, top, pageWidth, pageHeight, matchIndex));
                     }
                 }
 
@@ -288,7 +291,7 @@ namespace Uviewer.Services
             return result;
         }
 
-        private static IReadOnlyList<TextSearchRange> FindPdfTextRanges(string text, string? query)
+        public static IReadOnlyList<TextSearchRange> FindPdfTextRanges(string text, string? query)
         {
             if (string.IsNullOrEmpty(text) || string.IsNullOrWhiteSpace(query)) return Array.Empty<TextSearchRange>();
 

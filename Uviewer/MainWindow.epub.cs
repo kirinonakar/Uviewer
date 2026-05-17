@@ -565,7 +565,10 @@ namespace Uviewer
                     baseFontSize: _settingsManager.FontSize,
                     defaultFontFamily: _settingsManager.FontFamily,
                     getFontWeight: GetFontWeightForFamily,
-                    searchQuery: _activeSearchQuery
+                    searchQuery: _activeSearchQuery,
+                    currentSearchMatch: GetActiveSearchMatchFor(DocumentSearchKind.Epub),
+                    renderedSearchKind: DocumentSearchKind.Epub,
+                    firstBlockIndex: pg.StartBlockIndex
                 );
             }
             else
@@ -584,7 +587,10 @@ namespace Uviewer
                     baseFontSize: _settingsManager.FontSize,
                     defaultFontFamily: _settingsManager.FontFamily,
                     getFontWeight: GetFontWeightForFamily,
-                    searchQuery: _activeSearchQuery
+                    searchQuery: _activeSearchQuery,
+                    currentSearchMatch: GetActiveSearchMatchFor(DocumentSearchKind.Epub),
+                    renderedSearchKind: DocumentSearchKind.Epub,
+                    firstBlockIndex: pg.StartBlockIndex
                 );
             }
         }

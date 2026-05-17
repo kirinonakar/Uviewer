@@ -124,7 +124,10 @@ namespace Uviewer.Renderers
             double baseFontSize,
             string defaultFontFamily,
             Func<string, FontWeight> getFontWeight,
-            string? searchQuery = null)
+            string? searchQuery = null,
+            DocumentSearchMatch? currentSearchMatch = null,
+            DocumentSearchKind renderedSearchKind = DocumentSearchKind.Text,
+            int firstBlockIndex = -1)
         {
             float currentY = marginTop;
             bool isBoxing = false;
@@ -355,16 +358,39 @@ namespace Uviewer.Renderers
 
                 // 5. 인라인 배경 및 텍스트 본문 그리기
                 DrawRangeBackgrounds(ds, textLayout, highlightRanges, drawX, currentY, ColorHelper.FromArgb(120, 255, 230, 96), fontSize);
+                var searchRanges = SearchHighlightService.FindTextRanges(blockText, searchQuery);
+                int currentSearchRangeIndex = GetCurrentSearchRangeIndex(
+                    block,
+                    firstBlockIndex,
+                    i,
+                    currentSearchMatch,
+                    renderedSearchKind,
+                    searchRanges);
+
                 DrawRangeBackgrounds(
                     ds,
                     textLayout,
-                    SearchHighlightService.FindTextRanges(blockText, searchQuery)
+                    searchRanges
+                        .Where((_, rangeIndex) => rangeIndex != currentSearchRangeIndex)
                         .Select(range => (start: range.Start, length: range.Length))
                         .ToList(),
                     drawX,
                     currentY,
                     SearchHighlightService.HighlightColor,
                     fontSize);
+                if (currentSearchRangeIndex >= 0 && currentSearchRangeIndex < searchRanges.Count)
+                {
+                    var currentRange = searchRanges[currentSearchRangeIndex];
+                    DrawRangeBackgrounds(
+                        ds,
+                        textLayout,
+                        new List<(int start, int length)> { (currentRange.Start, currentRange.Length) },
+                        drawX,
+                        currentY,
+                        SearchHighlightService.CurrentHighlightColor,
+                        fontSize);
+                }
+
                 ds.DrawTextLayout(textLayout, drawX, currentY, textColor);
 
                 // 6. 밑줄(헤딩) 및 좌측 선(인용구) 그리기
@@ -480,6 +506,50 @@ namespace Uviewer.Renderers
                         lineIndex++;
                 }
             }
+        }
+
+        private static int GetCurrentSearchRangeIndex(
+            AozoraBindingModel block,
+            int firstBlockIndex,
+            int localBlockIndex,
+            DocumentSearchMatch? currentSearchMatch,
+            DocumentSearchKind renderedSearchKind,
+            IReadOnlyList<TextSearchRange> ranges)
+        {
+            if (currentSearchMatch == null || currentSearchMatch.Kind != renderedSearchKind || ranges.Count == 0) return -1;
+
+            int blockIndex = firstBlockIndex >= 0 ? firstBlockIndex + localBlockIndex : -1;
+            if (blockIndex >= 0 && currentSearchMatch.BlockIndex >= 0)
+            {
+                if (blockIndex != currentSearchMatch.BlockIndex) return -1;
+            }
+            else if (block.SourceLineNumber > 0)
+            {
+                if (currentSearchMatch.LineNumber != block.SourceLineNumber) return -1;
+            }
+            else
+            {
+                return -1;
+            }
+
+            if (currentSearchMatch.MatchIndex >= 0 && currentSearchMatch.MatchIndex < ranges.Count)
+            {
+                return currentSearchMatch.MatchIndex;
+            }
+
+            if (currentSearchMatch.MatchStart >= 0)
+            {
+                for (int i = 0; i < ranges.Count; i++)
+                {
+                    if (ranges[i].Start == currentSearchMatch.MatchStart &&
+                        ranges[i].Length == currentSearchMatch.MatchLength)
+                    {
+                        return i;
+                    }
+                }
+            }
+
+            return -1;
         }
 
         private readonly struct LineBounds
