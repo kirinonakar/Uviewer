@@ -57,38 +57,38 @@ namespace Uviewer.Services
 
                 using var document = PdfDocument.Open(pdfPath);
                 var page = document.GetPage(pageIndex + 1);
-                var lineMaps = BuildPdfLineTextMaps(page);
-                if (lineMaps.Count == 0) return (IReadOnlyList<PdfSearchHighlight>)Array.Empty<PdfSearchHighlight>();
+                var textMap = BuildPdfTextMap(page);
+                if (string.IsNullOrWhiteSpace(textMap.Text)) return (IReadOnlyList<PdfSearchHighlight>)Array.Empty<PdfSearchHighlight>();
+
+                var ranges = FindPdfTextRanges(textMap.Text, query);
+                if (ranges.Count == 0) return (IReadOnlyList<PdfSearchHighlight>)Array.Empty<PdfSearchHighlight>();
 
                 var highlights = new List<PdfSearchHighlight>();
                 double pageWidth = Math.Max(1.0, page.Width);
                 double pageHeight = Math.Max(1.0, page.Height);
 
-                foreach (var lineMap in lineMaps)
+                foreach (var range in ranges)
                 {
                     token.ThrowIfCancellationRequested();
 
-                    var ranges = FindPdfLineTextRanges(lineMap.Text, query);
-                    foreach (var range in ranges)
+                    var letters = new List<Letter>();
+                    int end = Math.Min(textMap.Letters.Count, range.Start + range.Length);
+                    for (int i = range.Start; i < end; i++)
                     {
-                        token.ThrowIfCancellationRequested();
-
-                        var letters = new List<Letter>();
-                        int end = Math.Min(lineMap.Letters.Count, range.Start + range.Length);
-                        for (int i = range.Start; i < end; i++)
+                        if (textMap.Letters[i] != null)
                         {
-                            if (lineMap.Letters[i] != null)
-                            {
-                                letters.Add(lineMap.Letters[i]!);
-                            }
+                            letters.Add(textMap.Letters[i]!);
                         }
+                    }
 
-                        if (letters.Count == 0) continue;
+                    foreach (var line in GroupLettersByLine(letters))
+                    {
+                        if (line.Count == 0) continue;
 
-                        double left = letters.Min(letter => letter.GlyphRectangleLoose.Left);
-                        double right = letters.Max(letter => letter.GlyphRectangleLoose.Right);
-                        double bottom = letters.Min(letter => letter.GlyphRectangleLoose.Bottom);
-                        double top = letters.Max(letter => letter.GlyphRectangleLoose.Top);
+                        double left = line.Min(letter => letter.GlyphRectangleLoose.Left);
+                        double right = line.Max(letter => letter.GlyphRectangleLoose.Right);
+                        double bottom = line.Min(letter => letter.GlyphRectangleLoose.Bottom);
+                        double top = line.Max(letter => letter.GlyphRectangleLoose.Top);
 
                         if (right <= left || top <= bottom) continue;
                         highlights.Add(new PdfSearchHighlight(left, bottom, right, top, pageWidth, pageHeight));
@@ -216,8 +216,10 @@ namespace Uviewer.Services
         {
             if (string.IsNullOrWhiteSpace(query)) return 0;
 
-            var lineMaps = BuildPdfLineTextMaps(page);
-            int count = lineMaps.Sum(line => FindPdfLineTextRanges(line.Text, query).Count);
+            string mappedText = ExtractPdfMappedText(page);
+            int count = string.IsNullOrWhiteSpace(mappedText)
+                ? 0
+                : FindPdfTextRanges(mappedText, query).Count;
             if (count > 0) return count;
 
             string fallbackText = ExtractPdfPageText(page);
@@ -286,77 +288,31 @@ namespace Uviewer.Services
             return result;
         }
 
-        private static IReadOnlyList<TextSearchRange> FindPdfLineTextRanges(string text, string? query)
+        private static IReadOnlyList<TextSearchRange> FindPdfTextRanges(string text, string? query)
         {
             if (string.IsNullOrEmpty(text) || string.IsNullOrWhiteSpace(query)) return Array.Empty<TextSearchRange>();
 
-            string normalizedQuery = NormalizePdfSearchText(CollapseWhitespace(query), removeWhitespace: false);
-            if (normalizedQuery.Length == 0) return Array.Empty<TextSearchRange>();
-
-            var directRanges = FindNormalizedPdfRanges(text, normalizedQuery, removeWhitespace: false);
-            if (directRanges.Count > 0) return directRanges;
-
-            string compactQuery = NormalizePdfSearchText(query, removeWhitespace: true);
+            string compactQuery = RemoveWhitespace(CollapseWhitespace(query));
             if (compactQuery.Length == 0) return Array.Empty<TextSearchRange>();
 
-            return FindNormalizedPdfRanges(text, compactQuery, removeWhitespace: true);
-        }
+            var compact = BuildCompactTextMap(text);
+            if (compact.Text.Length == 0) return Array.Empty<TextSearchRange>();
 
-        private static List<TextSearchRange> FindNormalizedPdfRanges(string text, string normalizedQuery, bool removeWhitespace)
-        {
             var result = new List<TextSearchRange>();
             int index = 0;
-            int maxWindow = Math.Max(normalizedQuery.Length + 8, normalizedQuery.Length * 4 + 12);
-
-            while (index < text.Length)
+            while (index < compact.Text.Length)
             {
-                if (removeWhitespace && char.IsWhiteSpace(text[index]))
-                {
-                    index++;
-                    continue;
-                }
+                int found = CompareInfo.IndexOf(compact.Text, compactQuery, index, SearchOptions);
+                if (found < 0) break;
 
-                int bestEnd = -1;
-                int limit = Math.Min(text.Length, index + maxWindow);
-                for (int end = index + 1; end <= limit; end++)
-                {
-                    string candidate = NormalizePdfSearchText(text.Substring(index, end - index), removeWhitespace);
-                    if (candidate.Length == 0) continue;
-
-                    int compare = CompareInfo.Compare(candidate, normalizedQuery, SearchOptions);
-                    if (compare == 0)
-                    {
-                        bestEnd = end;
-                        break;
-                    }
-
-                    if (candidate.Length > normalizedQuery.Length + 4)
-                    {
-                        break;
-                    }
-                }
-
-                if (bestEnd > index)
-                {
-                    result.Add(new TextSearchRange(index, bestEnd - index));
-                    index = bestEnd;
-                }
-                else
-                {
-                    index++;
-                }
+                int end = Math.Min(compact.OriginalIndexes.Count - 1, found + compactQuery.Length - 1);
+                int originalStart = compact.OriginalIndexes[found];
+                int originalEnd = compact.OriginalIndexes[end] + 1;
+                result.Add(new TextSearchRange(originalStart, Math.Max(1, originalEnd - originalStart)));
+                index = found + Math.Max(1, compactQuery.Length);
             }
 
             return result;
-        }
-
-        private static string NormalizePdfSearchText(string text, bool removeWhitespace)
-        {
-            string normalized = removeWhitespace
-                ? RemoveWhitespace(text)
-                : CollapseWhitespace(text);
-
-            return normalized.Normalize(NormalizationForm.FormKC);
         }
 
         private static (string Text, List<int> OriginalIndexes) BuildCompactTextMap(string text)
@@ -491,12 +447,7 @@ namespace Uviewer.Services
 
             if (letters.Count == 0) return new List<List<Letter>>();
 
-            double averageFontSize = letters
-                .Select(letter => Math.Max(1.0, letter.FontSize))
-                .DefaultIfEmpty(12.0)
-                .Average();
-
-            double lineTolerance = Math.Max(2.0, averageFontSize * 0.55);
+            double lineTolerance = CalculatePdfLineTolerance(letters);
             var lines = new List<List<Letter>>();
 
             foreach (var letter in letters)
@@ -520,8 +471,7 @@ namespace Uviewer.Services
         {
             if (letters.Count == 0) return Array.Empty<IReadOnlyList<Letter>>();
 
-            double averageFontSize = letters.Select(letter => Math.Max(1.0, letter.FontSize)).DefaultIfEmpty(12.0).Average();
-            double lineTolerance = Math.Max(2.0, averageFontSize * 0.55);
+            double lineTolerance = CalculatePdfLineTolerance(letters);
             var lines = new List<List<Letter>>();
 
             foreach (var letter in letters.OrderByDescending(letter => letter.StartBaseLine.Y))
@@ -585,8 +535,23 @@ namespace Uviewer.Services
             if (gap <= 0) return false;
 
             double previousWidth = Math.Max(0.1, previous.Width);
-            double threshold = Math.Max(1.5, Math.Max(previousWidth * 0.45, previous.FontSize * 0.18));
+            double previousHeight = Math.Max(0.1, previous.GlyphRectangleLoose.Height);
+            double threshold = Math.Max(1.5, Math.Max(previousWidth * 0.45, previousHeight * 0.25));
             return gap > threshold;
+        }
+
+        private static double CalculatePdfLineTolerance(IReadOnlyList<Letter> letters)
+        {
+            if (letters.Count == 0) return 2.0;
+
+            var heights = letters
+                .Select(letter => Math.Max(0.1, letter.GlyphRectangleLoose.Height))
+                .Where(height => height < 200)
+                .OrderBy(height => height)
+                .ToList();
+
+            double medianHeight = heights.Count == 0 ? 12.0 : heights[heights.Count / 2];
+            return Math.Max(1.5, medianHeight * 0.45);
         }
 
         private static void TryAddCandidate(List<string> candidates, string text)
