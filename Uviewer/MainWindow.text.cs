@@ -1,7 +1,4 @@
-using Microsoft.Graphics.Canvas;
-using Microsoft.Graphics.Canvas.Text;
 using Microsoft.UI;
-using Microsoft.UI.Text;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Documents;
@@ -10,8 +7,6 @@ using Microsoft.UI.Xaml.Media;
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
-using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using Windows.Foundation;
@@ -43,18 +38,6 @@ namespace Uviewer
         private string? _currentTextFilePath = null;
         private string? _currentTextArchiveEntryKey = null; // Track entry key if viewing from archive
         private int _lastRecentSaveLine = -1;
-
-
-        private async Task<string> ReadTextFileWithEncodingAsync(StorageFile file)
-        {
-            var buffer = await FileIO.ReadBufferAsync(file);
-            using var dataReader = Windows.Storage.Streams.DataReader.FromBuffer(buffer);
-            byte[] bytes = new byte[buffer.Length];
-            dataReader.ReadBytes(bytes);
-
-            Encoding encoding = TextEncodingService.GetTextEncoding(bytes, _settingsManager.EncodingName);
-            return encoding.GetString(bytes);
-        }
 
         private async void EncodingItem_Click(object sender, RoutedEventArgs e)
         {
@@ -144,7 +127,7 @@ namespace Uviewer
                 var token = _globalTextCts!.Token;
 
                 SwitchToTextMode();
-                string content = await ReadTextFileWithEncodingAsync(file);
+                string content = await _textFileReaderService.ReadAsync(file, _settingsManager.EncodingName);
                 if (token.IsCancellationRequested) return;
 
                 await DisplayLoadedText(content, file.Name, file.Path, token);
@@ -204,7 +187,7 @@ namespace Uviewer
                                 using var entryStream = archEntry.OpenEntryStream();
                                 entryStream.CopyTo(ms);
                                 var bytes = ms.ToArray();
-                                content = TextEncodingService.GetTextEncoding(bytes, _settingsManager.EncodingName).GetString(bytes);
+                                content = _textFileReaderService.Decode(bytes, _settingsManager.EncodingName);
                             }
                         }
                         else if (_current7zArchive != null)
@@ -215,7 +198,7 @@ namespace Uviewer
                                 using var ms = new System.IO.MemoryStream();
                                 archEntry.Extract(ms);
                                 var bytes = ms.ToArray();
-                                content = TextEncodingService.GetTextEncoding(bytes, _settingsManager.EncodingName).GetString(bytes);
+                                content = _textFileReaderService.Decode(bytes, _settingsManager.EncodingName);
                             }
                         }
                     }
@@ -361,33 +344,11 @@ namespace Uviewer
 
         private int GetSavedStartLine(string name, string? path)
         {
-            try
-            {
-                // Identify target solely by path if available, else by name AND ensure no path collision
-                // Use Case-Insensitive comparison for Windows paths
-
-                var recent = _recentService.RecentItems.OrderByDescending(r => r.AccessedAt)
-                                         .FirstOrDefault(r => (path != null && string.Equals(r.Path, path, StringComparison.OrdinalIgnoreCase)) ||
-                                                              (path == null && string.Equals(r.Name, name, StringComparison.OrdinalIgnoreCase)));
-
-                if (recent != null)
-                {
-                    if (recent.SavedLine > 1) return recent.SavedLine;
-                    if (recent.SavedPage > 0) return -recent.SavedPage; // Legacy support
-                    return 1;
-                }
-
-                // If not in recent, check favorites
-                var favorite = _favoritesService.Favorites.FirstOrDefault(f => (path != null && string.Equals(f.Path, path, StringComparison.OrdinalIgnoreCase)) ||
-                                                              (path == null && string.Equals(f.Name, name, StringComparison.OrdinalIgnoreCase)));
-                if (favorite != null)
-                {
-                    if (favorite.SavedLine > 1) return favorite.SavedLine;
-                    if (favorite.SavedPage > 0) return -favorite.SavedPage;
-                }
-            }
-            catch { }
-            return 1; // Default to start
+            return _textResumeService.GetSavedStartLine(
+                _recentService.RecentItems,
+                _favoritesService.Favorites,
+                name,
+                path);
         }
 
         private async Task RestoreTextPositionAsync(string name)
@@ -575,12 +536,17 @@ namespace Uviewer
         /// </summary>
         private async Task LoadTextLinesProgressivelyAsync(string content, int targetLine = 1, CancellationToken token = default)
         {
-            var lines = content.Replace("\r\n", "\n").Replace("\r", "\n").Split('\n');
+            var lines = TextLineLayoutService.SplitNormalizedLines(content);
             _textTotalLineCountInSource = lines.Length;
             _isTextLinesFullyLoaded = false;
 
             var brush = _settingsManager.GetThemeForeground();
             var maxW = GetUrlMaxWidth();
+            var lineStyle = new TextLineStyle(
+                _settingsManager.FontSize,
+                _settingsManager.FontFamily,
+                brush,
+                maxW);
 
             int initialLimit = 2000;
             if (targetLine > initialLimit - 500) initialLimit = targetLine + 500;
@@ -588,7 +554,7 @@ namespace Uviewer
             if (lines.Length > initialLimit)
             {
                 var initialLines = lines.Take(initialLimit).ToArray();
-                _textLines = await Task.Run(() => ParseTextLinesChunk(initialLines, brush, maxW), token);
+                _textLines = await Task.Run(() => _textLineLayoutService.CreatePlainLines(initialLines, lineStyle), token);
 
                 if (TextItemsRepeater != null)
                 {
@@ -614,7 +580,7 @@ namespace Uviewer
                     {
                         if (token.IsCancellationRequested) return;
                         var restLines = lines.Skip(initialLimit).ToArray();
-                        var restTextLines = ParseTextLinesChunk(restLines, brush, maxW);
+                        var restTextLines = _textLineLayoutService.CreatePlainLines(restLines, lineStyle);
 
                         if (token.IsCancellationRequested) return;
 
@@ -660,7 +626,7 @@ namespace Uviewer
             }
             else
             {
-                _textLines = await Task.Run(() => ParseTextLinesChunk(lines, brush, maxW), token);
+                _textLines = await Task.Run(() => _textLineLayoutService.CreatePlainLines(lines, lineStyle), token);
                 _isTextLinesFullyLoaded = true;
 
                 if (TextItemsRepeater != null)
@@ -686,85 +652,16 @@ namespace Uviewer
             if (TextFastNavOverlay != null) TextFastNavOverlay.Visibility = Visibility.Collapsed;
         }
 
-        /// <summary>
-        /// Parse a chunk of lines into TextLine objects (runs on background thread)
-        /// </summary>
-        private List<TextLine> ParseTextLinesChunk(string[] lines, Brush brush, double maxW)
-        {
-            var result = new List<TextLine>(lines.Length);
-
-            foreach (var line in lines)
-            {
-                var textLine = new TextLine
-                {
-                    Content = line,
-                    FontSize = _settingsManager.FontSize,
-                    FontFamily = _settingsManager.FontFamily,
-                    Foreground = brush,
-                    MaxWidth = maxW
-                };
-                // Note: ApplyAozoraStyling is skipped for simple text mode for performance
-                result.Add(textLine);
-            }
-            return result;
-        }
-
-        private List<TextLine> SplitTextToLines(string content)
-        {
-            var lines = content.Replace("\r\n", "\n").Replace("\r", "\n").Split('\n');
-            var result = new List<TextLine>();
-
-            foreach (var line in lines)
-            {
-                result.Add(CreateTextLine(line)); // We bind logic late or created here
-            }
-            return result;
-        }
-
-        private TextLine CreateTextLine(string content)
-        {
-            var line = new TextLine
-            {
-                Content = content,
-                FontSize = _settingsManager.FontSize,
-                FontFamily = _settingsManager.FontFamily,
-                Foreground = _settingsManager.GetThemeForeground(),
-                MaxWidth = GetUrlMaxWidth()
-            };
-
-            // Parse Aozora tags
-            AozoraParserService.ApplySimpleAozoraStyling(line, _settingsManager.FontSize);
-
-            return line;
-        }
-
-
         private double GetUrlMaxWidth()
         {
-            // Container width based on the actual UI control, if available
-            double containerWidth = 800; // Default fallback
-            if (TextArea != null && TextArea.ActualWidth > 0)
-            {
-                // Align with HorizontalRenderer margins (~80px total)
-                containerWidth = TextArea.ActualWidth - 80;
-            }
-
-            // "Text width max 42 chars" limit for readability
-            double limitedWidth = 42 * _settingsManager.FontSize;
-
-            // Use whichever is smaller to prevent overflow on narrow screens
-            return Math.Max(100, Math.Min(containerWidth, limitedWidth));
+            return _textLineLayoutService.CalculateReadableMaxWidth(
+                TextArea?.ActualWidth ?? 0,
+                _settingsManager.FontSize);
         }
 
         private Windows.UI.Text.FontWeight GetFontWeightForFamily(string fontFamily)
         {
-            if (string.IsNullOrEmpty(fontFamily)) return Microsoft.UI.Text.FontWeights.Normal;
-            if (fontFamily.Contains("Yu Gothic", StringComparison.OrdinalIgnoreCase) || 
-                fontFamily.Contains("游ゴシック", StringComparison.OrdinalIgnoreCase))
-            {
-                return Microsoft.UI.Text.FontWeights.Medium;
-            }
-            return Microsoft.UI.Text.FontWeights.Normal;
+            return _textLineLayoutService.GetFontWeightForFamily(fontFamily);
         }
 
         private async Task RefreshTextDisplay(bool resetScroll = false)
@@ -822,35 +719,13 @@ namespace Uviewer
             var brush = _settingsManager.GetThemeForeground();
             var bg = _settingsManager.GetThemeBackground();
             var maxW = GetUrlMaxWidth();
-            var fontSize = _settingsManager.FontSize;
-            var fontFamily = _settingsManager.FontFamily;
+            var lineStyle = new TextLineStyle(
+                _settingsManager.FontSize,
+                _settingsManager.FontFamily,
+                brush,
+                maxW);
 
-            if (_textLines.Count > 1000)
-            {
-                // Large file: update in background
-                var linesToUpdate = _textLines;
-                await Task.Run(() =>
-                {
-                    foreach (var line in linesToUpdate)
-                    {
-                        line.FontSize = fontSize;
-                        line.FontFamily = fontFamily;
-                        line.Foreground = brush;
-                        line.MaxWidth = maxW;
-                    }
-                });
-            }
-            else
-            {
-                // Small file: update synchronously
-                foreach (var line in _textLines)
-                {
-                    line.FontSize = fontSize;
-                    line.FontFamily = fontFamily;
-                    line.Foreground = brush;
-                    line.MaxWidth = maxW;
-                }
-            }
+            await _textLineLayoutService.UpdateLinesAsync(_textLines, lineStyle);
 
             TextArea.Background = bg;
             TextItemsRepeater.ItemsSource = null;
@@ -1889,63 +1764,7 @@ namespace Uviewer
     if (args.Element is TextBlock tb && _textLines.Count > args.Index)
     {
         var line = _textLines[args.Index];
-
-        // Binding Properties
-        tb.FontSize = line.FontSize;
-        tb.FontFamily = new FontFamily(line.FontFamily);
-        tb.FontWeight = GetFontWeightForFamily(line.FontFamily);
-        tb.Foreground = line.Foreground;
-        tb.MaxWidth = line.MaxWidth;
-        tb.TextAlignment = line.TextAlignment;
-        
-        // [수정 1] 소수점 픽셀 오차로 인한 무한 바운스(Jittering) 차단을 위해 정수화
-        tb.LineHeight = Math.Ceiling(line.FontSize * 1.8);
-        
-        tb.LineStackingStrategy = LineStackingStrategy.BlockLineHeight;
-        tb.Margin = line.Margin;
-        tb.Padding = line.Padding;
-
-        // 중간에 껴있는 빈 줄의 높이 붕괴 방지
-        if (string.IsNullOrEmpty(line.Content))
-        {
-            tb.MinHeight = tb.LineHeight;
-        }
-        else
-        {
-            tb.ClearValue(FrameworkElement.MinHeightProperty);
-        }
-
-        string content = line.Content;
-
-        // [수정 2] 긴 문장 래핑 시 발생하는 Inlines 버그 우회
-        // Bold(**) 처리가 없는 일반 문장(파일의 대부분 및 마지막 긴 문장)은 
-        // Inlines 대신 Text 속성을 사용하여 스크롤 높이 측정을 안정화합니다.
-        if (!content.Contains("**"))
-        {
-            tb.Inlines.Clear();
-            tb.Text = content;
-        }
-        else
-        {
-            tb.Text = ""; // Text가 남아있지 않도록 초기화
-            tb.Inlines.Clear();
-            var parts = Regex.Split(content, @"(\*\*.*?\*\*)");
-
-            foreach (var part in parts)
-            {
-                if (part.StartsWith("**") && part.EndsWith("**") && part.Length >= 4)
-                {
-                    string boldText = part.Substring(2, part.Length - 4);
-                    tb.Inlines.Add(new Run { Text = boldText, FontWeight = Microsoft.UI.Text.FontWeights.Bold });
-                }
-                else if (!string.IsNullOrEmpty(part))
-                {
-                    tb.Inlines.Add(new Run { Text = part });
-                }
-            }
-        }
-
-        ApplySearchHighlightsToTextBlock(tb, content, args.Index + 1);
+        _textLinePresenterService.ApplyToTextBlock(tb, line, args.Index + 1, ApplySearchHighlightsToTextBlock);
     }
 }
         // --- Input Handling ---

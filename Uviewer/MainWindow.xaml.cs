@@ -62,6 +62,10 @@ namespace Uviewer
         private readonly Services.EpubPageFlowService _epubPageFlowService = new();
         private readonly Services.ReaderLayoutService _readerLayoutService = new();
         private readonly Services.TextBlockDocumentService _textBlockDocumentService = new();
+        private readonly Services.TextFileReaderService _textFileReaderService = new();
+        private readonly Services.TextLineLayoutService _textLineLayoutService = new();
+        private readonly Services.TextLinePresenterService _textLinePresenterService;
+        private readonly Services.TextResumeService _textResumeService = new();
         private readonly Services.ReadingProgressService _readingProgressService = new();
         private readonly Services.ImageResourceService _imageResourceService;
         private bool _isWindowClosing;
@@ -239,6 +243,7 @@ namespace Uviewer
             _aozoraBlockPaginator = new Services.AozoraBlockPaginator(_aozoraBlockMeasurer);
             _aozoraPageMapCalculator = new Services.AozoraPageMapCalculator(_aozoraBlockMeasurer);
             _aozoraPreviousPageCache = new Services.AozoraPreviousPageCache(_aozoraBlockMeasurer, _aozoraBlockPaginator);
+            _textLinePresenterService = new Services.TextLinePresenterService(_textLineLayoutService);
 
             InitializeComponent();
             _searchOverlayService = new Services.SearchOverlayService(
