@@ -57,7 +57,7 @@
     <PackageReference Include="Microsoft.WindowsAppSDK" Version="2.0.1" />
     <PackageReference Include="PdfPig" Version="0.1.14" />
     <PackageReference Include="SevenZipExtractor" Version="1.0.19" />
-    <PackageReference Include="SharpCompress" Version="0.48.0" />
+    <PackageReference Include="SharpCompress" Version="0.48.1" />
     <PackageReference Include="Microsoft.Graphics.Win2D" Version="1.4.0" />
     <PackageReference Include="System.Management" Version="10.0.8" />
     <PackageReference Include="System.Security.Cryptography.ProtectedData" Version="10.0.8" />
