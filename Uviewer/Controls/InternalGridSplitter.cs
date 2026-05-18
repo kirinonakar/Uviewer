@@ -36,7 +36,7 @@ namespace Uviewer.Controls
                 nameof(MaxTargetWidth),
                 typeof(double),
                 typeof(InternalGridSplitter),
-                new PropertyMetadata(800d));
+                new PropertyMetadata(1200d));
 
         public static readonly DependencyProperty TargetColumnOffsetProperty =
             DependencyProperty.Register(

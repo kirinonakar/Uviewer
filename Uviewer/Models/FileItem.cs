@@ -106,6 +106,20 @@ namespace Uviewer.Models
             }
         }
 
+        private Thickness _folderThumbnailTabMargin = new(5, 10, 0, 0);
+        public Thickness FolderThumbnailTabMargin
+        {
+            get => _folderThumbnailTabMargin;
+            private set
+            {
+                if (_folderThumbnailTabMargin != value)
+                {
+                    _folderThumbnailTabMargin = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
         private double _folderThumbnailBodyWidth = 76;
         public double FolderThumbnailBodyWidth
         {
@@ -196,6 +210,11 @@ namespace Uviewer.Models
             FolderThumbnailBodyHeight = clamped * 0.70;
             FolderThumbnailInsetWidth = clamped * 0.70;
             FolderThumbnailInsetHeight = clamped * 0.46;
+            FolderThumbnailTabMargin = new Thickness(
+                clamped * 0.08,
+                clamped - FolderThumbnailBodyHeight - FolderThumbnailTabHeight,
+                0,
+                0);
         }
 
         public string Icon => IsParentDirectory ? "\uE72B" :

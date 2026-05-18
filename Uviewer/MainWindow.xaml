@@ -801,7 +801,7 @@
                                                     Height="{Binding FolderThumbnailTabHeight}"
                                                     HorizontalAlignment="Left"
                                                     VerticalAlignment="Top"
-                                                    Margin="5,8,0,0"
+                                                    Margin="{Binding FolderThumbnailTabMargin}"
                                                     Background="#DAA520"
                                                     CornerRadius="4,4,0,0"/>
                                             <Border Width="{Binding FolderThumbnailBodyWidth}"
@@ -827,7 +827,7 @@
                                                     Height="{Binding FolderThumbnailBodyHeight}"
                                                     HorizontalAlignment="Center"
                                                     VerticalAlignment="Bottom"
-                                                    Background="#66FFD700"
+                                                    Background="Transparent"
                                                     BorderBrush="#AA8A6110"
                                                     BorderThickness="1"
                                                     CornerRadius="5"/>
