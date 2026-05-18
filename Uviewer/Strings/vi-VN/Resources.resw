@@ -160,6 +160,18 @@
   <data name="ListViewTooltip" xml:space="preserve">
     <value>Xem danh sách</value>
   </data>
+  <data name="RightClickSettingsHint" xml:space="preserve">
+    <value>Nhấp chuột phải để cài đặt</value>
+  </data>
+  <data name="ThumbnailSettingsTitle" xml:space="preserve">
+    <value>Cài đặt hình thu nhỏ</value>
+  </data>
+  <data name="ThumbnailSizeLabel" xml:space="preserve">
+    <value>Kích thước hình thu nhỏ:</value>
+  </data>
+  <data name="ShowFolderThumbnailsLabel" xml:space="preserve">
+    <value>Hiển thị hình thu nhỏ cho thư mục</value>
+  </data>
   <data name="ParentFolderTooltip" xml:space="preserve">
     <value>Lên một cấp (Backspace)</value>
   </data>

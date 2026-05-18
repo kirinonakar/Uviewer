@@ -530,7 +530,7 @@ namespace Uviewer
             ToolTipService.SetToolTip(ThemeToggleButton, Strings.ThemeTooltip);
             ToolTipService.SetToolTip(FullscreenButton, Strings.FullscreenTooltip);
             ToolTipService.SetToolTip(CloseWindowButton, Strings.CloseWindowTooltip);
-            ToolTipService.SetToolTip(ToggleViewButton, Strings.ToggleViewTooltip);
+            UpdateToggleViewButtonTooltip();
             ToolTipService.SetToolTip(ParentFolderButton, Strings.ParentFolderTooltip);
             ToolTipService.SetToolTip(RecentButton, Strings.RecentTooltip);
             ToolTipService.SetToolTip(SidebarFavoritesButton, Strings.FavoritesTooltip);
@@ -630,6 +630,11 @@ namespace Uviewer
             if (SortByDateAscMenu != null) SortByDateAscMenu.Text = Strings.SortByDateAscTooltip;
 
             UpdateLanguageMenuCheckmark();
+
+            if (ThumbnailSettingsTitleText != null) ThumbnailSettingsTitleText.Text = Strings.ThumbnailSettingsTitle;
+            if (ThumbnailSizeLabel != null) ThumbnailSizeLabel.Text = Strings.ThumbnailSizeLabel;
+            if (FolderThumbnailsCheckBox != null) FolderThumbnailsCheckBox.Content = Strings.ShowFolderThumbnailsLabel;
+            ApplyThumbnailSettingsToControls();
 
             // Sharpen & Upscale Flyout
             if (SharpenSettingsTitleText != null) SharpenSettingsTitleText.Text = Strings.SharpenSettingsTitle;

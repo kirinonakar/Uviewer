@@ -18,6 +18,8 @@ namespace Uviewer.Services
         bool AllowMultipleInstances { get; set; }
         bool AutoDoublePageForArchive { get; set; }
         bool IsRegistered { get; set; }
+        double ExplorerThumbnailSize { get; set; }
+        bool ShowFolderThumbnails { get; set; }
 
         void SetTheme(ElementTheme theme);
         void RestoreMaximizedWhenActivated();

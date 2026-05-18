@@ -379,6 +379,7 @@ namespace Uviewer
 
                 var explorerItems = WebDavExplorerItemFactory.CreateFolderItems(remotePath, items, _explorerSortMode);
                 _explorerState.ReplaceItems(explorerItems);
+                ApplyThumbnailSizeToFileItems();
             }
             catch (OperationCanceledException) { }
             catch (Exception ex)

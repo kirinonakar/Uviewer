@@ -55,6 +55,18 @@ namespace Uviewer
             set => _isRegistered = value;
         }
 
+        double IWindowSettingsHost.ExplorerThumbnailSize
+        {
+            get => _explorerThumbnailSize;
+            set => _explorerThumbnailSize = System.Math.Clamp(value, 64, 180);
+        }
+
+        bool IWindowSettingsHost.ShowFolderThumbnails
+        {
+            get => _showFolderThumbnails;
+            set => _showFolderThumbnails = value;
+        }
+
         void IWindowSettingsHost.SetTheme(ElementTheme theme) => SetTheme(theme);
 
         void IWindowSettingsHost.RestoreMaximizedWhenActivated()
@@ -72,6 +84,7 @@ namespace Uviewer
             if (AllowMultipleInstancesMenuItem != null) AllowMultipleInstancesMenuItem.IsChecked = _allowMultipleInstances;
             if (AutoDoublePageForArchiveMenuItem != null) AutoDoublePageForArchiveMenuItem.IsChecked = _autoDoublePageForArchive;
             if (AlwaysOnTopButton != null) AlwaysOnTopButton.IsChecked = _windowState.IsAlwaysOnTop;
+            ApplyThumbnailSettingsToControls();
 
             if (AppWindow.Presenter is OverlappedPresenter op)
             {

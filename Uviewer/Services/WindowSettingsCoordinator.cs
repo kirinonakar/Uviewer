@@ -48,6 +48,8 @@ namespace Uviewer.Services
             windowState.IsAlwaysOnTop = settings.IsAlwaysOnTop;
             _host.AutoDoublePageForArchive = settings.AutoDoublePageForArchive;
             _host.IsRegistered = settings.IsRegistered;
+            _host.ExplorerThumbnailSize = settings.ExplorerThumbnailSize;
+            _host.ShowFolderThumbnails = settings.ShowFolderThumbnails;
 
             // Sharpen parameters via ImageOptions
             _host.ImageOptions.UpscaleFactor = settings.UpscaleFactor;
@@ -91,6 +93,8 @@ namespace Uviewer.Services
                 IsAlwaysOnTop = windowState.IsAlwaysOnTop,
                 AutoDoublePageForArchive = _host.AutoDoublePageForArchive,
                 IsRegistered = _host.IsRegistered,
+                ExplorerThumbnailSize = _host.ExplorerThumbnailSize,
+                ShowFolderThumbnails = _host.ShowFolderThumbnails,
                 UpscaleFactor = _host.ImageOptions.UpscaleFactor,
                 SharpenAmount = _host.ImageOptions.SharpenAmount,
                 SharpenThreshold = _host.ImageOptions.SharpenThreshold,

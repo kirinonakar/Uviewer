@@ -545,6 +545,19 @@
 
                     <Button Grid.Column="0" x:Name="ToggleViewButton" Click="ToggleExplorerViewButton_Click"
                             ToolTipService.ToolTip="썸네일 보기" Padding="6" Margin="0,0,8,0">
+                        <Button.ContextFlyout>
+                            <Flyout>
+                                <StackPanel Width="260" Spacing="10" Padding="10">
+                                    <TextBlock x:Name="ThumbnailSettingsTitleText" Text="{x:Bind local:Strings.ThumbnailSettingsTitle}" FontWeight="SemiBold" Margin="0,0,0,2"/>
+                                    <Grid>
+                                        <TextBlock x:Name="ThumbnailSizeLabel" Text="{x:Bind local:Strings.ThumbnailSizeLabel}" FontSize="12" HorizontalAlignment="Left"/>
+                                        <TextBlock x:Name="ThumbnailSizeValueText" Text="80" FontSize="12" HorizontalAlignment="Right"/>
+                                    </Grid>
+                                    <Slider x:Name="ThumbnailSizeSlider" Minimum="64" Maximum="180" StepFrequency="4" Value="80" ValueChanged="ThumbnailSizeSlider_ValueChanged"/>
+                                    <CheckBox x:Name="FolderThumbnailsCheckBox" Content="{x:Bind local:Strings.ShowFolderThumbnailsLabel}" Checked="FolderThumbnailsCheckBox_Changed" Unchecked="FolderThumbnailsCheckBox_Changed"/>
+                                </StackPanel>
+                            </Flyout>
+                        </Button.ContextFlyout>
                         <FontIcon Glyph="&#xE80A;" FontSize="14"/>
                     </Button>
 
@@ -768,16 +781,57 @@
                               Padding="4">
                         <GridView.ItemTemplate>
                             <DataTemplate>
-                                <Grid Width="100" Height="120" Padding="4" Background="Transparent" CornerRadius="4">
+                                <Grid Width="{Binding ThumbnailItemWidth}" Height="{Binding ThumbnailItemHeight}" Padding="4" Background="Transparent" CornerRadius="4">
                                     <Grid.RowDefinitions>
                                         <RowDefinition Height="*"/>
                                         <RowDefinition Height="Auto"/>
                                     </Grid.RowDefinitions>
                                     
                                     <Grid Grid.Row="0">
-                                        <FontIcon Glyph="{Binding Icon}" FontSize="48" Foreground="{Binding IconColor}" 
-                                                  HorizontalAlignment="Center" VerticalAlignment="Center" />
-                                        <Image Source="{Binding Thumbnail}" Stretch="Uniform" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                        <FontIcon Glyph="{Binding Icon}" FontSize="{Binding ThumbnailIconSize}" Foreground="{Binding IconColor}" 
+                                                  HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                  Visibility="{Binding IconVisibility}" />
+                                        <Image Source="{Binding Thumbnail}" Stretch="Uniform" HorizontalAlignment="Center" VerticalAlignment="Center"
+                                               MaxWidth="{Binding ThumbnailImageSize}" MaxHeight="{Binding ThumbnailImageSize}"
+                                               Visibility="{Binding ImageThumbnailVisibility}"/>
+                                        <Grid Width="{Binding ThumbnailImageSize}" Height="{Binding ThumbnailImageSize}"
+                                              HorizontalAlignment="Center" VerticalAlignment="Center"
+                                              Visibility="{Binding FolderThumbnailVisibility}">
+                                            <Border Width="{Binding FolderThumbnailTabWidth}"
+                                                    Height="{Binding FolderThumbnailTabHeight}"
+                                                    HorizontalAlignment="Left"
+                                                    VerticalAlignment="Top"
+                                                    Margin="5,8,0,0"
+                                                    Background="#DAA520"
+                                                    CornerRadius="4,4,0,0"/>
+                                            <Border Width="{Binding FolderThumbnailBodyWidth}"
+                                                    Height="{Binding FolderThumbnailBodyHeight}"
+                                                    HorizontalAlignment="Center"
+                                                    VerticalAlignment="Bottom"
+                                                    Background="#FFD700"
+                                                    BorderBrush="#B8860B"
+                                                    BorderThickness="1"
+                                                    CornerRadius="5"/>
+                                            <Border Width="{Binding FolderThumbnailInsetWidth}"
+                                                    Height="{Binding FolderThumbnailInsetHeight}"
+                                                    HorizontalAlignment="Center"
+                                                    VerticalAlignment="Bottom"
+                                                    Margin="0,0,0,8"
+                                                    Background="{ThemeResource SolidBackgroundFillColorBaseBrush}"
+                                                    BorderBrush="#AA8A6110"
+                                                    BorderThickness="1"
+                                                    CornerRadius="3">
+                                                <Image Source="{Binding Thumbnail}" Stretch="UniformToFill"/>
+                                            </Border>
+                                            <Border Width="{Binding FolderThumbnailBodyWidth}"
+                                                    Height="{Binding FolderThumbnailBodyHeight}"
+                                                    HorizontalAlignment="Center"
+                                                    VerticalAlignment="Bottom"
+                                                    Background="#66FFD700"
+                                                    BorderBrush="#AA8A6110"
+                                                    BorderThickness="1"
+                                                    CornerRadius="5"/>
+                                        </Grid>
                                     </Grid>
 
                                     <TextBlock Grid.Row="1" Text="{Binding Name}" FontSize="11" 

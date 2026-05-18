@@ -160,6 +160,18 @@
   <data name="ListViewTooltip" xml:space="preserve">
     <value>清單檢視</value>
   </data>
+  <data name="RightClickSettingsHint" xml:space="preserve">
+    <value>按右鍵開啟設定</value>
+  </data>
+  <data name="ThumbnailSettingsTitle" xml:space="preserve">
+    <value>縮圖設定</value>
+  </data>
+  <data name="ThumbnailSizeLabel" xml:space="preserve">
+    <value>縮圖大小:</value>
+  </data>
+  <data name="ShowFolderThumbnailsLabel" xml:space="preserve">
+    <value>顯示資料夾縮圖</value>
+  </data>
   <data name="ParentFolderTooltip" xml:space="preserve">
     <value>回上一層 (Backspace)</value>
   </data>

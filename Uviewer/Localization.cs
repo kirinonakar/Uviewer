@@ -53,6 +53,10 @@ namespace Uviewer
         public static string CloseWindowTooltip => GetString("CloseWindowTooltip");
         public static string ToggleViewTooltip => GetString("ToggleViewTooltip");
         public static string ListViewTooltip => GetString("ListViewTooltip");
+        public static string RightClickSettingsHint => GetString("RightClickSettingsHint");
+        public static string ThumbnailSettingsTitle => GetString("ThumbnailSettingsTitle");
+        public static string ThumbnailSizeLabel => GetString("ThumbnailSizeLabel");
+        public static string ShowFolderThumbnailsLabel => GetString("ShowFolderThumbnailsLabel");
         public static string ParentFolderTooltip => GetString("ParentFolderTooltip");
         public static string RecentTooltip => GetString("RecentTooltip");
         public static string NoRecentFiles => GetString("NoRecentFiles");

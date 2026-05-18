@@ -37,7 +37,7 @@
 
 
 ### 📂 File Management
-- **Integrated Explorer**: Sidebar with Folder/Thumbnail views for easy navigation.
+- **Integrated Explorer**: Sidebar with Folder/Thumbnail views for easy navigation, including adjustable thumbnail size and optional folder thumbnails.
 - **Archive Support**: Read images directly from compressed archives (`.zip`, `.rar`, `.7z`, etc.) using **SharpCompress** and **SevenZipExtractor**. Includes **Auto Side-by-Side** support for portrait images within archives.
 - **Organization**: "Favorites" and "Recent Files" management.
 - **WebDAV Support**: Read images directly from WebDAV (HTTPS) servers.
@@ -54,6 +54,12 @@
 
 #### 🖼️ Image Viewing Options
 - **Auto Side-by-Side in Archive**: When enabled, the viewer automatically applies side-by-side (2-page) view for portrait-oriented images (height = width * 1.2~3) when browsing archives and EPUB.
+
+#### 🗂️ Explorer Thumbnail Settings
+- **Thumbnail Button Settings**: Right-click the sidebar thumbnail/list toggle button to open thumbnail settings.
+  - **Thumbnail Size**: Adjust the thumbnail grid size with a slider and preview the result immediately.
+  - **Folder Thumbnails**: When enabled, folders show the first image inside the folder as their thumbnail.
+  - Settings are saved automatically and restored on the next launch.
 
 #### 🎨 Image Sharpening & Upscaling
 - **Advanced Sharpening Control**: Right-click the **Sharpening (S)** button to open the settings flyout.

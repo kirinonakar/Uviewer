@@ -160,6 +160,18 @@
   <data name="ListViewTooltip" xml:space="preserve">
     <value>リスト表示</value>
   </data>
+  <data name="RightClickSettingsHint" xml:space="preserve">
+    <value>右クリックで設定</value>
+  </data>
+  <data name="ThumbnailSettingsTitle" xml:space="preserve">
+    <value>サムネイル設定</value>
+  </data>
+  <data name="ThumbnailSizeLabel" xml:space="preserve">
+    <value>サムネイルサイズ:</value>
+  </data>
+  <data name="ShowFolderThumbnailsLabel" xml:space="preserve">
+    <value>フォルダーのサムネイルを表示</value>
+  </data>
   <data name="ParentFolderTooltip" xml:space="preserve">
     <value>上のフォルダへ(Backspace)</value>
   </data>

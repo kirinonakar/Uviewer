@@ -12,6 +12,9 @@ namespace Uviewer.Services
         private readonly IThumbnailService _thumbnailService;
         private readonly DispatcherQueue _dispatcher;
 
+        public int ThumbnailDecodePixelWidth { get; set; } = 200;
+        public bool ShowFolderThumbnails { get; set; }
+
         public ExplorerController(
             ExplorerState state,
             IThumbnailService thumbnailService,
@@ -75,9 +78,28 @@ namespace Uviewer.Services
             _ = LoadThumbnailsAsync(token);
         }
 
+        public void RefreshThumbnails(bool clearExisting)
+        {
+            _state.CancelThumbnailLoading();
+            foreach (var item in _state.Items)
+            {
+                if (clearExisting || (item.IsDirectory && !item.IsParentDirectory))
+                {
+                    item.Thumbnail = null;
+                    item.IsThumbnailLoading = false;
+                }
+            }
+            StartThumbnailLoading();
+        }
+
         private Task LoadThumbnailsAsync(CancellationToken token)
         {
-            return _thumbnailService.LoadThumbnailsAsync(_state.Items, _dispatcher, token);
+            return _thumbnailService.LoadThumbnailsAsync(
+                _state.Items,
+                _dispatcher,
+                token,
+                ThumbnailDecodePixelWidth,
+                ShowFolderThumbnails);
         }
     }
 }

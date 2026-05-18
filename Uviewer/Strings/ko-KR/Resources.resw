@@ -160,6 +160,18 @@
   <data name="ListViewTooltip" xml:space="preserve">
     <value>리스트 보기</value>
   </data>
+  <data name="RightClickSettingsHint" xml:space="preserve">
+    <value>우클릭으로 설정</value>
+  </data>
+  <data name="ThumbnailSettingsTitle" xml:space="preserve">
+    <value>썸네일 설정</value>
+  </data>
+  <data name="ThumbnailSizeLabel" xml:space="preserve">
+    <value>썸네일 크기:</value>
+  </data>
+  <data name="ShowFolderThumbnailsLabel" xml:space="preserve">
+    <value>폴더 썸네일 표시</value>
+  </data>
   <data name="ParentFolderTooltip" xml:space="preserve">
     <value>상위 폴더로 가기(Backspace)</value>
   </data>

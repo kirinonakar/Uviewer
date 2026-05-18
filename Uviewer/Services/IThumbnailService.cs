@@ -8,6 +8,11 @@ namespace Uviewer.Services
 {
     public interface IThumbnailService
     {
-        Task LoadThumbnailsAsync(IEnumerable<FileItem> items, DispatcherQueue dispatcher, CancellationToken token);
+        Task LoadThumbnailsAsync(
+            IEnumerable<FileItem> items,
+            DispatcherQueue dispatcher,
+            CancellationToken token,
+            int decodePixelWidth,
+            bool includeFolderThumbnails);
     }
 }

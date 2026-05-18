@@ -160,6 +160,18 @@
   <data name="ListViewTooltip" xml:space="preserve">
     <value>List View</value>
   </data>
+  <data name="RightClickSettingsHint" xml:space="preserve">
+    <value>Right-click for settings</value>
+  </data>
+  <data name="ThumbnailSettingsTitle" xml:space="preserve">
+    <value>Thumbnail Settings</value>
+  </data>
+  <data name="ThumbnailSizeLabel" xml:space="preserve">
+    <value>Thumbnail Size:</value>
+  </data>
+  <data name="ShowFolderThumbnailsLabel" xml:space="preserve">
+    <value>Show folder thumbnails</value>
+  </data>
   <data name="ParentFolderTooltip" xml:space="preserve">
     <value>Up Level (Backspace)</value>
   </data>

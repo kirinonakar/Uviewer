@@ -750,7 +750,11 @@ namespace Uviewer
                 path,
                 currentPath => CurrentPathText.Text = currentPath,
                 ex => CurrentPathText.Text = $"오류: {ex.Message}",
-                SyncCurrentExplorerSelection);
+                () =>
+                {
+                    ApplyThumbnailSizeToFileItems();
+                    SyncCurrentExplorerSelection();
+                });
         }
 
         private void SyncCurrentExplorerSelection()
@@ -782,7 +786,7 @@ namespace Uviewer
                 }
                 if (ToggleViewButton != null)
                 {
-                    ToolTipService.SetToolTip(ToggleViewButton, Strings.ListViewTooltip);
+                    UpdateToggleViewButtonTooltip();
                 }
             }
             else
@@ -796,9 +800,81 @@ namespace Uviewer
                 }
                 if (ToggleViewButton != null)
                 {
-                    ToolTipService.SetToolTip(ToggleViewButton, Strings.ToggleViewTooltip);
+                    UpdateToggleViewButtonTooltip();
                 }
             }
+        }
+
+        private void ApplyThumbnailSettingsToControls()
+        {
+            _explorerThumbnailSize = Math.Clamp(_explorerThumbnailSize, 64, 180);
+            ApplyExplorerThumbnailOptions();
+
+            if (ThumbnailSizeSlider != null && Math.Abs(ThumbnailSizeSlider.Value - _explorerThumbnailSize) > 0.1)
+            {
+                ThumbnailSizeSlider.Value = _explorerThumbnailSize;
+            }
+            if (ThumbnailSizeValueText != null)
+            {
+                ThumbnailSizeValueText.Text = $"{_explorerThumbnailSize:F0}px";
+            }
+            if (FolderThumbnailsCheckBox != null)
+            {
+                FolderThumbnailsCheckBox.IsChecked = _showFolderThumbnails;
+            }
+
+            ApplyThumbnailSizeToFileItems();
+        }
+
+        private void ApplyExplorerThumbnailOptions()
+        {
+            if (_explorerController == null) return;
+
+            _explorerController.ThumbnailDecodePixelWidth = Math.Max(200, (int)Math.Ceiling(_explorerThumbnailSize * 2));
+            _explorerController.ShowFolderThumbnails = _showFolderThumbnails;
+        }
+
+        private void ApplyThumbnailSizeToFileItems()
+        {
+            foreach (var item in _fileItems)
+            {
+                item.ApplyThumbnailSize(_explorerThumbnailSize);
+            }
+        }
+
+        private void UpdateToggleViewButtonTooltip()
+        {
+            if (ToggleViewButton == null) return;
+
+            string baseTooltip = _isExplorerGrid ? Strings.ListViewTooltip : Strings.ToggleViewTooltip;
+            ToolTipService.SetToolTip(ToggleViewButton, $"{baseTooltip}\n{Strings.RightClickSettingsHint}");
+        }
+
+        private void ThumbnailSizeSlider_ValueChanged(object sender, Microsoft.UI.Xaml.Controls.Primitives.RangeBaseValueChangedEventArgs e)
+        {
+            _explorerThumbnailSize = Math.Clamp(e.NewValue, 64, 180);
+            ApplyExplorerThumbnailOptions();
+            ApplyThumbnailSizeToFileItems();
+
+            if (ThumbnailSizeValueText != null)
+            {
+                ThumbnailSizeValueText.Text = $"{_explorerThumbnailSize:F0}px";
+            }
+
+            _windowSettingsCoordinator?.SaveWindowSettings();
+        }
+
+        private void FolderThumbnailsCheckBox_Changed(object sender, RoutedEventArgs e)
+        {
+            _showFolderThumbnails = FolderThumbnailsCheckBox?.IsChecked == true;
+            ApplyExplorerThumbnailOptions();
+
+            if (_explorerController != null)
+            {
+                _explorerController.RefreshThumbnails(clearExisting: false);
+            }
+
+            _windowSettingsCoordinator?.SaveWindowSettings();
         }
 
         private async void FileListView_SelectionChanged(object sender, SelectionChangedEventArgs e)
