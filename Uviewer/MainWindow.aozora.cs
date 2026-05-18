@@ -262,7 +262,7 @@ namespace Uviewer
             try
             {
                 _aozoraPageCalcCts?.Cancel();
-                _pageCalcCts?.Cancel();
+                _textReaderState.CancelPageCalculation();
                 
                 _aozoraPendingTargetLine = targetLine;
                 CancelAndResetGlobalTextCts();
@@ -275,7 +275,7 @@ namespace Uviewer
                     if (VerticalTextCanvas != null) VerticalTextCanvas.Visibility = Visibility.Visible;
 
                     await PrepareVerticalTextAsync(targetLine, -1, token);
-                    FileNameText.Text = FileExplorerService.GetFormattedDisplayName(fileName, _currentTextArchiveEntryKey != null, _currentArchivePath);
+                    FileNameText.Text = FileExplorerService.GetFormattedDisplayName(fileName, _currentTextArchiveEntryKey != null, _archiveSession.CurrentPath);
                 }
                 else if (_isAozoraMode)
                 {
@@ -284,7 +284,7 @@ namespace Uviewer
                     if (VerticalTextCanvas != null) VerticalTextCanvas.Visibility = Visibility.Collapsed;
 
                     await PrepareAozoraDisplayAsync(_currentTextContent, targetLine, -1, token);
-                    FileNameText.Text = FileExplorerService.GetFormattedDisplayName(fileName, _currentTextArchiveEntryKey != null, _currentArchivePath);
+                    FileNameText.Text = FileExplorerService.GetFormattedDisplayName(fileName, _currentTextArchiveEntryKey != null, _archiveSession.CurrentPath);
                 }
                 else
                 {
@@ -508,7 +508,9 @@ namespace Uviewer
                     GetUrlMaxWidth());
                 var device = AozoraTextCanvas.Device;
 
-                var result = await _aozoraPageMapCalculator.CalculateAsync(
+                bool calculated = await _readerPageMapCalculationService.CalculateAsync(
+                    _aozoraPageState,
+                    _aozoraPageMapCalculator,
                     _aozoraBlocks,
                     new AozoraBlockPaginationContext(
                         device,
@@ -521,14 +523,12 @@ namespace Uviewer
                     AozoraPageOrientation.Horizontal,
                     token);
 
-                if (result == null || token.IsCancellationRequested) return;
+                if (!calculated || token.IsCancellationRequested) return;
 
                 DispatcherQueue.TryEnqueue(() =>
                 {
                     if (token.IsCancellationRequested) return;
 
-                    _aozoraPageState.SetPageMap(result.BlockToPageMap, result.TotalPages);
-                    _aozoraPageState.SyncCalculatedCurrentPageFromMap();
                     UpdateAozoraStatusBar();
                 });
             }
@@ -629,22 +629,12 @@ namespace Uviewer
         {
             if (_aozoraBlocks == null || _aozoraBlocks.Count == 0) return;
 
-            if (direction > 0)
-            {
-                if (_currentAozoraEndBlockIndex < _aozoraBlocks.Count - 1)
+            int? targetIndex = _readerPageNavigationService.GetTargetStartIndex(
+                _aozoraPageState,
+                _aozoraBlocks.Count,
+                direction,
+                () =>
                 {
-                    // 💡 History Push 완전히 제거됨
-                    _ = RenderAozoraDynamicPage(_currentAozoraEndBlockIndex + 1);
-                    if (_isAozoraPageCalcCompleted) _aozoraPageState.AdvanceCalculatedPage(1);
-                    UpdateAozoraStatusBar();
-                }
-            }
-            else if (direction < 0)
-            {
-                if (_currentAozoraStartBlockIndex > 0)
-                {
-                    int targetIdx = _currentAozoraStartBlockIndex;
-
                     var layout = _readerLayoutService.CreateHorizontalTextLayout(
                         AozoraTextCanvas?.ActualWidth ?? 0,
                         AozoraTextCanvas?.ActualHeight ?? 0,
@@ -654,12 +644,20 @@ namespace Uviewer
                         GetUrlMaxWidth());
                     var device = AozoraTextCanvas?.Device ?? Microsoft.Graphics.Canvas.CanvasDevice.GetSharedDevice();
 
-                    int bestStart = GetOrFindPreviousPageStart(targetIdx, _aozoraBlocks, layout.MaxWidth, layout.AvailableHeight, device, false);
+                    return GetOrFindPreviousPageStart(
+                        _currentAozoraStartBlockIndex,
+                        _aozoraBlocks,
+                        layout.MaxWidth,
+                        layout.AvailableHeight,
+                        device,
+                        false);
+                });
 
-                    _ = RenderAozoraDynamicPage(bestStart);
-                    if (_isAozoraPageCalcCompleted) _aozoraPageState.AdvanceCalculatedPage(-1);
-                    UpdateAozoraStatusBar();
-                }
+            if (targetIndex.HasValue)
+            {
+                _ = RenderAozoraDynamicPage(targetIndex.Value);
+                _readerPageNavigationService.AdvanceCalculatedPage(_aozoraPageState, direction);
+                UpdateAozoraStatusBar();
             }
         }
 
@@ -669,26 +667,15 @@ namespace Uviewer
 
             int startLine = _aozoraBlocks[_currentAozoraStartBlockIndex].SourceLineNumber;
             int totalLines = _aozoraTotalLineCountInSource;
-            if (totalLines < 1) totalLines = 1;
+            var content = _textStatusBarService.CreatePagedReader(
+                _aozoraPageState,
+                startLine,
+                totalLines);
 
-            double progress = _readingProgressService.CalculateLineProgress(startLine, totalLines);
-
-            ImageInfoText.Text = Strings.LineInfo(startLine, totalLines);
+            ImageInfoText.Text = content.LineInfo;
+            TextProgressText.Text = content.ProgressText;
+            ImageIndexText.Text = content.PageInfo;
             _ = AddToRecentAsync(true);
-            TextProgressText.Text = _readingProgressService.FormatPercent(progress);
-
-            if (_isAozoraPageCalcCompleted)
-            {
-                // 점프(Home/End/이동) 시에도 페이지 번호 즉시 반영
-                _aozoraPageState.SyncCalculatedCurrentPageFromMap();
-
-                int curPage = _readingProgressService.ClampPage(_aozoraCalculatedCurrentPage, _aozoraTotalPages);
-                ImageIndexText.Text = $"{curPage} / {_aozoraTotalPages}";
-            }
-            else
-            {
-                ImageIndexText.Text = Strings.CalculatingPages.Trim().Replace("(", "").Replace(")", "");
-            }
         }
 
         public void JumpToAozoraLine(int targetLine)

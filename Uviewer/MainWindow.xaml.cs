@@ -33,6 +33,9 @@ namespace Uviewer
         private readonly Services.IThumbnailService _thumbnailService = new Services.ThumbnailService();
         private Services.PreloadManager _preloadManager = null!;
         private Services.ImageBitmapLoader _imageBitmapLoader = null!;
+        private Services.ImageDoublePageDecisionService _imageDoublePageDecisionService = null!;
+        private readonly Services.ImageStatusBarService _imageStatusBarService = new();
+        private readonly Services.SideBySideImageLoadService _sideBySideImageLoadService = new();
 
         // Refactored Services
         private Services.WindowSettingsCoordinator _windowSettingsCoordinator = null!;
@@ -49,24 +52,33 @@ namespace Uviewer
         private readonly Services.DocumentSearchService _documentSearchService = new();
         private readonly Services.SearchHighlightService _searchHighlightService = new();
         private Services.SearchOverlayService _searchOverlayService = null!;
-        private string? _activeSearchQuery;
-        private DocumentSearchMatch? _activeDocumentSearchMatch;
-        private IReadOnlyList<PdfSearchHighlight> _activePdfSearchHighlights = Array.Empty<PdfSearchHighlight>();
-        private int _activePdfSearchPageIndex = -1;
-        private int _activePdfSearchMatchIndex = -1;
-        private CancellationTokenSource? _searchHighlightCts;
+        private readonly DocumentSearchState _documentSearchState = new();
+        private string? _activeSearchQuery => _documentSearchState.Query;
+        private IReadOnlyList<PdfSearchHighlight> _activePdfSearchHighlights => _documentSearchState.PdfHighlights;
+        private int _activePdfSearchPageIndex => _documentSearchState.PdfPageIndex;
+        private int _activePdfSearchMatchIndex => _documentSearchState.PdfMatchIndex;
         private readonly Services.AozoraBlockMeasurer _aozoraBlockMeasurer = new();
         private readonly Services.AozoraBlockPaginator _aozoraBlockPaginator;
         private readonly Services.AozoraPageMapCalculator _aozoraPageMapCalculator;
+        private readonly Services.ReaderPageMapCalculationService _readerPageMapCalculationService = new();
+        private readonly Services.ReaderPageNavigationService _readerPageNavigationService = new();
         private readonly Services.AozoraPreviousPageCache _aozoraPreviousPageCache;
         private readonly Services.EpubPageFlowService _epubPageFlowService = new();
         private readonly Services.ReaderLayoutService _readerLayoutService = new();
         private readonly Services.TextBlockDocumentService _textBlockDocumentService = new();
         private readonly Services.TextFileReaderService _textFileReaderService = new();
+        private readonly Services.TextDocumentLoadService _textDocumentLoadService;
+        private readonly Services.TextDocumentSearchService _textDocumentSearchService;
+        private readonly Services.TextDisplayPreparationService _textDisplayPreparationService = new();
         private readonly Services.TextLineLayoutService _textLineLayoutService = new();
+        private readonly Services.TextLineLoadService _textLineLoadService;
         private readonly Services.TextLinePresenterService _textLinePresenterService;
+        private readonly Services.TextSearchHighlightPresenterService _textSearchHighlightPresenterService;
+        private readonly Services.TextViewportService _textViewportService = new();
+        private readonly Services.TextPageCalculationService _textPageCalculationService = new();
         private readonly Services.TextResumeService _textResumeService = new();
         private readonly Services.ReadingProgressService _readingProgressService = new();
+        private readonly Services.TextStatusBarService _textStatusBarService;
         private readonly Services.ImageResourceService _imageResourceService;
         private bool _isWindowClosing;
 
@@ -244,6 +256,11 @@ namespace Uviewer
             _aozoraPageMapCalculator = new Services.AozoraPageMapCalculator(_aozoraBlockMeasurer);
             _aozoraPreviousPageCache = new Services.AozoraPreviousPageCache(_aozoraBlockMeasurer, _aozoraBlockPaginator);
             _textLinePresenterService = new Services.TextLinePresenterService(_textLineLayoutService);
+            _textSearchHighlightPresenterService = new Services.TextSearchHighlightPresenterService(_searchHighlightService);
+            _textStatusBarService = new Services.TextStatusBarService(_readingProgressService);
+            _textLineLoadService = new Services.TextLineLoadService(_textLineLayoutService);
+            _textDocumentLoadService = new Services.TextDocumentLoadService(_textFileReaderService, _archiveSession);
+            _textDocumentSearchService = new Services.TextDocumentSearchService(_documentSearchService);
 
             InitializeComponent();
             _searchOverlayService = new Services.SearchOverlayService(
@@ -367,6 +384,7 @@ namespace Uviewer
                 _imageCache = new Services.ImageCacheManager(DispatcherQueue);
                 _preloadManager = new Services.PreloadManager(_imageCache, DispatcherQueue);
                 _imageBitmapLoader = new Services.ImageBitmapLoader(_imageCache, _sharpeningService, DispatcherQueue);
+                _imageDoublePageDecisionService = new Services.ImageDoublePageDecisionService(_imageCache);
 
                 // Apply Localization
                 ApplyLocalization();
@@ -413,19 +431,15 @@ namespace Uviewer
 
                     // Cancel any ongoing operations
                     _imageLoadingCts?.Cancel();
+                    _textReaderState.CancelGlobalLoad();
+                    _textReaderState.CancelPageCalculation();
                     ShutdownPdfResources();
                     // Clean up fast navigation timer
                     _fastNavigationService?.Dispose();
 
                     // Clean up archive resources
-                    if (_currentArchive != null)
-                    {
-                        try { _currentArchive.Dispose(); _currentArchive = null; } catch { }
-                    }
-                    if (_current7zArchive != null)
-                    {
-                        try { _current7zArchive.Dispose(); _current7zArchive = null; } catch { }
-                    }
+                    _archiveSession.CloseOpenHandles();
+                    _epubSession.Dispose();
                     _imageViewerState.ClearBitmaps();
 
                     if (!wasPdfOpen)
@@ -457,8 +471,8 @@ namespace Uviewer
                     await _recentService.SaveRecentItemsAsync();
                     await _favoritesService.SaveFavoritesAsync();
 
-                    // Dispose semaphores
-                    _archiveLock.Dispose();
+                    // Dispose archive session and its lock
+                    _archiveSession.Dispose();
 
                     // Cleanup WebDAV
                     _webDavService?.Dispose();
@@ -466,6 +480,8 @@ namespace Uviewer
 
                     // Dispose cancellation tokens
                     _imageLoadingCts?.Dispose();
+                    _textReaderState.Dispose();
+                    _documentSearchState.Dispose();
                     _animatedWebpService.Dispose();
                 }
                 catch (Exception ex)
@@ -803,13 +819,10 @@ namespace Uviewer
         private Services.ViewingContext CreateViewingContext() => new(
             IsEpubMode:               _isEpubMode,
             IsWebDavMode:             _isWebDavMode,
-            EpubArchive:              _currentEpubArchive,
-            EpubArchiveLock:          _epubArchiveLock,
+            EpubSession:              _epubSession,
             CurrentTextFilePath:      _currentTextFilePath,
             CurrentTextArchiveEntryKey: _currentTextArchiveEntryKey,
-            CurrentArchive:           _currentArchive,
-            Current7zArchive:         _current7zArchive,
-            ArchiveLock:              _archiveLock,
+            ArchiveSession:           _archiveSession,
             CurrentWebDavItemPath:    _currentWebDavItemPath,
             ImageEntries:             _imageEntries,
             ResolveWebDavImagePath:   ResolveWebDavImagePath,
@@ -862,8 +875,7 @@ namespace Uviewer
 
         private static bool IsAutoDoublePageTallCandidate(double width, double height)
         {
-            if (width <= 0 || height <= 0) return false;
-            return height >= width * 1.2 && height <= width * 3.0;
+            return Services.ImageDoublePageDecisionService.IsTallCandidate(width, height);
         }
 
         #region Fullscreen

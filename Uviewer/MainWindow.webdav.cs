@@ -2,7 +2,6 @@ using Microsoft.UI;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
-using SharpCompress.Archives;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -539,29 +538,7 @@ namespace Uviewer
                 }
 
                 // SharpCompress needs seekable stream - we already have MemoryStream from service
-                await _archiveLock.WaitAsync();
-                try
-                {
-                    CloseCurrentArchiveInternal();
-
-                    _currentArchivePath = $"WebDAV:{item.WebDavPath}";
-                    _currentArchive = ArchiveFactory.OpenArchive(stream);
-
-                    _imageEntries = _currentArchive.Entries
-                        .Where(e => !e.IsDirectory &&
-                            FileExplorerService.SupportedImageExtensions.Contains(Path.GetExtension(e.Key ?? "").ToLowerInvariant()))
-                        .OrderBy(e => e.Key, NaturalSortComparer.Default)
-                        .Select(e => new ImageEntry
-                        {
-                            DisplayName = Path.GetFileName(e.Key ?? "Unknown"),
-                            ArchiveEntryKey = e.Key
-                        })
-                        .ToList();
-                }
-                finally
-                {
-                    _archiveLock.Release();
-                }
+                _imageEntries = (await _archiveSession.OpenStreamAsync($"WebDAV:{item.WebDavPath}", stream)).ToList();
 
                 if (_imageEntries.Count > 0)
                 {

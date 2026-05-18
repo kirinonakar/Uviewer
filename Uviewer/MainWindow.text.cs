@@ -19,25 +19,52 @@ namespace Uviewer
 {
     public sealed partial class MainWindow
     {
-        private List<TextLine> _textLines = new();
-        private string _currentTextContent = ""; // Stores raw text for mode switching
+        private readonly TextReaderState _textReaderState = new();
+        private List<TextLine> _textLines
+        {
+            get => _textReaderState.Lines;
+            set => _textReaderState.Lines = value ?? new List<TextLine>();
+        }
+
+        private string _currentTextContent
+        {
+            get => _textReaderState.Content;
+            set => _textReaderState.Content = value ?? string.Empty;
+        }
+
         private TextSettingsManager _settingsManager = null!;
         private bool _isTextMode = false;
-        private int _textTotalLineCountInSource = 0; // Total lines in source file for simple text mode
-#pragma warning disable CS0414 // Field is assigned but never used - reserved for future loading state UI
-        private bool _isTextLinesFullyLoaded = false; // Track if all lines are loaded
-#pragma warning restore CS0414
-        private CancellationTokenSource? _globalTextCts;
+        private int _textTotalLineCountInSource
+        {
+            get => _textReaderState.TotalLineCountInSource;
+            set => _textReaderState.TotalLineCountInSource = value;
+        }
 
+        private bool _isTextLinesFullyLoaded
+        {
+            get => _textReaderState.LinesFullyLoaded;
+            set => _textReaderState.LinesFullyLoaded = value;
+        }
 
-
-
-
-
+        private CancellationTokenSource? _globalTextCts => _textReaderState.GlobalCts;
         private bool _textInputInitialized = false;
-        private string? _currentTextFilePath = null;
-        private string? _currentTextArchiveEntryKey = null; // Track entry key if viewing from archive
-        private int _lastRecentSaveLine = -1;
+        private string? _currentTextFilePath
+        {
+            get => _textReaderState.FilePath;
+            set => _textReaderState.FilePath = value;
+        }
+
+        private string? _currentTextArchiveEntryKey
+        {
+            get => _textReaderState.ArchiveEntryKey;
+            set => _textReaderState.ArchiveEntryKey = value;
+        }
+
+        private int _lastRecentSaveLine
+        {
+            get => _textReaderState.LastRecentSaveLine;
+            set => _textReaderState.LastRecentSaveLine = value;
+        }
 
         private async void EncodingItem_Click(object sender, RoutedEventArgs e)
         {
@@ -64,7 +91,7 @@ namespace Uviewer
                         }
                         catch { }
                     }
-                    else if (_currentTextArchiveEntryKey != null && (_currentArchive != null || _current7zArchive != null))
+                    else if (_currentTextArchiveEntryKey != null && _archiveSession.HasArchive)
                     {
                         try
                         {
@@ -102,12 +129,11 @@ namespace Uviewer
         {
             try
             {
-                _globalTextCts?.Cancel();
-                _pageCalcCts?.Cancel(); // [추가] 모드 전환 시 뒤에서 돌고 있는 페이지 계산 작업 강제 종료
-                // do not dispose here because it might be in use
+                _textReaderState.CancelGlobalLoad();
+                _textReaderState.CancelPageCalculation(); // [추가] 모드 전환 시 뒤에서 돌고 있는 페이지 계산 작업 강제 종료
             }
             catch { }
-            _globalTextCts = new CancellationTokenSource();
+            _textReaderState.RestartGlobalLoad();
         }
 
         private async Task LoadTextFileAsync(StorageFile file)
@@ -119,15 +145,14 @@ namespace Uviewer
             try
             {
                 InitializeText();
-                _currentTextFilePath = file.Path;
-                _currentTextArchiveEntryKey = null; // Clear archive context when loading local file
+                _textReaderState.SetLocalSource(file.Path);
                 // No reset here, DisplayLoadedText will handle it after using the value
 
                 CancelAndResetGlobalTextCts();
                 var token = _globalTextCts!.Token;
 
                 SwitchToTextMode();
-                string content = await _textFileReaderService.ReadAsync(file, _settingsManager.EncodingName);
+                string content = await _textDocumentLoadService.ReadLocalFileAsync(file, _settingsManager.EncodingName, token);
                 if (token.IsCancellationRequested) return;
 
                 await DisplayLoadedText(content, file.Name, file.Path, token);
@@ -164,46 +189,14 @@ namespace Uviewer
             try
             {
                 InitializeText();
-                _currentTextFilePath = null; // Clear to prevent state leakage from previous file
-                _currentTextArchiveEntryKey = entry.ArchiveEntryKey; // Store entry key for relative path resolution
-                                                                     // No reset here, DisplayLoadedText will handle it
+                _textReaderState.SetArchiveSource(entry.ArchiveEntryKey); // Store entry key for relative path resolution
+                                                                          // No reset here, DisplayLoadedText will handle it
 
                 CancelAndResetGlobalTextCts();
                 var token = _globalTextCts!.Token;
 
                 SwitchToTextMode();
-                string content = "";
-                await _archiveLock.WaitAsync(token);
-                try
-                {
-                    if (entry.ArchiveEntryKey != null)
-                    {
-                        if (_currentArchive != null)
-                        {
-                            var archEntry = _currentArchive.Entries.FirstOrDefault(e => e.Key == entry.ArchiveEntryKey);
-                            if (archEntry != null)
-                            {
-                                using var ms = new System.IO.MemoryStream();
-                                using var entryStream = archEntry.OpenEntryStream();
-                                entryStream.CopyTo(ms);
-                                var bytes = ms.ToArray();
-                                content = _textFileReaderService.Decode(bytes, _settingsManager.EncodingName);
-                            }
-                        }
-                        else if (_current7zArchive != null)
-                        {
-                            var archEntry = _current7zArchive.Entries.FirstOrDefault(e => e.FileName == entry.ArchiveEntryKey);
-                            if (archEntry != null)
-                            {
-                                using var ms = new System.IO.MemoryStream();
-                                archEntry.Extract(ms);
-                                var bytes = ms.ToArray();
-                                content = _textFileReaderService.Decode(bytes, _settingsManager.EncodingName);
-                            }
-                        }
-                    }
-                }
-                finally { _archiveLock.Release(); }
+                string content = await _textDocumentLoadService.ReadArchiveEntryAsync(entry, _settingsManager.EncodingName, token);
 
                 if (token.IsCancellationRequested) return;
                 await DisplayLoadedText(content, entry.DisplayName, null, token);
@@ -223,6 +216,8 @@ namespace Uviewer
 
         private async Task DisplayLoadedText(string content, string name, string? uniquePath = null, CancellationToken token = default)
         {
+            var preparedText = _textDisplayPreparationService.Prepare(content, name);
+            content = preparedText.Content;
             _currentTextContent = content; // Save for reload
             _tocService.SetProvider(new TextTocProvider(content));
             _ = _tocService.LoadTocAsync(token);
@@ -233,30 +228,11 @@ namespace Uviewer
             // [추가] 이전 파일의 스크롤 추적 기록을 초기화하여 엉뚱한 위치가 자동 저장되는 것을 방지합니다.
             _lastRecentSaveLine = -1;
 
-            string ext = System.IO.Path.GetExtension(name).ToLower();
-            if (ext == ".md" || ext == ".markdown")
+            _isMarkdownRenderMode = preparedText.IsMarkdownRenderMode;
+            if (VerticalToggleButton != null)
             {
-                _isMarkdownRenderMode = true;
-                if (VerticalToggleButton != null)
-                {
-                    VerticalToggleButton.IsEnabled = false;
-                    VerticalToggleButton.IsChecked = false;
-                }
-            }
-            else
-            {
-                _isMarkdownRenderMode = false;
-                if (VerticalToggleButton != null)
-                {
-                    VerticalToggleButton.IsEnabled = true;
-                    VerticalToggleButton.IsChecked = _isVerticalMode;
-                }
-            }
-
-            if (ext == ".html" || ext == ".htm")
-            {
-                content = AozoraParserService.ParseHtml(content);
-                _currentTextContent = content;
+                VerticalToggleButton.IsEnabled = preparedText.CanUseVerticalMode;
+                VerticalToggleButton.IsChecked = preparedText.CanUseVerticalMode && _isVerticalMode;
             }
 
             // Unified Target Line Logic
@@ -524,11 +500,8 @@ namespace Uviewer
 
         private void CloseCurrentText()
         {
-            _currentTextFilePath = null;
-            _currentTextArchiveEntryKey = null;
-            _currentTextContent = "";
+            _textReaderState.ClearDocument();
             _aozoraBlocks.Clear();
-            _textLines.Clear();
         }
 
         /// <summary>
@@ -536,8 +509,8 @@ namespace Uviewer
         /// </summary>
         private async Task LoadTextLinesProgressivelyAsync(string content, int targetLine = 1, CancellationToken token = default)
         {
-            var lines = TextLineLayoutService.SplitNormalizedLines(content);
-            _textTotalLineCountInSource = lines.Length;
+            var loadPlan = _textLineLoadService.CreatePlan(content, targetLine);
+            _textTotalLineCountInSource = loadPlan.TotalLineCount;
             _isTextLinesFullyLoaded = false;
 
             var brush = _settingsManager.GetThemeForeground();
@@ -548,13 +521,9 @@ namespace Uviewer
                 brush,
                 maxW);
 
-            int initialLimit = 2000;
-            if (targetLine > initialLimit - 500) initialLimit = targetLine + 500;
-
-            if (lines.Length > initialLimit)
+            if (loadPlan.RequiresProgressiveLoad)
             {
-                var initialLines = lines.Take(initialLimit).ToArray();
-                _textLines = await Task.Run(() => _textLineLayoutService.CreatePlainLines(initialLines, lineStyle), token);
+                _textLines = await _textLineLoadService.CreateInitialLinesAsync(loadPlan, lineStyle, token);
 
                 if (TextItemsRepeater != null)
                 {
@@ -579,8 +548,7 @@ namespace Uviewer
                     try
                     {
                         if (token.IsCancellationRequested) return;
-                        var restLines = lines.Skip(initialLimit).ToArray();
-                        var restTextLines = _textLineLayoutService.CreatePlainLines(restLines, lineStyle);
+                        var restTextLines = _textLineLoadService.CreateRemainingLines(loadPlan, lineStyle, token);
 
                         if (token.IsCancellationRequested) return;
 
@@ -626,7 +594,7 @@ namespace Uviewer
             }
             else
             {
-                _textLines = await Task.Run(() => _textLineLayoutService.CreatePlainLines(lines, lineStyle), token);
+                _textLines = await _textLineLoadService.CreateAllLinesAsync(loadPlan, lineStyle, token);
                 _isTextLinesFullyLoaded = true;
 
                 if (TextItemsRepeater != null)
@@ -1147,8 +1115,8 @@ namespace Uviewer
         }
 
         private bool CanSearchCurrentDocument =>
-            (_isTextMode && !string.IsNullOrEmpty(_currentTextContent)) ||
-            (_isEpubMode && _currentEpubArchive != null && _epubSpine.Count > 0) ||
+            (_isTextMode && _textReaderState.HasContent) ||
+            (_isEpubMode && _epubSession.HasDocument) ||
             (_currentPdfDocument != null && !string.IsNullOrEmpty(_currentPdfPath));
 
         private void SearchButton_RightTapped(object sender, RightTappedRoutedEventArgs e)
@@ -1204,15 +1172,11 @@ namespace Uviewer
                 DisableVerticalModeForImageDocument();
             }
 
-            _activeSearchQuery = string.IsNullOrWhiteSpace(query) ? null : query;
-            _activeDocumentSearchMatch = null;
-            _activePdfSearchHighlights = Array.Empty<PdfSearchHighlight>();
-            _activePdfSearchPageIndex = -1;
-            _activePdfSearchMatchIndex = -1;
+            _documentSearchState.SetQuery(query);
 
             InvalidateSearchHighlights();
 
-            if (_currentPdfDocument != null && _activeSearchQuery != null)
+            if (_currentPdfDocument != null && _documentSearchState.HasQuery)
             {
                 _ = RefreshPdfSearchHighlightsAsync(_currentIndex);
             }
@@ -1220,20 +1184,17 @@ namespace Uviewer
 
         private async Task RefreshPdfSearchHighlightsAsync(int pageIndex, int currentMatchIndex = -1)
         {
-            if (_currentPdfDocument == null || string.IsNullOrEmpty(_currentPdfPath) || string.IsNullOrWhiteSpace(_activeSearchQuery))
+            if (_currentPdfDocument == null || string.IsNullOrEmpty(_currentPdfPath) || !_documentSearchState.HasQuery)
             {
                 return;
             }
 
             DisableVerticalModeForImageDocument();
 
-            _searchHighlightCts?.Cancel();
-            _searchHighlightCts?.Dispose();
-            _searchHighlightCts = new CancellationTokenSource();
-            var token = _searchHighlightCts.Token;
+            var token = _documentSearchState.RestartPdfHighlightSearch();
 
             string pdfPath = _currentPdfPath;
-            string query = _activeSearchQuery;
+            string query = _documentSearchState.Query!;
 
             try
             {
@@ -1241,11 +1202,9 @@ namespace Uviewer
                 if (token.IsCancellationRequested) return;
                 if (!string.Equals(_currentPdfPath, pdfPath, StringComparison.OrdinalIgnoreCase)) return;
                 if (_currentIndex != pageIndex) return;
-                if (!string.Equals(_activeSearchQuery, query, StringComparison.Ordinal)) return;
+                if (!string.Equals(_documentSearchState.Query, query, StringComparison.Ordinal)) return;
 
-                _activePdfSearchHighlights = highlights;
-                _activePdfSearchPageIndex = pageIndex;
-                _activePdfSearchMatchIndex = currentMatchIndex;
+                _documentSearchState.SetPdfHighlights(highlights, pageIndex, currentMatchIndex);
                 MainCanvas?.Invalidate();
             }
             catch (OperationCanceledException) { }
@@ -1290,95 +1249,17 @@ namespace Uviewer
 
         private void ApplySearchHighlightsToTextBlock(TextBlock textBlock, string content, int lineNumber)
         {
-            textBlock.TextHighlighters.Clear();
-            var ranges = _searchHighlightService.FindRanges(content, _activeSearchQuery);
-            if (ranges.Count == 0) return;
-
-            int currentRangeIndex = GetCurrentSearchRangeIndex(DocumentSearchKind.Text, lineNumber, -1, ranges);
-            var highlighter = new TextHighlighter
-            {
-                Background = SearchHighlightService.CreateHighlightBrush()
-            };
-
-            for (int i = 0; i < ranges.Count; i++)
-            {
-                if (i == currentRangeIndex) continue;
-                var range = ranges[i];
-                highlighter.Ranges.Add(new TextRange
-                {
-                    StartIndex = range.Start,
-                    Length = range.Length
-                });
-            }
-
-            if (highlighter.Ranges.Count > 0)
-            {
-                textBlock.TextHighlighters.Add(highlighter);
-            }
-
-            if (currentRangeIndex >= 0 && currentRangeIndex < ranges.Count)
-            {
-                var currentRange = ranges[currentRangeIndex];
-                var currentHighlighter = new TextHighlighter
-                {
-                    Background = new SolidColorBrush(SearchHighlightService.CurrentHighlightColor)
-                };
-                currentHighlighter.Ranges.Add(new TextRange
-                {
-                    StartIndex = currentRange.Start,
-                    Length = currentRange.Length
-                });
-                textBlock.TextHighlighters.Add(currentHighlighter);
-            }
+            _textSearchHighlightPresenterService.ApplyToTextBlock(
+                textBlock,
+                content,
+                lineNumber,
+                _documentSearchState,
+                _currentEpubChapterIndex);
         }
 
         private DocumentSearchMatch? GetActiveSearchMatchFor(DocumentSearchKind kind)
         {
-            if (_activeDocumentSearchMatch == null || _activeDocumentSearchMatch.Kind != kind) return null;
-            if (kind == DocumentSearchKind.Epub &&
-                _activeDocumentSearchMatch.EpubChapterIndex != _currentEpubChapterIndex)
-            {
-                return null;
-            }
-
-            return _activeDocumentSearchMatch;
-        }
-
-        private int GetCurrentSearchRangeIndex(
-            DocumentSearchKind kind,
-            int lineNumber,
-            int blockIndex,
-            IReadOnlyList<TextSearchRange> ranges)
-        {
-            var match = GetActiveSearchMatchFor(kind);
-            if (match == null || ranges.Count == 0) return -1;
-
-            if (blockIndex >= 0 && match.BlockIndex >= 0)
-            {
-                if (blockIndex != match.BlockIndex) return -1;
-            }
-            else if (match.LineNumber != lineNumber)
-            {
-                return -1;
-            }
-
-            if (match.MatchIndex >= 0 && match.MatchIndex < ranges.Count)
-            {
-                return match.MatchIndex;
-            }
-
-            if (match.MatchStart >= 0)
-            {
-                for (int i = 0; i < ranges.Count; i++)
-                {
-                    if (ranges[i].Start == match.MatchStart && ranges[i].Length == match.MatchLength)
-                    {
-                        return i;
-                    }
-                }
-            }
-
-            return -1;
+            return _documentSearchState.GetActiveMatchFor(kind, _currentEpubChapterIndex);
         }
 
         private async Task<IReadOnlyList<DocumentSearchMatch>> SearchCurrentDocumentAsync(string query, CancellationToken token)
@@ -1389,14 +1270,12 @@ namespace Uviewer
                 return await _documentSearchService.SearchPdfAsync(_currentPdfPath, query, token);
             }
 
-            if (_isEpubMode && _currentEpubArchive != null && _epubSpine.Count > 0)
+            if (_isEpubMode && _epubSession.HasDocument)
             {
                 string cacheKey = $"epub:{_currentEpubFilePath ?? _currentEpubDisplayName ?? string.Empty}:{_epubSpine.Count}";
                 return await _documentSearchService.SearchEpubAsync(
                     cacheKey,
-                    _currentEpubArchive,
-                    _epubSpine,
-                    _epubArchiveLock,
+                    _epubSession,
                     _epubDocumentService,
                     query,
                     token);
@@ -1404,14 +1283,13 @@ namespace Uviewer
 
             if (_isTextMode)
             {
-                if (_isAozoraMode && _aozoraBlocks.Count > 0)
-                {
-                    string aozoraCacheKey = $"aozora:{_currentTextFilePath ?? _currentTextArchiveEntryKey ?? string.Empty}:{_currentTextContent.Length}:{_aozoraBlocks.Count}:{_isMarkdownRenderMode}";
-                    return _documentSearchService.SearchAozoraBlocks(aozoraCacheKey, _aozoraBlocks, query);
-                }
-
-                string cacheKey = $"text:{_currentTextFilePath ?? _currentTextArchiveEntryKey ?? string.Empty}:{_settingsManager.EncodingName}:{_currentTextContent.Length}";
-                return _documentSearchService.SearchText(cacheKey, _currentTextContent, query);
+                return _textDocumentSearchService.Search(
+                    _textReaderState,
+                    _isAozoraMode,
+                    _aozoraBlocks,
+                    _isMarkdownRenderMode,
+                    _settingsManager.EncodingName,
+                    query);
             }
 
             return Array.Empty<DocumentSearchMatch>();
@@ -1445,14 +1323,14 @@ namespace Uviewer
 
         private async Task NavigateToSearchMatchAsync(DocumentSearchMatch match)
         {
-            _activeDocumentSearchMatch = match;
+            _documentSearchState.SetActiveMatch(match);
 
             switch (match.Kind)
             {
                 case DocumentSearchKind.Pdf:
                     if (_currentPdfDocument != null && match.PageIndex >= 0 && match.PageIndex < _imageEntries.Count)
                     {
-                        _activePdfSearchMatchIndex = match.MatchIndex;
+                        _documentSearchState.SetPdfMatchIndex(match.MatchIndex);
                         _currentIndex = match.PageIndex;
                         await DisplayCurrentImageAsync();
                         await RefreshPdfSearchHighlightsAsync(match.PageIndex, match.MatchIndex);
@@ -1818,26 +1696,7 @@ namespace Uviewer
         {
             if (TextScrollViewer == null) return;
 
-            double current = TextScrollViewer.VerticalOffset;
-            double viewport = TextScrollViewer.ViewportHeight;
-
-            // Calculate scroll amount based on LineHeight (FontSize * 1.8)
-            double lineH = _settingsManager.FontSize * 1.8;
-            double overlap = lineH;
-
-            // Safety check for very small viewports
-            if (overlap > viewport * 0.5) overlap = viewport * 0.2;
-
-            double scrollAmount = viewport - overlap;
-
-            if (direction > 0)
-            {
-                TextScrollViewer.ChangeView(null, current + scrollAmount, null, true);
-            }
-            else
-            {
-                TextScrollViewer.ChangeView(null, current - scrollAmount, null, true);
-            }
+            _textViewportService.NavigatePage(TextScrollViewer, _settingsManager.FontSize, direction);
             UpdateTextStatusBar();
         }
 
@@ -1848,57 +1707,25 @@ namespace Uviewer
             if (_isAozoraMode) { UpdateAozoraStatusBar(); return; }
             if (_isEpubMode) { UpdateEpubStatus(); return; }
 
-            if (fileName != null) FileNameText.Text = FileExplorerService.GetFormattedDisplayName(fileName, _currentTextArchiveEntryKey != null);
+            if (TextScrollViewer == null) return;
 
-            int total = totalLines ?? _textLines.Count;
-            if (total == 0) total = 1;
+            var content = _textStatusBarService.Create(
+                fileName,
+                _currentTextArchiveEntryKey != null,
+                totalLines,
+                _textReaderState,
+                TextScrollViewer,
+                GetTopVisibleLineIndex());
 
-            if (TextScrollViewer != null)
+            if (content.FileName != null) FileNameText.Text = content.FileName;
+            ImageInfoText.Text = content.LineInfo;
+            TextProgressText.Text = content.ProgressText;
+            ImageIndexText.Text = content.PageInfo;
+
+            if (content.CurrentLine != _lastRecentSaveLine)
             {
-                int currentLine = GetTopVisibleLineIndex();
-
-                // [수정] 스크롤이 끝에 도달했으면 강제로 마지막 라인/100%로 고정 (99%~100% 바운스 방지)
-                bool isAtBottom = TextScrollViewer.VerticalOffset >= TextScrollViewer.ScrollableHeight - 10.0;
-                if (isAtBottom) currentLine = total;
-                if (currentLine > total) currentLine = total;
-
-                double progress = _readingProgressService.CalculateLineProgress(currentLine, total, isAtBottom);
-
-                ImageInfoText.Text = Strings.LineInfo(currentLine, total);
-                TextProgressText.Text = _readingProgressService.FormatPercent(progress);
-
-                // Update Page Info if calculated
-                if (_isPageCalculationCompleted && _textLinePages != null && _textTotalPages > 0)
-                {
-                    int lineIdx = currentLine - 1;
-
-                    // 안전 범위 확인
-                    if (lineIdx < 0) lineIdx = 0;
-                    if (lineIdx >= _textLinePages.Length) lineIdx = _textLinePages.Length - 1;
-
-                    // 배열에서 정확히 매핑된 페이지 번호 가져오기
-                    int calcCurrentPage = _textLinePages[lineIdx];
-
-                    if (_textTotalPages < 1) _textTotalPages = 1;
-                    calcCurrentPage = _readingProgressService.ClampPage(calcCurrentPage, _textTotalPages);
-
-                    ImageIndexText.Text = $"{calcCurrentPage} / {_textTotalPages}";
-                }
-                else if (!_isPageCalculationCompleted)
-                {
-                    ImageIndexText.Text = Strings.CalculatingPages.Trim().Replace("(", "").Replace(")", "");
-                }
-                else
-                {
-                    ImageIndexText.Text = "";
-                }
-
-                // Throttle Recent update: only if line changed
-                if (currentLine != _lastRecentSaveLine)
-                {
-                    _lastRecentSaveLine = currentLine;
-                    _ = AddToRecentAsync(true);
-                }
+                _lastRecentSaveLine = content.CurrentLine;
+                _ = AddToRecentAsync(true);
             }
         }
 
@@ -1929,13 +1756,6 @@ namespace Uviewer
             }
         }
 
-        // --- Page Calculation Logic ---
-        private double _calculatedTotalHeight = 0;
-        private bool _isPageCalculationCompleted = false;
-        private CancellationTokenSource? _pageCalcCts;
-        private int[]? _textLinePages;
-        private int _textTotalPages = 0;
-
         private async void StartPageCalculationAsync()
         {
             try
@@ -1943,49 +1763,18 @@ namespace Uviewer
                 if (_isAozoraMode) return;
                 if (TextScrollViewer == null) return;
 
-                _pageCalcCts?.Cancel();
-                _pageCalcCts = new CancellationTokenSource();
-                var token = _pageCalcCts.Token;
-
-                _isPageCalculationCompleted = false;
-                _textTotalPages = 0;
-                _textLinePages = null;
+                var token = _textReaderState.RestartPageCalculation();
                 UpdateTextStatusBar(); 
 
-                // 초기 뷰포트 확보 및 레이아웃 대기
-                double viewportWidth = TextScrollViewer.ViewportWidth > 0 ? TextScrollViewer.ViewportWidth : TextScrollViewer.ActualWidth;
-                double viewportHeight = TextScrollViewer.ViewportHeight > 0 ? TextScrollViewer.ViewportHeight : TextScrollViewer.ActualHeight;
-
-                if (viewportWidth <= 0 || viewportHeight <= 0)
-                {
-                    try { await Task.Delay(100, token); } catch { return; }
-                    viewportWidth = TextScrollViewer.ViewportWidth > 0 ? TextScrollViewer.ViewportWidth : TextScrollViewer.ActualWidth;
-                    viewportHeight = TextScrollViewer.ViewportHeight > 0 ? TextScrollViewer.ViewportHeight : TextScrollViewer.ActualHeight;
-                    if (viewportWidth <= 0 || viewportHeight <= 0) return;
-                }
-
-                var linesToCalc = _textLines;
-                if (linesToCalc.Count == 0) return;
-
-                float fontSize = (float)_settingsManager.FontSize;
-                string fontFamily = _settingsManager.FontFamily ?? "Segoe UI";
-
-                // [성능 개선] 백그라운드 스레드에서 정밀 계산 수행 (UI 스레드 차단 방지)
-                var result = await TextPaginationCalculator.CalculatePagesAsync(
-                    linesToCalc,
-                    viewportWidth,
-                    viewportHeight,
-                    fontSize,
-                    fontFamily,
+                bool calculated = await _textPageCalculationService.CalculateAsync(
+                    _textReaderState,
+                    TextScrollViewer,
+                    _settingsManager.FontSize,
+                    _settingsManager.FontFamily ?? "Segoe UI",
                     token);
 
-                if (result != null)
+                if (calculated)
                 {
-                    _textLinePages = result.Pages;
-                    _textTotalPages = result.TotalPages;
-                    _calculatedTotalHeight = result.TotalHeight;
-                    _isPageCalculationCompleted = true;
-                    
                     DispatcherQueue.TryEnqueue(() => UpdateTextStatusBar());
                 }
             }
@@ -1995,8 +1784,7 @@ namespace Uviewer
                 System.Diagnostics.Debug.WriteLine($"Error calculating pages: {ex.Message}");
                 if (TextScrollViewer != null)
                 {
-                    _calculatedTotalHeight = TextScrollViewer.ExtentHeight;
-                    _isPageCalculationCompleted = true;
+                    _textPageCalculationService.CompleteFallback(_textReaderState, TextScrollViewer);
                     DispatcherQueue.TryEnqueue(() => UpdateTextStatusBar());
                 }
             }
@@ -2007,59 +1795,11 @@ namespace Uviewer
             if (TextItemsRepeater == null || TextScrollViewer == null) return 1;
             if (_textLines == null || _textLines.Count == 0) return 1;
 
-            try
-            {
-                // ScrollViewer의 Content 시작 지점(Padding.Top)을 기준으로 계산
-                double viewportTop = TextScrollViewer.Padding.Top;
-
-                // Use VisualTreeHelper to check realized children
-                int childCount = VisualTreeHelper.GetChildrenCount(TextItemsRepeater);
-                if (childCount == 0) return 1;
-
-                UIElement? closest = null;
-                double minDist = double.MaxValue;
-
-                for (int i = 0; i < childCount; i++)
-                {
-                    var child = VisualTreeHelper.GetChild(TextItemsRepeater, i) as UIElement;
-                    if (child == null) continue;
-
-                    var transform = child.TransformToVisual(TextScrollViewer);
-                    var point = transform.TransformPoint(new Point(0, 0));
-
-                    double top = point.Y;
-                    double bottom = top + ((FrameworkElement)child).ActualHeight;
-
-                    // 해당 라인이 뷰포트의 상단 경계(Padding 포함)를 걸치고 있는지 확인
-                    if (top <= viewportTop && bottom > viewportTop)
-                    {
-                        int idx = TextItemsRepeater.GetElementIndex(child);
-                        if (idx >= 0) return idx + 1;
-                    }
-
-                    // 정확히 걸치는 것을 못 찾을 경우 보정 지점에 가장 가까운 것을 찾음
-                    double dist = Math.Abs(top - viewportTop);
-                    if (dist < minDist)
-                    {
-                        minDist = dist;
-                        closest = child;
-                    }
-                }
-
-                if (closest != null)
-                {
-                    int idx = TextItemsRepeater.GetElementIndex(closest);
-                    if (idx >= 0) return idx + 1;
-                }
-            }
-            catch { }
-
-            // Fallback
-            double lineH = _settingsManager.FontSize * 1.8;
-            if (lineH > 0)
-                return (int)(TextScrollViewer.VerticalOffset / lineH) + 1;
-
-            return 1;
+            return _textViewportService.GetTopVisibleLineIndex(
+                TextItemsRepeater,
+                TextScrollViewer,
+                _textLines.Count,
+                _settingsManager.FontSize);
         }
 
         private async void ScrollToLine(int line)
@@ -2067,44 +1807,14 @@ namespace Uviewer
             try
             {
                 if (TextItemsRepeater == null || TextScrollViewer == null) return;
-                if (line < 1) line = 1;
-                int index = line - 1;
                 if (_textLines == null || _textLines.Count == 0) return;
-                if (index >= _textLines.Count) index = _textLines.Count - 1;
-                if (index < 0) return;
 
-                double lineH = _settingsManager.FontSize * 1.8;
-                double targetOffset = index * lineH;
-
-                // 1. ItemsRepeater가 데이터 바인딩 후 UI 레이아웃을 계산할 수 있도록 대기
-                await Task.Delay(50);
-                TextScrollViewer.UpdateLayout();
-
-                // 2. 대략적인 위치로 단번에 점프하여 ItemsRepeater가 해당 영역의 Layout을 계산하도록 유도
-                TextScrollViewer.ChangeView(null, targetOffset, null, true);
-                await Task.Delay(50);
-                TextScrollViewer.UpdateLayout();
-
-                // 3. 정밀 위치 보정 (실제 렌더링된 UI Element를 찾아 화면 최상단에 정확히 일치시킴)
-                try
-                {
-                    var element = TextItemsRepeater.GetOrCreateElement(index);
-                    if (element != null)
-                    {
-                        element.UpdateLayout();
-                        element.StartBringIntoView(new BringIntoViewOptions
-                        {
-                            VerticalAlignmentRatio = 0,
-                            AnimationDesired = false
-                        });
-                    }
-                }
-                catch
-                {
-                    // 너무 먼 거리라 UI Element가 미처 생성되지 않았을 경우 픽셀 위치로 Fallback
-                    TextScrollViewer.ChangeView(null, targetOffset, null, true);
-                }
-
+                await _textViewportService.ScrollToLineAsync(
+                    TextItemsRepeater,
+                    TextScrollViewer,
+                    line,
+                    _textLines.Count,
+                    _settingsManager.FontSize);
                 UpdateTextStatusBar();
             }
             catch (OperationCanceledException) { }

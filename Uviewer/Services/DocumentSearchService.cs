@@ -88,6 +88,22 @@ namespace Uviewer.Services
 
         public async Task<IReadOnlyList<DocumentSearchMatch>> SearchEpubAsync(
             string cacheKey,
+            EpubSession session,
+            EpubDocumentService documentService,
+            string query,
+            CancellationToken token)
+        {
+            if (!string.Equals(_epubCacheKey, cacheKey, StringComparison.Ordinal))
+            {
+                _epubCacheKey = cacheKey;
+                _epubCache = await BuildEpubLinesAsync(session, documentService, token);
+            }
+
+            return FindMatches(_epubCache, query);
+        }
+
+        public async Task<IReadOnlyList<DocumentSearchMatch>> SearchEpubAsync(
+            string cacheKey,
             ZipArchive archive,
             IReadOnlyList<string> spine,
             SemaphoreSlim archiveLock,
@@ -203,6 +219,32 @@ namespace Uviewer.Services
                 });
 
                 pageIndex++;
+            }
+
+            return result;
+        }
+
+        private static async Task<List<SearchableLine>> BuildEpubLinesAsync(
+            EpubSession session,
+            EpubDocumentService documentService,
+            CancellationToken token)
+        {
+            var result = new List<SearchableLine>();
+
+            for (int chapterIndex = 0; chapterIndex < session.Spine.Count; chapterIndex++)
+            {
+                token.ThrowIfCancellationRequested();
+
+                string path = session.Spine[chapterIndex];
+                string? html = await session.ReadEntryTextAsync(path, documentService);
+                if (string.IsNullOrEmpty(html)) continue;
+
+                var parseResult = documentService.ParseHtmlToAozoraBlocks(html, path, chapterIndex);
+                foreach (var line in BuildAozoraBlockLines(parseResult.Blocks, DocumentSearchKind.Epub, chapterIndex))
+                {
+                    token.ThrowIfCancellationRequested();
+                    result.Add(line);
+                }
             }
 
             return result;

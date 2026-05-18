@@ -219,7 +219,7 @@ namespace Uviewer
                         return Math.Min(Math.Max(progress, 0), 100);
                     }
                 }
-                else if ((_currentArchive != null || _current7zArchive != null) && _imageEntries.Count > 0)
+                else if (_archiveSession.HasArchive && _imageEntries.Count > 0)
                 {
                     double progress = (double)(_currentIndex + 1) / _imageEntries.Count * 100.0;
                     return Math.Min(Math.Max(progress, 0), 100);
@@ -285,14 +285,14 @@ namespace Uviewer
                     path = _currentEpubFilePath;
                     type = "File";
                 }
-                else if ((_currentArchive != null || _current7zArchive != null) && !string.IsNullOrEmpty(_currentArchivePath))
+                else if (_archiveSession.HasArchive && !string.IsNullOrEmpty(_archiveSession.CurrentPath))
                 {
-                    path = _currentArchivePath;
+                    path = _archiveSession.CurrentPath!;
                     type = "Archive";
                     if (_currentIndex >= 0 && _currentIndex < _imageEntries.Count)
-                        name = $"{Path.GetFileName(_currentArchivePath)} - {_imageEntries[_currentIndex].DisplayName}";
+                        name = $"{Path.GetFileName(path)} - {_imageEntries[_currentIndex].DisplayName}";
                     else
-                        name = Path.GetFileName(_currentArchivePath);
+                        name = Path.GetFileName(path);
                 }
                 else if (_currentIndex >= 0 && _currentIndex < _imageEntries.Count)
                 {
@@ -495,7 +495,7 @@ namespace Uviewer
                     {
                         // 아카이브의 경우 인덱스가 명확하므로 업데이트 (단, 0번 인덱스일 때 기존 키가 있다면 고민해볼 수 있으나 보통 의도된 이동임)
                         targetArchiveKey = _imageEntries[_currentIndex].ArchiveEntryKey;
-                        name = $"{Path.GetFileName(_currentArchivePath)} - {_imageEntries[_currentIndex].DisplayName}";
+                        name = $"{Path.GetFileName(path)} - {_imageEntries[_currentIndex].DisplayName}";
                         targetPage = _currentIndex;
                     }
                 }

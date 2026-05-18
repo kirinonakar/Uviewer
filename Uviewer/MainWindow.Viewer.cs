@@ -176,7 +176,7 @@ namespace Uviewer
                 oldCts?.Dispose();
 
                 // 아카이브 탐색 시 백그라운드 추출 위치 재조정 신호 전송 (큰 폭의 이동 시에만)
-                if (_current7zArchive != null)
+                if (_archiveSession.IsSevenZipArchive)
                 {
                     if (_sevenZipExtraction.ShouldSignalJump(_currentIndex, 2))
                     {
@@ -330,69 +330,17 @@ namespace Uviewer
                 {
                     SwitchToImageMode(); // Ensure Image Mode is active
 
-                    // 이미지가 1장뿐일 때는 항상 단일 이미지 모드로 렌더링하여
-                    // 2장 보기 모드에서 발생할 수 있는 NRE를 방지
-                    bool canSideBySide = _isSideBySideMode &&
-                                        _currentPdfDocument == null &&
-                                        _imageEntries.Count > 1;
-
-    // [추가] 압축파일 자동 2장보기 옵션
-                    if (_autoDoublePageForArchive && 
-                        (_currentArchivePath != null || _current7zArchive != null) &&
-                        _currentPdfDocument == null && _imageEntries.Count > 1)
-                    {
-                        // 현재 이미지를 미리 로드하여 가로세로 비율 확인 (샤픈 적용을 피하기 위해 원본 로드 사용)
-                        CanvasBitmap? firstBitmap = _imageCache.GetPreloadedImage(_currentIndex, _zoomLevel);
-                        
-                        if (firstBitmap == null)
-                        {
-                            firstBitmap = await LoadBitmapForPreloadAsync(entry, token);
-                            if (firstBitmap != null)
-                            {
-                                // 원본 이미지를 캐시에 넣어두어 나중에 다시 로드되는 것을 방지
-                                _imageCache.UpdateCache(_currentIndex, firstBitmap, false, _zoomLevel, _currentBitmap);
-                            }
-                        }
-
-                        if (firstBitmap != null)
-                        {
-                            if (firstBitmap.Size.Width >= firstBitmap.Size.Height * 1.2)
-                            {
-                                // 가로가 세로보다 1.2배 이상 길면 1장 보기로 강제 (2장 보기 무시)
-                                canSideBySide = false;
-                            }
-                            else if (IsAutoDoublePageTallCandidate(firstBitmap.Size.Width, firstBitmap.Size.Height))
-                            {
-                                // 세로가 가로의 1.2~3배 사이일 때만 2장 보기 자동 활성화 여부 확인
-                                // [수정] 다음 이미지도 세로인 경우에만 2장 보기로 표시
-                                canSideBySide = false; // 기본은 1장 보기로 초기화
-
-                                if (_currentIndex + 1 < _imageEntries.Count)
-                                {
-                                    var nextEntry = _imageEntries[_currentIndex + 1];
-                                    CanvasBitmap? nextBitmap = _imageCache.GetPreloadedImage(_currentIndex + 1, _zoomLevel);
-                                    if (nextBitmap == null)
-                                    {
-                                        nextBitmap = await LoadBitmapForPreloadAsync(nextEntry, token);
-                                        if (nextBitmap != null)
-                                        {
-                                            _imageCache.UpdateCache(_currentIndex + 1, nextBitmap, false, _zoomLevel, _currentBitmap);
-                                        }
-                                    }
-
-                                    if (nextBitmap != null && IsAutoDoublePageTallCandidate(nextBitmap.Size.Width, nextBitmap.Size.Height))
-                                    {
-                                        canSideBySide = true;
-                                    }
-                                }
-                            }
-                            else if (firstBitmap.Size.Height > firstBitmap.Size.Width * 3.0)
-                            {
-                                // 너무 긴 세로 이미지는 자동 2장보기 대상에서 제외
-                                canSideBySide = false;
-                            }
-                        }
-                    }
+                    bool canSideBySide = await _imageDoublePageDecisionService.ShouldUseSideBySideAsync(
+                        _imageEntries,
+                        _currentIndex,
+                        _isSideBySideMode,
+                        _autoDoublePageForArchive,
+                        _archiveSession.HasArchive,
+                        _currentPdfDocument != null,
+                        _zoomLevel,
+                        _currentBitmap,
+                        LoadBitmapForPreloadAsync,
+                        token);
 
                     _isCurrentViewSideBySide = canSideBySide;
 
@@ -433,7 +381,7 @@ namespace Uviewer
                 }
                 else
                 {
-                    string targetPath = entry.IsArchiveEntry ? (_currentArchivePath ?? "") : (entry.FilePath ?? "");
+                    string targetPath = entry.IsArchiveEntry ? (_archiveSession.CurrentPath ?? "") : (entry.FilePath ?? "");
                     if (string.IsNullOrEmpty(targetPath)) return;
 
                     // Match by local full path or check if it's a WebDAV archive (WebDAV: prefix)
@@ -630,66 +578,18 @@ namespace Uviewer
         {
             try
             {
-                CanvasBitmap? leftBitmap, rightBitmap;
-                ImageEntry leftEntry, rightEntry;
+                var pair = await _sideBySideImageLoadService.LoadAsync(
+                    _imageEntries,
+                    _currentIndex,
+                    _nextImageOnRight,
+                    LeftCanvas,
+                    RightCanvas,
+                    LoadImageBitmapAsync,
+                    ReleaseBitmapIfUnused,
+                    token);
 
-                bool actualNextImageOnRight = _nextImageOnRight;
-
-                if (actualNextImageOnRight)
+                if (pair == null || token.IsCancellationRequested)
                 {
-                    // → direction: current image on left, next image on right
-                    leftEntry = _imageEntries[_currentIndex];
-                    leftBitmap = await LoadImageBitmapAsync(leftEntry, LeftCanvas, token);
-
-                    if (token.IsCancellationRequested)
-                    {
-                        // [수정] 직접 Dispose() 대신 SafeDisposeBitmap 사용
-                        if (leftBitmap != null && !IsBitmapInCache(leftBitmap)) 
-                            _imageCache.SafeDisposeBitmap(leftBitmap);
-                        return; // 취소 확인
-                    }
-
-                    if (_currentIndex + 1 < _imageEntries.Count)
-                    {
-                        rightEntry = _imageEntries[_currentIndex + 1];
-                        rightBitmap = await LoadImageBitmapAsync(rightEntry, RightCanvas, token);
-                    }
-                    else
-                    {
-                        rightEntry = leftEntry; // Use same entry if no next image
-                        rightBitmap = null;
-                    }
-                }
-                else
-                {
-                    // ← direction: next image (n+1) on left, current image (n) on right
-                    if (_currentIndex + 1 < _imageEntries.Count)
-                    {
-                        leftEntry = _imageEntries[_currentIndex + 1];
-                        leftBitmap = await LoadImageBitmapAsync(leftEntry, LeftCanvas, token);
-                    }
-                    else
-                    {
-                        leftEntry = _imageEntries[_currentIndex];
-                        leftBitmap = null;
-                    }
-
-                    if (token.IsCancellationRequested)
-                    {
-                        // [수정] 직접 Dispose() 대신 SafeDisposeBitmap 사용
-                        if (leftBitmap != null && !IsBitmapInCache(leftBitmap)) 
-                            _imageCache.SafeDisposeBitmap(leftBitmap);
-                        return; // 취소 확인
-                    }
-
-                    rightEntry = _imageEntries[_currentIndex];
-                    rightBitmap = await LoadImageBitmapAsync(rightEntry, RightCanvas, token);
-                }
-
-                if (token.IsCancellationRequested)
-                {
-                    if (leftBitmap != null && !IsBitmapInCache(leftBitmap)) _imageCache.SafeDisposeBitmap(leftBitmap);
-                    if (rightBitmap != null && !IsBitmapInCache(rightBitmap)) _imageCache.SafeDisposeBitmap(rightBitmap);
                     return;
                 }
 
@@ -698,9 +598,9 @@ namespace Uviewer
                 var oldRight = _rightBitmap;
 
                 // 2. 현재 이미지를 새것으로 '먼저' 교체
-                _leftBitmap = leftBitmap;
-                _rightBitmap = rightBitmap;
-                _currentBitmap = rightBitmap ?? leftBitmap; // For zoom calculations
+                _leftBitmap = pair.LeftBitmap;
+                _rightBitmap = pair.RightBitmap;
+                _currentBitmap = pair.RightBitmap ?? pair.LeftBitmap; // For zoom calculations
 
                 // 3. UI 갱신 요청
                 _zoomLevel = 1.0;
@@ -710,18 +610,7 @@ namespace Uviewer
 
                 // 상태바/사이드바에서 "현재 페이지"는 항상 _currentIndex 기준으로 표시되도록 수정
                 var primaryEntry = _imageEntries[_currentIndex];
-                CanvasBitmap? primaryBitmap;
-
-                if (actualNextImageOnRight)
-                {
-                    // 현재 페이지가 왼쪽에 있는 경우
-                    primaryBitmap = _leftBitmap ?? _rightBitmap ?? _currentBitmap;
-                }
-                else
-                {
-                    // 현재 페이지가 오른쪽에 있는 경우
-                    primaryBitmap = _rightBitmap ?? _leftBitmap ?? _currentBitmap;
-                }
+                CanvasBitmap? primaryBitmap = pair.PrimaryBitmap ?? _currentBitmap;
 
                 if (primaryBitmap != null)
                 {
@@ -736,11 +625,11 @@ namespace Uviewer
 
 
                 // 4. 이제 안전하게 옛날 이미지를 폐기
-                if (oldLeft != null && !IsBitmapInCache(oldLeft) && oldLeft != leftBitmap && oldLeft != rightBitmap)
+                if (oldLeft != null && !IsBitmapInCache(oldLeft) && oldLeft != pair.LeftBitmap && oldLeft != pair.RightBitmap)
                 {
                     _imageCache.SafeDisposeBitmap(oldLeft);
                 }
-                if (oldRight != null && !IsBitmapInCache(oldRight) && oldRight != leftBitmap && oldRight != rightBitmap)
+                if (oldRight != null && !IsBitmapInCache(oldRight) && oldRight != pair.LeftBitmap && oldRight != pair.RightBitmap)
                 {
                     _imageCache.SafeDisposeBitmap(oldRight);
                 }
@@ -748,6 +637,14 @@ namespace Uviewer
             catch (Exception ex)
             {
                 FileNameText.Text = $"이미지 로드 실패: {ex.Message}";
+            }
+        }
+
+        private void ReleaseBitmapIfUnused(CanvasBitmap? bitmap)
+        {
+            if (bitmap != null && !IsBitmapInCache(bitmap))
+            {
+                _imageCache.SafeDisposeBitmap(bitmap);
             }
         }
 
@@ -760,9 +657,7 @@ namespace Uviewer
                 SharpenParams: CreateSharpenParams(),
                 IsPdfMode: _currentPdfDocument != null,
                 IsWebDavMode: _isWebDavMode,
-                CurrentArchive: _currentArchive,
-                Current7zArchive: _current7zArchive,
-                ArchiveLock: _archiveLock,
+                ArchiveSession: _archiveSession,
                 WebDavService: _webDavService,
                 MainCanvas: MainCanvas,
                 LoadPdfPageBitmapAsync: (pageIndex, canvas, token, isPreload) =>
@@ -974,23 +869,20 @@ namespace Uviewer
 
         private void UpdateStatusBar(ImageEntry entry, CanvasBitmap bitmap)
         {
-            FileNameText.Text = FileExplorerService.GetFormattedDisplayName(entry.DisplayName, entry.IsArchiveEntry, _currentArchivePath, _isWebDavMode ? _currentWebDavItemPath : null);
-            if (TryGetBitmapSize(bitmap, out var bitmapSize))
-                ImageInfoText.Text = $"{(int)bitmapSize.Width} × {(int)bitmapSize.Height}";
-            else
-                ImageInfoText.Text = "";
-            TextProgressText.Text = ""; // Clear for image mode
+            var content = _imageStatusBarService.Create(
+                entry,
+                bitmap,
+                _archiveSession.CurrentPath,
+                _isWebDavMode ? _currentWebDavItemPath : null,
+                _isCurrentViewSideBySide,
+                _currentPdfDocument != null,
+                _currentIndex,
+                _imageEntries.Count);
 
-            if (_isCurrentViewSideBySide && _currentPdfDocument == null)
-            {
-                int displayIndex = (_currentIndex / 2) + 1;
-                int totalPairs = (_imageEntries.Count + 1) / 2;
-                ImageIndexText.Text = $"{displayIndex} / {totalPairs} (B)";
-            }
-            else
-            {
-                ImageIndexText.Text = $"{_currentIndex + 1} / {_imageEntries.Count}";
-            }
+            FileNameText.Text = content.FileName;
+            ImageInfoText.Text = content.ImageInfo;
+            ImageIndexText.Text = content.ImageIndex;
+            TextProgressText.Text = content.TextProgress;
         }
 
         private void ImageArea_SizeChanged(object sender, SizeChangedEventArgs e)
@@ -1478,37 +1370,7 @@ namespace Uviewer
 
         private async Task NavigateToPreviousAsync(bool isManualClick = false)
         {
-            _pdfScrollDirection = -1;
-            if (_currentIndex > 0)
-            {
-                bool isFast = !isManualClick && _fastNavigationService.DetectFastNavigation(ResetFastNavigation);
-
-                int step = _isCurrentViewSideBySide ? 2 : 1;
-                _currentIndex = FileExplorerService.GetNextImageIndex(_imageEntries, _currentIndex, step, false);
-
-                if (isFast)
-                {
-                    UpdateFastNavigationUI();
-                    return;
-                }
-
-                await DisplayCurrentImageAsync();
-
-                await AddToRecentAsync(true);
-
-                // [최적화] 프리로드 재시작을 100ms 지연(디바운스)
-                if (_currentArchive != null || _currentPdfDocument != null)
-                {
-                    _ = _preloadManager.StartPreloadAsync(
-                        _currentIndex, _imageEntries, _currentPdfDocument != null, _zoomLevel,
-                        _currentBitmap, _leftBitmap, _rightBitmap,
-                        LoadBitmapForPreloadAsync,
-                        () => MainCanvas?.Invalidate(),
-                        prioritizeNext: false,
-                        requireSharpening: _sharpenEnabled);
-                }
-            }
-            RootGrid.Focus(FocusState.Programmatic);
+            await NavigateImageAsync(forward: false, isManualClick);
         }
 
         private async void OnSharpenParamsChanged()
@@ -1574,13 +1436,23 @@ namespace Uviewer
 
         private async Task NavigateToNextAsync(bool isManualClick = false)
         {
-            _pdfScrollDirection = 1;
-            if (_currentIndex < _imageEntries.Count - 1)
+            await NavigateImageAsync(forward: true, isManualClick);
+        }
+
+        private async Task NavigateImageAsync(bool forward, bool isManualClick)
+        {
+            _pdfScrollDirection = forward ? 1 : -1;
+
+            bool canNavigate = forward
+                ? _currentIndex < _imageEntries.Count - 1
+                : _currentIndex > 0;
+
+            if (canNavigate)
             {
                 bool isFast = !isManualClick && _fastNavigationService.DetectFastNavigation(ResetFastNavigation);
 
                 int step = _isCurrentViewSideBySide ? 2 : 1;
-                _currentIndex = FileExplorerService.GetNextImageIndex(_imageEntries, _currentIndex, step, true);
+                _currentIndex = FileExplorerService.GetNextImageIndex(_imageEntries, _currentIndex, step, forward);
 
                 if (isFast)
                 {
@@ -1593,24 +1465,25 @@ namespace Uviewer
                 await AddToRecentAsync(true);
 
                 // [최적화] 프리로드 재시작 디바운스 (PDF 한정)
-                if (_currentArchive != null || _currentPdfDocument != null)
+                if (_archiveSession.CurrentArchive != null || _currentPdfDocument != null)
                 {
                     _ = _preloadManager.StartPreloadAsync(
                         _currentIndex, _imageEntries, _currentPdfDocument != null, _zoomLevel,
                         _currentBitmap, _leftBitmap, _rightBitmap,
                         LoadBitmapForPreloadAsync,
                         () => MainCanvas?.Invalidate(),
-                        prioritizeNext: true,
+                        prioritizeNext: forward,
                         requireSharpening: _sharpenEnabled);
                 }
             }
+
             RootGrid.Focus(FocusState.Programmatic);
         }
 
         private string? GetCurrentNavigatingPath()
         {
             if (_isWebDavMode) return _currentWebDavItemPath;
-            if ((_currentArchive != null || _current7zArchive != null) && !string.IsNullOrEmpty(_currentArchivePath)) return _currentArchivePath;
+            if (_archiveSession.HasArchive && !string.IsNullOrEmpty(_archiveSession.CurrentPath)) return _archiveSession.CurrentPath;
             if (_isEpubMode && !string.IsNullOrEmpty(_currentEpubFilePath)) return _currentEpubFilePath;
             if (_isTextMode && !string.IsNullOrEmpty(_currentTextFilePath)) return _currentTextFilePath;
             if (_imageEntries != null && _imageEntries.Count > 0 && _currentIndex >= 0 && _currentIndex < _imageEntries.Count) return _imageEntries[_currentIndex].FilePath;

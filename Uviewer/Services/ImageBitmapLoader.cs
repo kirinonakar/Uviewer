@@ -1,7 +1,6 @@
 using Microsoft.Graphics.Canvas;
 using Microsoft.Graphics.Canvas.UI.Xaml;
 using Microsoft.UI.Dispatching;
-using SharpCompress.Archives;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -27,9 +26,7 @@ namespace Uviewer.Services
         SharpenParams SharpenParams,
         bool IsPdfMode,
         bool IsWebDavMode,
-        IArchive? CurrentArchive,
-        SevenZipExtractor.ArchiveFile? Current7zArchive,
-        SemaphoreSlim ArchiveLock,
+        ArchiveSession ArchiveSession,
         WebDavService WebDavService,
         CanvasControl MainCanvas,
         PdfPageBitmapLoader LoadPdfPageBitmapAsync,
@@ -182,7 +179,7 @@ namespace Uviewer.Services
                 return await LoadImageFromPathAsync(entry.FilePath, canvas);
             }
 
-            if (entry.IsArchiveEntry && (context.CurrentArchive != null || context.Current7zArchive != null))
+            if (entry.IsArchiveEntry && context.ArchiveSession.HasArchive)
             {
                 return await LoadImageFromArchiveEntryAsync(entry.ArchiveEntryKey!, canvas, context, token);
             }
@@ -237,55 +234,23 @@ namespace Uviewer.Services
                 return await LoadImageFromPathAsync(imageEntry.FilePath, canvas);
             }
 
-            using var memoryStream = new MemoryStream();
-
-            bool archiveLockReleased = false;
-            await context.ArchiveLock.WaitAsync(token);
             try
             {
                 if (imageEntry != null && !string.IsNullOrEmpty(imageEntry.FilePath) && File.Exists(imageEntry.FilePath))
                 {
-                    var cachedPath = imageEntry.FilePath;
-                    context.ArchiveLock.Release();
-                    archiveLockReleased = true;
-                    return await LoadImageFromPathAsync(cachedPath, canvas);
+                    return await LoadImageFromPathAsync(imageEntry.FilePath, canvas);
                 }
 
-                if (context.CurrentArchive != null)
+                var bytes = await context.ArchiveSession.ReadEntryBytesAsync(entryKey, token);
+                if (bytes == null || token.IsCancellationRequested) return null;
+
+                if (imageEntry != null && !string.IsNullOrEmpty(imageEntry.FilePath) && File.Exists(imageEntry.FilePath))
                 {
-                    var archiveEntry = context.CurrentArchive.Entries.FirstOrDefault(e => e.Key == entryKey);
-                    if (archiveEntry == null) return null;
-
-                    using var entryStream = archiveEntry.OpenEntryStream();
-                    await entryStream.CopyToAsync(memoryStream, token);
+                    return await LoadImageFromPathAsync(imageEntry.FilePath, canvas);
                 }
-                else if (context.Current7zArchive != null)
-                {
-                    var archiveEntry = context.Current7zArchive.Entries.FirstOrDefault(e => e.FileName == entryKey);
-                    if (archiveEntry == null) return null;
 
-                    archiveEntry.Extract(memoryStream);
-                }
-                else
-                {
-                    return null;
-                }
-            }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"Archive Stream Error: {ex.Message}");
-                return null;
-            }
-            finally
-            {
-                if (!archiveLockReleased) context.ArchiveLock.Release();
-            }
+                using var memoryStream = new MemoryStream(bytes);
 
-            memoryStream.Position = 0;
-            if (token.IsCancellationRequested) return null;
-
-            try
-            {
                 return await CanvasBitmap.LoadAsync(
                     canvas.Device ?? CanvasDevice.GetSharedDevice(),
                     memoryStream.AsRandomAccessStream(),

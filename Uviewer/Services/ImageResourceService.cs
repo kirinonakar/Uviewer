@@ -1,5 +1,4 @@
 using Microsoft.Graphics.Canvas;
-using SharpCompress.Archives;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -17,13 +16,10 @@ namespace Uviewer.Services
     public record ViewingContext(
         bool IsEpubMode,
         bool IsWebDavMode,
-        System.IO.Compression.ZipArchive? EpubArchive,
-        System.Threading.SemaphoreSlim? EpubArchiveLock,
+        EpubSession? EpubSession,
         string? CurrentTextFilePath,
         string? CurrentTextArchiveEntryKey,
-        IArchive? CurrentArchive,
-        SevenZipExtractor.ArchiveFile? Current7zArchive,
-        System.Threading.SemaphoreSlim? ArchiveLock,
+        ArchiveSession? ArchiveSession,
         string? CurrentWebDavItemPath,
         List<ImageEntry>? ImageEntries,
         Func<string, string?>? ResolveWebDavImagePath,
@@ -102,9 +98,9 @@ namespace Uviewer.Services
             try
             {
                 // (A) EPUB 아카이브
-                if (ctx.IsEpubMode && ctx.EpubArchive != null)
+                if (ctx.IsEpubMode && ctx.EpubSession != null)
                 {
-                    return FindEpubEntryLoose(ctx.EpubArchive, relativePath) != null;
+                    return ctx.EpubSession.ContainsEntryLoose(relativePath);
                 }
 
                 // (B) WebDAV
@@ -141,23 +137,11 @@ namespace Uviewer.Services
                 }
 
                 // (D) ZIP / 7z 아카이브
-                if ((ctx.CurrentArchive != null || ctx.Current7zArchive != null) &&
+                if (ctx.ArchiveSession?.HasArchive == true &&
                     !string.IsNullOrEmpty(ctx.CurrentTextArchiveEntryKey))
                 {
                     string targetKey = BuildArchiveKey(ctx.CurrentTextArchiveEntryKey!, relativePath);
-
-                    if (ctx.CurrentArchive != null)
-                    {
-                        return ctx.CurrentArchive.Entries.Any(e => e.Key != null &&
-                            (e.Key.Replace('\\', '/') == targetKey ||
-                             string.Equals(e.Key.Replace('\\', '/'), targetKey, StringComparison.OrdinalIgnoreCase)));
-                    }
-                    if (ctx.Current7zArchive != null)
-                    {
-                        return ctx.Current7zArchive.Entries.Any(e => e.FileName != null &&
-                            (e.FileName.Replace('\\', '/') == targetKey ||
-                             string.Equals(e.FileName.Replace('\\', '/'), targetKey, StringComparison.OrdinalIgnoreCase)));
-                    }
+                    return ctx.ArchiveSession.ContainsEntryLoose(targetKey);
                 }
             }
             catch { }
@@ -409,23 +393,9 @@ namespace Uviewer.Services
         private async Task<byte[]?> ExtractBytesAsync(string relativePath, ViewingContext ctx)
         {
             // (A) EPUB 아카이브
-            if (ctx.IsEpubMode && ctx.EpubArchive != null && ctx.EpubArchiveLock != null)
+            if (ctx.IsEpubMode && ctx.EpubSession != null)
             {
-                var entry = FindEpubEntryLoose(ctx.EpubArchive, relativePath);
-
-                if (entry != null)
-                {
-                    await ctx.EpubArchiveLock.WaitAsync();
-                    try
-                    {
-                        using var s = entry.Open();
-                        using var ms = new MemoryStream();
-                        await s.CopyToAsync(ms);
-                        return ms.ToArray();
-                    }
-                    finally { ctx.EpubArchiveLock.Release(); }
-                }
-                return null;
+                return await ctx.EpubSession.ReadEntryBytesLooseAsync(relativePath);
             }
 
             // (B) WebDAV
@@ -459,50 +429,11 @@ namespace Uviewer.Services
             }
 
             // (D) ZIP / 7z 아카이브
-            if ((ctx.CurrentArchive != null || ctx.Current7zArchive != null) &&
-                !string.IsNullOrEmpty(ctx.CurrentTextArchiveEntryKey) &&
-                ctx.ArchiveLock != null)
+            if (ctx.ArchiveSession?.HasArchive == true &&
+                !string.IsNullOrEmpty(ctx.CurrentTextArchiveEntryKey))
             {
                 string targetKey = BuildArchiveKey(ctx.CurrentTextArchiveEntryKey!, relativePath);
-
-                await ctx.ArchiveLock.WaitAsync();
-                try
-                {
-                    if (ctx.CurrentArchive != null)
-                    {
-                        var entry = ctx.CurrentArchive.Entries.FirstOrDefault(e =>
-                                e.Key != null && e.Key.Replace('\\', '/') == targetKey)
-                            ?? ctx.CurrentArchive.Entries.FirstOrDefault(e =>
-                                e.Key != null && string.Equals(
-                                    e.Key.Replace('\\', '/'), targetKey,
-                                    StringComparison.OrdinalIgnoreCase));
-
-                        if (entry != null)
-                        {
-                            using var ms = new MemoryStream();
-                            using var es = entry.OpenEntryStream();
-                            es.CopyTo(ms);
-                            return ms.ToArray();
-                        }
-                    }
-                    else if (ctx.Current7zArchive != null)
-                    {
-                        var entry = ctx.Current7zArchive.Entries.FirstOrDefault(e =>
-                                e.FileName != null && e.FileName.Replace('\\', '/') == targetKey)
-                            ?? ctx.Current7zArchive.Entries.FirstOrDefault(e =>
-                                e.FileName != null && string.Equals(
-                                    e.FileName.Replace('\\', '/'), targetKey,
-                                    StringComparison.OrdinalIgnoreCase));
-
-                        if (entry != null)
-                        {
-                            using var ms = new MemoryStream();
-                            entry.Extract(ms);
-                            return ms.ToArray();
-                        }
-                    }
-                }
-                finally { ctx.ArchiveLock.Release(); }
+                return await ctx.ArchiveSession.ReadEntryBytesLooseAsync(targetKey);
             }
 
             return null;
@@ -520,31 +451,6 @@ namespace Uviewer.Services
                 ? subPath
                 : (baseDir.TrimEnd('/') + "/" + subPath);
             return targetKey.Replace("/./", "/");
-        }
-
-        private static System.IO.Compression.ZipArchiveEntry? FindEpubEntryLoose(
-            System.IO.Compression.ZipArchive archive,
-            string relativePath)
-        {
-            string normPath = relativePath.Replace('\\', '/').TrimStart('/');
-            var entry = archive.Entries.FirstOrDefault(e =>
-                    e.FullName.Replace('\\', '/') == normPath)
-                ?? archive.Entries.FirstOrDefault(e =>
-                    string.Equals(e.FullName.Replace('\\', '/'), normPath, StringComparison.OrdinalIgnoreCase));
-
-            if (entry != null) return entry;
-
-            string fileName = GetFileNameFromZipPath(normPath);
-            if (string.IsNullOrEmpty(fileName)) return null;
-
-            return archive.Entries.FirstOrDefault(e =>
-                string.Equals(GetFileNameFromZipPath(e.FullName.Replace('\\', '/')), fileName, StringComparison.OrdinalIgnoreCase));
-        }
-
-        private static string GetFileNameFromZipPath(string path)
-        {
-            int lastSlash = path.LastIndexOf('/');
-            return lastSlash >= 0 ? path.Substring(lastSlash + 1) : Path.GetFileName(path);
         }
 
         private static bool IsBitmapUsable(CanvasBitmap bitmap)

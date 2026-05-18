@@ -445,7 +445,9 @@ namespace Uviewer
                     VerticalTextCanvas.ActualHeight);
                 var device = VerticalTextCanvas.Device;
 
-                var result = await _aozoraPageMapCalculator.CalculateAsync(
+                bool calculated = await _readerPageMapCalculationService.CalculateAsync(
+                    _verticalPageState,
+                    _aozoraPageMapCalculator,
                     _aozoraBlocks,
                     new AozoraBlockPaginationContext(
                         device,
@@ -460,15 +462,11 @@ namespace Uviewer
                     AozoraPageOrientation.Vertical,
                     token);
 
-                if (result == null || token.IsCancellationRequested) return;
+                if (!calculated || token.IsCancellationRequested) return;
 
                 DispatcherQueue.TryEnqueue(() =>
                 {
                     if (token.IsCancellationRequested) return;
-
-                    _verticalPageState.SetPageMap(result.BlockToPageMap, result.TotalPages);
-                    if (!_verticalPageState.SyncCalculatedCurrentPageFromMap())
-                        _verticalCalculatedCurrentPage = 1;
 
                     UpdateVerticalStatusBar();
                 });
@@ -627,43 +625,41 @@ namespace Uviewer
                 bool isEmpty = blocks == null || blocks.Count == 0;
                 if (isEmpty && !_isEpubMode) return;
 
-                if (direction > 0) // 다음 페이지
+                int? targetIndex = blocks == null
+                    ? null
+                    : _readerPageNavigationService.GetTargetStartIndex(
+                        _verticalPageState,
+                        blocks.Count,
+                        direction,
+                        () =>
+                        {
+                            var layout = _readerLayoutService.CreateVerticalTextLayout(
+                                VerticalTextCanvas?.ActualWidth ?? 0,
+                                VerticalTextCanvas?.ActualHeight ?? 0,
+                                RootGrid?.ActualWidth ?? 0,
+                                RootGrid?.ActualHeight ?? 0);
+                            var device = VerticalTextCanvas?.Device ?? Microsoft.Graphics.Canvas.CanvasDevice.GetSharedDevice();
+
+                            return GetOrFindPreviousPageStart(
+                                _currentVerticalStartBlockIndex,
+                                blocks,
+                                layout.AvailableWidth,
+                                layout.AvailableHeight,
+                                device,
+                                true);
+                        });
+
+                if (targetIndex.HasValue)
                 {
-                    if (blocks != null && _currentVerticalEndBlockIndex < blocks.Count - 1)
-                    {
-                        // 💡 History Push 완전히 제거됨
-                        await RenderVerticalDynamicPageAsync(_currentVerticalEndBlockIndex + 1);
-                        if (_isVerticalPageCalcCompleted) { _verticalPageState.AdvanceCalculatedPage(1); UpdateVerticalStatusBar(); }
-                    }
-                    else if (_isEpubMode)
-                    {
-                        // [수정] EPUB 모드일 때는 세로 모드여도 NavigateEpubAsync를 통해 내부 페이지를 정교하게 이동 (2장보기 등 대응)
-                        await NavigateEpubAsync(direction);
-                    }
+                    await RenderVerticalDynamicPageAsync(targetIndex.Value);
+                    _readerPageNavigationService.AdvanceCalculatedPage(_verticalPageState, direction);
+                    UpdateVerticalStatusBar();
+                    return;
                 }
-                else if (direction < 0) // 이전 페이지
+
+                if (_isEpubMode && direction != 0)
                 {
-                    if (blocks != null && _currentVerticalStartBlockIndex > 0)
-                    {
-                        int targetIdx = _currentVerticalStartBlockIndex;
-
-                        var layout = _readerLayoutService.CreateVerticalTextLayout(
-                            VerticalTextCanvas?.ActualWidth ?? 0,
-                            VerticalTextCanvas?.ActualHeight ?? 0,
-                            RootGrid?.ActualWidth ?? 0,
-                            RootGrid?.ActualHeight ?? 0);
-                        var device = VerticalTextCanvas?.Device ?? Microsoft.Graphics.Canvas.CanvasDevice.GetSharedDevice();
-
-                        int bestStart = GetOrFindPreviousPageStart(targetIdx, blocks, layout.AvailableWidth, layout.AvailableHeight, device, true);
-
-                        await RenderVerticalDynamicPageAsync(bestStart);
-                        if (_isVerticalPageCalcCompleted) { _verticalPageState.AdvanceCalculatedPage(-1); UpdateVerticalStatusBar(); }
-                    }
-                    else if (_isEpubMode)
-                    {
-                        // [수정] EPUB 모드일 때는 세로 모드여도 NavigateEpubAsync를 통해 내부 페이지를 정교하게 이동
-                        await NavigateEpubAsync(direction);
-                    }
+                    await NavigateEpubAsync(direction);
                 }
             }
             catch (OperationCanceledException) { }
@@ -684,8 +680,6 @@ namespace Uviewer
             }
             if (_currentVerticalPageInfo.Blocks == null) return;
 
-            int totalPages = _isVerticalPageCalcCompleted ? _verticalTotalPages : 0;
-            int currentPage = _isVerticalPageCalcCompleted ? _verticalCalculatedCurrentPage : 1;
             int currentLine = _currentVerticalPageInfo.StartLine;
             
             // 기존의 Split 코드를 아래처럼 변경합니다.
@@ -695,28 +689,19 @@ namespace Uviewer
                 totalLines = _textBlockDocumentService.CountNormalizedLines(_currentTextContent);
                 _textTotalLineCountInSource = totalLines;
             }
-            
-            ImageInfoText.Text = Strings.LineInfo(currentLine, totalLines);
 
-            double progress = _readingProgressService.CalculateLineProgress(currentLine, totalLines);
-            TextProgressText.Text = _readingProgressService.FormatPercent(progress);
+            var content = _textStatusBarService.CreatePagedReader(
+                _verticalPageState,
+                currentLine,
+                totalLines);
 
-            if (_isVerticalPageCalcCompleted)
+            ImageInfoText.Text = content.LineInfo;
+            TextProgressText.Text = content.ProgressText;
+            ImageIndexText.Text = content.PageInfo;
+
+            if (content.CurrentLine != _lastRecentSaveLine)
             {
-                // 점프(Home/End/이동) 시에도 페이지 번호 즉시 반영
-                _verticalPageState.SyncCalculatedCurrentPageFromMap();
-
-                currentPage = _readingProgressService.ClampPage(_verticalCalculatedCurrentPage, totalPages);
-                ImageIndexText.Text = $"{currentPage} / {totalPages}";
-            }
-            else
-            {
-                ImageIndexText.Text = Strings.CalculatingPages.Trim().Replace("(", "").Replace(")", "");
-            }
-
-            if (currentLine != _lastRecentSaveLine)
-            {
-                _lastRecentSaveLine = currentLine;
+                _lastRecentSaveLine = content.CurrentLine;
                 _ = AddToRecentAsync(true);
             }
         }

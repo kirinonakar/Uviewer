@@ -10,7 +10,6 @@ using Microsoft.UI.Dispatching;
 using System;
 using System.Collections.Generic;
 using System.IO;
-using System.IO.Compression;
 using System.Linq;
 using Windows.Foundation;
 using Windows.UI;
@@ -26,14 +25,17 @@ namespace Uviewer
 {
     public sealed partial class MainWindow
     {
-        private ZipArchive? _currentEpubArchive;
-        private List<string> _epubSpine = new();
+        private readonly EpubSession _epubSession = new();
+        private List<string> _epubSpine
+        {
+            get => _epubSession.Spine;
+            set => _epubSession.ReplaceSpine(value);
+        }
+
         private int _currentEpubChapterIndex = 0;
         private string? _currentEpubFilePath;
         private string? _currentEpubDisplayName;
-        private string? _epubTocPath;
         private object _epubLock = new object();
-        private SemaphoreSlim _epubArchiveLock = new SemaphoreSlim(1, 1);
         private SemaphoreSlim _epubNavigationLock = new SemaphoreSlim(1, 1);
         private readonly EpubDocumentService _epubDocumentService = new();
         private readonly EpubPaginationService _epubPaginationService = new();
@@ -43,14 +45,28 @@ namespace Uviewer
         public int PendingEpubPageIndex { get; set; } = -1;
         private int _pendingEpubStartBlockIndex = -1;
 
-        private List<EpubWin2DPage> _epubWin2DPages = new();
-        private int _currentEpubPageIndex = 0;
-        private EpubWin2DPage? CurrentEpubWin2DPage => (_epubWin2DPages.Count > 0 && _currentEpubPageIndex >= 0 && _currentEpubPageIndex < _epubWin2DPages.Count) ? _epubWin2DPages[_currentEpubPageIndex] : null;
-        private bool _isEpubShowingTwoPages = false;
+        private readonly EpubReaderState _epubReaderState = new();
+        private List<EpubWin2DPage> _epubWin2DPages
+        {
+            get => _epubReaderState.Pages;
+            set => _epubReaderState.Pages = value ?? new List<EpubWin2DPage>();
+        }
 
-        private Dictionary<int, List<EpubWin2DPage>> _epubPreloadCache = new();
-        private Dictionary<int, bool> _epubChapterHasText = new();
-        private CancellationTokenSource? _epubPreloadCts;
+        private int _currentEpubPageIndex
+        {
+            get => _epubReaderState.CurrentPageIndex;
+            set => _epubReaderState.CurrentPageIndex = value;
+        }
+
+        private EpubWin2DPage? CurrentEpubWin2DPage => _epubReaderState.CurrentPage;
+        private bool _isEpubShowingTwoPages
+        {
+            get => _epubReaderState.IsShowingTwoPages;
+            set => _epubReaderState.IsShowingTwoPages = value;
+        }
+
+        private Dictionary<int, List<EpubWin2DPage>> _epubPreloadCache => _epubReaderState.PreloadCache;
+        private Dictionary<int, bool> _epubChapterHasText => _epubReaderState.ChapterHasText;
 
         // 이미지 캐시는 _imageResourceService로 통합됨 (접두어 "epub:")
 
@@ -82,7 +98,7 @@ namespace Uviewer
                                 return;
                             }
 
-                            _epubPreloadCache.Clear();
+                            _epubReaderState.ClearPreload();
                             _imageResourceService.ClearEpubEntries();
                             // [핵심 해결] 글자 크기나 창 크기가 바뀌면 공용 측정 캐시(MainWindow.aozora.cs 정의)를 비워야 정확한 재계산이 가능합니다.
                             ClearBackwardCache(); 
@@ -177,15 +193,10 @@ namespace Uviewer
                  _currentEpubFilePath = file.Path;
                  _currentEpubDisplayName = entry?.DisplayName ?? file.Name;
                  
-                 _epubPreloadCache.Clear();
+                 _epubReaderState.ClearPreload();
                  var stream = await file.OpenStreamForReadAsync();
-                 _currentEpubArchive = new ZipArchive(stream, ZipArchiveMode.Read);
-                
-                 var packageInfo = await _epubDocumentService.LoadPackageInfoAsync(_currentEpubArchive, _epubArchiveLock);
+                 var packageInfo = await _epubSession.OpenAsync(stream, _epubDocumentService);
                  if (string.IsNullOrEmpty(packageInfo.RootPath)) throw new Exception("Invalid container.xml");
-
-                 _epubSpine = packageInfo.Spine;
-                 _epubTocPath = packageInfo.TocPath;
                  
                  if (_epubSpine.Count == 0) throw new Exception("No content found in EPUB");
                  
@@ -244,9 +255,10 @@ namespace Uviewer
                  
                  // 4. Load TOC (Background)
                 _ = Task.Run(async () => {
-                    if (_currentEpubArchive != null && !string.IsNullOrEmpty(_epubTocPath))
+                    var tocPath = _epubSession.TocPath;
+                    if (_epubSession.Archive != null && !string.IsNullOrEmpty(tocPath))
                     {
-                        _tocService.SetProvider(new EpubTocProvider(_currentEpubArchive, _epubTocPath, _epubSpine));
+                        _tocService.SetProvider(new EpubTocProvider(_epubSession.Archive, tocPath, _epubSpine));
                         await _tocService.LoadTocAsync();
                     }
                 });
@@ -268,32 +280,18 @@ namespace Uviewer
         // [안정성 수정] 동기 Wait → 비동기 WaitAsync로 전환하여 UI 프리징 방지
         private async Task<bool> CloseCurrentEpubAsync()
         {
-            bool lockAcquired = await _epubArchiveLock.WaitAsync(TimeSpan.FromSeconds(10));
-            if (!lockAcquired)
+            if (!await _epubSession.CloseAsync(TimeSpan.FromSeconds(10)))
             {
-                System.Diagnostics.Debug.WriteLine("EPUB lock timeout - aborting format switch to avoid unsafe dispose");
                 return false;
             }
 
-            try
-            {
-                _currentEpubArchive?.Dispose();
-                _currentEpubArchive = null;
-                _currentEpubFilePath = null;
-                _currentEpubChapterIndex = 0;
-                _currentEpubPageIndex = 0;
-                _epubSpine.Clear();
-                _epubWin2DPages.Clear();
-                _epubPreloadCache.Clear();
-                _imageResourceService.ClearEpubEntries();
-                _aozoraBlocks.Clear();
-                ClearVerticalDisplayState();
-                return true;
-            }
-            finally
-            {
-                _epubArchiveLock.Release();
-            }
+            _currentEpubFilePath = null;
+            _currentEpubChapterIndex = 0;
+            _epubReaderState.ClearAll();
+            _imageResourceService.ClearEpubEntries();
+            _aozoraBlocks.Clear();
+            ClearVerticalDisplayState();
+            return true;
         }
         
         // [하위 호환] 동기 호출이 필요한 곳(Window.Closed 등)을 위한 래퍼
@@ -340,9 +338,7 @@ namespace Uviewer
 
         private async Task PreloadEpubChaptersAsync(int currentIndex)
         {
-            _epubPreloadCts?.Cancel();
-            _epubPreloadCts = new CancellationTokenSource();
-            var token = _epubPreloadCts.Token;
+            var token = _epubReaderState.RestartPreload();
 
             try
             {
@@ -352,10 +348,8 @@ namespace Uviewer
                 {
                     if (token.IsCancellationRequested) return;
                     if (_epubPreloadCache.ContainsKey(idx)) continue;
-                    if (_currentEpubArchive == null) return;
-
                     string path = _epubSpine[idx];
-                    string? html = await _epubDocumentService.ReadEntryTextAsync(_currentEpubArchive, path, _epubArchiveLock);
+                    string? html = await _epubSession.ReadEntryTextAsync(path, _epubDocumentService);
                     if (html == null) continue;
 
                     if (token.IsCancellationRequested) return;
@@ -393,34 +387,27 @@ namespace Uviewer
         private void UpdateEpubStatus()
         {
             if (!_isEpubMode) return;
-            
-            int currentPage = _currentEpubPageIndex + 1;
-            int totalPages = _epubWin2DPages.Count;
-            if (totalPages == 0) totalPages = 1;
 
-            var pg = CurrentEpubWin2DPage;
-            int currentLine = pg?.StartLine ?? 1;
-            int totalLines = pg?.TotalLinesInChapter ?? 1;
-
-            double totalProgress = _readingProgressService.CalculateEpubProgress(
+            var content = _textStatusBarService.CreateEpub(
                 _currentEpubChapterIndex,
                 _epubSpine.Count,
-                currentPage,
-                totalPages);
+                _currentEpubPageIndex,
+                _epubWin2DPages.Count,
+                CurrentEpubWin2DPage);
 
             if (ImageInfoText != null)
             {
-                ImageInfoText.Text = Strings.LineInfo(currentLine, totalLines);
+                ImageInfoText.Text = content.LineInfo;
             }
 
             if (TextProgressText != null)
             {
-                TextProgressText.Text = _readingProgressService.FormatPercent(totalProgress);
+                TextProgressText.Text = content.ProgressText;
             }
             
             if (ImageIndexText != null)
             {
-                ImageIndexText.Text = $"{currentPage} / {totalPages} (Ch.{_currentEpubChapterIndex + 1})";
+                ImageIndexText.Text = content.PageInfo;
             }
 
             _ = AddToRecentAsync(true);
@@ -663,13 +650,13 @@ namespace Uviewer
 
             string cacheKey = Services.ImageResourceService.GetEpubCacheKey(imagePath);
             if (_imageResourceService.TryGetCached(cacheKey) != null) return;
-            var archiveAtStart = _currentEpubArchive;
+            int sessionVersionAtStart = _epubSession.Version;
             var filePathAtStart = _currentEpubFilePath;
-            if (archiveAtStart == null) return;
+            if (!_epubSession.HasDocument) return;
 
             var device = EpubTextCanvas?.Device ?? CanvasDevice.GetSharedDevice();
             bool IsStillCurrentEpub() =>
-                ReferenceEquals(_currentEpubArchive, archiveAtStart) &&
+                _epubSession.Version == sessionVersionAtStart &&
                 string.Equals(_currentEpubFilePath, filePathAtStart, StringComparison.OrdinalIgnoreCase);
 
             await LoadImageResourceAndInvalidateAsync(
@@ -920,9 +907,8 @@ namespace Uviewer
             else
             {
                 // Not cached, must load now
-                if (_currentEpubArchive == null) return;
                 string path = _epubSpine[chapterIndex];
-                string? html = await _epubDocumentService.ReadEntryTextAsync(_currentEpubArchive, path, _epubArchiveLock);
+                string? html = await _epubSession.ReadEntryTextAsync(path, _epubDocumentService);
                 if (html != null)
                 {
                     var pages = await RenderEpubPagesAsync(html, path);
@@ -963,9 +949,8 @@ namespace Uviewer
                 }
                 else
                 {
-                    if (_currentEpubArchive == null) return;
                     string path = _epubSpine[index];
-                    string? html = await _epubDocumentService.ReadEntryTextAsync(_currentEpubArchive, path, _epubArchiveLock);
+                    string? html = await _epubSession.ReadEntryTextAsync(path, _epubDocumentService);
                     if (html == null) return;
 
                     pages = await RenderEpubPagesAsync(html, path, pinBlockIndex: targetBlockIndex);
@@ -982,8 +967,7 @@ namespace Uviewer
                     int nextIdx = index + 1;
                     if (nextIdx < _epubSpine.Count && !_epubPreloadCache.ContainsKey(nextIdx))
                     {
-                        if (_currentEpubArchive == null) return;
-                        string? nextHtml = await _epubDocumentService.ReadEntryTextAsync(_currentEpubArchive, _epubSpine[nextIdx], _epubArchiveLock);
+                        string? nextHtml = await _epubSession.ReadEntryTextAsync(_epubSpine[nextIdx], _epubDocumentService);
                         if (nextHtml != null)
                         {
                             var nextPages = await RenderEpubPagesAsync(nextHtml, _epubSpine[nextIdx]);
@@ -1187,16 +1171,14 @@ namespace Uviewer
 
         public void ClearEpubCache()
         {
-            _epubPreloadCache.Clear();
+            _epubReaderState.ClearPreload();
         }
 
         private async Task<List<AozoraBindingModel>> GetEpubChapterAsAozoraBlocksAsync(int index)
         {
             if (index < 0 || index >= _epubSpine.Count) return new List<AozoraBindingModel>();
-            if (_currentEpubArchive == null) return new List<AozoraBindingModel>();
-
             string path = _epubSpine[index];
-            string? html = await _epubDocumentService.ReadEntryTextAsync(_currentEpubArchive, path, _epubArchiveLock);
+            string? html = await _epubSession.ReadEntryTextAsync(path, _epubDocumentService);
             if (html == null) return new List<AozoraBindingModel>();
 
             var parseResult = _epubDocumentService.ParseHtmlToAozoraBlocks(html, path, index);
