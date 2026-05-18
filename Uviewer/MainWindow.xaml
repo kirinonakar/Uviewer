@@ -753,7 +753,8 @@
                               PreviewKeyDown="FileListView_PreviewKeyDown">
                         <ListView.ItemTemplate>
                             <DataTemplate>
-                                <Grid Padding="4,6" ColumnSpacing="8">
+                                <Grid Padding="4,6" ColumnSpacing="8" Background="Transparent"
+                                      ToolTipService.ToolTip="{Binding Name}">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="Auto"/>
                                         <ColumnDefinition Width="*"/>
@@ -764,8 +765,7 @@
                                     <TextBlock Grid.Column="1" Text="{Binding Name}" 
                                                VerticalAlignment="Center"
                                                FontFamily="{ThemeResource ContentControlThemeFontFamily}"
-                                               TextTrimming="CharacterEllipsis"
-                                               ToolTipService.ToolTip="{Binding Name}"/>
+                                               TextTrimming="CharacterEllipsis"/>
                                 </Grid>
                             </DataTemplate>
                         </ListView.ItemTemplate>
@@ -781,7 +781,8 @@
                               Padding="4">
                         <GridView.ItemTemplate>
                             <DataTemplate>
-                                <Grid Width="{Binding ThumbnailItemWidth}" Height="{Binding ThumbnailItemHeight}" Padding="4" Background="Transparent" CornerRadius="4">
+                                <Grid Width="{Binding ThumbnailItemWidth}" Height="{Binding ThumbnailItemHeight}" Padding="4" Background="Transparent" CornerRadius="4"
+                                      ToolTipService.ToolTip="{Binding Name}">
                                     <Grid.RowDefinitions>
                                         <RowDefinition Height="*"/>
                                         <RowDefinition Height="Auto"/>
