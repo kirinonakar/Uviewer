@@ -382,38 +382,38 @@
                 <ToggleButton x:Name="SharpenButton" Width="36" Height="32" ToolTipService.ToolTip="{x:Bind app:Strings.SharpenTooltip}">
                     <ToggleButton.ContextFlyout>
                         <Flyout>
-                            <StackPanel Width="250" Spacing="8" Padding="10" >
+                            <StackPanel x:Name="SharpenSettingsPanel" Width="250" Spacing="8" Padding="10" >
                                 <TextBlock x:Name="SharpenSettingsTitleText" Text="{x:Bind app:Strings.SharpenSettingsTitle}" FontWeight="SemiBold" Margin="0,0,0,8"/>
 
                                 <Grid>
                                     <TextBlock x:Name="UpscaleLabel" Text="{x:Bind app:Strings.UpscaleFactorLabel}" FontSize="12" HorizontalAlignment="Left"/>
-                                    <TextBlock x:Name="UpscaleValueText" Text="{Binding ImageOptions.UpscaleFactorText, ElementName=ToolbarControl, Mode=OneWay}" FontSize="12" HorizontalAlignment="Right"/>
+                                    <TextBlock x:Name="UpscaleValueText" Text="{Binding UpscaleFactorText, Mode=OneWay}" FontSize="12" HorizontalAlignment="Right"/>
                                 </Grid>
-                                <Slider x:Name="UpscaleSlider" Minimum="1.0" Maximum="4.0" StepFrequency="0.1" Value="{Binding ImageOptions.UpscaleFactor, ElementName=ToolbarControl, Mode=TwoWay}"/>
+                                <Slider x:Name="UpscaleSlider" Minimum="1.0" Maximum="4.0" StepFrequency="0.1" Value="{Binding UpscaleFactor, Mode=TwoWay}"/>
 
                                 <Grid>
                                     <TextBlock x:Name="SharpenAmountLabel" Text="{x:Bind app:Strings.SharpenAmountLabel}" FontSize="12" HorizontalAlignment="Left"/>
-                                    <TextBlock x:Name="SharpenValueText" Text="{Binding ImageOptions.SharpenAmountText, ElementName=ToolbarControl, Mode=OneWay}" FontSize="12" HorizontalAlignment="Right"/>
+                                    <TextBlock x:Name="SharpenValueText" Text="{Binding SharpenAmountText, Mode=OneWay}" FontSize="12" HorizontalAlignment="Right"/>
                                 </Grid>
-                                <Slider x:Name="SharpenSlider" Minimum="0.0" Maximum="10.0" StepFrequency="0.1" Value="{Binding ImageOptions.SharpenAmount, ElementName=ToolbarControl, Mode=TwoWay}"/>
+                                <Slider x:Name="SharpenSlider" Minimum="0.0" Maximum="10.0" StepFrequency="0.1" Value="{Binding SharpenAmount, Mode=TwoWay}"/>
 
                                 <Grid>
                                     <TextBlock x:Name="SharpenThresholdLabel" Text="{x:Bind app:Strings.SharpenThresholdLabel}" FontSize="12" HorizontalAlignment="Left"/>
-                                    <TextBlock x:Name="SharpenThresholdValueText" Text="{Binding ImageOptions.SharpenThresholdText, ElementName=ToolbarControl, Mode=OneWay}" FontSize="12" HorizontalAlignment="Right"/>
+                                    <TextBlock x:Name="SharpenThresholdValueText" Text="{Binding SharpenThresholdText, Mode=OneWay}" FontSize="12" HorizontalAlignment="Right"/>
                                 </Grid>
-                                <Slider x:Name="SharpenThresholdSlider" Minimum="0.0" Maximum="0.3" StepFrequency="0.001" Value="{Binding ImageOptions.SharpenThreshold, ElementName=ToolbarControl, Mode=TwoWay}"/>
+                                <Slider x:Name="SharpenThresholdSlider" Minimum="0.0" Maximum="0.3" StepFrequency="0.001" Value="{Binding SharpenThreshold, Mode=TwoWay}"/>
 
                                 <Grid>
                                     <TextBlock x:Name="UnsharpAmountLabel" Text="{x:Bind app:Strings.UnsharpAmountLabel}" FontSize="12" HorizontalAlignment="Left"/>
-                                    <TextBlock x:Name="UnsharpAmountValueText" Text="{Binding ImageOptions.UnsharpAmountText, ElementName=ToolbarControl, Mode=OneWay}" FontSize="12" HorizontalAlignment="Right"/>
+                                    <TextBlock x:Name="UnsharpAmountValueText" Text="{Binding UnsharpAmountText, Mode=OneWay}" FontSize="12" HorizontalAlignment="Right"/>
                                 </Grid>
-                                <Slider x:Name="UnsharpAmountSlider" Minimum="0.0" Maximum="10.0" StepFrequency="0.1" Value="{Binding ImageOptions.UnsharpAmount, ElementName=ToolbarControl, Mode=TwoWay}"/>
+                                <Slider x:Name="UnsharpAmountSlider" Minimum="0.0" Maximum="10.0" StepFrequency="0.1" Value="{Binding UnsharpAmount, Mode=TwoWay}"/>
 
                                 <Grid>
                                     <TextBlock x:Name="UnsharpRadiusLabel" Text="{x:Bind app:Strings.UnsharpRadiusLabel}" FontSize="12" HorizontalAlignment="Left"/>
-                                    <TextBlock x:Name="UnsharpRadiusValueText" Text="{Binding ImageOptions.UnsharpRadiusText, ElementName=ToolbarControl, Mode=OneWay}" FontSize="12" HorizontalAlignment="Right"/>
+                                    <TextBlock x:Name="UnsharpRadiusValueText" Text="{Binding UnsharpRadiusText, Mode=OneWay}" FontSize="12" HorizontalAlignment="Right"/>
                                 </Grid>
-                                <Slider x:Name="UnsharpRadiusSlider" Minimum="0.1" Maximum="10.0" StepFrequency="0.1" Value="{Binding ImageOptions.UnsharpRadius, ElementName=ToolbarControl, Mode=TwoWay}"/>
+                                <Slider x:Name="UnsharpRadiusSlider" Minimum="0.1" Maximum="10.0" StepFrequency="0.1" Value="{Binding UnsharpRadius, Mode=TwoWay}"/>
 
                                 <Button x:Name="SharpenParamsResetButton" Content="{x:Bind app:Strings.ResetButton}" HorizontalAlignment="Stretch" Margin="0,8,0,0"/>
                             </StackPanel>

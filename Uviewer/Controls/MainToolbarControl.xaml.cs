@@ -12,7 +12,7 @@ namespace Uviewer.Controls
                 nameof(ImageOptions),
                 typeof(ImageProcessingViewModel),
                 typeof(MainToolbarControl),
-                new PropertyMetadata(null));
+                new PropertyMetadata(null, OnImageOptionsChanged));
 
         public ImageProcessingViewModel? ImageOptions
         {
@@ -23,6 +23,20 @@ namespace Uviewer.Controls
         public MainToolbarControl()
         {
             InitializeComponent();
+            ApplyImageOptionsDataContext();
+        }
+
+        private static void OnImageOptionsChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+        {
+            if (d is MainToolbarControl control)
+            {
+                control.ApplyImageOptionsDataContext();
+            }
+        }
+
+        private void ApplyImageOptionsDataContext()
+        {
+            SharpenSettingsPanel.DataContext = ImageOptions;
         }
 
         internal T GetPart<T>(string name) where T : class
@@ -104,6 +118,7 @@ namespace Uviewer.Controls
                 nameof(NextImageSideText) => NextImageSideText,
                 nameof(SharpenSeparator) => SharpenSeparator,
                 nameof(SharpenButton) => SharpenButton,
+                nameof(SharpenSettingsPanel) => SharpenSettingsPanel,
                 nameof(SharpenSettingsTitleText) => SharpenSettingsTitleText,
                 nameof(UpscaleLabel) => UpscaleLabel,
                 nameof(SharpenAmountLabel) => SharpenAmountLabel,
