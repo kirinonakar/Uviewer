@@ -1,0 +1,457 @@
+<UserControl
+    x:Class="Uviewer.Controls.MainToolbarControl"
+    x:Name="ToolbarControl"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:app="using:Uviewer"
+    xmlns:uc="using:Uviewer.Controls"
+    xmlns:models="using:Uviewer.Models"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    mc:Ignorable="d">
+
+    <UserControl.Resources>
+        <Style x:Key="ToolbarButtonStyle" TargetType="Button">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Padding" Value="4" />
+            <Setter Property="CornerRadius" Value="4" />
+            <Setter Property="MinWidth" Value="36" />
+            <Setter Property="MinHeight" Value="36" />
+        </Style>
+
+        <Style x:Key="ToolbarToggleButtonStyle" TargetType="ToggleButton">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Padding" Value="4" />
+            <Setter Property="CornerRadius" Value="4" />
+            <Setter Property="MinWidth" Value="36" />
+            <Setter Property="MinHeight" Value="36" />
+        </Style>
+    </UserControl.Resources>
+
+        <!-- Title Bar & Toolbar -->
+        <Grid x:Name="ToolbarRoot" Padding="12,8" 
+              Background="{ThemeResource LayerFillColorDefaultBrush}"
+              BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="0,0,0,1"
+              IsTabStop="False">
+            <Grid.Resources>
+                <Style TargetType="Button" BasedOn="{StaticResource ToolbarButtonStyle}" />
+                <Style TargetType="ToggleButton" BasedOn="{StaticResource ToolbarToggleButtonStyle}" />
+            </Grid.Resources>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+
+            <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="0" VerticalAlignment="Center">
+                <Button x:Name="SettingsButton" Style="{StaticResource ToolbarButtonStyle}" Margin="0,0,0,0" ToolTipService.ToolTip="설정">
+                    <FontIcon Glyph="&#xE713;" FontSize="14"/>
+                    <Button.Flyout>
+                        <MenuFlyout Placement="Bottom">
+                            <MenuFlyoutItem x:Name="ChangeFontMenuItem" Text="폰트 변경">
+                                <MenuFlyoutItem.Icon>
+                                    <FontIcon Glyph="&#xE8D2;"/>
+                                </MenuFlyoutItem.Icon>
+                            </MenuFlyoutItem>
+                            <MenuFlyoutSubItem x:Name="EncodingMenuItem" Text="인코딩 (Encoding)">
+                                <MenuFlyoutSubItem.Icon>
+                                    <FontIcon Glyph="&#xE164;"/>
+                                </MenuFlyoutSubItem.Icon>
+                                <ToggleMenuFlyoutItem x:Name="EncAutoItem" Text="자동 (Detect)" IsChecked="True" Tag="Auto"/>
+                                <ToggleMenuFlyoutItem x:Name="EncUtf8Item" Text="UTF-8" Tag="UTF-8"/>
+                                <ToggleMenuFlyoutItem x:Name="EncEucKrItem" Text="Korean (EUC-KR)" Tag="EUC-KR"/>
+                                <ToggleMenuFlyoutItem x:Name="EncSjisItem" Text="Japanese (Shift-JIS)" Tag="Shift-JIS"/>
+                                <ToggleMenuFlyoutItem x:Name="EncJohabItem" Text="Korean (Johab)" Tag="Johab"/>
+                            </MenuFlyoutSubItem>
+                            <MenuFlyoutItem x:Name="ChangeColorsMenuItem" Text="배경색/글자색">
+                                <MenuFlyoutItem.Icon>
+                                    <FontIcon Glyph="&#xE790;"/>
+                                </MenuFlyoutItem.Icon>
+                            </MenuFlyoutItem>
+                            <MenuFlyoutItem x:Name="ChangeUiFontMenuItem" Text="UI 폰트 변경">
+                                <MenuFlyoutItem.Icon>
+                                    <FontIcon Glyph="&#xE18F;"/>
+                                </MenuFlyoutItem.Icon>
+                            </MenuFlyoutItem>
+                            <MenuFlyoutSubItem x:Name="LanguageMenuItem" Text="언어 (Language)">
+                                <MenuFlyoutSubItem.Icon>
+                                    <FontIcon Glyph="&#xE909;"/>
+                                </MenuFlyoutSubItem.Icon>
+                                <ToggleMenuFlyoutItem x:Name="LangAutoItem" Text="자동 (Default)" Tag="Auto"/>
+                                <ToggleMenuFlyoutItem x:Name="LangKoItem" Text="한국어" Tag="ko-KR"/>
+                                <ToggleMenuFlyoutItem x:Name="LangEnItem" Text="English" Tag="en-US"/>
+                                <ToggleMenuFlyoutItem x:Name="LangJaItem" Text="日本語" Tag="ja-JP"/>
+                                <ToggleMenuFlyoutItem x:Name="LangZhHansItem" Text="简体中文" Tag="zh-Hans"/>
+                                <ToggleMenuFlyoutItem x:Name="LangZhHantItem" Text="繁體中文" Tag="zh-Hant"/>
+                                <ToggleMenuFlyoutItem x:Name="LangViItem" Text="Tiếng Việt" Tag="vi-VN"/>
+                            </MenuFlyoutSubItem>
+                            <MenuFlyoutSeparator/>
+                            <ToggleMenuFlyoutItem x:Name="MatchControlDirectionMenuItem" Text="컨트롤 방향 일치">
+                                <ToggleMenuFlyoutItem.Icon>
+                                    <FontIcon Glyph="&#xE8AB;"/>
+                                </ToggleMenuFlyoutItem.Icon>
+                            </ToggleMenuFlyoutItem>
+                            <ToggleMenuFlyoutItem x:Name="AllowMultipleInstancesMenuItem" Text="다중 실행">
+                                <ToggleMenuFlyoutItem.Icon>
+                                    <FontIcon Glyph="&#xE8A9;"/>
+                                </ToggleMenuFlyoutItem.Icon>
+                            </ToggleMenuFlyoutItem>
+                            <ToggleMenuFlyoutItem x:Name="AutoDoublePageForArchiveMenuItem" Text="압축파일 자동 2장보기">
+                                <ToggleMenuFlyoutItem.Icon>
+                                    <FontIcon Glyph="&#xE11E;"/>
+                                </ToggleMenuFlyoutItem.Icon>
+                            </ToggleMenuFlyoutItem>
+                            <MenuFlyoutSeparator/>
+                            <MenuFlyoutItem x:Name="AboutMenuItem" Text="정보 (About)">
+                                <MenuFlyoutItem.Icon>
+                                    <FontIcon Glyph="&#xE946;"/>
+                                </MenuFlyoutItem.Icon>
+                            </MenuFlyoutItem>
+                        </MenuFlyout>
+                    </Button.Flyout>
+                </Button>
+                <ToggleButton x:Name="GlobalThemeToggleButton" Style="{StaticResource ToolbarToggleButtonStyle}" Margin="4,0,0,0">
+                    <FontIcon x:Name="ThemeIcon" Glyph="&#xE708;" FontSize="14"/>
+                </ToggleButton>
+                <ToggleButton x:Name="PinButton" IsChecked="True" Style="{StaticResource ToolbarToggleButtonStyle}" Margin="4,0,0,0"
+                              ToolTipService.ToolTip="UI 고정/자동숨김 (`)">
+                    <FontIcon x:Name="PinIcon" Glyph="&#xE890;" FontSize="14"/>
+                </ToggleButton>
+                <ToggleButton x:Name="AlwaysOnTopButton" Style="{StaticResource ToolbarToggleButtonStyle}" Margin="4,0,0,0"
+                              ToolTipService.ToolTip="항상 위 (T)">
+                    <FontIcon x:Name="AlwaysOnTopIcon" Glyph="&#xE718;" FontSize="14"/>
+                </ToggleButton>
+            </StackPanel>
+
+            <!-- Toolbar -->
+            <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="4">
+                <Button x:Name="ToggleSidebarButton" ToolTipService.ToolTip="사이드바 토글(Ctrl+B)">
+                    <FontIcon Glyph="&#xE8A0;" FontSize="14"/>
+                </Button>
+
+                <Button x:Name="FavoritesButton" ToolTipService.ToolTip="즐겨찾기">
+                    <FontIcon Glyph="&#xE734;" FontSize="14"/>
+                    <Button.Flyout>
+                        <Flyout x:Name="FavoritesFlyout" Placement="Bottom">
+                            <StackPanel Width="400" MaxHeight="500">
+                                <StackPanel.Resources>
+                                    <ResourceDictionary>
+                                        <ResourceDictionary.ThemeDictionaries>
+                                            <ResourceDictionary x:Key="Light">
+                                                <SolidColorBrush x:Key="ButtonBackgroundPointerOver" Color="#15000000"/>
+                                                <SolidColorBrush x:Key="ButtonBackgroundPressed" Color="#25000000"/>
+                                                <SolidColorBrush x:Key="ListViewItemBackgroundPointerOver" Color="#15000000"/>
+                                                <SolidColorBrush x:Key="ListViewItemBackgroundPressed" Color="#25000000"/>
+                                            </ResourceDictionary>
+                                            <ResourceDictionary x:Key="Dark">
+                                                <SolidColorBrush x:Key="ButtonBackgroundPointerOver" Color="#15FFFFFF"/>
+                                                <SolidColorBrush x:Key="ButtonBackgroundPressed" Color="#25FFFFFF"/>
+                                                <SolidColorBrush x:Key="ListViewItemBackgroundPointerOver" Color="#15FFFFFF"/>
+                                                <SolidColorBrush x:Key="ListViewItemBackgroundPressed" Color="#25FFFFFF"/>
+                                            </ResourceDictionary>
+                                        </ResourceDictionary.ThemeDictionaries>
+                                    </ResourceDictionary>
+                                </StackPanel.Resources>
+                                <Button x:Name="AddToFavoritesButton" Content="➕ 즐겨찾기 추가" 
+                                        HorizontalAlignment="Stretch" HorizontalContentAlignment="Left"
+                                        Background="Transparent" BorderThickness="0">
+                                    <Button.Resources>
+                                        <ResourceDictionary>
+                                            <ResourceDictionary.ThemeDictionaries>
+                                                <ResourceDictionary x:Key="Light">
+                                                    <SolidColorBrush x:Key="ButtonBackgroundPointerOver" Color="#15000000"/>
+                                                    <SolidColorBrush x:Key="ButtonBackgroundPressed" Color="#25000000"/>
+                                                </ResourceDictionary>
+                                                <ResourceDictionary x:Key="Dark">
+                                                    <SolidColorBrush x:Key="ButtonBackgroundPointerOver" Color="#15FFFFFF"/>
+                                                    <SolidColorBrush x:Key="ButtonBackgroundPressed" Color="#25FFFFFF"/>
+                                                </ResourceDictionary>
+                                            </ResourceDictionary.ThemeDictionaries>
+                                        </ResourceDictionary>
+                                    </Button.Resources>
+                                </Button>
+                                <Border Height="1" Background="{ThemeResource DividerStrokeColorDefaultBrush}" Margin="0,4"/>
+                                <Pivot x:Name="FavoritesPivot">
+                                    <Pivot.HeaderTemplate>
+                                        <DataTemplate>
+                                            <TextBlock Text="{Binding}" FontSize="14" FontWeight="SemiBold"/>
+                                        </DataTemplate>
+                                    </Pivot.HeaderTemplate>
+                                    <PivotItem x:Name="FileFavoritesPivotItem" Header="{x:Bind app:Strings.FavoritesFiles}">
+                                        <ScrollViewer MaxHeight="400" 
+                                                     HorizontalScrollBarVisibility="Disabled" 
+                                                     VerticalScrollBarVisibility="Auto">
+                                            <uc:BookmarkListControl x:Name="FileFavoritesList"/>
+                                        </ScrollViewer>
+                                    </PivotItem>
+                                    <PivotItem x:Name="FolderFavoritesPivotItem" Header="{x:Bind app:Strings.FavoritesFolders}">
+                                        <ScrollViewer MaxHeight="400" 
+                                                     HorizontalScrollBarVisibility="Disabled" 
+                                                     VerticalScrollBarVisibility="Auto">
+                                            <uc:BookmarkListControl x:Name="FolderFavoritesList"/>
+                                        </ScrollViewer>
+                                    </PivotItem>
+                                </Pivot>
+                            </StackPanel>
+                        </Flyout>
+                    </Button.Flyout>
+                </Button>
+
+                <Button x:Name="RecentButton" ToolTipService.ToolTip="최근 이미지">
+                    <FontIcon Glyph="&#xE823;" FontSize="14"/>
+                    <Button.Flyout>
+                        <Flyout x:Name="RecentFlyout" Placement="Bottom">
+                            <ScrollViewer MaxHeight="600" Width="400" 
+                                         HorizontalScrollBarVisibility="Disabled" 
+                                         VerticalScrollBarVisibility="Auto">
+                                    <uc:BookmarkListControl x:Name="RecentList"/>
+                            </ScrollViewer>
+                        </Flyout>
+                    </Button.Flyout>
+                </Button>
+
+                <AppBarSeparator/>
+
+                <Button x:Name="OpenFileButton" ToolTipService.ToolTip="파일 열기(Ctrl+O)">
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                        <FontIcon Glyph="&#xE8E5;" FontSize="14"/>
+                    </StackPanel>
+                </Button>
+
+                <Button x:Name="OpenFolderButton" ToolTipService.ToolTip="폴더 열기">
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                        <FontIcon Glyph="&#xED25;" FontSize="14"/>
+                    </StackPanel>
+                </Button>
+
+
+                <AppBarSeparator/>
+
+                <!-- Image Toolbar -->
+                <StackPanel x:Name="ImageToolbarPanel" Orientation="Horizontal" Spacing="4" Visibility="Visible">
+                    <!-- PDF specific buttons moved to front to match text mode -->
+                    <Button x:Name="PdfTocButton" Visibility="Collapsed" ToolTipService.ToolTip="목차(T)">
+                        <FontIcon Glyph="&#xE8FD;" FontSize="14"/>
+                        <Button.Flyout>
+                            <Flyout x:Name="PdfTocFlyout" Placement="Bottom">
+                                <Grid Width="300" Height="400">
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="*"/>
+                                    </Grid.RowDefinitions>
+                                    <TextBlock Text="목차" FontSize="18" FontWeight="SemiBold" Margin="0,0,0,12"/>
+                                    <ListView x:Name="PdfTocListView" Grid.Row="1" SelectionMode="Single" IsItemClickEnabled="True">
+                                        <ListView.ItemTemplate>
+                                            <DataTemplate>
+                                                <TextBlock Text="{Binding HeadingText}" Margin="{Binding Margin}" FontSize="14" 
+                                                           FontFamily="{ThemeResource ContentControlThemeFontFamily}"
+                                                           ToolTipService.ToolTip="{Binding HeadingText}" TextTrimming="CharacterEllipsis"/>
+                                            </DataTemplate>
+                                        </ListView.ItemTemplate>
+                                    </ListView>
+                                </Grid>
+                            </Flyout>
+                        </Button.Flyout>
+                    </Button>
+
+                    <Button x:Name="PdfGoToPageButton" Visibility="Collapsed" ToolTipService.ToolTip="페이지 이동(G)">
+                        <TextBlock Text="G" FontSize="14" FontWeight="Bold"/>
+                    </Button>
+
+                    <AppBarSeparator x:Name="PdfSeparator" Visibility="Collapsed"/>
+
+                    <Button x:Name="ZoomOutButton" ToolTipService.ToolTip="축소(-)">
+                        <FontIcon Glyph="&#xE71F;" FontSize="14"/>
+                    </Button>
+
+                    <TextBlock x:Name="ZoomLevelText" Text="100%" Width="50" TextAlignment="Center" 
+                               VerticalAlignment="Center" FontSize="12"/>
+
+                    <Button x:Name="ZoomInButton" ToolTipService.ToolTip="확대(+)">
+                        <FontIcon Glyph="&#xE8A3;" FontSize="14"/>
+                    </Button>
+
+                    <Button x:Name="ZoomFitButton" ToolTipService.ToolTip="맞춤">
+                        <FontIcon Glyph="&#xE9A6;" FontSize="14"/>
+                    </Button>
+
+                    <Button x:Name="ZoomActualButton" ToolTipService.ToolTip="원본 크기">
+                        <TextBlock Text="1:1" FontSize="12" FontWeight="SemiBold"/>
+                    </Button>
+
+                </StackPanel>
+
+                <!-- Text Toolbar -->
+                <StackPanel x:Name="TextToolbarPanel" Orientation="Horizontal" Spacing="4" Visibility="Collapsed">
+                    <ToggleButton x:Name="AozoraToggleButton" ToolTipService.ToolTip="Aozora/md(A)">
+                        <TextBlock Text="A" FontSize="14" FontWeight="Bold"/>
+                    </ToggleButton>
+                    
+                    <ToggleButton x:Name="VerticalToggleButton">
+                        <TextBlock Text="V" FontSize="14" FontWeight="Bold"/>
+                    </ToggleButton>
+                    
+                    <Button x:Name="FontToggleButton" ToolTipService.ToolTip="폰트 변경(F)">
+                        <Button.ContextFlyout>
+                            <MenuFlyout>
+                                <MenuFlyoutItem x:Name="SetDefaultFont1MenuItem">
+                                    <MenuFlyoutItem.Icon>
+                                        <FontIcon Glyph="&#xE8D2;"/>
+                                    </MenuFlyoutItem.Icon>
+                                </MenuFlyoutItem>
+                                <MenuFlyoutItem x:Name="SetDefaultFont2MenuItem">
+                                    <MenuFlyoutItem.Icon>
+                                        <FontIcon Glyph="&#xE8D2;"/>
+                                    </MenuFlyoutItem.Icon>
+                                </MenuFlyoutItem>
+                                <MenuFlyoutSeparator/>
+                                <MenuFlyoutItem x:Name="ResetDefaultFontsMenuItem">
+                                    <MenuFlyoutItem.Icon>
+                                        <FontIcon Glyph="&#xE777;"/>
+                                    </MenuFlyoutItem.Icon>
+                                </MenuFlyoutItem>
+                            </MenuFlyout>
+                        </Button.ContextFlyout>
+                        <TextBlock Text="F" FontSize="14" FontWeight="Bold"/>
+                    </Button>
+                    
+                    <Button x:Name="TocButton" ToolTipService.ToolTip="목차(T)">
+                        <FontIcon Glyph="&#xE8FD;" FontSize="14"/>
+                        <Button.Flyout>
+                            <Flyout x:Name="TocFlyout" Placement="Bottom">
+                                <Grid Width="300" Height="400">
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="*"/>
+                                    </Grid.RowDefinitions>
+                                    <TextBlock Text="목차" FontSize="18" FontWeight="SemiBold" Margin="0,0,0,12"/>
+                                    <ListView x:Name="TocListView" Grid.Row="1" SelectionMode="Single" IsItemClickEnabled="True">
+                                        <ListView.ItemTemplate>
+                                            <DataTemplate>
+                                                <TextBlock Text="{Binding HeadingText}" Margin="{Binding Margin}" FontSize="14" 
+                                                           FontFamily="{ThemeResource ContentControlThemeFontFamily}"
+                                                           ToolTipService.ToolTip="{Binding HeadingText}" TextTrimming="CharacterEllipsis"/>
+                                            </DataTemplate>
+                                        </ListView.ItemTemplate>
+                                    </ListView>
+                                </Grid>
+                            </Flyout>
+                        </Button.Flyout>
+                    </Button>
+
+                    <Button x:Name="GoToPageButton" ToolTipService.ToolTip="페이지 이동(G)">
+                        <TextBlock Text="G" FontSize="14" FontWeight="Bold"/>
+                    </Button>
+
+                    <AppBarSeparator/>
+
+                    <Button x:Name="TextSizeDownButton" ToolTipService.ToolTip="글자 작게(-)">
+                        <FontIcon Glyph="&#xE71F;" FontSize="14"/>
+                    </Button>
+
+                    <TextBlock x:Name="TextSizeLevelText" Text="18" Width="30" TextAlignment="Center" 
+                               VerticalAlignment="Center" FontSize="12"/>
+
+                    <Button x:Name="TextSizeUpButton" ToolTipService.ToolTip="글자 크게(+)">
+                        <FontIcon Glyph="&#xE8A3;" FontSize="14"/>
+                    </Button>
+
+                    <AppBarSeparator/>
+
+                    <Button x:Name="ThemeToggleButton" ToolTipService.ToolTip="배경색 변경(B)">
+                        <FontIcon Glyph="&#xE790;" FontSize="14"/>
+                    </Button>
+                </StackPanel>
+
+                <StackPanel x:Name="SideBySideToolbarPanel" Orientation="Horizontal" Spacing="4" Visibility="Visible">
+                    <AppBarSeparator/>
+
+                    <Button x:Name="SideBySideButton" ToolTipService.ToolTip="좌우 보기(Space)">
+                        <TextBlock x:Name="SideBySideText" Text="1" FontSize="14" FontWeight="SemiBold" Width="14" TextAlignment="Center"/>
+                    </Button>
+
+                    <Button x:Name="NextImageSideButton" ToolTipService.ToolTip="다음 그림 위치">
+                        <FontIcon x:Name="NextImageSideText" Glyph="&#xE111;" FontSize="14"/>
+                    </Button>
+                </StackPanel>
+
+                <AppBarSeparator x:Name="SharpenSeparator"/>
+
+                <ToggleButton x:Name="SharpenButton" Width="36" Height="32" ToolTipService.ToolTip="{x:Bind app:Strings.SharpenTooltip}">
+                    <ToggleButton.ContextFlyout>
+                        <Flyout>
+                            <StackPanel Width="250" Spacing="8" Padding="10" >
+                                <TextBlock x:Name="SharpenSettingsTitleText" Text="{x:Bind app:Strings.SharpenSettingsTitle}" FontWeight="SemiBold" Margin="0,0,0,8"/>
+
+                                <Grid>
+                                    <TextBlock x:Name="UpscaleLabel" Text="{x:Bind app:Strings.UpscaleFactorLabel}" FontSize="12" HorizontalAlignment="Left"/>
+                                    <TextBlock x:Name="UpscaleValueText" Text="{Binding ImageOptions.UpscaleFactorText, ElementName=ToolbarControl, Mode=OneWay}" FontSize="12" HorizontalAlignment="Right"/>
+                                </Grid>
+                                <Slider x:Name="UpscaleSlider" Minimum="1.0" Maximum="4.0" StepFrequency="0.1" Value="{Binding ImageOptions.UpscaleFactor, ElementName=ToolbarControl, Mode=TwoWay}"/>
+
+                                <Grid>
+                                    <TextBlock x:Name="SharpenAmountLabel" Text="{x:Bind app:Strings.SharpenAmountLabel}" FontSize="12" HorizontalAlignment="Left"/>
+                                    <TextBlock x:Name="SharpenValueText" Text="{Binding ImageOptions.SharpenAmountText, ElementName=ToolbarControl, Mode=OneWay}" FontSize="12" HorizontalAlignment="Right"/>
+                                </Grid>
+                                <Slider x:Name="SharpenSlider" Minimum="0.0" Maximum="10.0" StepFrequency="0.1" Value="{Binding ImageOptions.SharpenAmount, ElementName=ToolbarControl, Mode=TwoWay}"/>
+
+                                <Grid>
+                                    <TextBlock x:Name="SharpenThresholdLabel" Text="{x:Bind app:Strings.SharpenThresholdLabel}" FontSize="12" HorizontalAlignment="Left"/>
+                                    <TextBlock x:Name="SharpenThresholdValueText" Text="{Binding ImageOptions.SharpenThresholdText, ElementName=ToolbarControl, Mode=OneWay}" FontSize="12" HorizontalAlignment="Right"/>
+                                </Grid>
+                                <Slider x:Name="SharpenThresholdSlider" Minimum="0.0" Maximum="0.3" StepFrequency="0.001" Value="{Binding ImageOptions.SharpenThreshold, ElementName=ToolbarControl, Mode=TwoWay}"/>
+
+                                <Grid>
+                                    <TextBlock x:Name="UnsharpAmountLabel" Text="{x:Bind app:Strings.UnsharpAmountLabel}" FontSize="12" HorizontalAlignment="Left"/>
+                                    <TextBlock x:Name="UnsharpAmountValueText" Text="{Binding ImageOptions.UnsharpAmountText, ElementName=ToolbarControl, Mode=OneWay}" FontSize="12" HorizontalAlignment="Right"/>
+                                </Grid>
+                                <Slider x:Name="UnsharpAmountSlider" Minimum="0.0" Maximum="10.0" StepFrequency="0.1" Value="{Binding ImageOptions.UnsharpAmount, ElementName=ToolbarControl, Mode=TwoWay}"/>
+
+                                <Grid>
+                                    <TextBlock x:Name="UnsharpRadiusLabel" Text="{x:Bind app:Strings.UnsharpRadiusLabel}" FontSize="12" HorizontalAlignment="Left"/>
+                                    <TextBlock x:Name="UnsharpRadiusValueText" Text="{Binding ImageOptions.UnsharpRadiusText, ElementName=ToolbarControl, Mode=OneWay}" FontSize="12" HorizontalAlignment="Right"/>
+                                </Grid>
+                                <Slider x:Name="UnsharpRadiusSlider" Minimum="0.1" Maximum="10.0" StepFrequency="0.1" Value="{Binding ImageOptions.UnsharpRadius, ElementName=ToolbarControl, Mode=TwoWay}"/>
+
+                                <Button x:Name="SharpenParamsResetButton" Content="{x:Bind app:Strings.ResetButton}" HorizontalAlignment="Stretch" Margin="0,8,0,0"/>
+                            </StackPanel>
+                        </Flyout>
+                    </ToggleButton.ContextFlyout>
+                    <ToggleButton.Resources>
+                        <StaticResource x:Key="ToggleButtonForegroundPointerOver" ResourceKey="ToggleButtonForeground" />
+                        <StaticResource x:Key="ToggleButtonForegroundCheckedPointerOver" ResourceKey="ToggleButtonForegroundChecked" />
+                    </ToggleButton.Resources>
+                    <FontIcon x:Name="SharpenIcon" Glyph="S" FontSize="14" FontFamily="Segoe UI" />
+                </ToggleButton>
+
+                <AppBarSeparator/>
+
+                <Button x:Name="PrevFileButton" ToolTipService.ToolTip="이전 파일">
+                    <FontIcon Glyph="&#xE760;" FontSize="14"/>
+                </Button>
+                <Button x:Name="PrevPageButton" ToolTipService.ToolTip="이전 이미지/페이지">
+                    <FontIcon Glyph="&#xE76B;" FontSize="14"/>
+                </Button>
+                <Button x:Name="NextPageButton" ToolTipService.ToolTip="다음 이미지/페이지">
+                    <FontIcon Glyph="&#xE76C;" FontSize="14"/>
+                </Button>
+                <Button x:Name="NextFileButton" ToolTipService.ToolTip="다음 파일">
+                    <FontIcon Glyph="&#xE761;" FontSize="14"/>
+                </Button>
+
+                <AppBarSeparator/>
+
+                <Button x:Name="FullscreenButton" ToolTipService.ToolTip="전체화면(F11)">
+                    <FontIcon x:Name="FullscreenIcon" Glyph="&#xE740;" FontSize="14"/>
+                </Button>
+
+                <Button x:Name="CloseWindowButton" ToolTipService.ToolTip="닫기(Esc)">
+                    <FontIcon Glyph="&#xE711;" FontSize="14"/>
+                </Button>
+            </StackPanel>
+        </Grid>
+
+</UserControl>
+

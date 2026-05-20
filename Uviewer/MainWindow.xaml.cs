@@ -263,6 +263,8 @@ namespace Uviewer
             _textDocumentSearchService = new Services.TextDocumentSearchService(_documentSearchService);
 
             InitializeComponent();
+            MainToolbar.ImageOptions = ImageOptions;
+            HookExtractedControlEvents();
             _searchOverlayService = new Services.SearchOverlayService(
                 SearchCurrentDocumentAsync,
                 NavigateToSearchMatchAsync,
