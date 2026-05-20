@@ -12,7 +12,7 @@ namespace Uviewer.Controls
             DependencyProperty.Register("ItemsSource", typeof(ObservableCollection<BookmarkViewModel>), typeof(BookmarkListControl), new PropertyMetadata(null, OnItemsSourceChanged));
 
         public static readonly DependencyProperty EmptyMessageProperty =
-            DependencyProperty.Register("EmptyMessage", typeof(string), typeof(BookmarkListControl), new PropertyMetadata(""));
+            DependencyProperty.Register("EmptyMessage", typeof(string), typeof(BookmarkListControl), new PropertyMetadata("", OnEmptyMessageChanged));
 
         public ObservableCollection<BookmarkViewModel> ItemsSource
         {
@@ -35,6 +35,8 @@ namespace Uviewer.Controls
         public BookmarkListControl()
         {
             this.InitializeComponent();
+            ApplyItemsSource();
+            UpdateEmptyState();
         }
 
         private static void OnItemsSourceChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
@@ -49,6 +51,15 @@ namespace Uviewer.Controls
                 {
                     newList.CollectionChanged += control.List_CollectionChanged;
                 }
+                control.ApplyItemsSource();
+                control.UpdateEmptyState();
+            }
+        }
+
+        private static void OnEmptyMessageChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+        {
+            if (d is BookmarkListControl control)
+            {
                 control.UpdateEmptyState();
             }
         }
@@ -60,7 +71,13 @@ namespace Uviewer.Controls
 
         private void UpdateEmptyState()
         {
-            Bindings.Update();
+            EmptyTextBlock.Text = EmptyMessage;
+            EmptyTextBlock.Visibility = IsEmpty ? Visibility.Visible : Visibility.Collapsed;
+        }
+
+        private void ApplyItemsSource()
+        {
+            BookmarkListView.ItemsSource = ItemsSource;
         }
 
         private void BookmarkListView_ItemClick(object sender, ItemClickEventArgs e)

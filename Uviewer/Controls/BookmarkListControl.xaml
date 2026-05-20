@@ -15,7 +15,6 @@
 
     <Grid>
         <ListView x:Name="BookmarkListView" 
-                  ItemsSource="{x:Bind ItemsSource, Mode=OneWay}"
                   SelectionMode="None"
                   IsItemClickEnabled="True"
                   Padding="0"
@@ -112,10 +111,8 @@
         
         <!-- Empty State Message -->
         <TextBlock x:Name="EmptyTextBlock" 
-                   Text="{x:Bind EmptyMessage, Mode=OneWay}"
                    Foreground="Gray" 
                    Margin="12,8,12,8" 
-                   FontSize="13"
-                   Visibility="{x:Bind IsEmpty, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                   FontSize="13"/>
     </Grid>
 </UserControl>
