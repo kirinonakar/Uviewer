@@ -89,7 +89,7 @@ namespace Uviewer
         {
             if (_isCurrentViewSideBySide && _currentPdfDocument == null) return;
 
-            if (TryGetBitmapSize(_currentBitmap, out var bitmapSize))
+            if (CanvasBitmapHelper.TryGetBitmapSize(_currentBitmap, out var bitmapSize))
             {
                 var containerWidth = ImageArea.ActualWidth;
                 var containerHeight = ImageArea.ActualHeight;
@@ -124,7 +124,7 @@ namespace Uviewer
 
         private void ApplyZoom()
         {
-            if (!IsCanvasBitmapUsable(_currentBitmap) || ImageArea.ActualWidth <= 0 || ImageArea.ActualHeight <= 0)
+            if (!CanvasBitmapHelper.IsUsable(_currentBitmap) || ImageArea.ActualWidth <= 0 || ImageArea.ActualHeight <= 0)
                 return;
 
             // Trigger canvas redraw for new zoom level
@@ -245,11 +245,11 @@ namespace Uviewer
                         if (!_isSeamlessScroll)
                         {
                             var canvasSize = MainCanvas!.Size;
-                            var imageSize = nextBitmap.Size;
-                            var fitRatio = Math.Min(canvasSize.Width / imageSize.Width, canvasSize.Height / imageSize.Height);
-                            var scaledH = imageSize.Height * fitRatio * _zoomLevel;
-                            double maxPan = (scaledH > canvasSize.Height) ? (scaledH - canvasSize.Height) / 2 : 0;
-                            _pdfPanY = (_pdfScrollDirection == 1) ? maxPan : -maxPan;
+                            _pdfPanY = ZoomService.CalculateInitialVerticalPan(
+                                canvasSize,
+                                nextBitmap.Size,
+                                _zoomLevel,
+                                _pdfScrollDirection);
                             _pdfPanX = 0;
                             _isPdfTransitioning = false;
                         }
@@ -458,17 +458,12 @@ namespace Uviewer
                         FitToWindow();
                     }
 
-                    // 일반 이미지: PDF와 동일하게 연속 스크롤 위치 초기화 로직 적용
                     var canvasSize = MainCanvas.Size;
-                    var imageSize = bitmap.Size;
-                    var fitRatio = Math.Min(canvasSize.Width / imageSize.Width, canvasSize.Height / imageSize.Height);
-                    var scaledHeight = imageSize.Height * fitRatio * _zoomLevel;
-
-                    // 이미지 비율에 따라 최대 패닝 가능 범위 계산
-                    double maxPan = (scaledHeight > canvasSize.Height) ? (scaledHeight - canvasSize.Height) / 2 : 0;
-
-                    // 스크롤 방향에 따라 시작 위치를 상단(maxPan) 또는 하단(-maxPan)으로 설정
-                    _pdfPanY = (_pdfScrollDirection == 1) ? maxPan : -maxPan;
+                    _pdfPanY = ZoomService.CalculateInitialVerticalPan(
+                        canvasSize,
+                        bitmap.Size,
+                        _zoomLevel,
+                        _pdfScrollDirection);
                     _pdfPanX = 0;
                     ShowImageUI();
                     UpdateStatusBar(entry, _currentBitmap);
@@ -724,29 +719,7 @@ namespace Uviewer
 
         internal void UpdateSharpenButtonState()
         {
-            // UI 동기화
-            SharpenButton.IsChecked = _sharpenEnabled;
-
-            // 내부 변수 기준으로 UI 스타일 변경
-            if (_sharpenEnabled)
-            {
-                SharpenIcon.FontWeight = Microsoft.UI.Text.FontWeights.Bold;
-                // 활성화 시 글자를 흰색으로 설정하여 가독성 확보
-                SharpenButton.Foreground = new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.White);
-                
-                // 배경색은 Accent 색상으로 강조 (Win2D 연산량을 고려하여 UI로만 표시)
-                if (Application.Current.Resources.TryGetValue("AccentFillColorDefaultBrush", out var accent) &&
-                    accent is Microsoft.UI.Xaml.Media.Brush brush)
-                {
-                    SharpenButton.Background = brush;
-                }
-            }
-            else
-            {
-                SharpenIcon.FontWeight = Microsoft.UI.Text.FontWeights.Normal;
-                SharpenButton.ClearValue(Control.ForegroundProperty);
-                SharpenButton.ClearValue(Control.BackgroundProperty);
-            }
+            ImageToolbarStateService.ApplySharpenState(SharpenButton, SharpenIcon, _sharpenEnabled);
         }
 
         private void SideBySideButton_Click(object sender, RoutedEventArgs e)
@@ -802,29 +775,12 @@ namespace Uviewer
 
         internal void UpdateSideBySideButtonState()
         {
-            if (_isSideBySideMode)
-            {
-                SideBySideText.Text = "2";
-                if (Application.Current.Resources.TryGetValue("AccentFillColorDefaultBrush", out var accent) && accent is Microsoft.UI.Xaml.Media.Brush brush)
-                    SideBySideButton.Foreground = brush;
-            }
-            else
-            {
-                SideBySideText.Text = "1";
-                SideBySideButton.ClearValue(Button.ForegroundProperty);
-            }
+            ImageToolbarStateService.ApplySideBySideState(SideBySideButton, SideBySideText, _isSideBySideMode);
         }
 
         internal void UpdateNextImageSideButtonState()
         {
-            if (_nextImageOnRight)
-            {
-                NextImageSideText.Glyph = "\uE111"; // Next/Forward glyph (left to right)
-            }
-            else
-            {
-                NextImageSideText.Glyph = "\uE112"; // Back/Previous glyph (right to left)
-            }
+            ImageToolbarStateService.ApplyNextImageSideState(NextImageSideText, _nextImageOnRight);
         }
 
         private void MatchControlDirectionMenuItem_Click(object sender, RoutedEventArgs e)
@@ -998,39 +954,21 @@ namespace Uviewer
             var bitmap = _currentBitmap;
             if (bitmap == null) return;
             var canvasSize = MainCanvas.Size;
-            if (!TryGetBitmapSize(bitmap, out var imageSize)) return;
-            if (canvasSize.Width <= 0 || canvasSize.Height <= 0) return;
+            if (!CanvasBitmapHelper.TryGetBitmapSize(bitmap, out var imageSize)) return;
 
-            var fitRatio = Math.Min(canvasSize.Width / imageSize.Width, canvasSize.Height / imageSize.Height);
+            var transform = ZoomService.CalculateZoomAtPosition(
+                canvasSize,
+                imageSize,
+                _zoomLevel,
+                _pdfPanX,
+                _pdfPanY,
+                zoomMultiplier,
+                position);
+            if (!transform.HasValue) return;
 
-            var oldScaledW = imageSize.Width * fitRatio * _zoomLevel;
-            var oldScaledH = imageSize.Height * fitRatio * _zoomLevel;
-
-            double oldVisualLeft = (canvasSize.Width - oldScaledW) / 2 + _pdfPanX;
-            double oldVisualTop = (canvasSize.Height - oldScaledH) / 2 + _pdfPanY;
-
-            double normX = (position.X - oldVisualLeft) / _zoomLevel;
-            double normY = (position.Y - oldVisualTop) / _zoomLevel;
-
-            double newZoom = Math.Clamp(_zoomLevel * zoomMultiplier, Services.ZoomService.MinZoom, Services.ZoomService.MaxZoom);
-            if (newZoom == _zoomLevel) return;
-            _zoomLevel = newZoom;
-
-            var newScaledW = imageSize.Width * fitRatio * _zoomLevel;
-            var newScaledH = imageSize.Height * fitRatio * _zoomLevel;
-
-            double newVisualLeft = position.X - (normX * _zoomLevel);
-            double newVisualTop = position.Y - (normY * _zoomLevel);
-
-            _pdfPanX = newVisualLeft - (canvasSize.Width - newScaledW) / 2;
-            _pdfPanY = newVisualTop - (canvasSize.Height - newScaledH) / 2;
-
-            double maxPanX = Math.Max(0, (newScaledW - canvasSize.Width) / 2);
-            double maxPanY = Math.Max(0, (newScaledH - canvasSize.Height) / 2);
-
-            _pdfPanX = Math.Clamp(_pdfPanX, -maxPanX, maxPanX);
-            _pdfPanY = Math.Clamp(_pdfPanY, -maxPanY, maxPanY);
-
+            _zoomLevel = transform.Value.ZoomLevel;
+            _pdfPanX = transform.Value.PanX;
+            _pdfPanY = transform.Value.PanY;
             ApplyZoom();
         }
 
@@ -1087,15 +1025,14 @@ namespace Uviewer
         {
             var bitmap = _currentBitmap;
             // PDF가 아니어도 확대된 일반 이미지라면 연속 스크롤 지원
-            if ((_currentPdfDocument == null && _zoomLevel <= 1.01) || !TryGetBitmapSize(bitmap, out var imageSize) || _isPdfTransitioning) return;
+            if ((_currentPdfDocument == null && _zoomLevel <= 1.01) || !CanvasBitmapHelper.TryGetBitmapSize(bitmap, out var imageSize) || _isPdfTransitioning) return;
 
             try
             {
                 var canvasSize = MainCanvas.Size;
                 if (canvasSize.Width <= 0 || canvasSize.Height <= 0) return;
 
-                var fitRatio = Math.Min(canvasSize.Width / imageSize.Width, canvasSize.Height / imageSize.Height);
-                var scaledSize = new Windows.Foundation.Size(imageSize.Width * fitRatio * _zoomLevel, imageSize.Height * fitRatio * _zoomLevel);
+                var scaledSize = ZoomService.CalculateScaledSize(canvasSize, imageSize, _zoomLevel);
 
                 // 가로 스크롤/팬 처리
                 _pdfPanX += deltaX;
@@ -1125,7 +1062,7 @@ namespace Uviewer
 
                         _currentIndex = targetPrevIndex;
 
-                        if (TryGetBitmapSize(prev, out var prevSize))
+                        if (CanvasBitmapHelper.TryGetBitmapSize(prev, out var prevSize))
                         {
                             try
                             {
@@ -1172,7 +1109,7 @@ namespace Uviewer
                                 {
                                     _imageCache.UpdateCache(targetPrevIndex, prev, true, _zoomLevel, _currentBitmap);
 
-                                    if (!TryGetBitmapSize(prev, out var loadedPrevSize)) return;
+                                    if (!CanvasBitmapHelper.TryGetBitmapSize(prev, out var loadedPrevSize)) return;
                                     var pFit = Math.Min(canvasSize.Width / loadedPrevSize.Width, canvasSize.Height / loadedPrevSize.Height);
                                     var pScaledH = loadedPrevSize.Height * pFit * _zoomLevel;
                                     _pdfPanY = (oldPosNextTop - gap - pScaledH) - (canvasSize.Height - pScaledH) / 2;
@@ -1218,7 +1155,7 @@ namespace Uviewer
 
                         _currentIndex = targetNextIndex;
 
-                        if (TryGetBitmapSize(next, out var nextSize))
+                        if (CanvasBitmapHelper.TryGetBitmapSize(next, out var nextSize))
                         {
                             try
                             {
@@ -1265,7 +1202,7 @@ namespace Uviewer
                                 {
                                     _imageCache.UpdateCache(targetNextIndex, next, true, _zoomLevel, _currentBitmap);
 
-                                    if (!TryGetBitmapSize(next, out var loadedNextSize)) return;
+                                    if (!CanvasBitmapHelper.TryGetBitmapSize(next, out var loadedNextSize)) return;
                                     var nFit = Math.Min(canvasSize.Width / loadedNextSize.Width, canvasSize.Height / loadedNextSize.Height);
                                     var nScaledH = loadedNextSize.Height * nFit * _zoomLevel;
                                     _pdfPanY = (oldPosPrevBottom + gap) - (canvasSize.Height - nScaledH) / 2;

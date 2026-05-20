@@ -1,7 +1,5 @@
-using Microsoft.UI;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
-using Microsoft.UI.Xaml.Documents;
 using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
 using System;
@@ -9,9 +7,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using Windows.Foundation;
 using Windows.Storage;
-using Windows.UI;
 using Uviewer.Models;
 using Uviewer.Services;
 
@@ -20,6 +16,7 @@ namespace Uviewer
     public sealed partial class MainWindow
     {
         private readonly TextReaderState _textReaderState = new();
+        private readonly TextPreviewKeyNavigationService _textPreviewKeyNavigationService = new();
         private List<TextLine> _textLines
         {
             get => _textReaderState.Lines;
@@ -848,10 +845,6 @@ namespace Uviewer
             }
         }
 
-        private (double h, double s, double l) ToHsl(Color color) => TextSettingsManager.ToHsl(color);
-
-        private Color FromHsl(double h, double s, double l) => TextSettingsManager.FromHsl(h, s, l);
-
         private void FontToggleButton_Click(object sender, RoutedEventArgs e)
         {
             ToggleFont();
@@ -1138,32 +1131,19 @@ namespace Uviewer
                 DisableVerticalModeForImageDocument();
             }
 
-            if (_currentPdfDocument != null)
-            {
-                anchor = IsVisibleSearchAnchor(anchor)
-                    ? anchor
-                    : IsVisibleSearchAnchor(PdfGoToPageButton)
-                        ? PdfGoToPageButton
-                        : IsVisibleSearchAnchor(ImageToolbarPanel)
-                            ? ImageToolbarPanel
-                            : RootGrid;
-            }
-            else
-            {
-                anchor ??= GoToPageButton;
-            }
+            anchor = SearchOverlayService.ResolveAnchor(
+                _currentPdfDocument != null,
+                anchor,
+                PdfGoToPageButton,
+                ImageToolbarPanel,
+                RootGrid,
+                GoToPageButton);
 
             if (anchor != null)
             {
                 _searchOverlayService.Show(anchor, RootGrid);
             }
         }
-
-        private static bool IsVisibleSearchAnchor(FrameworkElement? element)
-            => element != null &&
-               element.Visibility == Visibility.Visible &&
-               element.ActualWidth > 0 &&
-               element.ActualHeight > 0;
 
         private void SetActiveSearchQuery(string? query)
         {
@@ -1419,150 +1399,66 @@ namespace Uviewer
 
         private async void RootGrid_Text_PreviewKeyDown(object sender, KeyRoutedEventArgs e)
         {
-            if (e.Handled) return;
-            if (!_isTextMode) return;
+            await _textPreviewKeyNavigationService.HandleAsync(
+                e,
+                CreateTextPreviewKeyNavigationContext());
+        }
 
-            // Prevent file navigation with arrows/space in text mode
-            // Using PreviewKeyDown allows us to intercept before ListView gets it
- 
-            if (e.Key == Windows.System.VirtualKey.Home)
+        private TextPreviewKeyNavigationContext CreateTextPreviewKeyNavigationContext()
+        {
+            return new TextPreviewKeyNavigationContext
             {
-                if (_isVerticalMode)
+                IsTextMode = _isTextMode,
+                IsVerticalMode = _isVerticalMode,
+                IsAozoraMode = _isAozoraMode,
+                IsMarkdownRenderMode = _isMarkdownRenderMode,
+                ShouldInvertControls = ShouldInvertControls,
+                AozoraBlockCount = _aozoraBlocks.Count,
+                GoToVerticalStartAsync = async () =>
                 {
                     await RenderVerticalDynamicPageAsync(0);
                     UpdateTextStatusBar();
-                }
-                else if (_isAozoraMode && _aozoraBlocks.Count > 0)
-                {
-                    await RenderAozoraDynamicPage(0);
-                    UpdateAozoraStatusBar();
-                }
-                else if (TextScrollViewer != null)
-                {
-                    TextScrollViewer.ChangeView(null, 0, null);
-                }
-                e.Handled = true;
-            }
-            else if (e.Key == Windows.System.VirtualKey.End)
-            {
-                if (_isVerticalMode)
+                },
+                GoToVerticalEndAsync = async () =>
                 {
                     await RenderVerticalDynamicPageAsync(999999);
                     UpdateTextStatusBar();
-                }
-                else if (_isAozoraMode && _aozoraBlocks.Count > 0)
+                },
+                GoToAozoraStartAsync = async () =>
                 {
-                    // Start rendering from slightly before the end to fill the last page
+                    await RenderAozoraDynamicPage(0);
+                    UpdateAozoraStatusBar();
+                },
+                GoToAozoraEndAsync = async () =>
+                {
                     int lastIdx = Math.Max(0, _aozoraBlocks.Count - 5);
                     await RenderAozoraDynamicPage(lastIdx);
                     UpdateAozoraStatusBar();
-                }
-                else if (TextScrollViewer != null)
-                {
-                    TextScrollViewer.ChangeView(null, TextScrollViewer.ExtentHeight, null);
-                }
-                e.Handled = true;
-            }
-            else if (e.Key == Windows.System.VirtualKey.G)
-            {
-                _ = ShowGoToLineDialog();
-                e.Handled = true;
-            }
-            else if (e.Key == Windows.System.VirtualKey.Left)
-            {
-                if (_isVerticalMode)
-                {
-                    NavigateVerticalPage(1);
-                }
-                else
-                {
-                    int dir = ShouldInvertControls ? 1 : -1;
-                    if (_isAozoraMode)
-                    {
-                        NavigateAozoraPage(dir);
-                    }
-                    else if (TextScrollViewer != null)
-                    {
-                        NavigateTextPage(dir);
-                    }
-                }
-                e.Handled = true;
-            }
-            else if (e.Key == Windows.System.VirtualKey.Right)
-            {
-                if (_isVerticalMode)
-                {
-                    NavigateVerticalPage(-1);
-                }
-                else
-                {
-                    int dir = ShouldInvertControls ? -1 : 1;
-                    if (_isAozoraMode)
-                    {
-                        NavigateAozoraPage(dir);
-                    }
-                    else if (TextScrollViewer != null)
-                    {
-                        NavigateTextPage(dir);
-                    }
-                }
-                e.Handled = true;
-            }
-            else if (e.Key == Windows.System.VirtualKey.Add || e.Key == (Windows.System.VirtualKey)187) // +
-            {
-                IncreaseTextSize();
-                e.Handled = true;
-            }
-            else if (e.Key == Windows.System.VirtualKey.Subtract || e.Key == (Windows.System.VirtualKey)189) // -
-            {
-                DecreaseTextSize();
-                e.Handled = true;
-            }
-            else if (e.Key == Windows.System.VirtualKey.A)
-            {
-                ToggleAozoraMode();
-                e.Handled = true;
-            }
-            else if (e.Key == Windows.System.VirtualKey.V && !_isMarkdownRenderMode)
-            {
-                _ = AddToRecentAsync(true);
-                _isVerticalMode = !_isVerticalMode;
-                if (VerticalToggleButton != null) VerticalToggleButton.IsChecked = _isVerticalMode;
-                SaveTextSettings();
-                ToggleVerticalMode();
-                e.Handled = true;
-            }
-            else if (e.Key == Windows.System.VirtualKey.F)
-            {
-                ToggleFont();
-                e.Handled = true;
-            }
-            else if (e.Key == Windows.System.VirtualKey.B)
-            {
-                var ctrlPressed = Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(
-                    Windows.System.VirtualKey.Control).HasFlag(Windows.UI.Core.CoreVirtualKeyStates.Down);
+                },
+                GoToTextStart = () => TextScrollViewer?.ChangeView(null, 0, null),
+                GoToTextEnd = () => TextScrollViewer?.ChangeView(null, TextScrollViewer.ExtentHeight, null),
+                ShowGoToLineDialog = () => _ = ShowGoToLineDialog(),
+                NavigateVerticalPage = NavigateVerticalPage,
+                NavigateAozoraPage = NavigateAozoraPage,
+                NavigateTextPage = NavigateTextPage,
+                IncreaseTextSize = IncreaseTextSize,
+                DecreaseTextSize = DecreaseTextSize,
+                ToggleAozoraMode = ToggleAozoraMode,
+                ToggleVerticalModeAsync = ToggleVerticalModeFromShortcutAsync,
+                ToggleFont = ToggleFont,
+                ToggleSidebar = ToggleSidebar,
+                ToggleTheme = ToggleTheme,
+                ToggleGlobalTheme = () => _windowChromeController.ToggleGlobalTheme()
+            };
+        }
 
-                if (ctrlPressed)
-                {
-                    ToggleSidebar();
-                }
-                else
-                {
-                    ToggleTheme();
-                }
-                e.Handled = true;
-            }
-            else if (e.Key == Windows.System.VirtualKey.D)
-            {
-                var ctrlPressed = Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(
-                    Windows.System.VirtualKey.Control).HasFlag(Windows.UI.Core.CoreVirtualKeyStates.Down);
-
-                if (!ctrlPressed)
-                {
-                    GlobalThemeToggleButton_Click(sender, new RoutedEventArgs());
-                    e.Handled = true;
-                }
-            }
+        private async Task ToggleVerticalModeFromShortcutAsync()
+        {
+            await AddToRecentAsync(true);
+            _isVerticalMode = !_isVerticalMode;
+            if (VerticalToggleButton != null) VerticalToggleButton.IsChecked = _isVerticalMode;
+            SaveTextSettings();
+            ToggleVerticalMode();
         }
 
         private async Task ShowGoToLineDialog()
@@ -1632,19 +1528,19 @@ namespace Uviewer
             }
         }
 
-       private void TextItemsRepeater_ElementPrepared(ItemsRepeater sender, ItemsRepeaterElementPreparedEventArgs args)
-{
-    if (_isAozoraMode)
-    {
-        return;
-    }
+        private void TextItemsRepeater_ElementPrepared(ItemsRepeater sender, ItemsRepeaterElementPreparedEventArgs args)
+        {
+            if (_isAozoraMode)
+            {
+                return;
+            }
 
-    if (args.Element is TextBlock tb && _textLines.Count > args.Index)
-    {
-        var line = _textLines[args.Index];
-        _textLinePresenterService.ApplyToTextBlock(tb, line, args.Index + 1, ApplySearchHighlightsToTextBlock);
-    }
-}
+            if (args.Element is TextBlock tb && _textLines.Count > args.Index)
+            {
+                var line = _textLines[args.Index];
+                _textLinePresenterService.ApplyToTextBlock(tb, line, args.Index + 1, ApplySearchHighlightsToTextBlock);
+            }
+        }
         // --- Input Handling ---
 
         private void TextArea_PointerPressed(object sender, PointerRoutedEventArgs e)

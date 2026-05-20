@@ -56,6 +56,25 @@ namespace Uviewer.Services
 
         public bool IsOpen => _flyout != null;
 
+        internal static FrameworkElement? ResolveAnchor(
+            bool isPdfMode,
+            FrameworkElement? requestedAnchor,
+            FrameworkElement? pdfGoToPageButton,
+            FrameworkElement? imageToolbarPanel,
+            FrameworkElement fallback,
+            FrameworkElement? textGoToPageButton)
+        {
+            if (!isPdfMode)
+            {
+                return requestedAnchor ?? textGoToPageButton;
+            }
+
+            if (IsVisibleAnchor(requestedAnchor)) return requestedAnchor;
+            if (IsVisibleAnchor(pdfGoToPageButton)) return pdfGoToPageButton;
+            if (IsVisibleAnchor(imageToolbarPanel)) return imageToolbarPanel;
+            return fallback;
+        }
+
         public void Show(FrameworkElement anchor, FrameworkElement? placementRoot = null)
         {
             EnsureFlyout();
@@ -65,9 +84,7 @@ namespace Uviewer.Services
             {
                 double y = 0;
                 if (!ReferenceEquals(anchor, placementRoot) &&
-                    anchor.Visibility == Visibility.Visible &&
-                    anchor.ActualWidth > 0 &&
-                    anchor.ActualHeight > 0)
+                    IsVisibleAnchor(anchor))
                 {
                     try
                     {
@@ -222,6 +239,14 @@ namespace Uviewer.Services
             };
             ToolTipService.SetToolTip(button, tooltip);
             return button;
+        }
+
+        private static bool IsVisibleAnchor(FrameworkElement? element)
+        {
+            return element != null &&
+                   element.Visibility == Visibility.Visible &&
+                   element.ActualWidth > 0 &&
+                   element.ActualHeight > 0;
         }
 
         private void QueueRefresh()

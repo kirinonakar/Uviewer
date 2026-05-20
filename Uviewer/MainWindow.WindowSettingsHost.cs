@@ -29,7 +29,7 @@ namespace Uviewer
             set => _nextImageOnRight = value;
         }
 
-        ElementTheme IWindowSettingsHost.CurrentTheme => _currentTheme;
+        ElementTheme IWindowSettingsHost.CurrentTheme => _windowChromeController.CurrentTheme;
 
         bool IWindowSettingsHost.MatchControlDirection
         {

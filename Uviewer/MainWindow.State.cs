@@ -63,6 +63,7 @@ namespace Uviewer
         private System.Collections.ObjectModel.ObservableCollection<BookmarkViewModel> _recentItemsList => _bookmarkPanelState.RecentItems;
 
         private FullscreenOverlayManager _overlayManager = null!;
+        private WindowChromeController _windowChromeController = null!;
         private DispatcherQueueTimer? _notificationTimer;
 
         private bool _isSideBySideMode
@@ -88,8 +89,6 @@ namespace Uviewer
             get => _imageViewerState.IsCurrentViewSideBySide;
             set => _imageViewerState.IsCurrentViewSideBySide = value;
         }
-
-        private ElementTheme _currentTheme = ElementTheme.Default;
 
         private CanvasBitmap? _leftBitmap
         {

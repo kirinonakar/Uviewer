@@ -1,0 +1,446 @@
+using Microsoft.UI;
+using Microsoft.UI.Windowing;
+using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Controls.Primitives;
+using Microsoft.UI.Xaml.Input;
+using System;
+
+namespace Uviewer.Services
+{
+    internal sealed class WindowChromeController
+    {
+        private readonly Window _window;
+        private readonly Grid _rootGrid;
+        private readonly UIElement _appTitleBar;
+        private readonly FrameworkElement _toolbarGrid;
+        private readonly UIElement _statusBarGrid;
+        private readonly FrameworkElement _sidebarGrid;
+        private readonly UIElement? _splitterGrid;
+        private readonly ColumnDefinition _sidebarColumn;
+        private readonly FontIcon _fullscreenIcon;
+        private readonly ToggleButton _pinButton;
+        private readonly FontIcon _pinIcon;
+        private readonly ToggleButton _alwaysOnTopButton;
+        private readonly ToggleButton _globalThemeToggleButton;
+        private readonly FontIcon _themeIcon;
+        private readonly WindowStateManager _windowState;
+        private readonly FullscreenOverlayManager _overlayManager;
+        private readonly Action _saveWindowSettings;
+        private readonly Action _invalidateThemeTargets;
+
+        internal WindowChromeController(
+            Window window,
+            Grid rootGrid,
+            UIElement appTitleBar,
+            FrameworkElement toolbarGrid,
+            UIElement statusBarGrid,
+            FrameworkElement sidebarGrid,
+            UIElement? splitterGrid,
+            ColumnDefinition sidebarColumn,
+            FontIcon fullscreenIcon,
+            ToggleButton pinButton,
+            FontIcon pinIcon,
+            ToggleButton alwaysOnTopButton,
+            ToggleButton globalThemeToggleButton,
+            FontIcon themeIcon,
+            WindowStateManager windowState,
+            FullscreenOverlayManager overlayManager,
+            Action saveWindowSettings,
+            Action invalidateThemeTargets)
+        {
+            _window = window;
+            _rootGrid = rootGrid;
+            _appTitleBar = appTitleBar;
+            _toolbarGrid = toolbarGrid;
+            _statusBarGrid = statusBarGrid;
+            _sidebarGrid = sidebarGrid;
+            _splitterGrid = splitterGrid;
+            _sidebarColumn = sidebarColumn;
+            _fullscreenIcon = fullscreenIcon;
+            _pinButton = pinButton;
+            _pinIcon = pinIcon;
+            _alwaysOnTopButton = alwaysOnTopButton;
+            _globalThemeToggleButton = globalThemeToggleButton;
+            _themeIcon = themeIcon;
+            _windowState = windowState;
+            _overlayManager = overlayManager;
+            _saveWindowSettings = saveWindowSettings;
+            _invalidateThemeTargets = invalidateThemeTargets;
+        }
+
+        internal ElementTheme CurrentTheme { get; private set; } = ElementTheme.Default;
+
+        internal void ApplyInitialChromeState()
+        {
+            if (!_windowState.IsSidebarVisible)
+            {
+                _sidebarGrid.Visibility = Visibility.Collapsed;
+                if (_splitterGrid != null) _splitterGrid.Visibility = Visibility.Collapsed;
+                _sidebarColumn.Width = new GridLength(0);
+            }
+
+            if (!_windowState.IsPinned)
+            {
+                _pinButton.IsChecked = false;
+                _pinIcon.Glyph = "\uE77A";
+                _appTitleBar.Visibility = Visibility.Collapsed;
+                SetCaptionButtonsVisibility(false);
+                _toolbarGrid.Visibility = Visibility.Collapsed;
+                _statusBarGrid.Visibility = Visibility.Collapsed;
+                _sidebarGrid.Visibility = Visibility.Collapsed;
+                if (_splitterGrid != null) _splitterGrid.Visibility = Visibility.Collapsed;
+                _sidebarColumn.Width = new GridLength(0);
+            }
+        }
+
+        internal void HideToolbarUI()
+        {
+            if (_windowState.IsFullscreen || !_windowState.IsPinned)
+            {
+                _appTitleBar.Visibility = Visibility.Collapsed;
+                if (!_windowState.IsFullscreen) SetCaptionButtonsVisibility(false);
+                _toolbarGrid.Visibility = Visibility.Collapsed;
+                if (!_windowState.IsFullscreen) _statusBarGrid.Visibility = Visibility.Collapsed;
+            }
+        }
+
+        internal void HideSidebarUI()
+        {
+            if (_windowState.IsFullscreen || !_windowState.IsPinned)
+            {
+                _sidebarGrid.Visibility = Visibility.Collapsed;
+                _sidebarColumn.Width = new GridLength(0);
+                if (_splitterGrid != null) _splitterGrid.Visibility = Visibility.Collapsed;
+            }
+        }
+
+        internal void ToggleFullscreen()
+        {
+            _windowState.ToggleFullscreen();
+            ApplyFullscreenUiState();
+            _rootGrid.Focus(FocusState.Programmatic);
+        }
+
+        internal void ApplyFullscreenUiState()
+        {
+            if (!_windowState.IsFullscreen)
+            {
+                _overlayManager.StopAll();
+                if (_windowState.IsPinned)
+                {
+                    _appTitleBar.Visibility = Visibility.Visible;
+                    SetCaptionButtonsVisibility(true);
+                    _toolbarGrid.Visibility = Visibility.Visible;
+                    _statusBarGrid.Visibility = Visibility.Visible;
+                    if (_windowState.IsSidebarVisible)
+                    {
+                        _sidebarGrid.Visibility = Visibility.Visible;
+                        if (_splitterGrid != null) _splitterGrid.Visibility = Visibility.Visible;
+                        _sidebarColumn.Width = new GridLength(_windowState.SidebarWidth);
+                    }
+                    else if (_splitterGrid != null)
+                    {
+                        _splitterGrid.Visibility = Visibility.Collapsed;
+                    }
+                }
+                else
+                {
+                    _appTitleBar.Visibility = Visibility.Collapsed;
+                    SetCaptionButtonsVisibility(false);
+                    _toolbarGrid.Visibility = Visibility.Collapsed;
+                    _statusBarGrid.Visibility = Visibility.Collapsed;
+                    _sidebarGrid.Visibility = Visibility.Collapsed;
+                    if (_splitterGrid != null) _splitterGrid.Visibility = Visibility.Collapsed;
+                    _sidebarColumn.Width = new GridLength(0);
+                }
+
+                _fullscreenIcon.Glyph = "\uE740";
+            }
+            else
+            {
+                _appTitleBar.Visibility = Visibility.Collapsed;
+                _toolbarGrid.Visibility = Visibility.Collapsed;
+                _statusBarGrid.Visibility = Visibility.Collapsed;
+                _sidebarGrid.Visibility = Visibility.Collapsed;
+                if (_windowState.IsSidebarVisible && (int)_sidebarColumn.Width.Value > 200)
+                {
+                    _windowState.SidebarWidth = (int)_sidebarColumn.Width.Value;
+                }
+                _sidebarColumn.Width = new GridLength(0);
+                if (_splitterGrid != null) _splitterGrid.Visibility = Visibility.Collapsed;
+                _fullscreenIcon.Glyph = "\uE73F";
+                _overlayManager.StopAll();
+            }
+        }
+
+        internal void ToggleMaximizeRestore()
+        {
+            _windowState.ToggleMaximizeRestore();
+            _rootGrid.Focus(FocusState.Programmatic);
+        }
+
+        internal void HandlePointerMoved(PointerRoutedEventArgs e)
+        {
+            if (!_windowState.IsFullscreen && _windowState.IsPinned) return;
+
+            var pt = e.GetCurrentPoint(_rootGrid);
+            double x = pt.Position.X;
+            double y = pt.Position.Y;
+
+            bool inTopZone = y < FullscreenOverlayManager.TopHoverZone;
+            if (_toolbarGrid.Visibility == Visibility.Visible && y < _toolbarGrid.ActualHeight)
+            {
+                inTopZone = true;
+            }
+
+            if (inTopZone)
+            {
+                if (_toolbarGrid.Visibility != Visibility.Visible)
+                {
+                    _appTitleBar.Visibility = Visibility.Visible;
+                    if (!_windowState.IsFullscreen) SetCaptionButtonsVisibility(true);
+                    _toolbarGrid.Visibility = Visibility.Visible;
+                    if (!_windowState.IsFullscreen) _statusBarGrid.Visibility = Visibility.Visible;
+                }
+                _overlayManager.StopToolbarTimer();
+            }
+            else if (_toolbarGrid.Visibility == Visibility.Visible && !_overlayManager.IsToolbarTimerRunning)
+            {
+                _overlayManager.StartToolbarTimer();
+            }
+
+            bool inLeftZone = _windowState.IsSidebarVisible && x < FullscreenOverlayManager.LeftHoverZone;
+            if (_sidebarGrid.Visibility == Visibility.Visible && x < _windowState.SidebarWidth)
+            {
+                inLeftZone = true;
+            }
+
+            if (_windowState.IsSidebarVisible && inLeftZone)
+            {
+                if (_sidebarGrid.Visibility != Visibility.Visible)
+                {
+                    _sidebarColumn.Width = new GridLength(_windowState.SidebarWidth);
+                    _sidebarGrid.Visibility = Visibility.Visible;
+                }
+                _overlayManager.StopSidebarTimer();
+            }
+            else if (_sidebarGrid.Visibility == Visibility.Visible && !_overlayManager.IsSidebarTimerRunning)
+            {
+                _overlayManager.StartSidebarTimer();
+            }
+        }
+
+        internal void HandlePointerExited()
+        {
+            if (!_windowState.IsFullscreen && _windowState.IsPinned) return;
+
+            if (_toolbarGrid.Visibility == Visibility.Visible && !_overlayManager.IsToolbarTimerRunning)
+            {
+                _overlayManager.StartToolbarTimer();
+            }
+
+            if (_sidebarGrid.Visibility == Visibility.Visible && !_overlayManager.IsSidebarTimerRunning)
+            {
+                _overlayManager.StartSidebarTimer();
+            }
+        }
+
+        internal void HandleSmartTouchNavigation(PointerRoutedEventArgs e, bool shouldInvertControls, Action prevAction, Action nextAction)
+        {
+            var pt = e.GetCurrentPoint(_rootGrid);
+            double x = pt.Position.X;
+            double y = pt.Position.Y;
+
+            if (_windowState.IsFullscreen)
+            {
+                if (y < FullscreenOverlayManager.TopHoverZone)
+                {
+                    if (_toolbarGrid.Visibility != Visibility.Visible)
+                    {
+                        _toolbarGrid.Visibility = Visibility.Visible;
+                    }
+                    _overlayManager.StartToolbarTimer();
+                    return;
+                }
+
+                if (x < FullscreenOverlayManager.LeftHoverZone)
+                {
+                    if (_sidebarGrid.Visibility != Visibility.Visible)
+                    {
+                        _sidebarColumn.Width = new GridLength(_windowState.SidebarWidth);
+                        _sidebarGrid.Visibility = Visibility.Visible;
+                    }
+                    _overlayManager.StartSidebarTimer();
+                    return;
+                }
+            }
+
+            if (x < _rootGrid.ActualWidth / 2)
+            {
+                if (shouldInvertControls) nextAction();
+                else prevAction();
+            }
+            else
+            {
+                if (shouldInvertControls) prevAction();
+                else nextAction();
+            }
+        }
+
+        internal void TogglePin()
+        {
+            if (_windowState.IsFullscreen) return;
+
+            _windowState.TogglePin();
+            _pinButton.IsChecked = _windowState.IsPinned;
+            _pinIcon.Glyph = _windowState.IsPinned ? "\uE890" : "\uE890";
+
+            if (_windowState.IsPinned)
+            {
+                _overlayManager.StopAll();
+
+                _appTitleBar.Visibility = Visibility.Visible;
+                SetCaptionButtonsVisibility(true);
+                _toolbarGrid.Visibility = Visibility.Visible;
+                _statusBarGrid.Visibility = Visibility.Visible;
+                if (_windowState.IsSidebarVisible)
+                {
+                    _sidebarGrid.Visibility = Visibility.Visible;
+                    if (_splitterGrid != null) _splitterGrid.Visibility = Visibility.Visible;
+                    _sidebarColumn.Width = new GridLength(_windowState.SidebarWidth);
+                }
+            }
+            else
+            {
+                if (_windowState.IsSidebarVisible && (int)_sidebarColumn.Width.Value > 200)
+                {
+                    _windowState.SidebarWidth = (int)_sidebarColumn.Width.Value;
+                }
+
+                _appTitleBar.Visibility = Visibility.Collapsed;
+                SetCaptionButtonsVisibility(false);
+                _toolbarGrid.Visibility = Visibility.Collapsed;
+                _statusBarGrid.Visibility = Visibility.Collapsed;
+                _sidebarGrid.Visibility = Visibility.Collapsed;
+                if (_splitterGrid != null) _splitterGrid.Visibility = Visibility.Collapsed;
+                _sidebarColumn.Width = new GridLength(0);
+            }
+
+            _saveWindowSettings();
+        }
+
+        internal void ToggleAlwaysOnTop()
+        {
+            _windowState.ToggleAlwaysOnTop();
+            _alwaysOnTopButton.IsChecked = _windowState.IsAlwaysOnTop;
+            _saveWindowSettings();
+        }
+
+        internal void ToggleGlobalTheme()
+        {
+            bool wasFullscreen = _windowState.IsFullscreen;
+            if (wasFullscreen)
+            {
+                ToggleFullscreen();
+            }
+
+            SetTheme(CurrentTheme == ElementTheme.Dark ? ElementTheme.Light : ElementTheme.Dark);
+
+            if (wasFullscreen)
+            {
+                ToggleFullscreen();
+            }
+        }
+
+        internal void SetTheme(ElementTheme theme)
+        {
+            CurrentTheme = theme;
+
+            if (_window.Content is FrameworkElement root)
+            {
+                root.RequestedTheme = theme;
+            }
+
+            _rootGrid.RequestedTheme = theme;
+            _rootGrid.Focus(FocusState.Programmatic);
+
+            _themeIcon.Glyph = CurrentTheme == ElementTheme.Dark ? "\uE706" : "\uE708";
+            _globalThemeToggleButton.IsChecked = CurrentTheme == ElementTheme.Dark;
+
+            UpdateThemeToggleButtonTooltip();
+            UpdateTitleBarColors();
+            _invalidateThemeTargets();
+        }
+
+        internal void UpdateTitleBarColors()
+        {
+            var appWindow = _window.AppWindow;
+            if (appWindow == null || !AppWindowTitleBar.IsCustomizationSupported())
+            {
+                return;
+            }
+
+            var titleBar = appWindow.TitleBar;
+            if (CurrentTheme == ElementTheme.Dark)
+            {
+                var darkBg = ColorHelper.FromArgb(255, 28, 28, 28);
+                titleBar.BackgroundColor = darkBg;
+                titleBar.InactiveBackgroundColor = darkBg;
+
+                if (_window.ExtendsContentIntoTitleBar)
+                {
+                    titleBar.ButtonBackgroundColor = Colors.Transparent;
+                    titleBar.ButtonInactiveBackgroundColor = Colors.Transparent;
+                }
+                else
+                {
+                    titleBar.ButtonBackgroundColor = darkBg;
+                    titleBar.ButtonInactiveBackgroundColor = darkBg;
+                }
+
+                titleBar.ButtonForegroundColor = Colors.White;
+                titleBar.ButtonHoverForegroundColor = Colors.White;
+                titleBar.ButtonHoverBackgroundColor = ColorHelper.FromArgb(0x33, 0xFF, 0xFF, 0xFF);
+                titleBar.ButtonPressedForegroundColor = Colors.White;
+                titleBar.ButtonPressedBackgroundColor = ColorHelper.FromArgb(0x66, 0xFF, 0xFF, 0xFF);
+                titleBar.ButtonInactiveForegroundColor = Colors.Gray;
+                return;
+            }
+
+            var lightBg = ColorHelper.FromArgb(255, 243, 243, 243);
+            titleBar.BackgroundColor = lightBg;
+            titleBar.InactiveBackgroundColor = lightBg;
+
+            if (_window.ExtendsContentIntoTitleBar)
+            {
+                titleBar.ButtonBackgroundColor = Colors.Transparent;
+                titleBar.ButtonInactiveBackgroundColor = Colors.Transparent;
+            }
+            else
+            {
+                titleBar.ButtonBackgroundColor = lightBg;
+                titleBar.ButtonInactiveBackgroundColor = lightBg;
+            }
+
+            titleBar.ButtonForegroundColor = Colors.Black;
+            titleBar.ButtonHoverForegroundColor = Colors.Black;
+            titleBar.ButtonHoverBackgroundColor = ColorHelper.FromArgb(0x33, 0x00, 0x00, 0x00);
+            titleBar.ButtonPressedForegroundColor = Colors.Black;
+            titleBar.ButtonPressedBackgroundColor = ColorHelper.FromArgb(0x66, 0x00, 0x00, 0x00);
+            titleBar.ButtonInactiveForegroundColor = Colors.LightGray;
+        }
+
+        internal void UpdateThemeToggleButtonTooltip()
+        {
+            ToolTipService.SetToolTip(
+                _globalThemeToggleButton,
+                CurrentTheme == ElementTheme.Dark ? Strings.LightModeTooltip : Strings.DarkModeTooltip);
+        }
+
+        internal void SetCaptionButtonsVisibility(bool isVisible)
+        {
+            _windowState.SetCaptionButtonsVisibility(isVisible);
+        }
+    }
+}

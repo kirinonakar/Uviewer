@@ -11,7 +11,6 @@ using Microsoft.UI.Xaml.Media;
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
-using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.Linq;
 using System.Runtime.CompilerServices;
@@ -66,7 +65,6 @@ namespace Uviewer
         private readonly Services.EpubPageFlowService _epubPageFlowService = new();
         private readonly Services.ReaderLayoutService _readerLayoutService = new();
         private readonly Services.TextBlockDocumentService _textBlockDocumentService = new();
-        private readonly Services.TextFileReaderService _textFileReaderService = new();
         private readonly Services.TextDocumentLoadService _textDocumentLoadService;
         private readonly Services.TextDocumentSearchService _textDocumentSearchService;
         private readonly Services.TextDisplayPreparationService _textDisplayPreparationService = new();
@@ -87,29 +85,6 @@ namespace Uviewer
 
         // Loading and navigation state
         private CancellationTokenSource? _imageLoadingCts;
-
-        private static bool TryGetBitmapSize([NotNullWhen(true)] CanvasBitmap? bitmap, out Windows.Foundation.Size size)
-        {
-            size = default;
-
-            if (bitmap == null) return false;
-
-            try
-            {
-                if (bitmap.Device == null) return false;
-                size = bitmap.Size;
-                return size.Width > 0 && size.Height > 0;
-            }
-            catch
-            {
-                return false;
-            }
-        }
-
-        private static bool IsCanvasBitmapUsable(CanvasBitmap? bitmap)
-        {
-            return TryGetBitmapSize(bitmap, out _);
-        }
 
         [System.Runtime.InteropServices.DllImport("user32.dll", CharSet = System.Runtime.InteropServices.CharSet.Unicode)]
         private static extern int MessageBox(IntPtr hWnd, string text, string caption, uint type);
@@ -259,7 +234,7 @@ namespace Uviewer
             _textSearchHighlightPresenterService = new Services.TextSearchHighlightPresenterService(_searchHighlightService);
             _textStatusBarService = new Services.TextStatusBarService(_readingProgressService);
             _textLineLoadService = new Services.TextLineLoadService(_textLineLayoutService);
-            _textDocumentLoadService = new Services.TextDocumentLoadService(_textFileReaderService, _archiveSession);
+            _textDocumentLoadService = new Services.TextDocumentLoadService(_archiveSession);
             _textDocumentSearchService = new Services.TextDocumentSearchService(_documentSearchService);
 
             InitializeComponent();
@@ -311,6 +286,30 @@ namespace Uviewer
                 var appWindow2 = this.AppWindow;
                 appWindow2.Changed += AppWindow_Changed;
 
+                _overlayManager = new FullscreenOverlayManager();
+                _overlayManager.Initialize(DispatcherQueue);
+                _windowChromeController = new Services.WindowChromeController(
+                    this,
+                    RootGrid,
+                    AppTitleBar,
+                    ToolbarGrid,
+                    StatusBarGrid,
+                    SidebarGrid,
+                    SplitterGrid,
+                    SidebarColumn,
+                    FullscreenIcon,
+                    PinButton,
+                    PinIcon,
+                    AlwaysOnTopButton,
+                    GlobalThemeToggleButton,
+                    ThemeIcon,
+                    _windowState,
+                    _overlayManager,
+                    () => _windowSettingsCoordinator.SaveWindowSettings(),
+                    InvalidateThemeTargets);
+                _overlayManager.HideToolbarRequested += (s, e) => _windowChromeController.HideToolbarUI();
+                _overlayManager.HideSidebarRequested += (s, e) => _windowChromeController.HideSidebarUI();
+
                 _fastNavigationService = new Services.FastNavigationService(DispatcherQueue);
                 _animatedWebpService = new Services.AnimatedWebpService(_sharpeningService, DispatcherQueue);
                 _animatedWebpService.FrameUpdated += OnAnimatedWebpFrameUpdated;
@@ -338,39 +337,12 @@ namespace Uviewer
                     _windowState.LastNonMaximizedRect = new Windows.Graphics.RectInt32(centerX, centerY, defaultSize.Width, defaultSize.Height);
                 }
 
-                _overlayManager = new FullscreenOverlayManager();
-                _overlayManager.Initialize(DispatcherQueue);
-
-                // 타이머가 만료되었을 때 실행할 UI 숨김 로직 연결
-                _overlayManager.HideToolbarRequested += (s, e) => HideToolbarUI();
-                _overlayManager.HideSidebarRequested += (s, e) => HideSidebarUI();
-
                 // Initialize button states
                 UpdateSideBySideButtonState();
                 UpdateNextImageSideButtonState();
                 UpdateSharpenButtonState();
 
-                // Apply saved sidebar visibility state
-                if (!_windowState.IsSidebarVisible)
-                {
-                    SidebarGrid.Visibility = Visibility.Collapsed;
-                    if (SplitterGrid != null) SplitterGrid.Visibility = Visibility.Collapsed;
-                    SidebarColumn.Width = new GridLength(0);
-                }
-
-                // Apply saved pin state
-                if (!_windowState.IsPinned)
-                {
-                    PinButton.IsChecked = false;
-                    PinIcon.Glyph = "\uE77A"; // Unpin icon
-                    AppTitleBar.Visibility = Visibility.Collapsed;
-                    SetCaptionButtonsVisibility(false);
-                    ToolbarGrid.Visibility = Visibility.Collapsed;
-                    StatusBarGrid.Visibility = Visibility.Collapsed;
-                    SidebarGrid.Visibility = Visibility.Collapsed;
-                    if (SplitterGrid != null) SplitterGrid.Visibility = Visibility.Collapsed;
-                    SidebarColumn.Width = new GridLength(0);
-                }
+                _windowChromeController.ApplyInitialChromeState();
 
                 // Enable keyboard shortcuts on the root content to ensure they catch everything
                 if (this.Content is FrameworkElement fe)
@@ -399,7 +371,7 @@ namespace Uviewer
             // 화면 UI(RootGrid)가 로드된 후에 초기화 작업을 시작합니다.
             RootGrid.Loaded += async (s, e) =>
             {
-                UpdateTitleBarColors();
+                _windowChromeController.UpdateTitleBarColors();
                 RootGrid.Focus(FocusState.Programmatic);
                 // Win2D 캔버스 디바이스가 초기화될 시간을 아주 잠깐 확보 (안전장치)
                 await Task.Delay(50);
@@ -689,18 +661,7 @@ namespace Uviewer
                 if (args.DidSizeChange)
                 {
                     TriggerEpubResize();
-
-                    // [수정] 텍스트 또는 EPUB 모드일 때 창 크기가 800x600 밑으로 내려가지 않도록 방지
-                    if ((_isTextMode || _isEpubMode) && !_windowState.IsFullscreen)
-                    {
-                        if (sender.Size.Width < 800 || sender.Size.Height < 600)
-                        {
-                            sender.Resize(new Windows.Graphics.SizeInt32(
-                                Math.Max(sender.Size.Width, 800),
-                                Math.Max(sender.Size.Height, 600)
-                            ));
-                        }
-                    }
+                    TextWindowLayoutService.EnforceMinWindowSize(sender, _windowState, _isTextMode || _isEpubMode);
                 }
 
                 // [Important] Re-focus RootGrid after window state changes (Maximize/Restore/Resize)
@@ -711,105 +672,21 @@ namespace Uviewer
 
         private void RootGrid_SizeChanged(object sender, SizeChangedEventArgs e)
         {
-            if ((_isTextMode || _isEpubMode) && _windowState.IsSidebarVisible)
-            {
-                // 텍스트/EPUB 영역에 최소 500픽셀은 절대적으로 보장 (오류 방지 및 사이드바 억제)
-                double minTextContentWidth = 500;
-                double maxSidebarWidth = e.NewSize.Width - minTextContentWidth;
-
-                if (maxSidebarWidth < 200)
-                {
-                    maxSidebarWidth = 200;
-                }
-
-                // LayoutCycleException 방지
-                if (Math.Abs(SidebarColumn.MaxWidth - maxSidebarWidth) > 1.0)
-                {
-                    SidebarColumn.MaxWidth = maxSidebarWidth;
-                }
-
-                if (SidebarColumn.Width.IsAbsolute && SidebarColumn.Width.Value > maxSidebarWidth)
-                {
-                    SidebarColumn.Width = new GridLength(maxSidebarWidth);
-                }
-            }
-            else
-            {
-                if (SidebarColumn.MaxWidth != double.PositiveInfinity)
-                {
-                    SidebarColumn.MaxWidth = double.PositiveInfinity;
-                }
-            }
+            TextWindowLayoutService.ConstrainSidebarForTextMode(
+                e.NewSize,
+                _isTextMode || _isEpubMode,
+                _windowState.IsSidebarVisible,
+                SidebarColumn);
         }
 
         // [추가] 텍스트를 열 때 창 크기가 작으면 800x600 크기 이상으로 강제로 늘리는 메서드
         private void EnsureMinWindowSizeForText()
         {
-            if (_windowState.IsFullscreen) return;
-
-            var currentSize = this.AppWindow.Size;
-            bool needsResize = false;
-            int newWidth = currentSize.Width;
-            int newHeight = currentSize.Height;
-
-            // 절대적인 최소 창 크기를 800x600으로 강제
-            if (currentSize.Width < 800)
-            {
-                newWidth = 800;
-                needsResize = true;
-            }
-            if (currentSize.Height < 600)
-            {
-                newHeight = 600;
-                needsResize = true;
-            }
-
-            if (needsResize)
-            {
-                this.AppWindow.Resize(new Windows.Graphics.SizeInt32(newWidth, newHeight));
-            }
-
-            // 창이 800일 때 사이드바가 화면을 너무 많이 덮지 않도록 제한
-            if (_windowState.IsSidebarVisible)
-            {
-                // Resize가 비동기적으로 먹힐 수 있으므로, 보더 여백(~16px)을 뺀 예상 클라이언트 너비 사용
-                double estimatedClientWidth = needsResize ? newWidth - 16 : RootGrid.ActualWidth;
-                if (estimatedClientWidth <= 0) estimatedClientWidth = newWidth;
-
-                double minTextWidth = 500; // 800 기준에 맞춰 텍스트 최소 너비 강력히 확보
-                double maxAllowedSidebar = estimatedClientWidth - minTextWidth;
-
-                if (maxAllowedSidebar < 200) maxAllowedSidebar = 200; // 사이드바 최소치
-
-                if (SidebarColumn.ActualWidth > maxAllowedSidebar || SidebarColumn.Width.Value > maxAllowedSidebar)
-                {
-                    SidebarColumn.Width = new GridLength(maxAllowedSidebar);
-                }
-                SidebarColumn.MaxWidth = maxAllowedSidebar;
-            }
-        }
-
-
-
-        private void HideToolbarUI()
-        {
-            if (_windowState.IsFullscreen || !_windowState.IsPinned)
-            {
-                AppTitleBar.Visibility = Visibility.Collapsed;
-                if (!_windowState.IsFullscreen) _windowState.SetCaptionButtonsVisibility(false);
-                ToolbarGrid.Visibility = Visibility.Collapsed;
-                if (!_windowState.IsFullscreen) StatusBarGrid.Visibility = Visibility.Collapsed;
-            }
-        }
-
-        private void HideSidebarUI()
-        {
-            if (_windowState.IsFullscreen || !_windowState.IsPinned)
-            {
-                SidebarGrid.Visibility = Visibility.Collapsed;
-                SidebarColumn.Width = new GridLength(0);
-                if (SplitterGrid != null) SplitterGrid.Visibility = Visibility.Collapsed;
-            }
+            TextWindowLayoutService.EnsureMinWindowSizeForText(
+                AppWindow,
+                RootGrid,
+                _windowState,
+                SidebarColumn);
         }
 
         #region Image Resource Helpers
@@ -875,11 +752,6 @@ namespace Uviewer
 
         #endregion
 
-        private static bool IsAutoDoublePageTallCandidate(double width, double height)
-        {
-            return Services.ImageDoublePageDecisionService.IsTallCandidate(width, height);
-        }
-
         #region Fullscreen
 
         private void FullscreenButton_Click(object sender, RoutedEventArgs e)
@@ -919,137 +791,23 @@ namespace Uviewer
 
         private void ToggleFullscreen()
         {
-            // 1. 매니저에게 창 상태 전환 지시
-            _windowState.ToggleFullscreen();
-
-            // 2. 바뀐 상태에 따라 UI 컨트롤(Grid 등) 표시/숨김 처리
-            ApplyFullscreenUiState();
-
-            // [Important] Re-focus RootGrid after window state change
-            RootGrid?.Focus(FocusState.Programmatic);
+            _windowChromeController.ToggleFullscreen();
         }
 
         private void ApplyFullscreenUiState()
         {
-            if (!_windowState.IsFullscreen)
-            {
-                // Exit fullscreen
-                _overlayManager.StopAll();
-                if (_windowState.IsPinned)
-                {
-                    // 핀 고정 상태: UI 모두 복원
-                    AppTitleBar.Visibility = Visibility.Visible;
-                    _windowState.SetCaptionButtonsVisibility(true);
-                    ToolbarGrid.Visibility = Visibility.Visible;
-                    StatusBarGrid.Visibility = Visibility.Visible;
-                    if (_windowState.IsSidebarVisible)
-                    {
-                        SidebarGrid.Visibility = Visibility.Visible;
-                        SplitterGrid.Visibility = Visibility.Visible;
-                        SidebarColumn.Width = new GridLength(_windowState.SidebarWidth);
-                    }
-                    else
-                    {
-                        SplitterGrid.Visibility = Visibility.Collapsed;
-                    }
-                }
-                else
-                {
-                    // 핀 해제 상태: UI 숨긴 채 유지
-                    AppTitleBar.Visibility = Visibility.Collapsed;
-                    _windowState.SetCaptionButtonsVisibility(false);
-                    ToolbarGrid.Visibility = Visibility.Collapsed;
-                    StatusBarGrid.Visibility = Visibility.Collapsed;
-                    SidebarGrid.Visibility = Visibility.Collapsed;
-                    SplitterGrid.Visibility = Visibility.Collapsed;
-                    SidebarColumn.Width = new GridLength(0);
-                }
-                FullscreenIcon.Glyph = "\uE740"; // Fullscreen icon
-            }
-            else
-            {
-                // Enter fullscreen
-                AppTitleBar.Visibility = Visibility.Collapsed;
-                ToolbarGrid.Visibility = Visibility.Collapsed;
-                StatusBarGrid.Visibility = Visibility.Collapsed;
-                SidebarGrid.Visibility = Visibility.Collapsed;
-                if (_windowState.IsSidebarVisible && (int)SidebarColumn.Width.Value > 200)
-                {
-                    _windowState.SidebarWidth = (int)SidebarColumn.Width.Value; // Save current width
-                }
-                SidebarColumn.Width = new GridLength(0);
-                SplitterGrid.Visibility = Visibility.Collapsed;  // Hide splitter in fullscreen
-                FullscreenIcon.Glyph = "\uE73F"; // Exit fullscreen icon
-                _overlayManager.StopAll();
-            }
+            _windowChromeController.ApplyFullscreenUiState();
         }
 
         private void ToggleMaximizeRestore()
         {
-            _windowState.ToggleMaximizeRestore();
-            RootGrid?.Focus(FocusState.Programmatic);
+            _windowChromeController.ToggleMaximizeRestore();
         }
 
 
         private void RootGrid_PointerMoved(object sender, PointerRoutedEventArgs e)
         {
-            if (!_windowState.IsFullscreen && _windowState.IsPinned) return;
-
-            var pt = e.GetCurrentPoint(RootGrid);
-            double x = pt.Position.X;
-            double y = pt.Position.Y;
-
-            bool inTopZone = y < FullscreenOverlayManager.TopHoverZone;
-            if (ToolbarGrid.Visibility == Visibility.Visible && y < ToolbarGrid.ActualHeight)
-            {
-                inTopZone = true;
-            }
-
-            if (inTopZone)
-            {
-                // Show toolbar and stop hide timer while in hover zone
-                if (ToolbarGrid.Visibility != Visibility.Visible)
-                {
-                    AppTitleBar.Visibility = Visibility.Visible;
-                    if (!_windowState.IsFullscreen) _windowState.SetCaptionButtonsVisibility(true);
-                    ToolbarGrid.Visibility = Visibility.Visible;
-                    if (!_windowState.IsFullscreen) StatusBarGrid.Visibility = Visibility.Visible;
-                }
-                _overlayManager.StopToolbarTimer();
-            }
-            else
-            {
-                // Start hide timer only if not already running
-                if (ToolbarGrid.Visibility == Visibility.Visible && !_overlayManager.IsToolbarTimerRunning)
-                {
-                    _overlayManager.StartToolbarTimer();
-                }
-            }
-
-            bool inLeftZone = _windowState.IsSidebarVisible && x < FullscreenOverlayManager.LeftHoverZone;
-            if (SidebarGrid.Visibility == Visibility.Visible && x < _windowState.SidebarWidth)
-            {
-                inLeftZone = true;
-            }
-
-            if (_windowState.IsSidebarVisible && inLeftZone)
-            {
-                // Show sidebar and stop hide timer while in hover zone
-                if (SidebarGrid.Visibility != Visibility.Visible)
-                {
-                    SidebarColumn.Width = new GridLength(_windowState.SidebarWidth);
-                    SidebarGrid.Visibility = Visibility.Visible;
-                }
-                _overlayManager.StopSidebarTimer();
-            }
-            else
-            {
-                // Start hide timer only if not already running
-                if (SidebarGrid.Visibility == Visibility.Visible && !_overlayManager.IsSidebarTimerRunning)
-                {
-                    _overlayManager.StartSidebarTimer();
-                }
-            }
+            _windowChromeController.HandlePointerMoved(e);
         }
 
         private void RootGrid_PointerPressed(object sender, PointerRoutedEventArgs e)
@@ -1060,65 +818,14 @@ namespace Uviewer
 
         private void RootGrid_PointerExited(object sender, PointerRoutedEventArgs e)
         {
-            if (!_windowState.IsFullscreen && _windowState.IsPinned) return;
-
-            if (ToolbarGrid.Visibility == Visibility.Visible && !_overlayManager.IsToolbarTimerRunning)
-            {
-                _overlayManager.StartToolbarTimer();
-            }
-
-            if (SidebarGrid.Visibility == Visibility.Visible && !_overlayManager.IsSidebarTimerRunning)
-            {
-                _overlayManager.StartSidebarTimer();
-            }
+            _windowChromeController.HandlePointerExited();
         }
 
 
         // Unified Touch Handler for Text, Aozora, and Epub modes
         private void HandleSmartTouchNavigation(PointerRoutedEventArgs e, Action prevAction, Action nextAction)
         {
-            var pt = e.GetCurrentPoint(RootGrid);
-            double x = pt.Position.X;
-            double y = pt.Position.Y;
-
-            // 1. Edge Detection (Fullscreen only)
-            if (_windowState.IsFullscreen)
-            {
-                // Top Edge -> Show Toolbar
-                if (y < FullscreenOverlayManager.TopHoverZone)
-                {
-                    if (ToolbarGrid.Visibility != Visibility.Visible)
-                    {
-                        ToolbarGrid.Visibility = Visibility.Visible;
-                    }
-                    _overlayManager.StartToolbarTimer();
-                    return;
-                }
-
-                // Left Edge -> Show Sidebar
-                if (x < FullscreenOverlayManager.LeftHoverZone)
-                {
-                    if (SidebarGrid.Visibility != Visibility.Visible)
-                    {
-                        SidebarColumn.Width = new GridLength(_windowState.SidebarWidth);
-                        SidebarGrid.Visibility = Visibility.Visible;
-                    }
-                    _overlayManager.StartSidebarTimer();
-                    return;
-                }
-            }
-
-            // 2. Navigation Zones (Screen Half)
-            if (x < RootGrid.ActualWidth / 2)
-            {
-                if (ShouldInvertControls) nextAction?.Invoke();
-                else prevAction?.Invoke();
-            }
-            else
-            {
-                if (ShouldInvertControls) prevAction?.Invoke();
-                else nextAction?.Invoke();
-            }
+            _windowChromeController.HandleSmartTouchNavigation(e, ShouldInvertControls, prevAction, nextAction);
         }
 
         #endregion
@@ -1131,51 +838,7 @@ namespace Uviewer
 
         private void TogglePin()
         {
-            if (_windowState.IsFullscreen) return; // 전체화면에서는 핀 모드 불필요
-
-            _windowState.TogglePin();
-            PinButton.IsChecked = _windowState.IsPinned;
-            PinIcon.Glyph = _windowState.IsPinned ? "\uE890" : "\uE890"; // Eye / EyeOff icon
-
-            if (_windowState.IsPinned)
-            {
-                // 핀 고정: UI 모두 표시
-                _overlayManager.StopAll();
-
-                AppTitleBar.Visibility = Visibility.Visible;
-                _windowState.SetCaptionButtonsVisibility(true);
-                ToolbarGrid.Visibility = Visibility.Visible;
-                StatusBarGrid.Visibility = Visibility.Visible;
-                if (_windowState.IsSidebarVisible)
-                {
-                    SidebarGrid.Visibility = Visibility.Visible;
-                    if (SplitterGrid != null) SplitterGrid.Visibility = Visibility.Visible;
-                    SidebarColumn.Width = new GridLength(_windowState.SidebarWidth);
-                }
-            }
-            else
-            {
-                // 핀 해제: UI 모두 숨김
-                if (_windowState.IsSidebarVisible && (int)SidebarColumn.Width.Value > 200)
-                {
-                    _windowState.SidebarWidth = (int)SidebarColumn.Width.Value;
-                }
-
-                AppTitleBar.Visibility = Visibility.Collapsed;
-                _windowState.SetCaptionButtonsVisibility(false);
-                ToolbarGrid.Visibility = Visibility.Collapsed;
-                StatusBarGrid.Visibility = Visibility.Collapsed;
-                SidebarGrid.Visibility = Visibility.Collapsed;
-                if (SplitterGrid != null) SplitterGrid.Visibility = Visibility.Collapsed;
-                SidebarColumn.Width = new GridLength(0);
-            }
-
-            _windowSettingsCoordinator.SaveWindowSettings();
-        }
-
-        private void SetCaptionButtonsVisibility(bool isVisible)
-        {
-            _windowState.SetCaptionButtonsVisibility(isVisible);
+            _windowChromeController.TogglePin();
         }
 
         private void AlwaysOnTopButton_Click(object sender, RoutedEventArgs e)
@@ -1185,143 +848,30 @@ namespace Uviewer
 
         private void ToggleAlwaysOnTop()
         {
-            _windowState.ToggleAlwaysOnTop();
-            if (AlwaysOnTopButton != null) AlwaysOnTopButton.IsChecked = _windowState.IsAlwaysOnTop;
-            _windowSettingsCoordinator.SaveWindowSettings();
+            _windowChromeController.ToggleAlwaysOnTop();
         }
 
         private void GlobalThemeToggleButton_Click(object sender, RoutedEventArgs e)
         {
-            // If in fullscreen, exit first, change theme, then re-enter
-            bool wasFullscreen = _windowState.IsFullscreen;
-            if (wasFullscreen)
-            {
-                ToggleFullscreen();
-            }
-
-            if (_currentTheme == ElementTheme.Dark)
-            {
-                SetTheme(ElementTheme.Light);
-            }
-            else
-            {
-                SetTheme(ElementTheme.Dark);
-            }
-
-            if (wasFullscreen)
-            {
-                ToggleFullscreen();
-            }
+            _windowChromeController.ToggleGlobalTheme();
         }
 
         internal void SetTheme(ElementTheme theme)
         {
-            _currentTheme = theme;
+            _windowChromeController.SetTheme(theme);
+        }
 
-            // Set theme on the root content to ensure all theme resources (including Mica) update
-            if (this.Content is FrameworkElement root)
-            {
-                root.RequestedTheme = theme;
-            }
-
-            if (RootGrid != null)
-            {
-                // Force child elements to re-evaluate their theme resources
-                RootGrid.RequestedTheme = theme;
-                // [Important] Changing theme can cause focus loss; re-focus to keep shortcuts working
-                RootGrid.Focus(FocusState.Programmatic);
-            }
-
-            // Update icon
-            if (ThemeIcon != null)
-            {
-                ThemeIcon.Glyph = _currentTheme == ElementTheme.Dark ? "\uE706" : "\uE708"; // Sun if dark (to switch to light), Moon if light (to switch to dark)
-            }
-
-            // Update ToggleButton state
-            if (GlobalThemeToggleButton != null)
-            {
-                GlobalThemeToggleButton.IsChecked = _currentTheme == ElementTheme.Dark;
-            }
-
-            UpdateThemeToggleButtonTooltip();
-            UpdateTitleBarColors();
-
-            // [추가] 테마 변경 시 Win2D 기반 캔버스들을 즉시 다시 그려 배경색 등을 반영합니다.
+        private void InvalidateThemeTargets()
+        {
             if (_isVerticalMode && VerticalTextCanvas != null) VerticalTextCanvas.Invalidate();
             if (_isEpubMode && EpubTextCanvas != null) EpubTextCanvas.Invalidate();
             if (_isAozoraMode && AozoraTextCanvas != null) AozoraTextCanvas.Invalidate();
             if (MainCanvas != null) MainCanvas.Invalidate();
         }
 
-        private void UpdateTitleBarColors()
-        {
-            var appWindow = this.AppWindow;
-            if (appWindow != null && AppWindowTitleBar.IsCustomizationSupported())
-            {
-                var titleBar = appWindow.TitleBar;
-
-                if (_currentTheme == ElementTheme.Dark)
-                {
-                    // Use solid dark color to prevent white flicker during maximize/fullscreen
-                    var darkBg = ColorHelper.FromArgb(255, 28, 28, 28);
-                    titleBar.BackgroundColor = darkBg;
-                    titleBar.InactiveBackgroundColor = darkBg;
-
-                    // When extended, we want transparent buttons to blend with our custom UI.
-                    // When NOT extended (e.g. in Fullscreen), we want solid background to match the system title bar.
-                    if (ExtendsContentIntoTitleBar)
-                    {
-                        titleBar.ButtonBackgroundColor = Colors.Transparent;
-                        titleBar.ButtonInactiveBackgroundColor = Colors.Transparent;
-                    }
-                    else
-                    {
-                        titleBar.ButtonBackgroundColor = darkBg;
-                        titleBar.ButtonInactiveBackgroundColor = darkBg;
-                    }
-
-                    titleBar.ButtonForegroundColor = Colors.White;
-                    titleBar.ButtonHoverForegroundColor = Colors.White;
-                    titleBar.ButtonHoverBackgroundColor = ColorHelper.FromArgb(0x33, 0xFF, 0xFF, 0xFF);
-                    titleBar.ButtonPressedForegroundColor = Colors.White;
-                    titleBar.ButtonPressedBackgroundColor = ColorHelper.FromArgb(0x66, 0xFF, 0xFF, 0xFF);
-                    titleBar.ButtonInactiveForegroundColor = Colors.Gray;
-                }
-                else
-                {
-                    // Use solid light color for light theme
-                    var lightBg = ColorHelper.FromArgb(255, 243, 243, 243);
-                    titleBar.BackgroundColor = lightBg;
-                    titleBar.InactiveBackgroundColor = lightBg;
-
-                    if (ExtendsContentIntoTitleBar)
-                    {
-                        titleBar.ButtonBackgroundColor = Colors.Transparent;
-                        titleBar.ButtonInactiveBackgroundColor = Colors.Transparent;
-                    }
-                    else
-                    {
-                        titleBar.ButtonBackgroundColor = lightBg;
-                        titleBar.ButtonInactiveBackgroundColor = lightBg;
-                    }
-
-                    titleBar.ButtonForegroundColor = Colors.Black;
-                    titleBar.ButtonHoverForegroundColor = Colors.Black;
-                    titleBar.ButtonHoverBackgroundColor = ColorHelper.FromArgb(0x33, 0x00, 0x00, 0x00);
-                    titleBar.ButtonPressedForegroundColor = Colors.Black;
-                    titleBar.ButtonPressedBackgroundColor = ColorHelper.FromArgb(0x66, 0x00, 0x00, 0x00);
-                    titleBar.ButtonInactiveForegroundColor = Colors.LightGray;
-                }
-            }
-        }
-
         private void UpdateThemeToggleButtonTooltip()
         {
-            if (GlobalThemeToggleButton != null)
-            {
-                ToolTipService.SetToolTip(GlobalThemeToggleButton, _currentTheme == ElementTheme.Dark ? Strings.LightModeTooltip : Strings.DarkModeTooltip);
-            }
+            _windowChromeController.UpdateThemeToggleButtonTooltip();
         }
 
 
@@ -1350,52 +900,18 @@ namespace Uviewer
                 _pdfPanX,
                 ref _pdfPanY);
 
-            DrawPdfSearchHighlights(sender, args);
-        }
-
-        private void DrawPdfSearchHighlights(CanvasControl sender, CanvasDrawEventArgs args)
-        {
-            if (_currentPdfDocument == null || _currentBitmap == null) return;
-            if (_activePdfSearchPageIndex != _currentIndex || _activePdfSearchHighlights.Count == 0) return;
-            if (!TryGetBitmapSize(_currentBitmap, out var imageSize)) return;
-
-            var canvasSize = sender.Size;
-            if (canvasSize.Width <= 0 || canvasSize.Height <= 0) return;
-
-            double fitRatio = Math.Min(canvasSize.Width / imageSize.Width, canvasSize.Height / imageSize.Height);
-            var scaledSize = new Windows.Foundation.Size(
-                imageSize.Width * fitRatio * _zoomLevel,
-                imageSize.Height * fitRatio * _zoomLevel);
-            var pageRect = new Windows.Foundation.Rect(
-                (canvasSize.Width - scaledSize.Width) / 2 + _pdfPanX,
-                (canvasSize.Height - scaledSize.Height) / 2 + _pdfPanY,
-                scaledSize.Width,
-                scaledSize.Height);
-
-            void DrawHighlight(PdfSearchHighlight highlight, Windows.UI.Color color)
-            {
-                if (highlight.PageWidth <= 0 || highlight.PageHeight <= 0) return;
-
-                double x = pageRect.X + (highlight.Left / highlight.PageWidth) * pageRect.Width;
-                double y = pageRect.Y + ((highlight.PageHeight - highlight.Top) / highlight.PageHeight) * pageRect.Height;
-                double width = Math.Max(2.0, ((highlight.Right - highlight.Left) / highlight.PageWidth) * pageRect.Width);
-                double height = Math.Max(2.0, ((highlight.Top - highlight.Bottom) / highlight.PageHeight) * pageRect.Height);
-
-                var rect = new Windows.Foundation.Rect(x - 1, y - 1, width + 2, height + 2);
-                args.DrawingSession.FillRectangle(rect, color);
-            }
-
-            foreach (var highlight in _activePdfSearchHighlights)
-            {
-                if (highlight.MatchIndex == _activePdfSearchMatchIndex) continue;
-                DrawHighlight(highlight, SearchHighlightService.HighlightColor);
-            }
-
-            foreach (var highlight in _activePdfSearchHighlights)
-            {
-                if (highlight.MatchIndex != _activePdfSearchMatchIndex) continue;
-                DrawHighlight(highlight, SearchHighlightService.CurrentHighlightColor);
-            }
+            PdfSearchHighlightRenderer.Draw(
+                sender,
+                args,
+                _currentBitmap,
+                _currentPdfDocument != null,
+                _currentIndex,
+                _zoomLevel,
+                _pdfPanX,
+                _pdfPanY,
+                _activePdfSearchPageIndex,
+                _activePdfSearchHighlights,
+                _activePdfSearchMatchIndex);
         }
 
         private void LeftCanvas_CreateResources(CanvasControl sender, CanvasCreateResourcesEventArgs args)

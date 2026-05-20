@@ -759,61 +759,32 @@ namespace Uviewer
 
         private async Task ShowEpubGoToLineDialog()
         {
-             var pg = CurrentEpubWin2DPage;
-             int totalLines = pg?.TotalLinesInChapter ?? _epubWin2DPages.Count;
-             int currentLine = pg?.StartLine ?? (_currentEpubPageIndex + 1);
+            var pg = CurrentEpubWin2DPage;
+            int totalLines = pg?.TotalLinesInChapter ?? _epubWin2DPages.Count;
+            int currentLine = pg?.StartLine ?? (_currentEpubPageIndex + 1);
 
-             var dialog = new ContentDialog
-             {
-                 Title = Strings.DialogTitle,
-                 PrimaryButtonText = Strings.DialogPrimary,
-                 CloseButtonText = Strings.DialogClose,
-                 DefaultButton = ContentDialogButton.Primary,
-                 XamlRoot = RootGrid.XamlRoot,
-                 RequestedTheme = RootGrid.ActualTheme
-             };
+            var result = await _textDialogService.ShowGoToLineAsync(currentLine, totalLines, Strings.DialogTitle);
+            if (result.HasValue)
+            {
+                await GoToEpubLineAsync(result.Value);
+            }
+        }
 
-             var input = new TextBox 
-             { 
-                 PlaceholderText = $"1 - {totalLines}",
-                 Text = currentLine.ToString()
-             };
-             
-             input.SelectAll();
-             dialog.Content = input;
+        private async Task GoToEpubLineAsync(int targetLine)
+        {
+            if (targetLine < 1) return;
 
-             void PerformGoToLine()
-             {
-                 if (int.TryParse(input.Text, out int targetLine))
-                 {
-                     if (_isVerticalMode)
-                     {
-                         _ = PrepareVerticalTextAsync(targetLine);
-                         return;
-                     }
+            if (_isVerticalMode)
+            {
+                await PrepareVerticalTextAsync(targetLine);
+                return;
+            }
 
-                     int pageIndex = _epubPageFlowService.FindPageByLine(_epubWin2DPages, targetLine);
-                     if (pageIndex >= 0 && pageIndex < _epubWin2DPages.Count)
-                     {
-                         SetEpubPageIndex(pageIndex);
-                     }
-                 }
-             }
-
-             input.KeyDown += (s, e) => 
-             {
-                 if (e.Key == Windows.System.VirtualKey.Enter)
-                 {
-                     dialog.Hide();
-                     PerformGoToLine();
-                 }
-             };
-
-             var result = await dialog.ShowAsync();
-             if (result == ContentDialogResult.Primary)
-             {
-                 PerformGoToLine();
-             }
+            int pageIndex = _epubPageFlowService.FindPageByLine(_epubWin2DPages, targetLine);
+            if (pageIndex >= 0 && pageIndex < _epubWin2DPages.Count)
+            {
+                SetEpubPageIndex(pageIndex);
+            }
         }
 
         // Navigation Handlers
@@ -1046,7 +1017,7 @@ namespace Uviewer
                     _isSideBySideMode,
                     _autoDoublePageForArchive,
                     GetCachedEpubImageSize,
-                    IsAutoDoublePageTallCandidate);
+                    ImageDoublePageDecisionService.IsTallCandidate);
                 
                 if (EpubTextCanvas.Visibility != Visibility.Collapsed) EpubTextCanvas.Visibility = Visibility.Collapsed;
                 ShowEpubImagePage(page);

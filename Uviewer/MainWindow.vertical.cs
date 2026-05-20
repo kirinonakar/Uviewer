@@ -502,7 +502,7 @@ namespace Uviewer
             if (bitmap != null)
             {
                 isTall = _autoDoublePageForArchive
-                    ? IsAutoDoublePageTallCandidate(bitmap.Size.Width, bitmap.Size.Height)
+                    ? ImageDoublePageDecisionService.IsTallCandidate(bitmap.Size.Width, bitmap.Size.Height)
                     : bitmap.Size.Width < bitmap.Size.Height * 1.2f;
             }
 

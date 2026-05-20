@@ -30,7 +30,7 @@ namespace Uviewer.Renderers
 
             try
             {
-                if (!TryGetBitmapSize(currentBitmap, out var imageSize)) return;
+                if (!CanvasBitmapHelper.TryGetBitmapSize(currentBitmap, out var imageSize)) return;
 
                 var ds = args.DrawingSession;
                 var canvasSize = sender.Size;
@@ -90,7 +90,7 @@ namespace Uviewer.Renderers
 
             try
             {
-                if (!TryGetBitmapSize(bitmap, out var imageSize)) return;
+                if (!CanvasBitmapHelper.TryGetBitmapSize(bitmap, out var imageSize)) return;
 
                 var ds = args.DrawingSession;
                 var canvasSize = sender.Size;
@@ -114,7 +114,7 @@ namespace Uviewer.Renderers
             Rect bounds,
             HorizontalAlignment horizontalAlignment = HorizontalAlignment.Center)
         {
-            if (!TryGetBitmapSize(bitmap, out var imageSize)) return;
+            if (!CanvasBitmapHelper.TryGetBitmapSize(bitmap, out var imageSize)) return;
             if (bounds.Width <= 0 || bounds.Height <= 0) return;
 
             var fitRatio = Math.Min(bounds.Width / imageSize.Width, bounds.Height / imageSize.Height);
@@ -157,7 +157,7 @@ namespace Uviewer.Renderers
 
                 var prev = sharpenEnabled && !isPdfMode ? imageCache.GetSharpenedImage(prevIndex) : null;
                 prev ??= imageCache.GetPreloadedImage(prevIndex, zoomLevel);
-                if (prev != null && TryGetBitmapSize(prev, out var prevSize) && prev != currentBitmap)
+                if (prev != null && CanvasBitmapHelper.TryGetBitmapSize(prev, out var prevSize) && prev != currentBitmap)
                 {
                     var fit = Math.Min(canvasSize.Width / prevSize.Width, canvasSize.Height / prevSize.Height);
                     var scaledSize = new Size(prevSize.Width * fit * zoomLevel, prevSize.Height * fit * zoomLevel);
@@ -188,7 +188,7 @@ namespace Uviewer.Renderers
 
                 var next = sharpenEnabled && !isPdfMode ? imageCache.GetSharpenedImage(nextIndex) : null;
                 next ??= imageCache.GetPreloadedImage(nextIndex, zoomLevel);
-                if (next != null && TryGetBitmapSize(next, out var nextSize) && next != currentBitmap)
+                if (next != null && CanvasBitmapHelper.TryGetBitmapSize(next, out var nextSize) && next != currentBitmap)
                 {
                     var fit = Math.Min(canvasSize.Width / nextSize.Width, canvasSize.Height / nextSize.Height);
                     var scaledSize = new Size(nextSize.Width * fit * zoomLevel, nextSize.Height * fit * zoomLevel);
@@ -229,22 +229,6 @@ namespace Uviewer.Renderers
                     ? CanvasImageInterpolation.Linear
                     : CanvasImageInterpolation.HighQualityCubic;
                 ds.DrawImage(bitmap, destination, bitmap.Bounds, 1.0f, interpolation);
-            }
-        }
-
-        private static bool TryGetBitmapSize(CanvasBitmap? bitmap, out Size size)
-        {
-            size = default;
-
-            try
-            {
-                if (bitmap == null || bitmap.Device == null) return false;
-                size = bitmap.Size;
-                return size.Width > 0 && size.Height > 0;
-            }
-            catch
-            {
-                return false;
             }
         }
     }
