@@ -139,7 +139,7 @@ namespace Uviewer
             }
 
             // Update zoom level display (relative to fit size)
-            ZoomLevelText.Text = $"{(int)(_zoomLevel * 100)}%";
+            MainToolbar.SetZoomLevel(_zoomLevel);
 
             if (_currentPdfDocument != null && !(_smoothZoomTimer?.IsRunning ?? false))
             {
@@ -719,7 +719,7 @@ namespace Uviewer
 
         internal void UpdateSharpenButtonState()
         {
-            ImageToolbarStateService.ApplySharpenState(SharpenButton, SharpenIcon, _sharpenEnabled);
+            MainToolbar.SetSharpenState(_sharpenEnabled);
         }
 
         private void SideBySideButton_Click(object sender, RoutedEventArgs e)
@@ -775,31 +775,12 @@ namespace Uviewer
 
         internal void UpdateSideBySideButtonState()
         {
-            ImageToolbarStateService.ApplySideBySideState(SideBySideButton, SideBySideText, _isSideBySideMode);
+            MainToolbar.SetSideBySideState(_isSideBySideMode);
         }
 
         internal void UpdateNextImageSideButtonState()
         {
-            ImageToolbarStateService.ApplyNextImageSideState(NextImageSideText, _nextImageOnRight);
-        }
-
-        private void MatchControlDirectionMenuItem_Click(object sender, RoutedEventArgs e)
-        {
-            _matchControlDirection = MatchControlDirectionMenuItem.IsChecked;
-            _windowSettingsCoordinator.SaveWindowSettings();
-        }
-
-        private void AllowMultipleInstancesMenuItem_Click(object sender, RoutedEventArgs e)
-        {
-            _allowMultipleInstances = AllowMultipleInstancesMenuItem.IsChecked;
-            _windowSettingsCoordinator.SaveWindowSettings();
-        }
-
-        private void AutoDoublePageForArchiveMenuItem_Click(object sender, RoutedEventArgs e)
-        {
-            _autoDoublePageForArchive = AutoDoublePageForArchiveMenuItem.IsChecked;
-            _windowSettingsCoordinator.SaveWindowSettings();
-            _ = DisplayCurrentImageAsync();
+            MainToolbar.SetNextImageSideState(_nextImageOnRight);
         }
 
         private void ShowImageUI()

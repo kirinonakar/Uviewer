@@ -28,12 +28,7 @@ namespace Uviewer
         {
             _favoritesController.RefreshFavorites();
 
-            // Bind to controls
-            FileFavoritesList.ItemsSource = _fileFavoriteItems;
-            FileFavoritesList.EmptyMessage = Strings.NoFavorites;
-            
-            FolderFavoritesList.ItemsSource = _folderFavoriteItems;
-            FolderFavoritesList.EmptyMessage = Strings.NoFavorites;
+            MainToolbar.SetFavoriteSources(_fileFavoriteItems, _folderFavoriteItems, Strings.NoFavorites);
 
             SidebarFileFavoritesList.ItemsSource = _fileFavoriteItems;
             SidebarFileFavoritesList.EmptyMessage = Strings.NoFavorites;
@@ -49,7 +44,7 @@ namespace Uviewer
             {
                 if (e.OriginalItem is FavoriteItem fav)
                 {
-                    FavoritesFlyout?.Hide();
+                    MainToolbar.HideFavoritesFlyout();
                     SidebarFavoritesFlyout?.Hide();
                     await NavigateToFavoriteAsync(fav);
                 }
@@ -102,7 +97,7 @@ namespace Uviewer
             {
                 if (e.OriginalItem is RecentItem recent)
                 {
-                    RecentFlyout?.Hide();
+                    MainToolbar.HideRecentFlyout();
                     SidebarRecentFlyout?.Hide();
                     await NavigateToRecentAsync(recent);
                 }
@@ -243,8 +238,7 @@ namespace Uviewer
         {
             _bookmarkPanelController.RefreshRecent();
 
-            RecentList.ItemsSource = _recentItemsList;
-            RecentList.EmptyMessage = Strings.NoRecentFiles;
+            MainToolbar.SetRecentSource(_recentItemsList, Strings.NoRecentFiles);
 
             SidebarRecentList.ItemsSource = _recentItemsList;
             SidebarRecentList.EmptyMessage = Strings.NoRecentFiles;

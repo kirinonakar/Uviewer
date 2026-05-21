@@ -15,7 +15,7 @@ namespace Uviewer
             set
             {
                 _isVerticalMode = value;
-                if (VerticalToggleButton != null) VerticalToggleButton.IsChecked = value;
+                MainToolbar.SetVerticalToggleState(isChecked: value);
             }
         }
 
@@ -52,7 +52,7 @@ namespace Uviewer
 
         void IKeyboardShortcutActions.ToggleFullscreen() => ToggleFullscreen();
         void IKeyboardShortcutActions.ToggleMaximizeRestore() => ToggleMaximizeRestore();
-        void IKeyboardShortcutActions.CloseApp() => CloseWindowButton_Click(CloseWindowButton, new RoutedEventArgs());
+        void IKeyboardShortcutActions.CloseApp() => CloseWindowButton_Click(MainToolbar, new RoutedEventArgs());
         void IKeyboardShortcutActions.NavigateVerticalPage(int offset) => NavigateVerticalPage(offset);
         Task IKeyboardShortcutActions.NavigateEpubAsync(int offset) => NavigateEpubAsync(offset);
         Task IKeyboardShortcutActions.ShowEpubGoToLineDialog() => ShowEpubGoToLineDialog();
@@ -61,7 +61,7 @@ namespace Uviewer
         void IKeyboardShortcutActions.ToggleVerticalMode()
         {
             _isVerticalMode = !_isVerticalMode;
-            if (VerticalToggleButton != null) VerticalToggleButton.IsChecked = _isVerticalMode;
+            MainToolbar.SetVerticalToggleState(isChecked: _isVerticalMode);
             SaveTextSettings();
             ToggleVerticalMode();
         }
@@ -72,7 +72,7 @@ namespace Uviewer
         void IKeyboardShortcutActions.ToggleSidebar() => ToggleSidebar();
         void IKeyboardShortcutActions.ToggleTheme() => ToggleTheme();
         Task IKeyboardShortcutActions.LoadEpubChapterAsync(int index) => LoadEpubChapterAsync(index);
-        void IKeyboardShortcutActions.ToggleSideBySide() => SideBySideButton_Click(SideBySideButton, new RoutedEventArgs());
+        void IKeyboardShortcutActions.ToggleSideBySide() => SideBySideButton_Click(MainToolbar, new RoutedEventArgs());
         Task IKeyboardShortcutActions.NavigateToNextAsync(bool handled) => NavigateToNextAsync(handled);
         Task IKeyboardShortcutActions.NavigateToPreviousAsync(bool handled) => NavigateToPreviousAsync(handled);
         Task IKeyboardShortcutActions.DisplayCurrentImageAsync() => DisplayCurrentImageAsync();
@@ -81,8 +81,7 @@ namespace Uviewer
 
         void IKeyboardShortcutActions.ToggleSharpening()
         {
-            SharpenButton.IsChecked = !(SharpenButton.IsChecked ?? false);
-            SharpenButton_Click(SharpenButton, new RoutedEventArgs());
+            SharpenButton_Click(MainToolbar, new RoutedEventArgs());
         }
 
         Task IKeyboardShortcutActions.ShowGoToLineDialog() => ShowGoToLineDialog();
@@ -91,9 +90,9 @@ namespace Uviewer
         void IKeyboardShortcutActions.ZoomIn() => ZoomIn();
         void IKeyboardShortcutActions.ZoomOut() => ZoomOut();
         void IKeyboardShortcutActions.FitToWindow() => FitToWindow();
-        void IKeyboardShortcutActions.ZoomActual() => ZoomActualButton_Click(ZoomActualButton, new RoutedEventArgs());
+        void IKeyboardShortcutActions.ZoomActual() => ZoomActualButton_Click(MainToolbar, new RoutedEventArgs());
         void IKeyboardShortcutActions.ToggleAlwaysOnTop() => ToggleAlwaysOnTop();
-        void IKeyboardShortcutActions.ToggleGlobalTheme() => GlobalThemeToggleButton_Click(GlobalThemeToggleButton, new RoutedEventArgs());
+        void IKeyboardShortcutActions.ToggleGlobalTheme() => GlobalThemeToggleButton_Click(MainToolbar, new RoutedEventArgs());
         void IKeyboardShortcutActions.TogglePin() => TogglePin();
         void IKeyboardShortcutActions.ShowSearchOverlay() => ShowSearchOverlay();
         void IKeyboardShortcutActions.HideSearchOverlay() => _searchOverlayService?.Hide();

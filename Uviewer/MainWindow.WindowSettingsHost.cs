@@ -80,10 +80,11 @@ namespace Uviewer
             UpdateSideBySideButtonState();
             UpdateNextImageSideButtonState();
 
-            if (MatchControlDirectionMenuItem != null) MatchControlDirectionMenuItem.IsChecked = _matchControlDirection;
-            if (AllowMultipleInstancesMenuItem != null) AllowMultipleInstancesMenuItem.IsChecked = _allowMultipleInstances;
-            if (AutoDoublePageForArchiveMenuItem != null) AutoDoublePageForArchiveMenuItem.IsChecked = _autoDoublePageForArchive;
-            if (AlwaysOnTopButton != null) AlwaysOnTopButton.IsChecked = _windowState.IsAlwaysOnTop;
+            MainToolbar.SetWindowOptionStates(
+                _matchControlDirection,
+                _allowMultipleInstances,
+                _autoDoublePageForArchive,
+                _windowState.IsAlwaysOnTop);
             ApplyThumbnailSettingsToControls();
 
             if (AppWindow.Presenter is OverlappedPresenter op)

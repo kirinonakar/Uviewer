@@ -1027,13 +1027,6 @@ namespace Uviewer
             }
         }
 
-        private void FavoritesButton_Click(object sender, RoutedEventArgs e)
-        {
-            // Toggle the flyout
-            var flyout = FavoritesButton.Flyout as MenuFlyout;
-            flyout?.ShowAt(FavoritesButton);
-        }
-
         private async void AddToFavoritesMenuItem_Click(object sender, RoutedEventArgs e)
         {
             try
@@ -1046,13 +1039,6 @@ namespace Uviewer
                 System.Diagnostics.Debug.WriteLine($"Error in AddToFavoritesMenuItem_Click: {ex.Message}");
                 ShowNotification($"{ex.Message}", "\uE783", "Red");
             }
-        }
-
-        private void RecentButton_Click(object sender, RoutedEventArgs e)
-        {
-            // Toggle the flyout
-            var flyout = RecentButton.Flyout as MenuFlyout;
-            flyout?.ShowAt(RecentButton);
         }
 
         private void SidebarFavoritesButton_Click(object sender, RoutedEventArgs e)

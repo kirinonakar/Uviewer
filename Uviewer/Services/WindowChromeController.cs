@@ -5,6 +5,7 @@ using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Controls.Primitives;
 using Microsoft.UI.Xaml.Input;
 using System;
+using Uviewer.Controls;
 
 namespace Uviewer.Services
 {
@@ -13,17 +14,11 @@ namespace Uviewer.Services
         private readonly Window _window;
         private readonly Grid _rootGrid;
         private readonly UIElement _appTitleBar;
-        private readonly FrameworkElement _toolbarGrid;
+        private readonly MainToolbarControl _toolbar;
         private readonly UIElement _statusBarGrid;
         private readonly FrameworkElement _sidebarGrid;
         private readonly UIElement? _splitterGrid;
         private readonly ColumnDefinition _sidebarColumn;
-        private readonly FontIcon _fullscreenIcon;
-        private readonly ToggleButton _pinButton;
-        private readonly FontIcon _pinIcon;
-        private readonly ToggleButton _alwaysOnTopButton;
-        private readonly ToggleButton _globalThemeToggleButton;
-        private readonly FontIcon _themeIcon;
         private readonly WindowStateManager _windowState;
         private readonly FullscreenOverlayManager _overlayManager;
         private readonly Action _saveWindowSettings;
@@ -33,17 +28,11 @@ namespace Uviewer.Services
             Window window,
             Grid rootGrid,
             UIElement appTitleBar,
-            FrameworkElement toolbarGrid,
+            MainToolbarControl toolbar,
             UIElement statusBarGrid,
             FrameworkElement sidebarGrid,
             UIElement? splitterGrid,
             ColumnDefinition sidebarColumn,
-            FontIcon fullscreenIcon,
-            ToggleButton pinButton,
-            FontIcon pinIcon,
-            ToggleButton alwaysOnTopButton,
-            ToggleButton globalThemeToggleButton,
-            FontIcon themeIcon,
             WindowStateManager windowState,
             FullscreenOverlayManager overlayManager,
             Action saveWindowSettings,
@@ -52,17 +41,11 @@ namespace Uviewer.Services
             _window = window;
             _rootGrid = rootGrid;
             _appTitleBar = appTitleBar;
-            _toolbarGrid = toolbarGrid;
+            _toolbar = toolbar;
             _statusBarGrid = statusBarGrid;
             _sidebarGrid = sidebarGrid;
             _splitterGrid = splitterGrid;
             _sidebarColumn = sidebarColumn;
-            _fullscreenIcon = fullscreenIcon;
-            _pinButton = pinButton;
-            _pinIcon = pinIcon;
-            _alwaysOnTopButton = alwaysOnTopButton;
-            _globalThemeToggleButton = globalThemeToggleButton;
-            _themeIcon = themeIcon;
             _windowState = windowState;
             _overlayManager = overlayManager;
             _saveWindowSettings = saveWindowSettings;
@@ -82,11 +65,10 @@ namespace Uviewer.Services
 
             if (!_windowState.IsPinned)
             {
-                _pinButton.IsChecked = false;
-                _pinIcon.Glyph = "\uE77A";
+                _toolbar.SetPinState(false);
                 _appTitleBar.Visibility = Visibility.Collapsed;
                 SetCaptionButtonsVisibility(false);
-                _toolbarGrid.Visibility = Visibility.Collapsed;
+                _toolbar.Visibility = Visibility.Collapsed;
                 _statusBarGrid.Visibility = Visibility.Collapsed;
                 _sidebarGrid.Visibility = Visibility.Collapsed;
                 if (_splitterGrid != null) _splitterGrid.Visibility = Visibility.Collapsed;
@@ -100,7 +82,7 @@ namespace Uviewer.Services
             {
                 _appTitleBar.Visibility = Visibility.Collapsed;
                 if (!_windowState.IsFullscreen) SetCaptionButtonsVisibility(false);
-                _toolbarGrid.Visibility = Visibility.Collapsed;
+                _toolbar.Visibility = Visibility.Collapsed;
                 if (!_windowState.IsFullscreen) _statusBarGrid.Visibility = Visibility.Collapsed;
             }
         }
@@ -131,7 +113,7 @@ namespace Uviewer.Services
                 {
                     _appTitleBar.Visibility = Visibility.Visible;
                     SetCaptionButtonsVisibility(true);
-                    _toolbarGrid.Visibility = Visibility.Visible;
+                    _toolbar.Visibility = Visibility.Visible;
                     _statusBarGrid.Visibility = Visibility.Visible;
                     if (_windowState.IsSidebarVisible)
                     {
@@ -148,19 +130,19 @@ namespace Uviewer.Services
                 {
                     _appTitleBar.Visibility = Visibility.Collapsed;
                     SetCaptionButtonsVisibility(false);
-                    _toolbarGrid.Visibility = Visibility.Collapsed;
+                    _toolbar.Visibility = Visibility.Collapsed;
                     _statusBarGrid.Visibility = Visibility.Collapsed;
                     _sidebarGrid.Visibility = Visibility.Collapsed;
                     if (_splitterGrid != null) _splitterGrid.Visibility = Visibility.Collapsed;
                     _sidebarColumn.Width = new GridLength(0);
                 }
 
-                _fullscreenIcon.Glyph = "\uE740";
+                _toolbar.SetFullscreenState(false);
             }
             else
             {
                 _appTitleBar.Visibility = Visibility.Collapsed;
-                _toolbarGrid.Visibility = Visibility.Collapsed;
+                _toolbar.Visibility = Visibility.Collapsed;
                 _statusBarGrid.Visibility = Visibility.Collapsed;
                 _sidebarGrid.Visibility = Visibility.Collapsed;
                 if (_windowState.IsSidebarVisible && (int)_sidebarColumn.Width.Value > 200)
@@ -169,7 +151,7 @@ namespace Uviewer.Services
                 }
                 _sidebarColumn.Width = new GridLength(0);
                 if (_splitterGrid != null) _splitterGrid.Visibility = Visibility.Collapsed;
-                _fullscreenIcon.Glyph = "\uE73F";
+                _toolbar.SetFullscreenState(true);
                 _overlayManager.StopAll();
             }
         }
@@ -189,23 +171,23 @@ namespace Uviewer.Services
             double y = pt.Position.Y;
 
             bool inTopZone = y < FullscreenOverlayManager.TopHoverZone;
-            if (_toolbarGrid.Visibility == Visibility.Visible && y < _toolbarGrid.ActualHeight)
+            if (_toolbar.Visibility == Visibility.Visible && y < _toolbar.ActualHeight)
             {
                 inTopZone = true;
             }
 
             if (inTopZone)
             {
-                if (_toolbarGrid.Visibility != Visibility.Visible)
+                if (_toolbar.Visibility != Visibility.Visible)
                 {
                     _appTitleBar.Visibility = Visibility.Visible;
                     if (!_windowState.IsFullscreen) SetCaptionButtonsVisibility(true);
-                    _toolbarGrid.Visibility = Visibility.Visible;
+                    _toolbar.Visibility = Visibility.Visible;
                     if (!_windowState.IsFullscreen) _statusBarGrid.Visibility = Visibility.Visible;
                 }
                 _overlayManager.StopToolbarTimer();
             }
-            else if (_toolbarGrid.Visibility == Visibility.Visible && !_overlayManager.IsToolbarTimerRunning)
+            else if (_toolbar.Visibility == Visibility.Visible && !_overlayManager.IsToolbarTimerRunning)
             {
                 _overlayManager.StartToolbarTimer();
             }
@@ -235,7 +217,7 @@ namespace Uviewer.Services
         {
             if (!_windowState.IsFullscreen && _windowState.IsPinned) return;
 
-            if (_toolbarGrid.Visibility == Visibility.Visible && !_overlayManager.IsToolbarTimerRunning)
+            if (_toolbar.Visibility == Visibility.Visible && !_overlayManager.IsToolbarTimerRunning)
             {
                 _overlayManager.StartToolbarTimer();
             }
@@ -256,9 +238,9 @@ namespace Uviewer.Services
             {
                 if (y < FullscreenOverlayManager.TopHoverZone)
                 {
-                    if (_toolbarGrid.Visibility != Visibility.Visible)
+                    if (_toolbar.Visibility != Visibility.Visible)
                     {
-                        _toolbarGrid.Visibility = Visibility.Visible;
+                        _toolbar.Visibility = Visibility.Visible;
                     }
                     _overlayManager.StartToolbarTimer();
                     return;
@@ -293,8 +275,7 @@ namespace Uviewer.Services
             if (_windowState.IsFullscreen) return;
 
             _windowState.TogglePin();
-            _pinButton.IsChecked = _windowState.IsPinned;
-            _pinIcon.Glyph = _windowState.IsPinned ? "\uE890" : "\uE890";
+            _toolbar.SetPinState(_windowState.IsPinned);
 
             if (_windowState.IsPinned)
             {
@@ -302,7 +283,7 @@ namespace Uviewer.Services
 
                 _appTitleBar.Visibility = Visibility.Visible;
                 SetCaptionButtonsVisibility(true);
-                _toolbarGrid.Visibility = Visibility.Visible;
+                _toolbar.Visibility = Visibility.Visible;
                 _statusBarGrid.Visibility = Visibility.Visible;
                 if (_windowState.IsSidebarVisible)
                 {
@@ -320,7 +301,7 @@ namespace Uviewer.Services
 
                 _appTitleBar.Visibility = Visibility.Collapsed;
                 SetCaptionButtonsVisibility(false);
-                _toolbarGrid.Visibility = Visibility.Collapsed;
+                _toolbar.Visibility = Visibility.Collapsed;
                 _statusBarGrid.Visibility = Visibility.Collapsed;
                 _sidebarGrid.Visibility = Visibility.Collapsed;
                 if (_splitterGrid != null) _splitterGrid.Visibility = Visibility.Collapsed;
@@ -333,7 +314,7 @@ namespace Uviewer.Services
         internal void ToggleAlwaysOnTop()
         {
             _windowState.ToggleAlwaysOnTop();
-            _alwaysOnTopButton.IsChecked = _windowState.IsAlwaysOnTop;
+            _toolbar.SetAlwaysOnTopState(_windowState.IsAlwaysOnTop);
             _saveWindowSettings();
         }
 
@@ -365,8 +346,7 @@ namespace Uviewer.Services
             _rootGrid.RequestedTheme = theme;
             _rootGrid.Focus(FocusState.Programmatic);
 
-            _themeIcon.Glyph = CurrentTheme == ElementTheme.Dark ? "\uE706" : "\uE708";
-            _globalThemeToggleButton.IsChecked = CurrentTheme == ElementTheme.Dark;
+            _toolbar.SetThemeState(CurrentTheme);
 
             UpdateThemeToggleButtonTooltip();
             UpdateTitleBarColors();
@@ -433,9 +413,7 @@ namespace Uviewer.Services
 
         internal void UpdateThemeToggleButtonTooltip()
         {
-            ToolTipService.SetToolTip(
-                _globalThemeToggleButton,
-                CurrentTheme == ElementTheme.Dark ? Strings.LightModeTooltip : Strings.DarkModeTooltip);
+            _toolbar.UpdateThemeToggleButtonTooltip(CurrentTheme);
         }
 
         internal void SetCaptionButtonsVisibility(bool isVisible)

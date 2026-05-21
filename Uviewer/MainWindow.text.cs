@@ -65,38 +65,38 @@ namespace Uviewer
 
         private async void EncodingItem_Click(object sender, RoutedEventArgs e)
         {
+            if (sender is ToggleMenuFlyoutItem item && item.Tag is string tag)
+            {
+                await ApplyEncodingSelectionAsync(tag);
+            }
+        }
+
+        private async Task ApplyEncodingSelectionAsync(string tag)
+        {
             try
             {
-                if (sender is ToggleMenuFlyoutItem item && item.Tag is string tag)
+                _settingsManager.EncodingName = tag;
+
+                MainToolbar.SetEncodingSelection(tag);
+
+                // Reload current text
+                if (!string.IsNullOrEmpty(_currentTextFilePath))
                 {
-                    _settingsManager.EncodingName = tag;
-
-                    // Update UI Check States
-                    if (EncAutoItem != null) EncAutoItem.IsChecked = (tag == "Auto Detect");
-                    if (EncUtf8Item != null) EncUtf8Item.IsChecked = (tag == "UTF-8");
-                    if (EncEucKrItem != null) EncEucKrItem.IsChecked = (tag == "EUC-KR");
-                    if (EncSjisItem != null) EncSjisItem.IsChecked = (tag == "Shift-JIS");
-                    if (EncJohabItem != null) EncJohabItem.IsChecked = (tag == "Johab");
-
-                    // Reload current text
-                    if (!string.IsNullOrEmpty(_currentTextFilePath))
+                    try
                     {
-                        try
-                        {
-                            var file = await StorageFile.GetFileFromPathAsync(_currentTextFilePath);
-                            await LoadTextFileAsync(file);
-                        }
-                        catch { }
+                        var file = await StorageFile.GetFileFromPathAsync(_currentTextFilePath);
+                        await LoadTextFileAsync(file);
                     }
-                    else if (_currentTextArchiveEntryKey != null && _archiveSession.HasArchive)
+                    catch { }
+                }
+                else if (_currentTextArchiveEntryKey != null && _archiveSession.HasArchive)
+                {
+                    try
                     {
-                        try
-                        {
-                            var entry = new ImageEntry { ArchiveEntryKey = _currentTextArchiveEntryKey, DisplayName = FileNameText.Text };
-                            await LoadTextFromArchiveEntryAsync(entry);
-                        }
-                        catch { }
+                        var entry = new ImageEntry { ArchiveEntryKey = _currentTextArchiveEntryKey, DisplayName = FileNameText.Text };
+                        await LoadTextFromArchiveEntryAsync(entry);
                     }
+                    catch { }
                 }
             }
             catch (OperationCanceledException) { }
@@ -226,11 +226,9 @@ namespace Uviewer
             _lastRecentSaveLine = -1;
 
             _isMarkdownRenderMode = preparedText.IsMarkdownRenderMode;
-            if (VerticalToggleButton != null)
-            {
-                VerticalToggleButton.IsEnabled = preparedText.CanUseVerticalMode;
-                VerticalToggleButton.IsChecked = preparedText.CanUseVerticalMode && _isVerticalMode;
-            }
+            MainToolbar.SetVerticalToggleState(
+                isChecked: preparedText.CanUseVerticalMode && _isVerticalMode,
+                isEnabled: preparedText.CanUseVerticalMode);
 
             // Unified Target Line Logic
             int targetLine = 1;
@@ -373,11 +371,10 @@ namespace Uviewer
             EpubArea.Visibility = Visibility.Collapsed; // Ensure Epub area is hidden
 
             // Toggle Toolbars
-            ImageToolbarPanel.Visibility = Visibility.Collapsed;
-            TextToolbarPanel.Visibility = Visibility.Visible;
-            SideBySideToolbarPanel.Visibility = Visibility.Collapsed;
-            SharpenButton.Visibility = Visibility.Visible;
-            SharpenSeparator.Visibility = Visibility.Visible;
+            MainToolbar.SetImageToolbarVisible(false);
+            MainToolbar.SetTextToolbarVisible(true);
+            MainToolbar.SetSideBySideToolbarVisible(false);
+            MainToolbar.SetSharpenControlsVisible(true);
 
             // Load Settings (Must happen before visibility check)
             LoadTextSettings();
@@ -415,12 +412,9 @@ namespace Uviewer
             _settingsManager.Load();
 
             _isVerticalMode = _settingsManager.IsVerticalMode;
-            if (VerticalToggleButton != null) VerticalToggleButton.IsChecked = _isVerticalMode;
+            MainToolbar.SetVerticalToggleState(isChecked: _isVerticalMode);
 
-            if (TextSizeLevelText != null)
-            {
-                TextSizeLevelText.Text = _settingsManager.FontSize.ToString();
-            }
+            MainToolbar.SetTextSizeLevel(_settingsManager.FontSize);
 
             if (!string.IsNullOrEmpty(_settingsManager.UIFontFamily))
             {
@@ -467,11 +461,10 @@ namespace Uviewer
             EpubArea.Visibility = Visibility.Collapsed;
             VerticalTextCanvas.Visibility = Visibility.Collapsed;
 
-            ImageToolbarPanel.Visibility = Visibility.Visible;
-            TextToolbarPanel.Visibility = Visibility.Collapsed;
-            SideBySideToolbarPanel.Visibility = (_currentPdfDocument != null) ? Visibility.Collapsed : Visibility.Visible;
-            SharpenButton.Visibility = (_currentPdfDocument != null) ? Visibility.Collapsed : Visibility.Visible;
-            SharpenSeparator.Visibility = (_currentPdfDocument != null) ? Visibility.Collapsed : Visibility.Visible;
+            MainToolbar.SetImageToolbarVisible(true);
+            MainToolbar.SetTextToolbarVisible(false);
+            MainToolbar.SetSideBySideToolbarVisible(_currentPdfDocument == null);
+            MainToolbar.SetSharpenControlsVisible(_currentPdfDocument == null);
 
             // 핀치 줌과 스와이프를 위해 조작 모드 활성화 (PDF 및 일반 이미지 모두)
             ImageArea.ManipulationMode = Microsoft.UI.Xaml.Input.ManipulationModes.All;
@@ -491,7 +484,7 @@ namespace Uviewer
                 _verticalKeyAttached = false;
             }
 
-            if (VerticalToggleButton != null) VerticalToggleButton.IsChecked = false;
+            MainToolbar.SetVerticalToggleState(isChecked: false);
             if (VerticalTextCanvas != null) VerticalTextCanvas.Visibility = Visibility.Collapsed;
         }
 
@@ -740,32 +733,37 @@ namespace Uviewer
 
         private async void LanguageItem_Click(object sender, RoutedEventArgs e)
         {
+            if (sender is ToggleMenuFlyoutItem item && item.Tag is string lang)
+            {
+                await ApplyLanguageSelectionAsync(lang);
+            }
+        }
+
+        private async Task ApplyLanguageSelectionAsync(string lang)
+        {
             try
             {
-                if (sender is ToggleMenuFlyoutItem item && item.Tag is string lang)
+                ApplyLanguage(lang);
+                SaveTextSettings();
+
+                // Give a moment for the system to process the language change
+                await Task.Delay(100);
+
+                // Reload strings
+                Strings.Reload();
+
+                // Refresh UI
+                ApplyLocalization();
+                UpdateLanguageMenuCheckmark();
+
+                // Refresh status bar immediately
+                if (_isTextMode || _isEpubMode || _isAozoraMode || _isVerticalMode)
                 {
-                    ApplyLanguage(lang);
-                    SaveTextSettings();
-
-                    // Give a moment for the system to process the language change
-                    await Task.Delay(100);
-
-                    // Reload strings
-                    Strings.Reload();
-
-                    // Refresh UI
-                    ApplyLocalization();
-                    UpdateLanguageMenuCheckmark();
-
-                    // Refresh status bar immediately
-                    if (_isTextMode || _isEpubMode || _isAozoraMode || _isVerticalMode)
-                    {
-                        UpdateTextStatusBar();
-                    }
-                    else if (_imageEntries != null && _currentIndex >= 0 && _currentIndex < _imageEntries.Count && _currentBitmap != null)
-                    {
-                        UpdateStatusBar(_imageEntries[_currentIndex], _currentBitmap);
-                    }
+                    UpdateTextStatusBar();
+                }
+                else if (_imageEntries != null && _currentIndex >= 0 && _currentIndex < _imageEntries.Count && _currentBitmap != null)
+                {
+                    UpdateStatusBar(_imageEntries[_currentIndex], _currentBitmap);
                 }
             }
             catch (OperationCanceledException) { }
@@ -811,13 +809,7 @@ namespace Uviewer
             string current = _settingsManager.Language;
             if (string.IsNullOrEmpty(current)) current = "Auto";
 
-            if (LangAutoItem != null) LangAutoItem.IsChecked = current == "Auto";
-            if (LangKoItem != null) LangKoItem.IsChecked = current == "ko-KR";
-            if (LangEnItem != null) LangEnItem.IsChecked = current == "en-US";
-            if (LangJaItem != null) LangJaItem.IsChecked = current == "ja-JP";
-            if (LangZhHansItem != null) LangZhHansItem.IsChecked = current == "zh-Hans";
-            if (LangZhHantItem != null) LangZhHantItem.IsChecked = current == "zh-Hant";
-            if (LangViItem != null) LangViItem.IsChecked = current == "vi-VN";
+            MainToolbar.SetLanguageSelection(current);
         }
 
 
@@ -920,11 +912,9 @@ namespace Uviewer
             if (CurrentPathText is TextBlock cpt) cpt.FontFamily = ff;
             if (NotificationText is TextBlock nt) nt.FontFamily = ff;
             if (FileNameText is TextBlock fnt) fnt.FontFamily = ff;
-            if (ZoomLevelText is TextBlock zlt) zlt.FontFamily = ff;
-            if (TextSizeLevelText is TextBlock tslt) tslt.FontFamily = ff;
+            MainToolbar.ApplyUiFont(ff);
 
             // Favorites & Recent Containers (Pivots are Controls, so they have FontFamily)
-            if (FavoritesPivot != null) FavoritesPivot.FontFamily = ff;
             if (SidebarFavoritesPivot != null) SidebarFavoritesPivot.FontFamily = ff;
 
             // Refresh dynamic items to apply font to already created elements
@@ -987,9 +977,7 @@ namespace Uviewer
 
         private void UpdateFontSettingsMenu()
         {
-            if (SetDefaultFont1MenuItem != null) SetDefaultFont1MenuItem.Text = $"{Strings.DefaultFont1Label}: {_settingsManager.DefaultFont1}";
-            if (SetDefaultFont2MenuItem != null) SetDefaultFont2MenuItem.Text = $"{Strings.DefaultFont2Label}: {_settingsManager.DefaultFont2}";
-            if (ResetDefaultFontsMenuItem != null) ResetDefaultFontsMenuItem.Text = Strings.ResetButton;
+            MainToolbar.UpdateDefaultFontMenu(_settingsManager.DefaultFont1, _settingsManager.DefaultFont2);
         }
 
         private void SetDefaultFont1MenuItem_Click(object sender, RoutedEventArgs e)
@@ -1044,7 +1032,7 @@ namespace Uviewer
             {
                 _settingsManager.FontSize += 2;
                 if (_settingsManager.FontSize > 72) _settingsManager.FontSize = 72;
-                TextSizeLevelText.Text = _settingsManager.FontSize.ToString();
+                MainToolbar.SetTextSizeLevel(_settingsManager.FontSize);
                 SaveTextSettings();
                 await RefreshTextDisplay();
             }
@@ -1067,7 +1055,7 @@ namespace Uviewer
             {
                 _settingsManager.FontSize -= 2;
                 if (_settingsManager.FontSize < 8) _settingsManager.FontSize = 8;
-                TextSizeLevelText.Text = _settingsManager.FontSize.ToString();
+                MainToolbar.SetTextSizeLevel(_settingsManager.FontSize);
                 SaveTextSettings();
                 await RefreshTextDisplay();
             }
@@ -1131,18 +1119,11 @@ namespace Uviewer
                 DisableVerticalModeForImageDocument();
             }
 
-            anchor = SearchOverlayService.ResolveAnchor(
+            MainToolbar.ShowSearchOverlay(
+                _searchOverlayService,
                 _currentPdfDocument != null,
                 anchor,
-                PdfGoToPageButton,
-                ImageToolbarPanel,
-                RootGrid,
-                GoToPageButton);
-
-            if (anchor != null)
-            {
-                _searchOverlayService.Show(anchor, RootGrid);
-            }
+                RootGrid);
         }
 
         private void SetActiveSearchQuery(string? query)
@@ -1456,7 +1437,7 @@ namespace Uviewer
         {
             await AddToRecentAsync(true);
             _isVerticalMode = !_isVerticalMode;
-            if (VerticalToggleButton != null) VerticalToggleButton.IsChecked = _isVerticalMode;
+            MainToolbar.SetVerticalToggleState(isChecked: _isVerticalMode);
             SaveTextSettings();
             ToggleVerticalMode();
         }

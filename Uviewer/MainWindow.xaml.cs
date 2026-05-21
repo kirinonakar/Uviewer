@@ -239,6 +239,7 @@ namespace Uviewer
 
             InitializeComponent();
             MainToolbar.ImageOptions = ImageOptions;
+            HookMainToolbarEvents();
             HookExtractedControlEvents();
             _searchOverlayService = new Services.SearchOverlayService(
                 SearchCurrentDocumentAsync,
@@ -292,17 +293,11 @@ namespace Uviewer
                     this,
                     RootGrid,
                     AppTitleBar,
-                    ToolbarGrid,
+                    MainToolbar,
                     StatusBarGrid,
                     SidebarGrid,
                     SplitterGrid,
                     SidebarColumn,
-                    FullscreenIcon,
-                    PinButton,
-                    PinIcon,
-                    AlwaysOnTopButton,
-                    GlobalThemeToggleButton,
-                    ThemeIcon,
                     _windowState,
                     _overlayManager,
                     () => _windowSettingsCoordinator.SaveWindowSettings(),
@@ -505,46 +500,17 @@ namespace Uviewer
 
         private void ApplyLocalization()
         {
+            MainToolbar.ApplyLocalization();
+
             // Tooltips
-            ToolTipService.SetToolTip(ToggleSidebarButton, Strings.ToggleSidebarTooltip);
-            ToolTipService.SetToolTip(OpenFileButton, Strings.OpenFileTooltip);
-            ToolTipService.SetToolTip(OpenFolderButton, Strings.OpenFolderTooltip);
-            ToolTipService.SetToolTip(ZoomOutButton, Strings.ZoomOutTooltip);
-            ToolTipService.SetToolTip(ZoomInButton, Strings.ZoomInTooltip);
-            ToolTipService.SetToolTip(ZoomFitButton, Strings.ZoomFitTooltip);
-            ToolTipService.SetToolTip(ZoomActualButton, Strings.ZoomActualTooltip);
-            ToolTipService.SetToolTip(SharpenButton, Strings.SharpenTooltip);
-            ToolTipService.SetToolTip(SideBySideButton, Strings.SideBySideTooltip);
-            ToolTipService.SetToolTip(NextImageSideButton, Strings.NextImageSideTooltip);
-            ToolTipService.SetToolTip(AozoraToggleButton, Strings.AozoraTooltip);
-            ToolTipService.SetToolTip(VerticalToggleButton, Strings.VerticalTooltip);
-            ToolTipService.SetToolTip(FontToggleButton, Strings.FontTooltip);
-            ToolTipService.SetToolTip(GoToPageButton, Strings.GoToPageTooltip);
-            ToolTipService.SetToolTip(TextSizeDownButton, Strings.TextSizeDownTooltip);
-            ToolTipService.SetToolTip(TextSizeUpButton, Strings.TextSizeUpTooltip);
-            ToolTipService.SetToolTip(ThemeToggleButton, Strings.ThemeTooltip);
-            ToolTipService.SetToolTip(FullscreenButton, Strings.FullscreenTooltip);
-            ToolTipService.SetToolTip(CloseWindowButton, Strings.CloseWindowTooltip);
             UpdateToggleViewButtonTooltip();
             ToolTipService.SetToolTip(ParentFolderButton, Strings.ParentFolderTooltip);
-            ToolTipService.SetToolTip(RecentButton, Strings.RecentTooltip);
             ToolTipService.SetToolTip(SidebarFavoritesButton, Strings.FavoritesTooltip);
             ToolTipService.SetToolTip(SidebarRecentButton, Strings.RecentTooltip);
-            ToolTipService.SetToolTip(FavoritesButton, Strings.FavoritesTooltip);
             ToolTipService.SetToolTip(BrowseFolderButton, Strings.BrowseFolderTooltip);
             ToolTipService.SetToolTip(WebDavButton, Strings.WebDavTooltip);
             if (AddWebDavButton != null) AddWebDavButton.Content = Strings.AddWebDavServer;
-            ToolTipService.SetToolTip(TocButton, Strings.TocTooltip);
-            ToolTipService.SetToolTip(PdfTocButton, Strings.TocTooltip);
-            ToolTipService.SetToolTip(PdfGoToPageButton, Strings.PdfGoToPageTooltip);
-            ToolTipService.SetToolTip(SettingsButton, Strings.SettingsTooltip);
-            ToolTipService.SetToolTip(PinButton, Strings.PinTooltip);
-            ToolTipService.SetToolTip(AlwaysOnTopButton, Strings.AlwaysOnTopTooltip);
             UpdateThemeToggleButtonTooltip();
-            ToolTipService.SetToolTip(PrevFileButton, Strings.PrevFileTooltip);
-            ToolTipService.SetToolTip(NextFileButton, Strings.NextFileTooltip);
-            ToolTipService.SetToolTip(PrevPageButton, Strings.PrevPageTooltip);
-            ToolTipService.SetToolTip(NextPageButton, Strings.NextPageTooltip);
             _searchOverlayService?.ApplyLocalization();
 
             // Texts
@@ -573,45 +539,9 @@ namespace Uviewer
             TextFastNavText.Text = Strings.TextFastNavText;
 
             // Menus
-            if (AddToFavoritesButton != null) AddToFavoritesButton.Content = Strings.AddToFavorites;
             if (SidebarAddToFavoritesButton != null) SidebarAddToFavoritesButton.Content = Strings.AddToFavorites;
-            if (ChangeFontMenuItem != null) ChangeFontMenuItem.Text = Strings.ChangeFont;
-            if (ChangeUiFontMenuItem != null) ChangeUiFontMenuItem.Text = Strings.ChangeUiFont;
-            if (EncodingMenuItem != null) EncodingMenuItem.Text = Strings.EncodingMenu;
-            if (EncAutoItem != null) EncAutoItem.Text = Strings.EncAuto;
-            if (EncUtf8Item != null) EncUtf8Item.Text = Strings.EncUtf8;
-            if (EncEucKrItem != null) EncEucKrItem.Text = Strings.EncEucKr;
-            if (EncSjisItem != null) EncSjisItem.Text = Strings.EncSjis;
-            if (EncJohabItem != null) EncJohabItem.Text = Strings.EncJohab;
-            if (ChangeColorsMenuItem != null) ChangeColorsMenuItem.Text = Strings.ChangeColors;
-            if (MatchControlDirectionMenuItem != null)
-            {
-                MatchControlDirectionMenuItem.Text = Strings.MatchControlDirection;
-                ToolTipService.SetToolTip(MatchControlDirectionMenuItem, Strings.MatchControlDirectionTooltip);
-            }
-            if (AllowMultipleInstancesMenuItem != null)
-            {
-                AllowMultipleInstancesMenuItem.Text = Strings.AllowMultipleInstances;
-                ToolTipService.SetToolTip(AllowMultipleInstancesMenuItem, Strings.AllowMultipleInstancesTooltip);
-            }
-            if (AutoDoublePageForArchiveMenuItem != null)
-            {
-                AutoDoublePageForArchiveMenuItem.Text = Strings.AutoDoublePageForArchive;
-            }
-            if (AboutMenuItem != null) AboutMenuItem.Text = Strings.About;
-
-            if (LanguageMenuItem != null) LanguageMenuItem.Text = Strings.LanguageSelection;
-            if (LangAutoItem != null) LangAutoItem.Text = Strings.LanguageAuto;
-            if (LangKoItem != null) LangKoItem.Text = Strings.LanguageKorean;
-            if (LangEnItem != null) LangEnItem.Text = Strings.LanguageEnglish;
-            if (LangJaItem != null) LangJaItem.Text = Strings.LanguageJapanese;
-            if (LangZhHansItem != null) LangZhHansItem.Text = Strings.LanguageChineseSimplified;
-            if (LangZhHantItem != null) LangZhHantItem.Text = Strings.LanguageChineseTraditional;
-            if (LangViItem != null) LangViItem.Text = Strings.LanguageVietnamese;
 
             // Favorites Pivot Headers
-            if (FileFavoritesPivotItem != null) FileFavoritesPivotItem.Header = Strings.FavoritesFiles;
-            if (FolderFavoritesPivotItem != null) FolderFavoritesPivotItem.Header = Strings.FavoritesFolders;
             if (SidebarFileFavoritesPivotItem != null) SidebarFileFavoritesPivotItem.Header = Strings.FavoritesFiles;
             if (SidebarFolderFavoritesPivotItem != null) SidebarFolderFavoritesPivotItem.Header = Strings.FavoritesFolders;
 
@@ -631,15 +561,6 @@ namespace Uviewer
             if (FolderThumbnailsCheckBox != null) FolderThumbnailsCheckBox.Content = Strings.ShowFolderThumbnailsLabel;
             ApplyThumbnailSettingsToControls();
 
-            // Sharpen & Upscale Flyout
-            if (SharpenSettingsTitleText != null) SharpenSettingsTitleText.Text = Strings.SharpenSettingsTitle;
-            if (UpscaleLabel != null) UpscaleLabel.Text = Strings.UpscaleFactorLabel;
-            if (SharpenAmountLabel != null) SharpenAmountLabel.Text = Strings.SharpenAmountLabel;
-            if (SharpenThresholdLabel != null) SharpenThresholdLabel.Text = Strings.SharpenThresholdLabel;
-            if (UnsharpAmountLabel != null) UnsharpAmountLabel.Text = Strings.UnsharpAmountLabel;
-            if (UnsharpRadiusLabel != null) UnsharpRadiusLabel.Text = Strings.UnsharpRadiusLabel;
-            if (SharpenParamsResetButton != null) SharpenParamsResetButton.Content = Strings.ResetButton;
-            
             UpdateFontSettingsMenu();
 
             // Trigger x:Bind Refresh

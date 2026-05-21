@@ -159,10 +159,7 @@ namespace Uviewer
                     }
                 }
 
-                if (AozoraToggleButton != null)
-                {
-                    AozoraToggleButton.IsChecked = _isAozoraMode;
-                }
+                MainToolbar.SetAozoraToggleChecked(_isAozoraMode);
             }
             catch { }
         }
@@ -235,7 +232,7 @@ namespace Uviewer
                 _aozoraPendingTargetLine = currentLine > 0 ? currentLine : 1;
                 _isAozoraMode = !_isAozoraMode;
 
-                if (AozoraToggleButton != null) AozoraToggleButton.IsChecked = _isAozoraMode;
+                MainToolbar.SetAozoraToggleChecked(_isAozoraMode);
                 SaveAozoraSettings();
 
                 if (!string.IsNullOrEmpty(_currentTextContent))
@@ -752,11 +749,7 @@ namespace Uviewer
             {
                 if (!_isTextMode && !_isEpubMode) return;
 
-                // Ensure TOC Title
-                if (TocFlyout.Content is Grid g && g.Children.Count > 0 && g.Children[0] is TextBlock tb)
-                {
-                    tb.Text = Strings.TocTitle;
-                }
+                MainToolbar.SetTextTocTitle(Strings.TocTitle);
 
                 var items = _tocService.CurrentToc;
 
@@ -831,19 +824,11 @@ namespace Uviewer
                     displayItems.Add(new TocItem { HeadingText = Strings.NoTocContent, SourceLineNumber = -1 });
                 }
 
-                TocListView.ItemsSource = displayItems;
+                MainToolbar.SetTextTocItems(displayItems);
 
                 if (currentIndex >= 0)
                 {
-                    // Ensure layout updated before scrolling
-                    this.DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, () =>
-                    {
-                        try
-                        {
-                            TocListView.ScrollIntoView(displayItems[currentIndex], ScrollIntoViewAlignment.Leading);
-                        }
-                        catch { }
-                    });
+                    MainToolbar.ScrollTextTocIntoView(displayItems[currentIndex]);
                 }
             }
             catch (OperationCanceledException) { }
@@ -858,7 +843,7 @@ namespace Uviewer
         {
             if (e.ClickedItem is TocItem item)
             {
-                TocFlyout.Hide();
+                MainToolbar.HideTextTocFlyout();
 
                 if (_isEpubMode)
                 {

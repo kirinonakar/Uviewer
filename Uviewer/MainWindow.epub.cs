@@ -230,7 +230,7 @@ namespace Uviewer
 
                  if (_isVerticalMode)
                  {
-                     if (VerticalToggleButton != null) VerticalToggleButton.IsChecked = true;
+                     MainToolbar.SetVerticalToggleState(isChecked: true);
                      if (!_verticalKeyAttached && RootGrid != null)
                      {
                          RootGrid.PreviewKeyDown += RootGrid_Vertical_PreviewKeyDown;
@@ -323,13 +323,12 @@ namespace Uviewer
             EpubArea.UpdateLayout();
             RootGrid?.UpdateLayout();
             
-            ImageToolbarPanel.Visibility = Visibility.Collapsed;
-            TextToolbarPanel.Visibility = Visibility.Visible; // Reuse text toolbar for now
-            if (VerticalToggleButton != null) VerticalToggleButton.IsEnabled = true; // 버튼 활성화 확인
+            MainToolbar.SetImageToolbarVisible(false);
+            MainToolbar.SetTextToolbarVisible(true); // Reuse text toolbar for now
+            MainToolbar.SetVerticalToggleState(isEnabled: true); // 버튼 활성화 확인
             
-            SideBySideToolbarPanel.Visibility = Visibility.Visible;
-            SharpenButton.Visibility = Visibility.Visible;
-            SharpenSeparator.Visibility = Visibility.Visible;
+            MainToolbar.SetSideBySideToolbarVisible(true);
+            MainToolbar.SetSharpenControlsVisible(true);
             UpdateSideBySideButtonState();
             UpdateNextImageSideButtonState();
             
@@ -1057,10 +1056,7 @@ namespace Uviewer
 
         private void UpdateEpubToolbarUI()
         {
-            if (TextSizeLevelText != null)
-            {
-                TextSizeLevelText.Text = _settingsManager.FontSize.ToString();
-            }
+            MainToolbar.SetTextSizeLevel(_settingsManager.FontSize);
         }
 
 

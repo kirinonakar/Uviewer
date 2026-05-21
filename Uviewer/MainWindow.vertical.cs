@@ -129,7 +129,7 @@ namespace Uviewer
             {
                 // Save current position before switching mode
                 await AddToRecentAsync(true);
-                _isVerticalMode = VerticalToggleButton?.IsChecked ?? false;
+                _isVerticalMode = MainToolbar.IsVerticalToggleChecked;
                 SaveTextSettings();
                 ToggleVerticalMode();
             }

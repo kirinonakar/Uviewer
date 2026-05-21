@@ -71,14 +71,7 @@ namespace Uviewer
                     }
                     _imageEntries = newEntries;
 
-                    if (PdfGoToPageButton != null)
-                    {
-                        PdfGoToPageButton.Visibility = Visibility.Visible;
-                    }
-                    if (PdfSeparator != null)
-                    {
-                        PdfSeparator.Visibility = Visibility.Visible;
-                    }
+                    MainToolbar.SetPdfGoToPageVisible(true);
 
                     // Load TOC with PdfPig in background
                     string tocPdfPath = pdfPath;
@@ -95,10 +88,7 @@ namespace Uviewer
                             {
                                 if (!IsCurrentPdfPath(tocPdfPath)) return;
 
-                                if (PdfTocButton != null)
-                                {
-                                    PdfTocButton.Visibility = Visibility.Visible;
-                                }
+                                MainToolbar.SetPdfTocVisible(true);
                             });
                         }
                         catch (Exception tocEx)
@@ -112,9 +102,8 @@ namespace Uviewer
                     _pdfLock.Release();
                 }
 
-                SideBySideToolbarPanel.Visibility = Visibility.Collapsed;
-                SharpenButton.Visibility = Visibility.Collapsed;
-                SharpenSeparator.Visibility = Visibility.Collapsed;
+                MainToolbar.SetSideBySideToolbarVisible(false);
+                MainToolbar.SetSharpenControlsVisible(false);
 
                 // Reset PDF view state for the new document
                 _zoomLevel = 1.0;
@@ -195,9 +184,8 @@ namespace Uviewer
                 // UI 스레드에서 버튼 가리기
                 DispatcherQueue.TryEnqueue(() =>
                 {
-                    if (PdfTocButton != null) PdfTocButton.Visibility = Visibility.Collapsed;
-                    if (PdfGoToPageButton != null) PdfGoToPageButton.Visibility = Visibility.Collapsed;
-                    if (PdfSeparator != null) PdfSeparator.Visibility = Visibility.Collapsed;
+                    MainToolbar.SetPdfTocVisible(false);
+                    MainToolbar.SetPdfGoToPageVisible(false);
                     Title = "Uviewer - Image & Text Viewer";
                 });
 
@@ -352,11 +340,7 @@ namespace Uviewer
         {
             if (_currentPdfDocument == null) return;
 
-            // Ensure TOC Title
-            if (PdfTocFlyout.Content is Grid g && g.Children.Count > 0 && g.Children[0] is TextBlock tb)
-            {
-                tb.Text = Strings.TocTitle;
-            }
+            MainToolbar.SetPdfTocTitle(Strings.TocTitle);
 
             var items = _tocService.CurrentToc;
 
@@ -393,19 +377,11 @@ namespace Uviewer
                 displayItems.Add(new TocItem { HeadingText = Strings.NoTocContent, SourceLineNumber = -1 });
             }
 
-            PdfTocListView.ItemsSource = displayItems;
+            MainToolbar.SetPdfTocItems(displayItems);
             
             if (currentIndex >= 0)
             {
-                // Ensure layout updated before scrolling
-                this.DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, () =>
-                {
-                    try
-                    {
-                        PdfTocListView.ScrollIntoView(displayItems[currentIndex], ScrollIntoViewAlignment.Leading);
-                    }
-                    catch { }
-                });
+                MainToolbar.ScrollPdfTocIntoView(displayItems[currentIndex]);
             }
         }
 
@@ -413,7 +389,7 @@ namespace Uviewer
         {
             if (e.ClickedItem is TocItem item)
             {
-                PdfTocFlyout.Hide();
+                MainToolbar.HidePdfTocFlyout();
                 
                 if (item.SourceLineNumber >= 0 && item.SourceLineNumber < _imageEntries.Count)
                 {
