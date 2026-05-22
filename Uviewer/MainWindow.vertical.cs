@@ -72,7 +72,7 @@ namespace Uviewer
 
         public void TriggerVerticalResize()
         {
-            if (!_isVerticalMode) return;
+            if (_isWindowClosing || !_isVerticalMode) return;
 
             if (_verticalResizeTimer == null)
             {
@@ -81,6 +81,12 @@ namespace Uviewer
                 _verticalResizeTimer.IsRepeating = false;
                 _verticalResizeTimer.Tick += (s, e) =>
                 {
+                     if (_isWindowClosing || !_isVerticalMode)
+                     {
+                         _verticalResizeTimer?.Stop();
+                         return;
+                     }
+
                      if (_isVerticalMode)
                      {
                          // [핵심] 글자 크기나 창 크기가 바뀌면 측정 캐시와 이전 페이지 캐시를 모두 비워야 정확한 재배치가 가능합니다.
@@ -119,8 +125,11 @@ namespace Uviewer
             _imageResourceService.ClearTextEntries(); // vertical 이미지 캐시/누락 목록 초기화
             _pendingVerticalStartBlockIndex = -1;
             ClearBackwardCache();
-            VerticalTextCanvas?.Invalidate();
-            UpdateVerticalStatusBar();
+            if (!_isWindowClosing)
+            {
+                VerticalTextCanvas?.Invalidate();
+                UpdateVerticalStatusBar();
+            }
         }
 
         private async void VerticalToggleButton_Click(object sender, RoutedEventArgs e)

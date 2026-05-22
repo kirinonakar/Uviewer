@@ -390,12 +390,31 @@ namespace Uviewer
             {
                 _isWindowClosing = true;
                 bool wasPdfOpen = _currentPdfDocument != null;
-                _preloadManager?.Dispose();
+                using var shutdownFallbackCts = new CancellationTokenSource();
+                _ = Task.Run(async () =>
+                {
+                    try
+                    {
+                        await Task.Delay(TimeSpan.FromSeconds(8), shutdownFallbackCts.Token);
+                        Environment.Exit(0);
+                    }
+                    catch (OperationCanceledException) { }
+                    catch { }
+                });
+
                 try
                 {
+                    // Save current position before document state is cleared.
+                    await AddToRecentAsync(true);
+
+                    _preloadManager?.Dispose();
+
                     // Stop all timers
+                    _notificationTimer?.Stop();
+                    _verticalResizeTimer?.Stop();
                     _overlayManager.StopAll();
                     _animatedWebpService.Stop();
+                    _searchOverlayService?.Dispose();
 
 
                     // Cancel any ongoing operations
@@ -403,6 +422,7 @@ namespace Uviewer
                     _textReaderState.CancelGlobalLoad();
                     _textReaderState.CancelPageCalculation();
                     ShutdownPdfResources();
+                    ShutdownEpubResources();
                     // Clean up fast navigation timer
                     _fastNavigationService?.Dispose();
 
@@ -434,8 +454,6 @@ namespace Uviewer
 
                     // Save settings
                     _windowSettingsCoordinator.SaveWindowSettings();
-                    // Save current position before closing
-                    await AddToRecentAsync(true);
 
                     await _recentService.SaveRecentItemsAsync();
                     await _favoritesService.SaveFavoritesAsync();
@@ -456,6 +474,11 @@ namespace Uviewer
                 catch (Exception ex)
                 {
                     System.Diagnostics.Debug.WriteLine($"Error during cleanup: {ex.Message}");
+                }
+                finally
+                {
+                    shutdownFallbackCts.Cancel();
+                    Environment.Exit(0);
                 }
             };
 

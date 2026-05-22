@@ -22,6 +22,7 @@ namespace Uviewer.Models
         public CancellationToken RestartPreload()
         {
             PreloadCts?.Cancel();
+            PreloadCts?.Dispose();
             PreloadCts = new CancellationTokenSource();
             return PreloadCts.Token;
         }
@@ -29,6 +30,8 @@ namespace Uviewer.Models
         public void ClearPreload()
         {
             PreloadCts?.Cancel();
+            PreloadCts?.Dispose();
+            PreloadCts = null;
             PreloadCache.Clear();
             ChapterHasText.Clear();
         }

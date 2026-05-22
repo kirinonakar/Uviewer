@@ -77,7 +77,7 @@ namespace Uviewer
 
         public void TriggerEpubResize()
         {
-            if (!_isEpubMode) return;
+            if (_isWindowClosing || !_isEpubMode) return;
 
             if (_epubResizeTimer == null)
             {
@@ -88,13 +88,22 @@ namespace Uviewer
                 {
                     try
                     {
+                        if (_isWindowClosing || !_isEpubMode)
+                        {
+                            _epubResizeTimer?.Stop();
+                            return;
+                        }
+
                         if (_isEpubMode)
                         {
                             // [버그 수정] 로딩 중에 SizeChanged가 발생하면 _epubWin2DPages가 없어서 리사이즈가 취소되는 문제 해결.
                             // 로딩 중이라면 타이머를 연장하여 로딩이 끝난 뒤에 반영되게 유도합니다.
                             if (CurrentEpubWin2DPage == null || _epubWin2DPages == null || _epubWin2DPages.Count == 0) 
                             {
-                                _epubResizeTimer?.Start();
+                                if (!_isWindowClosing)
+                                {
+                                    _epubResizeTimer?.Start();
+                                }
                                 return;
                             }
 
@@ -254,11 +263,15 @@ namespace Uviewer
                  _epubChapterHasText.Clear();
                  
                  // 4. Load TOC (Background)
+                int tocSessionVersion = _epubSession.Version;
+                var tocArchive = _epubSession.Archive;
+                var tocPath = _epubSession.TocPath;
+                var tocSpine = _epubSpine.ToList();
                 _ = Task.Run(async () => {
-                    var tocPath = _epubSession.TocPath;
-                    if (_epubSession.Archive != null && !string.IsNullOrEmpty(tocPath))
+                    if (_isWindowClosing || tocSessionVersion != _epubSession.Version) return;
+                    if (tocArchive != null && !string.IsNullOrEmpty(tocPath))
                     {
-                        _tocService.SetProvider(new EpubTocProvider(_epubSession.Archive, tocPath, _epubSpine));
+                        _tocService.SetProvider(new EpubTocProvider(tocArchive, tocPath, tocSpine));
                         await _tocService.LoadTocAsync();
                     }
                 });
@@ -280,18 +293,52 @@ namespace Uviewer
         // [안정성 수정] 동기 Wait → 비동기 WaitAsync로 전환하여 UI 프리징 방지
         private async Task<bool> CloseCurrentEpubAsync()
         {
+            StopEpubResizeTimer();
+            _epubReaderState.ClearPreload();
+            _tocService.Clear();
+
             if (!await _epubSession.CloseAsync(TimeSpan.FromSeconds(10)))
             {
                 return false;
             }
 
+            _isEpubMode = false;
             _currentEpubFilePath = null;
+            _currentEpubDisplayName = null;
             _currentEpubChapterIndex = 0;
             _epubReaderState.ClearAll();
             _imageResourceService.ClearEpubEntries();
             _aozoraBlocks.Clear();
             ClearVerticalDisplayState();
             return true;
+        }
+
+        private void StopEpubResizeTimer()
+        {
+            try
+            {
+                _epubResizeTimer?.Stop();
+            }
+            catch { }
+        }
+
+        private void ShutdownEpubResources()
+        {
+            StopEpubResizeTimer();
+            _tocService.Clear();
+            _epubReaderState.ClearAll();
+            _imageResourceService.ClearEpubEntries();
+            _aozoraBlocks.Clear();
+            _isEpubMode = false;
+            _currentEpubFilePath = null;
+            _currentEpubDisplayName = null;
+            _currentEpubChapterIndex = 0;
+
+            try
+            {
+                _epubSession.Close(TimeSpan.FromMilliseconds(500));
+            }
+            catch { }
         }
         
         // [하위 호환] 동기 호출이 필요한 곳(Window.Closed 등)을 위한 래퍼
@@ -337,6 +384,8 @@ namespace Uviewer
 
         private async Task PreloadEpubChaptersAsync(int currentIndex)
         {
+            if (_isWindowClosing || !_isEpubMode) return;
+
             var token = _epubReaderState.RestartPreload();
 
             try
@@ -354,6 +403,8 @@ namespace Uviewer
                     if (token.IsCancellationRequested) return;
 
                     var pages = await RenderEpubPagesAsync(html, path);
+                    if (_isWindowClosing || token.IsCancellationRequested || !_isEpubMode) return;
+
                     _epubPreloadCache[idx] = pages;
                     _epubChapterHasText[idx] = pages.Any(p => !p.IsImagePage);
 
@@ -645,6 +696,7 @@ namespace Uviewer
 
         private async Task LoadEpubImageForWin2DAsync(string imagePath)
         {
+            if (_isWindowClosing || !_isEpubMode) return;
             if (string.IsNullOrEmpty(imagePath)) return;
 
             string cacheKey = Services.ImageResourceService.GetEpubCacheKey(imagePath);
@@ -655,6 +707,8 @@ namespace Uviewer
 
             var device = EpubTextCanvas?.Device ?? CanvasDevice.GetSharedDevice();
             bool IsStillCurrentEpub() =>
+                !_isWindowClosing &&
+                _isEpubMode &&
                 _epubSession.Version == sessionVersionAtStart &&
                 string.Equals(_currentEpubFilePath, filePathAtStart, StringComparison.OrdinalIgnoreCase);
 
@@ -676,6 +730,7 @@ namespace Uviewer
 
         private void ShowEpubImagePage(EpubWin2DPage page)
         {
+            if (_isWindowClosing || !_isEpubMode) return;
             if (page == null || !page.IsImagePage) return;
             
             // 가시성 상태가 이미 동일하면 변경하지 않음 (불필요한 레이아웃 갱신 방지)
@@ -902,6 +957,7 @@ namespace Uviewer
 
         private async Task LoadEpubChapterAsync(int index, bool fromEnd = false, int targetLine = -1, int targetBlockIndex = -1, int targetPage = -1, double? progress = null, CancellationToken token = default)
         {
+            if (_isWindowClosing || !_isEpubMode) return;
             if (index < 0 || index >= _epubSpine.Count) return;
 
             try
@@ -979,17 +1035,23 @@ namespace Uviewer
                     }
                 }
                 
+                if (_isWindowClosing || token.IsCancellationRequested || !_isEpubMode) return;
+
                 SetEpubPageIndex(finalTargetPage);
                 _ = PreloadEpubChaptersAsync(index);
             }
             finally
             {
-                FileNameText.Text = FileExplorerService.GetFormattedDisplayName(_currentEpubDisplayName ?? Path.GetFileName(_currentEpubFilePath) ?? "", false);
+                if (!_isWindowClosing)
+                {
+                    FileNameText.Text = FileExplorerService.GetFormattedDisplayName(_currentEpubDisplayName ?? Path.GetFileName(_currentEpubFilePath) ?? "", false);
+                }
             }
         }
 
         private void SetEpubPageIndex(int index)
         {
+            if (_isWindowClosing || !_isEpubMode) return;
             if (index < 0 || index >= _epubWin2DPages.Count) return;
 
             _currentEpubPageIndex = index;

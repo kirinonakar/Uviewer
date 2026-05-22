@@ -46,10 +46,12 @@ namespace Uviewer
         private static int _comExitCompleted;
         private static int _comActiveCallCount;
         private static int _comServerLockCount;
+        private static int _comInvokeCompleted;
         private static long _comStartedTicks;
         private const int ComIdleExitTimeoutMs = 60000;
         private const int ComMaxLifetimeMs = 300000;
         private const int ComExitFallbackDelayMs = 1500;
+        private const int ComPostInvokeExitDelayMs = 3000;
 
         // 추가 1: GC(가비지 컬렉터) 수집을 방지하기 위한 정적 변수
         private static UviewerExplorerCommandFactory? _commandFactory;
@@ -200,7 +202,15 @@ namespace Uviewer
         {
             if (IsComMaxLifetimeExceeded()) return false;
 
-            return Volatile.Read(ref _comActiveCallCount) > 0 ||
+            if (Volatile.Read(ref _comActiveCallCount) > 0)
+            {
+                return true;
+            }
+
+            // After the command has launched the viewer process, Explorer may keep the
+            // class factory locked longer than the command actually needs. Do not let
+            // that stale lock keep the COM-only process alive.
+            return Volatile.Read(ref _comInvokeCompleted) == 0 &&
                 Volatile.Read(ref _comServerLockCount) > 0;
         }
 
@@ -258,6 +268,20 @@ namespace Uviewer
             }
 
             MarkActivity();
+        }
+
+        public static void NotifyComInvokeCompleted()
+        {
+            if (!_isComActivation) return;
+            if (Volatile.Read(ref _comExitCompleted) != 0) return;
+
+            Interlocked.Exchange(ref _comInvokeCompleted, 1);
+
+            try
+            {
+                _exitTimer?.Change(ComPostInvokeExitDelayMs, Timeout.Infinite);
+            }
+            catch { }
         }
 
         private static long _lastActivityTicks = 0;

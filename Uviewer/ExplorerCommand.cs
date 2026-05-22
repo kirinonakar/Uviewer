@@ -194,6 +194,7 @@ namespace Uviewer
             finally
             {
                 App.LeaveComCall();
+                App.NotifyComInvokeCompleted();
             }
         }
 
