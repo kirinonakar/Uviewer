@@ -52,7 +52,7 @@ namespace Uviewer
 
         void IKeyboardShortcutActions.ToggleFullscreen() => ToggleFullscreen();
         void IKeyboardShortcutActions.ToggleMaximizeRestore() => ToggleMaximizeRestore();
-        void IKeyboardShortcutActions.CloseApp() => CloseWindowButton_Click(MainToolbar, new RoutedEventArgs());
+        void IKeyboardShortcutActions.CloseApp() => RequestWindowClose();
         void IKeyboardShortcutActions.NavigateVerticalPage(int offset) => NavigateVerticalPage(offset);
         Task IKeyboardShortcutActions.NavigateEpubAsync(int offset) => NavigateEpubAsync(offset);
         Task IKeyboardShortcutActions.ShowEpubGoToLineDialog() => ShowEpubGoToLineDialog();

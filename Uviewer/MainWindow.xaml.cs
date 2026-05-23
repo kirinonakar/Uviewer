@@ -79,6 +79,8 @@ namespace Uviewer
         private readonly Services.TextStatusBarService _textStatusBarService;
         private readonly Services.ImageResourceService _imageResourceService;
         private bool _isWindowClosing;
+        private int _windowCloseRequested;
+        private int _processTerminationRequested;
 
         // ImageResourceService를 _sharpeningService 다음에 생성해야 하므로
         // 필드 초기화 식 대신 생성자 내부에서 초기화합니다.
@@ -88,6 +90,13 @@ namespace Uviewer
 
         [System.Runtime.InteropServices.DllImport("user32.dll", CharSet = System.Runtime.InteropServices.CharSet.Unicode)]
         private static extern int MessageBox(IntPtr hWnd, string text, string caption, uint type);
+
+        [System.Runtime.InteropServices.DllImport("kernel32.dll", ExactSpelling = true)]
+        private static extern IntPtr GetCurrentProcess();
+
+        [System.Runtime.InteropServices.DllImport("kernel32.dll", ExactSpelling = true)]
+        [return: System.Runtime.InteropServices.MarshalAs(System.Runtime.InteropServices.UnmanagedType.Bool)]
+        private static extern bool TerminateProcess(IntPtr hProcess, uint uExitCode);
 
         private readonly Services.SevenZipExtractionCoordinator _sevenZipExtraction = new();
 
@@ -396,7 +405,7 @@ namespace Uviewer
                     try
                     {
                         await Task.Delay(TimeSpan.FromSeconds(8), shutdownFallbackCts.Token);
-                        Environment.Exit(0);
+                        TerminateCurrentProcess();
                     }
                     catch (OperationCanceledException) { }
                     catch { }
@@ -478,7 +487,7 @@ namespace Uviewer
                 finally
                 {
                     shutdownFallbackCts.Cancel();
-                    Environment.Exit(0);
+                    TerminateCurrentProcess();
                 }
             };
 
@@ -705,7 +714,38 @@ namespace Uviewer
 
         private void CloseWindowButton_Click(object sender, RoutedEventArgs e)
         {
-            Application.Current.Exit();
+            RequestWindowClose();
+        }
+
+        private void RequestWindowClose()
+        {
+            if (Interlocked.Exchange(ref _windowCloseRequested, 1) != 0) return;
+
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    await Task.Delay(TimeSpan.FromSeconds(10));
+                    TerminateCurrentProcess();
+                }
+                catch { }
+            });
+
+            Close();
+        }
+
+        private void TerminateCurrentProcess()
+        {
+            if (Interlocked.Exchange(ref _processTerminationRequested, 1) != 0) return;
+
+            try
+            {
+                TerminateProcess(GetCurrentProcess(), 0);
+            }
+            catch
+            {
+                Environment.Exit(0);
+            }
         }
 
         private void AboutMenu_Click(object sender, RoutedEventArgs e)

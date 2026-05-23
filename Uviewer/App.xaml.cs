@@ -62,6 +62,13 @@ namespace Uviewer
         [DllImport("ole32.dll")]
         private static extern int CoRevokeClassObject(uint dwCookie);
 
+        [DllImport("kernel32.dll", ExactSpelling = true)]
+        private static extern IntPtr GetCurrentProcess();
+
+        [DllImport("kernel32.dll", ExactSpelling = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        private static extern bool TerminateProcess(IntPtr hProcess, uint uExitCode);
+
         public App()
         {
             this.UnhandledException += App_UnhandledException;
@@ -195,7 +202,19 @@ namespace Uviewer
             catch { }
 
             _commandFactory = null;
-            Environment.Exit(exitCode);
+            TerminateCurrentProcess(exitCode);
+        }
+
+        private static void TerminateCurrentProcess(int exitCode)
+        {
+            try
+            {
+                TerminateProcess(GetCurrentProcess(), unchecked((uint)exitCode));
+            }
+            catch
+            {
+                Environment.Exit(exitCode);
+            }
         }
 
         private static bool ShouldDeferComExit()
