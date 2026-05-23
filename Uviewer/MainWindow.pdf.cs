@@ -116,9 +116,7 @@ namespace Uviewer
 
                 // Reset PDF view state for the new document
                 _zoomLevel = 1.0;
-                _pdfPanX = 0;
-                _pdfPanY = 0;
-                _pdfScrollDirection = 1; // Start from top
+                _imageViewportNavigationService.Reset(scrollDirection: 1); // Start from top
 
                 if (_imageEntries.Count > 0)
                 {
@@ -231,7 +229,7 @@ namespace Uviewer
             try { _pdfZoomRerenderCts?.Cancel(); } catch { }
             try { _pdfDocumentCts?.Cancel(); } catch { }
             try { _preloadManager?.CancelAll(); } catch { }
-            try { _smoothZoomTimer?.Stop(); } catch { }
+            try { _imageViewportNavigationService?.StopSmoothZoom(); } catch { }
         }
 
         private void ShutdownPdfResources()

@@ -776,32 +776,7 @@ namespace Uviewer
 
         private void ApplyLanguage(string lang)
         {
-            _settingsManager.Language = lang;
-            try
-            {
-                if (lang == "Auto" || string.IsNullOrEmpty(lang))
-                {
-                    // For Auto, we explicitly fetch the first available language from system preferences
-                    // and set it as the override to force the app's resource manager to switch.
-                    var systemLanguages = Windows.System.UserProfile.GlobalizationPreferences.Languages;
-                    if (systemLanguages.Count > 0)
-                    {
-                        Microsoft.Windows.Globalization.ApplicationLanguages.PrimaryLanguageOverride = systemLanguages[0];
-                    }
-                    else
-                    {
-                        Microsoft.Windows.Globalization.ApplicationLanguages.PrimaryLanguageOverride = "";
-                    }
-                }
-                else
-                {
-                    Microsoft.Windows.Globalization.ApplicationLanguages.PrimaryLanguageOverride = lang;
-                }
-            }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"Language apply error: {ex.Message}");
-            }
+            _textUiSettingsService.ApplyLanguage(_settingsManager, lang);
         }
 
         private void UpdateLanguageMenuCheckmark()
@@ -888,69 +863,36 @@ namespace Uviewer
 
         private void SetUiFont(string fontFamily)
         {
-            if (string.IsNullOrEmpty(fontFamily) || fontFamily == "Unknown")
+            if (_textUiSettingsService.ApplyUiFont(_settingsManager, fontFamily, CreateUiFontApplyTargets()))
             {
-                _settingsManager.UIFontFamily = "";
-                return; // Or reset to system default
+                SaveTextSettings();
             }
+        }
 
-            _settingsManager.UIFontFamily = fontFamily;
-            FontFamily ff;
-            try { ff = new FontFamily(fontFamily); }
-            catch { return; }
-
-            if (RootFontControl != null)
-            {
-                RootFontControl.FontFamily = ff;
-            }
-
-            // Explicitly set on sidebar containers to ensure inheritance in virtualized templates
-            if (FileListView != null) FileListView.FontFamily = ff;
-            if (FileGridView != null) FileGridView.FontFamily = ff;
-
-            // Cast to FrameworkElement/Control/TextBlock to avoid build ambiguity
-            if (CurrentPathText is TextBlock cpt) cpt.FontFamily = ff;
-            if (NotificationText is TextBlock nt) nt.FontFamily = ff;
-            if (FileNameText is TextBlock fnt) fnt.FontFamily = ff;
-            MainToolbar.ApplyUiFont(ff);
-
-            // Favorites & Recent Containers (Pivots are Controls, so they have FontFamily)
-            if (SidebarFavoritesPivot != null) SidebarFavoritesPivot.FontFamily = ff;
-
-            // Refresh dynamic items to apply font to already created elements
-            UpdateFavoritesMenu();
-            UpdateRecentMenu();
-            UpdateWebDavServerList();
-
-            // Update app resources to affect popups/dialogs and theme-bound items
-            try
-            {
-                var resources = Application.Current.Resources;
-                resources["ContentControlThemeFontFamily"] = ff;
-                resources["ControlContentThemeFontFamily"] = ff;
-                resources["TextControlFontFamily"] = ff;
-                resources["ComboBoxPlaceholderTextThemeFontFamily"] = ff;
-                resources["ContentPresenterFontFamily"] = ff;
-                resources["ListViewItemFontFamily"] = ff;
-                resources["GridViewItemFontFamily"] = ff;
-                resources["MenuFlyoutItemFontFamily"] = ff;
-                resources["PickerPlaceholderTextFontFamily"] = ff;
-
-                // Force WinUI to re-evaluate all {ThemeResource} bindings by toggling the theme
-                if (RootGrid != null)
+        private UiFontApplyTargets CreateUiFontApplyTargets()
+        {
+            return new UiFontApplyTargets(
+                Controls: new Control?[]
                 {
-                    var currentTheme = RootGrid.RequestedTheme;
-                    // Switch to an explicit theme then back to force reload
-                    RootGrid.RequestedTheme = (currentTheme == ElementTheme.Dark) ? ElementTheme.Light : ElementTheme.Dark;
-                    RootGrid.RequestedTheme = currentTheme;
-                }
-            }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"Font resource update error: {ex.Message}");
-            }
-
-            SaveTextSettings();
+                    RootFontControl,
+                    FileListView,
+                    FileGridView,
+                    SidebarFavoritesPivot
+                },
+                TextBlocks: new TextBlock?[]
+                {
+                    CurrentPathText,
+                    NotificationText,
+                    FileNameText
+                },
+                MainToolbar: MainToolbar,
+                ThemeRefreshRoot: RootGrid,
+                RefreshDynamicItems: () =>
+                {
+                    UpdateFavoritesMenu();
+                    UpdateRecentMenu();
+                    UpdateWebDavServerList();
+                });
         }
 
 
@@ -959,11 +901,7 @@ namespace Uviewer
         {
             try
             {
-                if (_settingsManager.FontFamily == _settingsManager.DefaultFont1)
-                    _settingsManager.FontFamily = _settingsManager.DefaultFont2;
-                else
-                    _settingsManager.FontFamily = _settingsManager.DefaultFont1;
-
+                _textUiSettingsService.ToggleFont(_settingsManager);
                 SaveTextSettings();
                 await RefreshTextDisplay();
             }
@@ -994,8 +932,7 @@ namespace Uviewer
         {
             try
             {
-                _settingsManager.DefaultFont1 = "Yu Gothic";
-                _settingsManager.DefaultFont2 = "Yu Mincho";
+                _textUiSettingsService.ResetDefaultFonts(_settingsManager);
                 UpdateFontSettingsMenu();
                 SaveTextSettings();
             }
@@ -1013,9 +950,7 @@ namespace Uviewer
             
             if (selectedFont != null)
             {
-                if (slot == 1) _settingsManager.DefaultFont1 = selectedFont;
-                else _settingsManager.DefaultFont2 = selectedFont;
-
+                _textUiSettingsService.SetDefaultFont(_settingsManager, slot, selectedFont);
                 UpdateFontSettingsMenu();
                 SaveTextSettings();
             }
@@ -1030,8 +965,7 @@ namespace Uviewer
         {
             try
             {
-                _settingsManager.FontSize += 2;
-                if (_settingsManager.FontSize > 72) _settingsManager.FontSize = 72;
+                _textUiSettingsService.IncreaseFontSize(_settingsManager);
                 MainToolbar.SetTextSizeLevel(_settingsManager.FontSize);
                 SaveTextSettings();
                 await RefreshTextDisplay();
@@ -1053,8 +987,7 @@ namespace Uviewer
         {
             try
             {
-                _settingsManager.FontSize -= 2;
-                if (_settingsManager.FontSize < 8) _settingsManager.FontSize = 8;
+                _textUiSettingsService.DecreaseFontSize(_settingsManager);
                 MainToolbar.SetTextSizeLevel(_settingsManager.FontSize);
                 SaveTextSettings();
                 await RefreshTextDisplay();
@@ -1076,9 +1009,7 @@ namespace Uviewer
         {
             try
             {
-                // [수정] 유저가 설정한 색(Custom: 3)이 있는 경우, 0(White) -> 1(Beige) -> 2(Dark) -> 3(Custom) 순으로 순환하도록 변경합니다.
-                int maxThemes = _settingsManager.CustomBackgroundColor.HasValue ? 4 : 3;
-                _settingsManager.ThemeIndex = (_settingsManager.ThemeIndex + 1) % maxThemes;
+                _textUiSettingsService.ToggleTheme(_settingsManager);
                 SaveTextSettings();
                 await RefreshTextDisplay();
             }

@@ -109,11 +109,7 @@ namespace Uviewer
         private bool _isAnimatedFrameActive;
         public ImageProcessingViewModel ImageOptions { get; } = new();
 
-        private double _pdfPanY = 0;
-        private double _pdfPanX = 0;
         private double _lastCanvasWidth = 0;
-        private volatile bool _isPdfTransitioning = false;
-        private int _pdfScrollDirection = 1;
         private bool _isSeamlessScroll = false;
         private bool _allowMultipleInstances = true;
         private bool _isRegistered = false;

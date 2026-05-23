@@ -35,6 +35,7 @@ namespace Uviewer
         private Services.ImageDoublePageDecisionService _imageDoublePageDecisionService = null!;
         private readonly Services.ImageStatusBarService _imageStatusBarService = new();
         private readonly Services.SideBySideImageLoadService _sideBySideImageLoadService = new();
+        private Services.ImageViewportNavigationService _imageViewportNavigationService = null!;
 
         // Refactored Services
         private Services.WindowSettingsCoordinator _windowSettingsCoordinator = null!;
@@ -75,6 +76,7 @@ namespace Uviewer
         private readonly Services.TextViewportService _textViewportService = new();
         private readonly Services.TextPageCalculationService _textPageCalculationService = new();
         private readonly Services.TextResumeService _textResumeService = new();
+        private readonly Services.TextUiSettingsService _textUiSettingsService = new();
         private readonly Services.ReadingProgressService _readingProgressService = new();
         private readonly Services.TextStatusBarService _textStatusBarService;
         private readonly Services.ImageResourceService _imageResourceService;
@@ -247,6 +249,9 @@ namespace Uviewer
             _textDocumentSearchService = new Services.TextDocumentSearchService(_documentSearchService);
 
             InitializeComponent();
+            _imageViewportNavigationService = new Services.ImageViewportNavigationService(
+                DispatcherQueue,
+                RerenderPdfCurrentPageAsync);
             MainToolbar.ImageOptions = ImageOptions;
             HookMainToolbarEvents();
             HookExtractedControlEvents();
@@ -434,6 +439,7 @@ namespace Uviewer
                     ShutdownEpubResources();
                     // Clean up fast navigation timer
                     _fastNavigationService?.Dispose();
+                    _imageViewportNavigationService?.Dispose();
 
                     // Clean up archive resources
                     _archiveSession.CloseOpenHandles();
@@ -869,6 +875,7 @@ namespace Uviewer
 
         private void MainCanvas_Draw(CanvasControl sender, CanvasDrawEventArgs args)
         {
+            double panY = _imageViewportNavigationService.PanY;
             ImageCanvasRenderer.DrawMainCanvas(
                 sender,
                 args,
@@ -881,8 +888,9 @@ namespace Uviewer
                 _isCurrentViewSideBySide,
                 _sharpenEnabled,
                 _isAnimatedFrameActive,
-                _pdfPanX,
-                ref _pdfPanY);
+                _imageViewportNavigationService.PanX,
+                ref panY);
+            _imageViewportNavigationService.PanY = panY;
 
             PdfSearchHighlightRenderer.Draw(
                 sender,
@@ -891,8 +899,8 @@ namespace Uviewer
                 _currentPdfDocument != null,
                 _currentIndex,
                 _zoomLevel,
-                _pdfPanX,
-                _pdfPanY,
+                _imageViewportNavigationService.PanX,
+                _imageViewportNavigationService.PanY,
                 _activePdfSearchPageIndex,
                 _activePdfSearchHighlights,
                 _activePdfSearchMatchIndex);
