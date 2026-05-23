@@ -1,10 +1,12 @@
 using Microsoft.UI;
+using Microsoft.UI.Dispatching;
 using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Controls.Primitives;
 using Microsoft.UI.Xaml.Input;
 using System;
+using System.Runtime.InteropServices;
 using Uviewer.Controls;
 
 namespace Uviewer.Services
@@ -23,6 +25,7 @@ namespace Uviewer.Services
         private readonly FullscreenOverlayManager _overlayManager;
         private readonly Action _saveWindowSettings;
         private readonly Action _invalidateThemeTargets;
+        private const int IdcArrow = 32512;
 
         internal WindowChromeController(
             Window window,
@@ -53,6 +56,12 @@ namespace Uviewer.Services
         }
 
         internal ElementTheme CurrentTheme { get; private set; } = ElementTheme.Default;
+
+        [DllImport("user32.dll")]
+        private static extern IntPtr LoadCursor(IntPtr hInstance, int lpCursorName);
+
+        [DllImport("user32.dll")]
+        private static extern IntPtr SetCursor(IntPtr hCursor);
 
         internal void ApplyInitialChromeState()
         {
@@ -153,6 +162,29 @@ namespace Uviewer.Services
                 if (_splitterGrid != null) _splitterGrid.Visibility = Visibility.Collapsed;
                 _toolbar.SetFullscreenState(true);
                 _overlayManager.StopAll();
+            }
+
+            RefreshPointerCursor();
+        }
+
+        private void RefreshPointerCursor()
+        {
+            SetArrowCursor();
+            _rootGrid.DispatcherQueue.TryEnqueue(DispatcherQueuePriority.Low, SetArrowCursor);
+        }
+
+        private static void SetArrowCursor()
+        {
+            try
+            {
+                var arrow = LoadCursor(IntPtr.Zero, IdcArrow);
+                if (arrow != IntPtr.Zero)
+                {
+                    SetCursor(arrow);
+                }
+            }
+            catch
+            {
             }
         }
 
