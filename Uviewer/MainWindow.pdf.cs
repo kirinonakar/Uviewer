@@ -30,6 +30,8 @@ namespace Uviewer
 
 
         private CancellationTokenSource? _pdfZoomRerenderCts;
+        private CancellationTokenSource? _pdfDocumentCts;
+        private int _pdfDocumentGeneration;
 
         private async Task LoadImagesFromPdfAsync(string pdfPath)
         {
@@ -56,6 +58,7 @@ namespace Uviewer
 
 
                     var file = await StorageFile.GetFileFromPathAsync(pdfPath);
+                    StartNewPdfDocumentScope();
                     _currentPdfDocument = await Windows.Data.Pdf.PdfDocument.LoadFromFileAsync(file);
 
                     var newEntries = new List<ImageEntry>();
@@ -75,22 +78,28 @@ namespace Uviewer
 
                     // Load TOC with PdfPig in background
                     string tocPdfPath = pdfPath;
+                    int tocPdfGeneration = _pdfDocumentGeneration;
+                    CancellationToken tocToken = _pdfDocumentCts?.Token ?? CancellationToken.None;
                     _ = Task.Run(async () =>
                     {
                         try
                         {
-                            _tocService.SetProvider(new PdfTocProvider(tocPdfPath));
-                            await _tocService.LoadTocAsync();
+                            await Task.Delay(750, tocToken);
+                            if (!IsCurrentPdfScope(tocPdfGeneration, tocPdfPath) || tocToken.IsCancellationRequested) return;
 
-                            if (!IsCurrentPdfPath(tocPdfPath)) return;
+                            _tocService.SetProvider(new PdfTocProvider(tocPdfPath));
+                            await _tocService.LoadTocAsync(tocToken);
+
+                            if (!IsCurrentPdfScope(tocPdfGeneration, tocPdfPath)) return;
                             
                             DispatcherQueue.TryEnqueue(() =>
                             {
-                                if (!IsCurrentPdfPath(tocPdfPath)) return;
+                                if (!IsCurrentPdfScope(tocPdfGeneration, tocPdfPath)) return;
 
                                 MainToolbar.SetPdfTocVisible(true);
                             });
                         }
+                        catch (OperationCanceledException) { }
                         catch (Exception tocEx)
                         {
                             System.Diagnostics.Debug.WriteLine($"Error reading PDF TOC: {tocEx.Message}");
@@ -203,9 +212,24 @@ namespace Uviewer
                 string.Equals(_currentPdfPath, pdfPath, StringComparison.OrdinalIgnoreCase);
         }
 
+        private bool IsCurrentPdfScope(int generation, string? pdfPath)
+        {
+            return _currentPdfDocument != null &&
+                Volatile.Read(ref _pdfDocumentGeneration) == generation &&
+                (pdfPath == null || string.Equals(_currentPdfPath, pdfPath, StringComparison.OrdinalIgnoreCase));
+        }
+
+        private void StartNewPdfDocumentScope()
+        {
+            try { _pdfDocumentCts?.Cancel(); } catch { }
+            _pdfDocumentCts = new CancellationTokenSource();
+            Interlocked.Increment(ref _pdfDocumentGeneration);
+        }
+
         private void CancelPdfOperations()
         {
             try { _pdfZoomRerenderCts?.Cancel(); } catch { }
+            try { _pdfDocumentCts?.Cancel(); } catch { }
             try { _preloadManager?.CancelAll(); } catch { }
             try { _smoothZoomTimer?.Stop(); } catch { }
         }
@@ -241,11 +265,18 @@ namespace Uviewer
 
             // 로컬 변수에 캡처하여 도중 _currentPdfDocument가 null이 되어도 크래시 방지
             var pdfDoc = _currentPdfDocument;
+            int pdfGenerationAtStart = Volatile.Read(ref _pdfDocumentGeneration);
+            string? pdfPathAtStart = _currentPdfPath;
             if (pdfDoc == null || pageIndex >= pdfDoc.PageCount) return null;
 
             try
             {
-                if (token.IsCancellationRequested) return null;
+                using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(
+                    token,
+                    _pdfDocumentCts?.Token ?? CancellationToken.None);
+                var linkedToken = linkedCts.Token;
+
+                if (linkedToken.IsCancellationRequested || !IsCurrentPdfScope(pdfGenerationAtStart, pdfPathAtStart)) return null;
 
                 using var pdfPage = pdfDoc.GetPage(pageIndex);
                 using var stream = new Windows.Storage.Streams.InMemoryRandomAccessStream();
@@ -299,26 +330,39 @@ namespace Uviewer
                 // - isPreload=true → _pdfRenderSemaphore (백그라운드, 동시 3개)
                 // - isPreload=false → _pdfCurrentPageSemaphore (우선 처리, 동시 2개, 프리로드 블록 없음)
                 var semaphore = isPreload ? _pdfRenderSemaphore : _pdfCurrentPageSemaphore;
-                await semaphore.WaitAsync(token);
+                await semaphore.WaitAsync(linkedToken);
                 try
                 {
-                    if (_isWindowClosing || token.IsCancellationRequested) return null;
-                    await pdfPage.RenderToStreamAsync(stream, options).AsTask(token);
+                    if (_isWindowClosing || linkedToken.IsCancellationRequested || !IsCurrentPdfScope(pdfGenerationAtStart, pdfPathAtStart)) return null;
+
+                    var renderOperation = pdfPage.RenderToStreamAsync(stream, options);
+                    using var renderCancel = linkedToken.Register(() =>
+                    {
+                        try { renderOperation.Cancel(); }
+                        catch { }
+                    });
+                    await renderOperation.AsTask(linkedToken);
                 }
                 finally
                 {
                     semaphore.Release();
                 }
 
-                if (_isWindowClosing || token.IsCancellationRequested) return null;
+                if (_isWindowClosing || linkedToken.IsCancellationRequested || !IsCurrentPdfScope(pdfGenerationAtStart, pdfPathAtStart)) return null;
 
                 stream.Seek(0);
 
                 // 스레드 민첩성을 위해 CanvasDevice 직접 가져오기 (Background Thread Crash 방지)
                 var device = canvas.Device ?? Microsoft.Graphics.Canvas.CanvasDevice.GetSharedDevice();
                 // 스트림에 담긴 픽셀을 HiDPI 보정 없이 1:1로 읽기 위해 96 DPI 옵션 명시
-                var bitmap = await CanvasBitmap.LoadAsync(device, stream, 96.0f);
-                if (_isWindowClosing || token.IsCancellationRequested)
+                var loadOperation = CanvasBitmap.LoadAsync(device, stream, 96.0f);
+                using var loadCancel = linkedToken.Register(() =>
+                {
+                    try { loadOperation.Cancel(); }
+                    catch { }
+                });
+                var bitmap = await loadOperation.AsTask(linkedToken);
+                if (_isWindowClosing || linkedToken.IsCancellationRequested || !IsCurrentPdfScope(pdfGenerationAtStart, pdfPathAtStart))
                 {
                     bitmap.Dispose();
                     return null;
@@ -411,17 +455,24 @@ namespace Uviewer
                 if (!entry.IsPdfEntry) return;
 
                 _pdfZoomRerenderCts?.Cancel();
-                _pdfZoomRerenderCts = new CancellationTokenSource();
+                _pdfZoomRerenderCts = CancellationTokenSource.CreateLinkedTokenSource(
+                    _pdfDocumentCts?.Token ?? CancellationToken.None);
                 var token = _pdfZoomRerenderCts.Token;
 
                 // [Important] Capture index before await to avoid race condition if _currentIndex changes during render
                 int capturedIndex = _currentIndex;
+                int capturedPdfGeneration = Volatile.Read(ref _pdfDocumentGeneration);
+                string? capturedPdfPath = _currentPdfPath;
+
+                await Task.Delay(350, token);
+                if (!IsCurrentPdfScope(capturedPdfGeneration, capturedPdfPath) || token.IsCancellationRequested) return;
 
                 var canvas = MainCanvas;
                 // [최적화] isPreload=false → _pdfCurrentPageSemaphore 사용으로 프리로드에 의해 블록되지 않음
                 var newBitmap = await LoadPdfPageBitmapAsync(entry.PdfPageIndex, canvas, token, isPreload: false);
 
-                if (_isWindowClosing || token.IsCancellationRequested || newBitmap == null)
+                if (_isWindowClosing || token.IsCancellationRequested || newBitmap == null ||
+                    !IsCurrentPdfScope(capturedPdfGeneration, capturedPdfPath))
                 {
                     if (newBitmap != null) _imageCache.SafeDisposeBitmap(newBitmap);
                     return;

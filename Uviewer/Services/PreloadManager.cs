@@ -55,12 +55,12 @@ namespace Uviewer.Services
                 // PDF의 경우 연속 스크롤 디바운스를 위해 잠시 대기
                 if (isPdfMode)
                 {
-                    await Task.Delay(100, token).ContinueWith(_ => { }, TaskContinuationOptions.None);
+                    await Task.Delay(700, token).ContinueWith(_ => { }, TaskContinuationOptions.None);
                 }
 
                 if (token.IsCancellationRequested || entries == null || entries.Count == 0) return;
 
-                int preloadDist = isPdfMode ? 10 : DefaultPreloadCount;
+                int preloadDist = isPdfMode ? 3 : DefaultPreloadCount;
                 var tasks = new List<Task>();
 
                 for (int d = 1; d <= preloadDist; d++)
