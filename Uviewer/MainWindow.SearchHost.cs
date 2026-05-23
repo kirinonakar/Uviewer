@@ -128,6 +128,8 @@ namespace Uviewer
                 SetCurrentEpubChapterIndex = value => _currentEpubChapterIndex = value,
                 DisableVerticalModeForImageDocument = DisableVerticalModeForImageDocument,
                 ShowNotification = (message, icon, color) => ShowNotification(message, icon, color),
+                GetCurrentIndex = () => _currentIndex,
+                GetCurrentPdfPath = () => _currentPdfPath,
                 GetTopVisibleLineIndex = GetTopVisibleLineIndex,
                 FindAozoraStartBlockIndex = (line, blockIndex) =>
                     _textBlockDocumentService.FindStartBlockIndex(_aozoraBlocks, line, blockIndex),

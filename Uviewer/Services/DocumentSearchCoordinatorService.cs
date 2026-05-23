@@ -53,6 +53,8 @@ namespace Uviewer.Services
         public Action<int> SetCurrentEpubChapterIndex { get; init; } = null!;
         public Action DisableVerticalModeForImageDocument { get; init; } = null!;
         public Action<string, string, string> ShowNotification { get; init; } = null!;
+        public Func<int> GetCurrentIndex { get; init; } = null!;
+        public Func<string?> GetCurrentPdfPath { get; init; } = null!;
         public Func<int> GetTopVisibleLineIndex { get; init; } = null!;
         public Func<int, int, int> FindAozoraStartBlockIndex { get; init; } = null!;
         public Func<DocumentSearchMatch, int> FindEpubPageIndex { get; init; } = null!;
@@ -129,8 +131,8 @@ namespace Uviewer.Services
             {
                 var highlights = await context.HighlightService.FindPdfHighlightsAsync(pdfPath, pageIndex, query, token);
                 if (token.IsCancellationRequested) return;
-                if (!string.Equals(context.CurrentPdfPath, pdfPath, StringComparison.OrdinalIgnoreCase)) return;
-                if (context.CurrentIndex != pageIndex) return;
+                if (!string.Equals(context.GetCurrentPdfPath(), pdfPath, StringComparison.OrdinalIgnoreCase)) return;
+                if (context.GetCurrentIndex() != pageIndex) return;
                 if (!string.Equals(context.State.Query, query, StringComparison.Ordinal)) return;
 
                 context.State.SetPdfHighlights(highlights, pageIndex, currentMatchIndex);
