@@ -358,33 +358,30 @@ namespace Uviewer.Renderers
 
                 // 5. 인라인 배경 및 텍스트 본문 그리기
                 DrawRangeBackgrounds(ds, textLayout, highlightRanges, drawX, currentY, ColorHelper.FromArgb(120, 255, 230, 96), fontSize);
-                var searchRanges = SearchHighlightService.FindTextRanges(blockText, searchQuery);
-                int currentSearchRangeIndex = GetCurrentSearchRangeIndex(
+                var searchHighlights = SearchHighlightService.CreateAozoraHighlightRanges(
                     block,
                     firstBlockIndex,
                     i,
                     currentSearchMatch,
                     renderedSearchKind,
-                    searchRanges);
+                    blockText,
+                    searchQuery);
 
                 DrawRangeBackgrounds(
                     ds,
                     textLayout,
-                    searchRanges
-                        .Where((_, rangeIndex) => rangeIndex != currentSearchRangeIndex)
-                        .Select(range => (start: range.Start, length: range.Length))
-                        .ToList(),
+                    searchHighlights.OtherRanges,
                     drawX,
                     currentY,
                     SearchHighlightService.HighlightColor,
                     fontSize);
-                if (currentSearchRangeIndex >= 0 && currentSearchRangeIndex < searchRanges.Count)
+                if (searchHighlights.CurrentRange.HasValue)
                 {
-                    var currentRange = searchRanges[currentSearchRangeIndex];
+                    var currentRange = searchHighlights.CurrentRange.Value;
                     DrawRangeBackgrounds(
                         ds,
                         textLayout,
-                        new List<(int start, int length)> { (currentRange.Start, currentRange.Length) },
+                        new List<(int start, int length)> { currentRange },
                         drawX,
                         currentY,
                         SearchHighlightService.CurrentHighlightColor,
@@ -506,98 +503,6 @@ namespace Uviewer.Renderers
                         lineIndex++;
                 }
             }
-        }
-
-        private static int GetCurrentSearchRangeIndex(
-            AozoraBindingModel block,
-            int firstBlockIndex,
-            int localBlockIndex,
-            DocumentSearchMatch? currentSearchMatch,
-            DocumentSearchKind renderedSearchKind,
-            IReadOnlyList<TextSearchRange> ranges)
-        {
-            if (currentSearchMatch == null || currentSearchMatch.Kind != renderedSearchKind || ranges.Count == 0) return -1;
-            if (currentSearchMatch.BlockIndex >= 0 && block.SearchSegments.Count > 0)
-            {
-                int occurrenceInSegment = 0;
-                for (int rangeIndex = 0; rangeIndex < ranges.Count; rangeIndex++)
-                {
-                    var range = ranges[rangeIndex];
-                    var segment = FindSearchSegment(block.SearchSegments, currentSearchMatch.BlockIndex, range.Start);
-                    if (segment == null) continue;
-
-                    int localStart = range.Start - segment.Start;
-                    if (currentSearchMatch.MatchStart >= 0 &&
-                        localStart == currentSearchMatch.MatchStart &&
-                        range.Length == currentSearchMatch.MatchLength)
-                    {
-                        return rangeIndex;
-                    }
-
-                    if (occurrenceInSegment == currentSearchMatch.MatchIndex)
-                    {
-                        return rangeIndex;
-                    }
-
-                    occurrenceInSegment++;
-                }
-
-                return -1;
-            }
-
-            int blockIndex = block.OriginalBlockIndex >= 0
-                ? block.OriginalBlockIndex
-                : firstBlockIndex >= 0 ? firstBlockIndex + localBlockIndex : -1;
-            if (blockIndex >= 0 && currentSearchMatch.BlockIndex >= 0)
-            {
-                if (blockIndex != currentSearchMatch.BlockIndex) return -1;
-            }
-            else if (block.SourceLineNumber > 0)
-            {
-                if (currentSearchMatch.LineNumber != block.SourceLineNumber) return -1;
-            }
-            else
-            {
-                return -1;
-            }
-
-            if (currentSearchMatch.MatchIndex >= 0 && currentSearchMatch.MatchIndex < ranges.Count)
-            {
-                return currentSearchMatch.MatchIndex;
-            }
-
-            if (currentSearchMatch.MatchStart >= 0)
-            {
-                for (int i = 0; i < ranges.Count; i++)
-                {
-                    if (ranges[i].Start == currentSearchMatch.MatchStart &&
-                        ranges[i].Length == currentSearchMatch.MatchLength)
-                    {
-                        return i;
-                    }
-                }
-            }
-
-            return -1;
-        }
-
-        private static AozoraSearchSegment? FindSearchSegment(
-            IReadOnlyList<AozoraSearchSegment> segments,
-            int blockIndex,
-            int rangeStart)
-        {
-            foreach (var segment in segments)
-            {
-                if (segment.BlockIndex != blockIndex) continue;
-
-                int segmentEnd = segment.Start + Math.Max(1, segment.Length);
-                if (rangeStart >= segment.Start && rangeStart < segmentEnd)
-                {
-                    return segment;
-                }
-            }
-
-            return null;
         }
 
         private readonly struct LineBounds

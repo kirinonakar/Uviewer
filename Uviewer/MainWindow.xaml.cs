@@ -51,6 +51,7 @@ namespace Uviewer
         private readonly Services.TocService _tocService = new();
         private readonly Services.DocumentSearchService _documentSearchService = new();
         private readonly Services.SearchHighlightService _searchHighlightService = new();
+        private readonly Services.DocumentSearchCoordinatorService _documentSearchCoordinatorService = new();
         private Services.SearchOverlayService _searchOverlayService = null!;
         private readonly DocumentSearchState _documentSearchState = new();
         private string? _activeSearchQuery => _documentSearchState.Query;

@@ -10,6 +10,7 @@ using System.Threading.Tasks;
 using UglyToad.PdfPig;
 using UglyToad.PdfPig.Content;
 using UglyToad.PdfPig.DocumentLayoutAnalysis.TextExtractor;
+using Uviewer.Models;
 using Windows.UI;
 
 namespace Uviewer.Services
@@ -24,6 +25,10 @@ namespace Uviewer.Services
         double PageWidth,
         double PageHeight,
         int MatchIndex);
+
+    public sealed record AozoraSearchHighlightRanges(
+        List<(int start, int length)> OtherRanges,
+        (int start, int length)? CurrentRange);
 
     public sealed class SearchHighlightService
     {
@@ -41,6 +46,132 @@ namespace Uviewer.Services
 
         public IReadOnlyList<TextSearchRange> FindRanges(string text, string? query, bool allowCompactFallback = false)
             => FindTextRanges(text, query, allowCompactFallback);
+
+        public static AozoraSearchHighlightRanges CreateAozoraHighlightRanges(
+            AozoraBindingModel block,
+            int firstBlockIndex,
+            int localBlockIndex,
+            DocumentSearchMatch? currentSearchMatch,
+            DocumentSearchKind renderedSearchKind,
+            string blockText,
+            string? searchQuery)
+        {
+            var searchRanges = FindTextRanges(blockText, searchQuery);
+            int currentRangeIndex = GetCurrentAozoraRangeIndex(
+                block,
+                firstBlockIndex,
+                localBlockIndex,
+                currentSearchMatch,
+                renderedSearchKind,
+                searchRanges);
+
+            var otherRanges = searchRanges
+                .Where((_, rangeIndex) => rangeIndex != currentRangeIndex)
+                .Select(range => (start: range.Start, length: range.Length))
+                .ToList();
+
+            (int start, int length)? currentRange = null;
+            if (currentRangeIndex >= 0 && currentRangeIndex < searchRanges.Count)
+            {
+                var range = searchRanges[currentRangeIndex];
+                currentRange = (range.Start, range.Length);
+            }
+
+            return new AozoraSearchHighlightRanges(otherRanges, currentRange);
+        }
+
+        public static int GetCurrentAozoraRangeIndex(
+            AozoraBindingModel block,
+            int firstBlockIndex,
+            int localBlockIndex,
+            DocumentSearchMatch? currentSearchMatch,
+            DocumentSearchKind renderedSearchKind,
+            IReadOnlyList<TextSearchRange> ranges)
+        {
+            if (currentSearchMatch == null || currentSearchMatch.Kind != renderedSearchKind || ranges.Count == 0) return -1;
+            if (currentSearchMatch.BlockIndex >= 0 && block.SearchSegments.Count > 0)
+            {
+                int occurrenceInSegment = 0;
+                for (int rangeIndex = 0; rangeIndex < ranges.Count; rangeIndex++)
+                {
+                    var range = ranges[rangeIndex];
+                    var segment = FindAozoraSearchSegment(block.SearchSegments, currentSearchMatch.BlockIndex, range.Start);
+                    if (segment == null) continue;
+
+                    int localStart = range.Start - segment.Start;
+                    if (currentSearchMatch.MatchStart >= 0 &&
+                        localStart == currentSearchMatch.MatchStart &&
+                        range.Length == currentSearchMatch.MatchLength)
+                    {
+                        return rangeIndex;
+                    }
+
+                    if (occurrenceInSegment == currentSearchMatch.MatchIndex)
+                    {
+                        return rangeIndex;
+                    }
+
+                    occurrenceInSegment++;
+                }
+
+                return -1;
+            }
+
+            int blockIndex = block.OriginalBlockIndex >= 0
+                ? block.OriginalBlockIndex
+                : firstBlockIndex >= 0 ? firstBlockIndex + localBlockIndex : -1;
+
+            if (blockIndex >= 0 && currentSearchMatch.BlockIndex >= 0)
+            {
+                if (blockIndex != currentSearchMatch.BlockIndex) return -1;
+            }
+            else if (block.SourceLineNumber > 0)
+            {
+                if (currentSearchMatch.LineNumber != block.SourceLineNumber) return -1;
+            }
+            else
+            {
+                return -1;
+            }
+
+            if (currentSearchMatch.MatchIndex >= 0 && currentSearchMatch.MatchIndex < ranges.Count)
+            {
+                return currentSearchMatch.MatchIndex;
+            }
+
+            if (currentSearchMatch.MatchStart >= 0)
+            {
+                for (int i = 0; i < ranges.Count; i++)
+                {
+                    if (ranges[i].Start == currentSearchMatch.MatchStart &&
+                        ranges[i].Length == currentSearchMatch.MatchLength)
+                    {
+                        return i;
+                    }
+                }
+            }
+
+            return -1;
+        }
+
+        private static AozoraSearchSegment? FindAozoraSearchSegment(
+            IReadOnlyList<AozoraSearchSegment> segments,
+            int blockIndex,
+            int rangeStart)
+        {
+            foreach (var segment in segments)
+            {
+                if (segment.BlockIndex != blockIndex) continue;
+
+                int segmentEnd = segment.Start + Math.Max(1, segment.Length);
+                if (rangeStart >= segment.Start && rangeStart < segmentEnd)
+                {
+                    return segment;
+                }
+            }
+
+            return null;
+        }
 
         public async Task<IReadOnlyList<PdfSearchHighlight>> FindPdfHighlightsAsync(
             string pdfPath,
