@@ -326,6 +326,7 @@ namespace Uviewer
                 _animatedWebpService.AnimationStopped += OnAnimatedWebpAnimationStopped;
 
                 _windowSettingsCoordinator = new Services.WindowSettingsCoordinator(this, _appSettingsService);
+                appWindow2.Closing += AppWindow_Closing;
                 _explorerController = new Services.ExplorerController(_explorerState, _thumbnailService, DispatcherQueue);
                 _bookmarkPanelController = new Services.BookmarkPanelController(_bookmarkPanelState, _favoritesService, _recentService);
                 _favoritesController = new Services.FavoritesController(_favoritesService, _bookmarkPanelController);
@@ -404,6 +405,7 @@ namespace Uviewer
             this.Closed += async (s, e) =>
             {
                 _isWindowClosing = true;
+                SaveWindowSettingsForShutdown();
                 bool wasPdfOpen = _currentPdfDocument != null;
                 using var shutdownFallbackCts = new CancellationTokenSource();
                 _ = Task.Run(async () =>
@@ -469,7 +471,7 @@ namespace Uviewer
                     WebDavService.CleanupTempFiles();
 
                     // Save settings
-                    _windowSettingsCoordinator.SaveWindowSettings();
+                    SaveWindowSettingsForShutdown();
 
                     await _recentService.SaveRecentItemsAsync();
                     await _favoritesService.SaveFavoritesAsync();
@@ -627,6 +629,23 @@ namespace Uviewer
                 // [Important] Re-focus RootGrid after window state changes (Maximize/Restore/Resize)
                 // This ensures keyboard shortcuts keep working without an extra click.
                 RootGrid?.Focus(FocusState.Programmatic);
+            }
+        }
+
+        private void AppWindow_Closing(AppWindow sender, AppWindowClosingEventArgs args)
+        {
+            SaveWindowSettingsForShutdown();
+        }
+
+        private void SaveWindowSettingsForShutdown()
+        {
+            try
+            {
+                _windowSettingsCoordinator?.SaveWindowSettings();
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error saving window settings: {ex.Message}");
             }
         }
 

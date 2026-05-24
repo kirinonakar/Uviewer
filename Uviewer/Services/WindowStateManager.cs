@@ -122,29 +122,38 @@ namespace Uviewer.Services
             }
         }
 
+        public void CaptureCurrentRestoreBounds()
+        {
+            if (IsFullscreen) return;
+
+            if (_appWindow.Presenter is OverlappedPresenter overlapped &&
+                overlapped.State == OverlappedPresenterState.Restored)
+            {
+                TryStoreRestoreBounds(_appWindow.Position, _appWindow.Size);
+            }
+        }
+
         // 창 크기 변경 시 이전 위치 저장 로직
         public void HandleAppWindowChanged(AppWindowChangedEventArgs args)
         {
             if (args.DidPositionChange || args.DidSizeChange)
             {
-                if (_appWindow.Presenter is OverlappedPresenter overlapped &&
-                    overlapped.State == OverlappedPresenterState.Restored)
+                CaptureCurrentRestoreBounds();
+            }
+        }
+
+        private void TryStoreRestoreBounds(PointInt32 pos, SizeInt32 size)
+        {
+            if (size.Width >= 100 && size.Height >= 100)
+            {
+                var currentRect = new RectInt32(pos.X, pos.Y, size.Width, size.Height);
+                var area = DisplayArea.GetFromRect(currentRect, DisplayAreaFallback.None);
+
+                if (area != null &&
+                    pos.X >= area.WorkArea.X && pos.Y >= area.WorkArea.Y &&
+                    size.Width <= area.WorkArea.Width && size.Height <= area.WorkArea.Height)
                 {
-                    var pos = _appWindow.Position;
-                    var size = _appWindow.Size;
-
-                    if (size.Width >= 100 && size.Height >= 100)
-                    {
-                        var currentRect = new RectInt32(pos.X, pos.Y, size.Width, size.Height);
-                        var area = DisplayArea.GetFromRect(currentRect, DisplayAreaFallback.None);
-
-                        if (area != null &&
-                            pos.X >= area.WorkArea.X && pos.Y >= area.WorkArea.Y &&
-                            size.Width <= area.WorkArea.Width && size.Height <= area.WorkArea.Height)
-                        {
-                            LastNonMaximizedRect = currentRect;
-                        }
-                    }
+                    LastNonMaximizedRect = currentRect;
                 }
             }
         }

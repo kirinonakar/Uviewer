@@ -75,6 +75,7 @@ namespace Uviewer.Services
             }
             else if (appWindow.Presenter is OverlappedPresenter overlapped)
             {
+                windowState.CaptureCurrentRestoreBounds();
                 isMaximized = overlapped.State == OverlappedPresenterState.Maximized;
             }
 
