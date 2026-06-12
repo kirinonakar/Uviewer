@@ -12,6 +12,7 @@
 - **Broad Format Support**: PDF, JPEG, PNG, GIF, BMP, TIFF, ICO, SVG, WebP, AVIF (AV1 Video Extension required), JXL (JPEG XL Image Extension required) and **Animated WebP**.
 - **High-Performance Rendering**: Powered by **Win2D** (Direct2D) for smooth zooming and panning.
 - **Smart Scaling**: Customizable zoom levels (0.1x to 10x), fit-to-window, and actual size.
+- **EXIF & Image Metadata**: Click the file name in the status bar while viewing an image to inspect EXIF details and embedded metadata such as prompts or parameters.
 - **Continuous Scrolling & Zoom Persistence**: Supports PDF-like continuous vertical scrolling for zoomed images—**perfect for reading Webtoons**. Maintains zoom level across images for a seamless viewing experience.
 - **Tools**: Sharpening filter (Right-click for settings), Side-by-Side view mode, **Auto Side-by-Side in Archive**, **Match Control Direction** (R-to-L navigation support), and Fast Navigation overlay.
 
