@@ -719,6 +719,90 @@ namespace Uviewer
 
         private async Task SelectExternalProgramAsync()
         {
+            const double dialogContentWidth = 420;
+
+            var input = new TextBox
+            {
+                Text = _externalProgramPath,
+                PlaceholderText = Strings.ExternalProgramPathPlaceholder,
+                Width = dialogContentWidth,
+                MaxWidth = dialogContentWidth,
+                HorizontalAlignment = HorizontalAlignment.Stretch
+            };
+
+            var browseButton = new Button
+            {
+                Content = Strings.ExternalProgramBrowseButton,
+                HorizontalAlignment = HorizontalAlignment.Right
+            };
+
+            browseButton.Click += async (_, _) =>
+            {
+                var file = await PickExternalProgramFileAsync();
+                if (file == null) return;
+
+                input.Text = file.Path;
+                input.Focus(FocusState.Programmatic);
+                input.Select(input.Text.Length, 0);
+            };
+
+            var validationText = new TextBlock
+            {
+                Text = Strings.ExternalProgramPathRequired,
+                Visibility = Visibility.Collapsed,
+                TextWrapping = TextWrapping.Wrap
+            };
+            input.TextChanged += (_, _) => validationText.Visibility = Visibility.Collapsed;
+
+            var panel = new StackPanel
+            {
+                Width = dialogContentWidth,
+                MaxWidth = dialogContentWidth,
+                Spacing = 8,
+                Children =
+                {
+                    new TextBlock
+                    {
+                        Text = Strings.ExternalProgramPathDescription,
+                        TextWrapping = TextWrapping.Wrap
+                    },
+                    input,
+                    browseButton,
+                    validationText
+                }
+            };
+
+            var dialog = new ContentDialog
+            {
+                Title = Strings.ExternalProgramSettings,
+                Content = panel,
+                PrimaryButtonText = Strings.ExternalProgramSaveButton,
+                CloseButtonText = Strings.Cancel,
+                DefaultButton = ContentDialogButton.Primary,
+                XamlRoot = RootGrid.XamlRoot,
+                RequestedTheme = RootGrid.ActualTheme
+            };
+
+            dialog.PrimaryButtonClick += (_, args) =>
+            {
+                if (!string.IsNullOrWhiteSpace(NormalizeExternalProgramPath(input.Text))) return;
+
+                validationText.Visibility = Visibility.Visible;
+                input.Focus(FocusState.Programmatic);
+                args.Cancel = true;
+            };
+
+            var result = await dialog.ShowAsync();
+            if (result != ContentDialogResult.Primary) return;
+
+            _externalProgramPath = NormalizeExternalProgramPath(input.Text);
+            MainToolbar.SetExternalProgramPath(_externalProgramPath);
+            _windowSettingsCoordinator?.SaveWindowSettings();
+            ShowNotification(Strings.ExternalProgramConfiguredNotification(GetExternalProgramDisplayName(_externalProgramPath)));
+        }
+
+        private async Task<StorageFile?> PickExternalProgramFileAsync()
+        {
             var picker = new FileOpenPicker();
             var hwnd = WinRT.Interop.WindowNative.GetWindowHandle(this);
             WinRT.Interop.InitializeWithWindow.Initialize(picker, hwnd);
@@ -726,21 +810,19 @@ namespace Uviewer
             picker.ViewMode = PickerViewMode.List;
             picker.SuggestedStartLocation = PickerLocationId.ComputerFolder;
             picker.FileTypeFilter.Add(".exe");
+            picker.FileTypeFilter.Add(".cmd");
+            picker.FileTypeFilter.Add(".bat");
+            picker.FileTypeFilter.Add(".com");
 
-            var file = await picker.PickSingleFileAsync();
-            if (file == null) return;
-
-            _externalProgramPath = file.Path;
-            MainToolbar.SetExternalProgramPath(_externalProgramPath);
-            _windowSettingsCoordinator?.SaveWindowSettings();
-            ShowNotification(Strings.ExternalProgramConfiguredNotification(Path.GetFileName(_externalProgramPath)));
+            return await picker.PickSingleFileAsync();
         }
 
         private async Task OpenExplorerItemWithExternalProgramAsync(FileItem? item)
         {
             if (item == null || item.IsParentDirectory || item.IsWebDav) return;
 
-            if (string.IsNullOrWhiteSpace(_externalProgramPath) || !File.Exists(_externalProgramPath))
+            var externalProgramPath = NormalizeExternalProgramPath(_externalProgramPath);
+            if (string.IsNullOrWhiteSpace(externalProgramPath))
             {
                 ShowNotification(Strings.ExternalProgramPathRequired, "\uE783", "Red");
                 await SelectExternalProgramAsync();
@@ -758,16 +840,37 @@ namespace Uviewer
             {
                 var startInfo = new ProcessStartInfo
                 {
-                    FileName = _externalProgramPath,
-                    UseShellExecute = false
+                    FileName = externalProgramPath,
+                    Arguments = QuoteArgument(item.FullPath),
+                    UseShellExecute = true
                 };
-                startInfo.ArgumentList.Add(item.FullPath);
                 Process.Start(startInfo);
             }
             catch (Exception ex)
             {
                 ShowNotification(Strings.ExternalProgramLaunchFailed(ex.Message), "\uE783", "Red");
             }
+        }
+
+        private static string NormalizeExternalProgramPath(string? path)
+        {
+            var value = (path ?? string.Empty).Trim();
+            if (value.Length >= 2 &&
+                ((value[0] == '"' && value[^1] == '"') ||
+                 (value[0] == '\'' && value[^1] == '\'')))
+            {
+                return value[1..^1].Trim();
+            }
+
+            return value;
+        }
+
+        private static string GetExternalProgramDisplayName(string path)
+        {
+            if (string.IsNullOrWhiteSpace(path)) return path;
+
+            var fileName = Path.GetFileName(path);
+            return string.IsNullOrWhiteSpace(fileName) ? path : fileName;
         }
 
         private void OpenExplorerItemInWindowsExplorer(FileItem? item)

@@ -5,6 +5,8 @@ namespace Uviewer.Models
 {
     public class AppSettings
     {
+        public const string DefaultExternalProgramPath = "txtaieditor";
+
         public RectInt32 LastNonMaximizedRect { get; set; } = new RectInt32(100, 100, 1200, 800);
         public bool IsMaximized { get; set; } = false;
         public bool SharpenEnabled { get; set; } = false;
@@ -25,6 +27,6 @@ namespace Uviewer.Models
         public double UnsharpRadius { get; set; } = 1.0;
         public double ExplorerThumbnailSize { get; set; } = 80;
         public bool ShowFolderThumbnails { get; set; } = false;
-        public string ExternalProgramPath { get; set; } = "";
+        public string ExternalProgramPath { get; set; } = DefaultExternalProgramPath;
     }
 }

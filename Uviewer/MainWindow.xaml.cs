@@ -373,6 +373,7 @@ namespace Uviewer
 
                 // Apply Localization
                 ApplyLocalization();
+                MainToolbar.SetExternalProgramPath(_externalProgramPath);
             }
             catch (Exception ex)
             {

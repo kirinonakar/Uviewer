@@ -548,6 +548,18 @@
   <data name="ExternalProgramSettings" xml:space="preserve">
     <value>外部プログラム設定</value>
   </data>
+  <data name="ExternalProgramPathDescription" xml:space="preserve">
+    <value>実行ファイルのパス、または PATH で使える実行エイリアスを入力してください。例: txtaieditor, code</value>
+  </data>
+  <data name="ExternalProgramPathPlaceholder" xml:space="preserve">
+    <value>txtaieditor または C:\Program Files\...\viewer.exe</value>
+  </data>
+  <data name="ExternalProgramBrowseButton" xml:space="preserve">
+    <value>参照...</value>
+  </data>
+  <data name="ExternalProgramSaveButton" xml:space="preserve">
+    <value>保存</value>
+  </data>
   <data name="ExternalProgramMenuWithName" xml:space="preserve">
     <value>外部プログラム: {0}</value>
   </data>
@@ -585,7 +597,7 @@
     <value>ごみ箱に移動しました。</value>
   </data>
   <data name="ExternalProgramPathRequired" xml:space="preserve">
-    <value>まず設定で外部プログラムのパスを指定してください。</value>
+    <value>まず設定で外部プログラムのパスまたは実行エイリアスを指定してください。</value>
   </data>
   <data name="ExternalProgramConfiguredNotification" xml:space="preserve">
     <value>外部プログラムを設定しました: {0}</value>

@@ -548,6 +548,18 @@
   <data name="ExternalProgramSettings" xml:space="preserve">
     <value>Cài đặt chương trình bên ngoài</value>
   </data>
+  <data name="ExternalProgramPathDescription" xml:space="preserve">
+    <value>Nhập đường dẫn tệp chạy hoặc bí danh lệnh có trong PATH. Ví dụ: txtaieditor, code</value>
+  </data>
+  <data name="ExternalProgramPathPlaceholder" xml:space="preserve">
+    <value>txtaieditor hoặc C:\Program Files\...\viewer.exe</value>
+  </data>
+  <data name="ExternalProgramBrowseButton" xml:space="preserve">
+    <value>Duyệt...</value>
+  </data>
+  <data name="ExternalProgramSaveButton" xml:space="preserve">
+    <value>Lưu</value>
+  </data>
   <data name="ExternalProgramMenuWithName" xml:space="preserve">
     <value>Chương trình bên ngoài: {0}</value>
   </data>
@@ -585,7 +597,7 @@
     <value>Đã chuyển vào Thùng rác.</value>
   </data>
   <data name="ExternalProgramPathRequired" xml:space="preserve">
-    <value>Hãy đặt đường dẫn chương trình bên ngoài trong Cài đặt trước.</value>
+    <value>Hãy đặt đường dẫn chương trình bên ngoài hoặc bí danh lệnh trong Cài đặt trước.</value>
   </data>
   <data name="ExternalProgramConfiguredNotification" xml:space="preserve">
     <value>Đã đặt chương trình bên ngoài: {0}</value>

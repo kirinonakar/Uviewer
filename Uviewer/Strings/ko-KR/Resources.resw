@@ -548,6 +548,18 @@
   <data name="ExternalProgramSettings" xml:space="preserve">
     <value>외부 프로그램 설정</value>
   </data>
+  <data name="ExternalProgramPathDescription" xml:space="preserve">
+    <value>실행 파일 경로 또는 PATH에 등록된 실행 별칭을 입력하세요. 예: txtaieditor, code</value>
+  </data>
+  <data name="ExternalProgramPathPlaceholder" xml:space="preserve">
+    <value>txtaieditor 또는 C:\Program Files\...\viewer.exe</value>
+  </data>
+  <data name="ExternalProgramBrowseButton" xml:space="preserve">
+    <value>찾아보기...</value>
+  </data>
+  <data name="ExternalProgramSaveButton" xml:space="preserve">
+    <value>저장</value>
+  </data>
   <data name="ExternalProgramMenuWithName" xml:space="preserve">
     <value>외부 프로그램: {0}</value>
   </data>
@@ -585,7 +597,7 @@
     <value>휴지통으로 이동했습니다.</value>
   </data>
   <data name="ExternalProgramPathRequired" xml:space="preserve">
-    <value>설정에서 외부 프로그램 경로를 먼저 지정하세요.</value>
+    <value>설정에서 외부 프로그램 경로 또는 실행 별칭을 먼저 지정하세요.</value>
   </data>
   <data name="ExternalProgramConfiguredNotification" xml:space="preserve">
     <value>외부 프로그램 설정됨: {0}</value>

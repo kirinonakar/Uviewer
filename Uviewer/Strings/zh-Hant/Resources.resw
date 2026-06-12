@@ -548,6 +548,18 @@
   <data name="ExternalProgramSettings" xml:space="preserve">
     <value>外部程式設定</value>
   </data>
+  <data name="ExternalProgramPathDescription" xml:space="preserve">
+    <value>請輸入可執行檔路徑，或 PATH 中可用的執行別名。例如: txtaieditor, code</value>
+  </data>
+  <data name="ExternalProgramPathPlaceholder" xml:space="preserve">
+    <value>txtaieditor 或 C:\Program Files\...\viewer.exe</value>
+  </data>
+  <data name="ExternalProgramBrowseButton" xml:space="preserve">
+    <value>瀏覽...</value>
+  </data>
+  <data name="ExternalProgramSaveButton" xml:space="preserve">
+    <value>儲存</value>
+  </data>
   <data name="ExternalProgramMenuWithName" xml:space="preserve">
     <value>外部程式: {0}</value>
   </data>
@@ -585,7 +597,7 @@
     <value>已移至資源回收筒。</value>
   </data>
   <data name="ExternalProgramPathRequired" xml:space="preserve">
-    <value>請先在設定中指定外部程式路徑。</value>
+    <value>請先在設定中指定外部程式路徑或執行別名。</value>
   </data>
   <data name="ExternalProgramConfiguredNotification" xml:space="preserve">
     <value>已設定外部程式: {0}</value>

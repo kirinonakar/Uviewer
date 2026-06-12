@@ -169,6 +169,10 @@ namespace Uviewer
         public static string Close => GetString("CloseWindowTooltip").Replace("(Esc)", "").Trim();
         public static string FileNotFound => GetString("FileNotFound");
         public static string ExternalProgramSettings => GetString("ExternalProgramSettings");
+        public static string ExternalProgramPathDescription => GetString("ExternalProgramPathDescription");
+        public static string ExternalProgramPathPlaceholder => GetString("ExternalProgramPathPlaceholder");
+        public static string ExternalProgramBrowseButton => GetString("ExternalProgramBrowseButton");
+        public static string ExternalProgramSaveButton => GetString("ExternalProgramSaveButton");
         public static string ExplorerOpenExternal => GetString("ExplorerOpenExternal");
         public static string ExplorerOpenInWindowsExplorer => GetString("ExplorerOpenInWindowsExplorer");
         public static string ExplorerRefresh => GetString("ExplorerRefresh");
