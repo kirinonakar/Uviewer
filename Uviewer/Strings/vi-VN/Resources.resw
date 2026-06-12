@@ -434,6 +434,78 @@
   <data name="SortByDateAscTooltip" xml:space="preserve">
     <value>Ngày sửa đổi (cũ nhất)</value>
   </data>
+  <data name="ExifStatusBarTooltip" xml:space="preserve">
+    <value>Bấm vào tên tệp ảnh để xem thông tin EXIF</value>
+  </data>
+  <data name="ExifDialogTitle" xml:space="preserve">
+    <value>Thông tin EXIF</value>
+  </data>
+  <data name="ExifUnavailable" xml:space="preserve">
+    <value>Không thể hiển thị thông tin EXIF.</value>
+  </data>
+  <data name="ExifNoImageSelected" xml:space="preserve">
+    <value>Chưa chọn ảnh.</value>
+  </data>
+  <data name="ExifNoMetadata" xml:space="preserve">
+    <value>Siêu dữ liệu</value>
+  </data>
+  <data name="ExifFileName" xml:space="preserve">
+    <value>Tên tệp</value>
+  </data>
+  <data name="ExifFilePath" xml:space="preserve">
+    <value>Vị trí tệp</value>
+  </data>
+  <data name="ExifFileSize" xml:space="preserve">
+    <value>Kích thước tệp</value>
+  </data>
+  <data name="ExifModified" xml:space="preserve">
+    <value>Ngày sửa đổi</value>
+  </data>
+  <data name="ExifDimensions" xml:space="preserve">
+    <value>Kích thước ảnh</value>
+  </data>
+  <data name="ExifDateTaken" xml:space="preserve">
+    <value>Ngày chụp</value>
+  </data>
+  <data name="ExifCameraMaker" xml:space="preserve">
+    <value>Nhà sản xuất máy ảnh</value>
+  </data>
+  <data name="ExifCameraModel" xml:space="preserve">
+    <value>Mẫu máy ảnh</value>
+  </data>
+  <data name="ExifOrientation" xml:space="preserve">
+    <value>Hướng</value>
+  </data>
+  <data name="ExifLatitude" xml:space="preserve">
+    <value>Vĩ độ</value>
+  </data>
+  <data name="ExifLongitude" xml:space="preserve">
+    <value>Kinh độ</value>
+  </data>
+  <data name="ExifTitle" xml:space="preserve">
+    <value>Tiêu đề</value>
+  </data>
+  <data name="ExifRating" xml:space="preserve">
+    <value>Xếp hạng</value>
+  </data>
+  <data name="ExifKeywords" xml:space="preserve">
+    <value>Từ khóa</value>
+  </data>
+  <data name="ExifExposureTime" xml:space="preserve">
+    <value>Thời gian phơi sáng</value>
+  </data>
+  <data name="ExifFNumber" xml:space="preserve">
+    <value>Khẩu độ</value>
+  </data>
+  <data name="ExifIso" xml:space="preserve">
+    <value>ISO</value>
+  </data>
+  <data name="ExifFocalLength" xml:space="preserve">
+    <value>Tiêu cự</value>
+  </data>
+  <data name="ExifCloseButton" xml:space="preserve">
+    <value>Đóng</value>
+  </data>
   <data name="About" xml:space="preserve">
     <value>Giới thiệu</value>
   </data>

@@ -293,7 +293,8 @@
                        FontSize="12" 
                        Foreground="{ThemeResource TextFillColorSecondaryBrush}"
                        VerticalAlignment="Center"
-                       TextTrimming="CharacterEllipsis"/>
+                       TextTrimming="CharacterEllipsis"
+                       Tapped="FileNameText_Tapped"/>
 
             <TextBlock x:Name="ImageInfoText" Grid.Column="1" 
                        Text="" 

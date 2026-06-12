@@ -34,9 +34,6 @@ namespace Uviewer
         private Button BrowseFolderButton => SidebarPart<Button>(nameof(BrowseFolderButton));
         private Button SortByDateButton => SidebarPart<Button>(nameof(SortByDateButton));
         private FontIcon SortIcon => SidebarPart<FontIcon>(nameof(SortIcon));
-        private RadioMenuFlyoutItem SortByNameMenu => SidebarPart<RadioMenuFlyoutItem>(nameof(SortByNameMenu));
-        private RadioMenuFlyoutItem SortByDateDescMenu => SidebarPart<RadioMenuFlyoutItem>(nameof(SortByDateDescMenu));
-        private RadioMenuFlyoutItem SortByDateAscMenu => SidebarPart<RadioMenuFlyoutItem>(nameof(SortByDateAscMenu));
         private Button WebDavButton => SidebarPart<Button>(nameof(WebDavButton));
         private Flyout WebDavFlyout => SidebarPart<Flyout>(nameof(WebDavFlyout));
         private StackPanel WebDavPanel => SidebarPart<StackPanel>(nameof(WebDavPanel));
@@ -56,9 +53,7 @@ namespace Uviewer
             SidebarAddToFavoritesButton.Click += AddToFavoritesMenuItem_Click;
             SidebarRecentButton.Click += SidebarRecentButton_Click;
             BrowseFolderButton.Click += BrowseFolderButton_Click;
-            SortByNameMenu.Click += SortByName_Click;
-            SortByDateDescMenu.Click += SortByDateDesc_Click;
-            SortByDateAscMenu.Click += SortByDateAsc_Click;
+            SortByDateButton.Click += SortButton_Click;
             WebDavFlyout.Opened += WebDavFlyout_Opened;
             AddWebDavButton.Click += AddWebDavButton_Click;
             FileListView.SelectionChanged += FileListView_SelectionChanged;

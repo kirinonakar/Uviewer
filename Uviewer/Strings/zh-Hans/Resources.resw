@@ -434,6 +434,78 @@
   <data name="SortByDateAscTooltip" xml:space="preserve">
     <value>修改日期(最旧)</value>
   </data>
+  <data name="ExifStatusBarTooltip" xml:space="preserve">
+    <value>点击图像文件名可查看 EXIF 信息</value>
+  </data>
+  <data name="ExifDialogTitle" xml:space="preserve">
+    <value>EXIF 信息</value>
+  </data>
+  <data name="ExifUnavailable" xml:space="preserve">
+    <value>无法显示 EXIF 信息。</value>
+  </data>
+  <data name="ExifNoImageSelected" xml:space="preserve">
+    <value>未选择图像。</value>
+  </data>
+  <data name="ExifNoMetadata" xml:space="preserve">
+    <value>元数据</value>
+  </data>
+  <data name="ExifFileName" xml:space="preserve">
+    <value>文件名</value>
+  </data>
+  <data name="ExifFilePath" xml:space="preserve">
+    <value>文件位置</value>
+  </data>
+  <data name="ExifFileSize" xml:space="preserve">
+    <value>文件大小</value>
+  </data>
+  <data name="ExifModified" xml:space="preserve">
+    <value>修改日期</value>
+  </data>
+  <data name="ExifDimensions" xml:space="preserve">
+    <value>图像尺寸</value>
+  </data>
+  <data name="ExifDateTaken" xml:space="preserve">
+    <value>拍摄日期</value>
+  </data>
+  <data name="ExifCameraMaker" xml:space="preserve">
+    <value>相机制造商</value>
+  </data>
+  <data name="ExifCameraModel" xml:space="preserve">
+    <value>相机型号</value>
+  </data>
+  <data name="ExifOrientation" xml:space="preserve">
+    <value>方向</value>
+  </data>
+  <data name="ExifLatitude" xml:space="preserve">
+    <value>纬度</value>
+  </data>
+  <data name="ExifLongitude" xml:space="preserve">
+    <value>经度</value>
+  </data>
+  <data name="ExifTitle" xml:space="preserve">
+    <value>标题</value>
+  </data>
+  <data name="ExifRating" xml:space="preserve">
+    <value>评分</value>
+  </data>
+  <data name="ExifKeywords" xml:space="preserve">
+    <value>关键字</value>
+  </data>
+  <data name="ExifExposureTime" xml:space="preserve">
+    <value>曝光时间</value>
+  </data>
+  <data name="ExifFNumber" xml:space="preserve">
+    <value>光圈值</value>
+  </data>
+  <data name="ExifIso" xml:space="preserve">
+    <value>ISO</value>
+  </data>
+  <data name="ExifFocalLength" xml:space="preserve">
+    <value>焦距</value>
+  </data>
+  <data name="ExifCloseButton" xml:space="preserve">
+    <value>关闭</value>
+  </data>
   <data name="About" xml:space="preserve">
     <value>关于</value>
   </data>

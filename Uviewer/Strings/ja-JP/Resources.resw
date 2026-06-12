@@ -434,6 +434,78 @@
   <data name="SortByDateAscTooltip" xml:space="preserve">
     <value>更新日時(古い順)</value>
   </data>
+  <data name="ExifStatusBarTooltip" xml:space="preserve">
+    <value>画像のファイル名をクリックするとEXIF情報を表示します</value>
+  </data>
+  <data name="ExifDialogTitle" xml:space="preserve">
+    <value>EXIF情報</value>
+  </data>
+  <data name="ExifUnavailable" xml:space="preserve">
+    <value>EXIF情報を表示できません。</value>
+  </data>
+  <data name="ExifNoImageSelected" xml:space="preserve">
+    <value>画像が選択されていません。</value>
+  </data>
+  <data name="ExifNoMetadata" xml:space="preserve">
+    <value>メタデータ</value>
+  </data>
+  <data name="ExifFileName" xml:space="preserve">
+    <value>ファイル名</value>
+  </data>
+  <data name="ExifFilePath" xml:space="preserve">
+    <value>ファイルの場所</value>
+  </data>
+  <data name="ExifFileSize" xml:space="preserve">
+    <value>ファイルサイズ</value>
+  </data>
+  <data name="ExifModified" xml:space="preserve">
+    <value>更新日時</value>
+  </data>
+  <data name="ExifDimensions" xml:space="preserve">
+    <value>画像サイズ</value>
+  </data>
+  <data name="ExifDateTaken" xml:space="preserve">
+    <value>撮影日時</value>
+  </data>
+  <data name="ExifCameraMaker" xml:space="preserve">
+    <value>カメラメーカー</value>
+  </data>
+  <data name="ExifCameraModel" xml:space="preserve">
+    <value>カメラモデル</value>
+  </data>
+  <data name="ExifOrientation" xml:space="preserve">
+    <value>向き</value>
+  </data>
+  <data name="ExifLatitude" xml:space="preserve">
+    <value>緯度</value>
+  </data>
+  <data name="ExifLongitude" xml:space="preserve">
+    <value>経度</value>
+  </data>
+  <data name="ExifTitle" xml:space="preserve">
+    <value>タイトル</value>
+  </data>
+  <data name="ExifRating" xml:space="preserve">
+    <value>評価</value>
+  </data>
+  <data name="ExifKeywords" xml:space="preserve">
+    <value>キーワード</value>
+  </data>
+  <data name="ExifExposureTime" xml:space="preserve">
+    <value>露出時間</value>
+  </data>
+  <data name="ExifFNumber" xml:space="preserve">
+    <value>F値</value>
+  </data>
+  <data name="ExifIso" xml:space="preserve">
+    <value>ISO</value>
+  </data>
+  <data name="ExifFocalLength" xml:space="preserve">
+    <value>焦点距離</value>
+  </data>
+  <data name="ExifCloseButton" xml:space="preserve">
+    <value>閉じる</value>
+  </data>
   <data name="About" xml:space="preserve">
     <value>情報(About)</value>
   </data>

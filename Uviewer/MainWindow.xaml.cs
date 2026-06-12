@@ -550,6 +550,7 @@ namespace Uviewer
             ToolTipService.SetToolTip(SidebarRecentButton, Strings.RecentTooltip);
             ToolTipService.SetToolTip(BrowseFolderButton, Strings.BrowseFolderTooltip);
             ToolTipService.SetToolTip(WebDavButton, Strings.WebDavTooltip);
+            ToolTipService.SetToolTip(FileNameText, Strings.ExifStatusBarTooltip);
             if (AddWebDavButton != null) AddWebDavButton.Content = Strings.AddWebDavServer;
             UpdateThemeToggleButtonTooltip();
             _searchOverlayService?.ApplyLocalization();
@@ -591,9 +592,6 @@ namespace Uviewer
 
             // Sort Menu & Tooltip
             UpdateSortIcon();
-            if (SortByNameMenu != null) SortByNameMenu.Text = Strings.SortByNameTooltip;
-            if (SortByDateDescMenu != null) SortByDateDescMenu.Text = Strings.SortByDateDescTooltip;
-            if (SortByDateAscMenu != null) SortByDateAscMenu.Text = Strings.SortByDateAscTooltip;
 
             UpdateLanguageMenuCheckmark();
 

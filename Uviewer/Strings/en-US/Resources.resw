@@ -434,6 +434,78 @@
   <data name="SortByDateAscTooltip" xml:space="preserve">
     <value>Date Modified (Oldest)</value>
   </data>
+  <data name="ExifStatusBarTooltip" xml:space="preserve">
+    <value>Click the image file name to view EXIF information</value>
+  </data>
+  <data name="ExifDialogTitle" xml:space="preserve">
+    <value>EXIF Information</value>
+  </data>
+  <data name="ExifUnavailable" xml:space="preserve">
+    <value>EXIF information cannot be displayed.</value>
+  </data>
+  <data name="ExifNoImageSelected" xml:space="preserve">
+    <value>No image is selected.</value>
+  </data>
+  <data name="ExifNoMetadata" xml:space="preserve">
+    <value>Metadata</value>
+  </data>
+  <data name="ExifFileName" xml:space="preserve">
+    <value>File name</value>
+  </data>
+  <data name="ExifFilePath" xml:space="preserve">
+    <value>File path</value>
+  </data>
+  <data name="ExifFileSize" xml:space="preserve">
+    <value>File size</value>
+  </data>
+  <data name="ExifModified" xml:space="preserve">
+    <value>Modified</value>
+  </data>
+  <data name="ExifDimensions" xml:space="preserve">
+    <value>Dimensions</value>
+  </data>
+  <data name="ExifDateTaken" xml:space="preserve">
+    <value>Date taken</value>
+  </data>
+  <data name="ExifCameraMaker" xml:space="preserve">
+    <value>Camera maker</value>
+  </data>
+  <data name="ExifCameraModel" xml:space="preserve">
+    <value>Camera model</value>
+  </data>
+  <data name="ExifOrientation" xml:space="preserve">
+    <value>Orientation</value>
+  </data>
+  <data name="ExifLatitude" xml:space="preserve">
+    <value>Latitude</value>
+  </data>
+  <data name="ExifLongitude" xml:space="preserve">
+    <value>Longitude</value>
+  </data>
+  <data name="ExifTitle" xml:space="preserve">
+    <value>Title</value>
+  </data>
+  <data name="ExifRating" xml:space="preserve">
+    <value>Rating</value>
+  </data>
+  <data name="ExifKeywords" xml:space="preserve">
+    <value>Keywords</value>
+  </data>
+  <data name="ExifExposureTime" xml:space="preserve">
+    <value>Exposure time</value>
+  </data>
+  <data name="ExifFNumber" xml:space="preserve">
+    <value>F-number</value>
+  </data>
+  <data name="ExifIso" xml:space="preserve">
+    <value>ISO</value>
+  </data>
+  <data name="ExifFocalLength" xml:space="preserve">
+    <value>Focal length</value>
+  </data>
+  <data name="ExifCloseButton" xml:space="preserve">
+    <value>Close</value>
+  </data>
   <data name="About" xml:space="preserve">
     <value>About</value>
   </data>

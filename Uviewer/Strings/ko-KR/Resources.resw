@@ -434,6 +434,78 @@
   <data name="SortByDateAscTooltip" xml:space="preserve">
     <value>수정한 날짜(오래된순)</value>
   </data>
+  <data name="ExifStatusBarTooltip" xml:space="preserve">
+    <value>이미지 파일 이름을 클릭하면 EXIF 정보를 봅니다</value>
+  </data>
+  <data name="ExifDialogTitle" xml:space="preserve">
+    <value>EXIF 정보</value>
+  </data>
+  <data name="ExifUnavailable" xml:space="preserve">
+    <value>EXIF 정보를 표시할 수 없습니다.</value>
+  </data>
+  <data name="ExifNoImageSelected" xml:space="preserve">
+    <value>선택된 이미지가 없습니다.</value>
+  </data>
+  <data name="ExifNoMetadata" xml:space="preserve">
+    <value>메타데이터</value>
+  </data>
+  <data name="ExifFileName" xml:space="preserve">
+    <value>파일 이름</value>
+  </data>
+  <data name="ExifFilePath" xml:space="preserve">
+    <value>파일 위치</value>
+  </data>
+  <data name="ExifFileSize" xml:space="preserve">
+    <value>파일 크기</value>
+  </data>
+  <data name="ExifModified" xml:space="preserve">
+    <value>수정한 날짜</value>
+  </data>
+  <data name="ExifDimensions" xml:space="preserve">
+    <value>이미지 크기</value>
+  </data>
+  <data name="ExifDateTaken" xml:space="preserve">
+    <value>촬영 날짜</value>
+  </data>
+  <data name="ExifCameraMaker" xml:space="preserve">
+    <value>카메라 제조사</value>
+  </data>
+  <data name="ExifCameraModel" xml:space="preserve">
+    <value>카메라 모델</value>
+  </data>
+  <data name="ExifOrientation" xml:space="preserve">
+    <value>방향</value>
+  </data>
+  <data name="ExifLatitude" xml:space="preserve">
+    <value>위도</value>
+  </data>
+  <data name="ExifLongitude" xml:space="preserve">
+    <value>경도</value>
+  </data>
+  <data name="ExifTitle" xml:space="preserve">
+    <value>제목</value>
+  </data>
+  <data name="ExifRating" xml:space="preserve">
+    <value>평점</value>
+  </data>
+  <data name="ExifKeywords" xml:space="preserve">
+    <value>키워드</value>
+  </data>
+  <data name="ExifExposureTime" xml:space="preserve">
+    <value>노출 시간</value>
+  </data>
+  <data name="ExifFNumber" xml:space="preserve">
+    <value>조리개 값</value>
+  </data>
+  <data name="ExifIso" xml:space="preserve">
+    <value>ISO</value>
+  </data>
+  <data name="ExifFocalLength" xml:space="preserve">
+    <value>초점 거리</value>
+  </data>
+  <data name="ExifCloseButton" xml:space="preserve">
+    <value>닫기</value>
+  </data>
   <data name="About" xml:space="preserve">
     <value>정보(About)</value>
   </data>

@@ -956,23 +956,36 @@ namespace Uviewer
             }
         }
 
+        private void SortButton_Click(object sender, RoutedEventArgs e)
+        {
+            var nextMode = _explorerSortMode switch
+            {
+                ExplorerSortMode.Name => ExplorerSortMode.DateDesc,
+                ExplorerSortMode.DateDesc => ExplorerSortMode.DateAsc,
+                _ => ExplorerSortMode.Name
+            };
+
+            ApplyExplorerSortMode(nextMode);
+        }
+
         private void SortByName_Click(object sender, RoutedEventArgs e)
         {
-            _explorerController.SetSortMode(ExplorerSortMode.Name);
-            UpdateSortIcon();
-            RefreshExplorer();
+            ApplyExplorerSortMode(ExplorerSortMode.Name);
         }
 
         private void SortByDateDesc_Click(object sender, RoutedEventArgs e)
         {
-            _explorerController.SetSortMode(ExplorerSortMode.DateDesc);
-            UpdateSortIcon();
-            RefreshExplorer();
+            ApplyExplorerSortMode(ExplorerSortMode.DateDesc);
         }
 
         private void SortByDateAsc_Click(object sender, RoutedEventArgs e)
         {
-            _explorerController.SetSortMode(ExplorerSortMode.DateAsc);
+            ApplyExplorerSortMode(ExplorerSortMode.DateAsc);
+        }
+
+        private void ApplyExplorerSortMode(ExplorerSortMode sortMode)
+        {
+            _explorerController.SetSortMode(sortMode);
             UpdateSortIcon();
             RefreshExplorer();
         }
@@ -998,17 +1011,14 @@ namespace Uviewer
                 case ExplorerSortMode.DateDesc:
                     SortIcon.Glyph = "\uE1FD"; // Down arrow
                     ToolTipService.SetToolTip(SortByDateButton, Strings.SortByDateDescTooltip);
-                    if (SortByDateDescMenu != null) SortByDateDescMenu.IsChecked = true;
                     break;
                 case ExplorerSortMode.DateAsc:
                     SortIcon.Glyph = "\uE110"; // Up arrow
                     ToolTipService.SetToolTip(SortByDateButton, Strings.SortByDateAscTooltip);
-                    if (SortByDateAscMenu != null) SortByDateAscMenu.IsChecked = true;
                     break;
                 default:
                     SortIcon.Glyph = "\uE174"; // Default Sort (Name)
                     ToolTipService.SetToolTip(SortByDateButton, Strings.SortByNameTooltip);
-                    if (SortByNameMenu != null) SortByNameMenu.IsChecked = true;
                     break;
             }
         }

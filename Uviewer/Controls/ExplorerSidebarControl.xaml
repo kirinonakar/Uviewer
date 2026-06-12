@@ -166,13 +166,6 @@
 
                     <Button Grid.Column="5" x:Name="SortByDateButton" Padding="6">
                         <FontIcon x:Name="SortIcon" Glyph="&#xE174;" FontSize="14"/>
-                        <Button.Flyout>
-                            <MenuFlyout Placement="Bottom">
-                                <RadioMenuFlyoutItem x:Name="SortByNameMenu" GroupName="SortGroup" IsChecked="True" />
-                                <RadioMenuFlyoutItem x:Name="SortByDateDescMenu" GroupName="SortGroup" />
-                                <RadioMenuFlyoutItem x:Name="SortByDateAscMenu" GroupName="SortGroup" />
-                            </MenuFlyout>
-                        </Button.Flyout>
                     </Button>
 
                     <Button Grid.Column="7" x:Name="WebDavButton"
