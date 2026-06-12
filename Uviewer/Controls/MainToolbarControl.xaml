@@ -75,7 +75,7 @@
                                     <FontIcon Glyph="&#xE18F;"/>
                                 </MenuFlyoutItem.Icon>
                             </MenuFlyoutItem>
-                            <MenuFlyoutItem x:Name="SelectExternalProgramMenuItem" Text="외부 프로그램 설정">
+                            <MenuFlyoutItem x:Name="SelectExternalProgramMenuItem" Text="{x:Bind app:Strings.ExternalProgramSettings}">
                                 <MenuFlyoutItem.Icon>
                                     <FontIcon Glyph="&#xE8E5;"/>
                                 </MenuFlyoutItem.Icon>

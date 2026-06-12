@@ -168,6 +168,20 @@ namespace Uviewer
         public static string AboutTitle => GetString("AboutTitle");
         public static string Close => GetString("CloseWindowTooltip").Replace("(Esc)", "").Trim();
         public static string FileNotFound => GetString("FileNotFound");
+        public static string ExternalProgramSettings => GetString("ExternalProgramSettings");
+        public static string ExplorerOpenExternal => GetString("ExplorerOpenExternal");
+        public static string ExplorerOpenInWindowsExplorer => GetString("ExplorerOpenInWindowsExplorer");
+        public static string ExplorerRefresh => GetString("ExplorerRefresh");
+        public static string ExplorerRename => GetString("ExplorerRename");
+        public static string ExplorerDelete => GetString("ExplorerDelete");
+        public static string RenamePrimary => GetString("RenamePrimary");
+        public static string Cancel => GetString("DialogClose");
+        public static string DeletePrimary => GetString("DeletePrimary");
+        public static string InvalidFileName => GetString("InvalidFileName");
+        public static string FileNameAlreadyExists => GetString("FileNameAlreadyExists");
+        public static string RenameSucceeded => GetString("RenameSucceeded");
+        public static string MovedToRecycleBin => GetString("MovedToRecycleBin");
+        public static string ExternalProgramPathRequired => GetString("ExternalProgramPathRequired");
 
         // Sharpen & Upscale
         public static string SharpenSettingsTitle => GetString("SharpenSettingsTitle");
@@ -200,5 +214,12 @@ namespace Uviewer
         public static string EpubLoadError(string msg) => string.Format(GetString("EpubLoadError"), msg);
         public static string EpubParseError(string msg) => string.Format(GetString("EpubParseError"), msg);
         public static string EpubPageInfo(int p, int tp, int l, int tl, int c, int tc) => string.Format(GetString("EpubPageInfo"), p, tp, l, tl, c, tc);
+        public static string ExternalProgramMenuWithName(string name) => string.Format(GetString("ExternalProgramMenuWithName"), name);
+        public static string ExternalProgramConfiguredNotification(string name) => string.Format(GetString("ExternalProgramConfiguredNotification"), name);
+        public static string ExternalProgramLaunchFailed(string msg) => string.Format(GetString("ExternalProgramLaunchFailed"), msg);
+        public static string ExplorerOpenFailed(string msg) => string.Format(GetString("ExplorerOpenFailed"), msg);
+        public static string DeleteConfirmation(string name) => string.Format(GetString("DeleteConfirmation"), name);
+        public static string RenameFailed(string msg) => string.Format(GetString("RenameFailed"), msg);
+        public static string DeleteFailed(string msg) => string.Format(GetString("DeleteFailed"), msg);
     }
 }

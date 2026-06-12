@@ -582,6 +582,7 @@ namespace Uviewer
 
             // Menus
             if (SidebarAddToFavoritesButton != null) SidebarAddToFavoritesButton.Content = Strings.AddToFavorites;
+            InitializeExplorerContextMenus();
 
             // Favorites Pivot Headers
             if (SidebarFileFavoritesPivotItem != null) SidebarFileFavoritesPivotItem.Header = Strings.FavoritesFiles;

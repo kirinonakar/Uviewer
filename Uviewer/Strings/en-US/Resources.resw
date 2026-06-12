@@ -545,4 +545,64 @@
   <data name="FileNotFound" xml:space="preserve">
     <value>File/Folder not found.</value>
   </data>
+  <data name="ExternalProgramSettings" xml:space="preserve">
+    <value>External program settings</value>
+  </data>
+  <data name="ExternalProgramMenuWithName" xml:space="preserve">
+    <value>External program: {0}</value>
+  </data>
+  <data name="ExplorerOpenExternal" xml:space="preserve">
+    <value>Open with external program</value>
+  </data>
+  <data name="ExplorerOpenInWindowsExplorer" xml:space="preserve">
+    <value>Open path in Windows Explorer</value>
+  </data>
+  <data name="ExplorerRefresh" xml:space="preserve">
+    <value>Refresh</value>
+  </data>
+  <data name="ExplorerRename" xml:space="preserve">
+    <value>Rename</value>
+  </data>
+  <data name="ExplorerDelete" xml:space="preserve">
+    <value>Delete</value>
+  </data>
+  <data name="RenamePrimary" xml:space="preserve">
+    <value>Rename</value>
+  </data>
+  <data name="DeletePrimary" xml:space="preserve">
+    <value>Delete</value>
+  </data>
+  <data name="InvalidFileName" xml:space="preserve">
+    <value>The name contains invalid characters.</value>
+  </data>
+  <data name="FileNameAlreadyExists" xml:space="preserve">
+    <value>A file/folder with the same name already exists.</value>
+  </data>
+  <data name="RenameSucceeded" xml:space="preserve">
+    <value>Renamed successfully.</value>
+  </data>
+  <data name="MovedToRecycleBin" xml:space="preserve">
+    <value>Moved to the Recycle Bin.</value>
+  </data>
+  <data name="ExternalProgramPathRequired" xml:space="preserve">
+    <value>Set the external program path in Settings first.</value>
+  </data>
+  <data name="ExternalProgramConfiguredNotification" xml:space="preserve">
+    <value>External program set: {0}</value>
+  </data>
+  <data name="ExternalProgramLaunchFailed" xml:space="preserve">
+    <value>Failed to launch external program: {0}</value>
+  </data>
+  <data name="ExplorerOpenFailed" xml:space="preserve">
+    <value>Failed to open Explorer: {0}</value>
+  </data>
+  <data name="DeleteConfirmation" xml:space="preserve">
+    <value>Close '{0}' and move it to the Recycle Bin?</value>
+  </data>
+  <data name="RenameFailed" xml:space="preserve">
+    <value>Rename failed: {0}</value>
+  </data>
+  <data name="DeleteFailed" xml:space="preserve">
+    <value>Delete failed: {0}</value>
+  </data>
 </root>

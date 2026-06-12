@@ -545,4 +545,64 @@
   <data name="FileNotFound" xml:space="preserve">
     <value>找不到文件/文件夹。</value>
   </data>
+  <data name="ExternalProgramSettings" xml:space="preserve">
+    <value>外部程序设置</value>
+  </data>
+  <data name="ExternalProgramMenuWithName" xml:space="preserve">
+    <value>外部程序: {0}</value>
+  </data>
+  <data name="ExplorerOpenExternal" xml:space="preserve">
+    <value>使用外部程序打开</value>
+  </data>
+  <data name="ExplorerOpenInWindowsExplorer" xml:space="preserve">
+    <value>在 Windows 资源管理器中打开路径</value>
+  </data>
+  <data name="ExplorerRefresh" xml:space="preserve">
+    <value>刷新</value>
+  </data>
+  <data name="ExplorerRename" xml:space="preserve">
+    <value>重命名</value>
+  </data>
+  <data name="ExplorerDelete" xml:space="preserve">
+    <value>删除</value>
+  </data>
+  <data name="RenamePrimary" xml:space="preserve">
+    <value>更改</value>
+  </data>
+  <data name="DeletePrimary" xml:space="preserve">
+    <value>删除</value>
+  </data>
+  <data name="InvalidFileName" xml:space="preserve">
+    <value>名称包含无效字符。</value>
+  </data>
+  <data name="FileNameAlreadyExists" xml:space="preserve">
+    <value>已存在同名文件/文件夹。</value>
+  </data>
+  <data name="RenameSucceeded" xml:space="preserve">
+    <value>已重命名。</value>
+  </data>
+  <data name="MovedToRecycleBin" xml:space="preserve">
+    <value>已移动到回收站。</value>
+  </data>
+  <data name="ExternalProgramPathRequired" xml:space="preserve">
+    <value>请先在设置中指定外部程序路径。</value>
+  </data>
+  <data name="ExternalProgramConfiguredNotification" xml:space="preserve">
+    <value>已设置外部程序: {0}</value>
+  </data>
+  <data name="ExternalProgramLaunchFailed" xml:space="preserve">
+    <value>外部程序启动失败: {0}</value>
+  </data>
+  <data name="ExplorerOpenFailed" xml:space="preserve">
+    <value>打开资源管理器失败: {0}</value>
+  </data>
+  <data name="DeleteConfirmation" xml:space="preserve">
+    <value>关闭“{0}”并移动到回收站吗?</value>
+  </data>
+  <data name="RenameFailed" xml:space="preserve">
+    <value>重命名失败: {0}</value>
+  </data>
+  <data name="DeleteFailed" xml:space="preserve">
+    <value>删除失败: {0}</value>
+  </data>
 </root>

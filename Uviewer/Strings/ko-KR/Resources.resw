@@ -545,4 +545,64 @@
   <data name="FileNotFound" xml:space="preserve">
     <value>파일/폴더가 없습니다.</value>
   </data>
+  <data name="ExternalProgramSettings" xml:space="preserve">
+    <value>외부 프로그램 설정</value>
+  </data>
+  <data name="ExternalProgramMenuWithName" xml:space="preserve">
+    <value>외부 프로그램: {0}</value>
+  </data>
+  <data name="ExplorerOpenExternal" xml:space="preserve">
+    <value>외부 프로그램에서 열기</value>
+  </data>
+  <data name="ExplorerOpenInWindowsExplorer" xml:space="preserve">
+    <value>윈도우즈 탐색기에서 경로 열기</value>
+  </data>
+  <data name="ExplorerRefresh" xml:space="preserve">
+    <value>새로고침</value>
+  </data>
+  <data name="ExplorerRename" xml:space="preserve">
+    <value>이름 바꾸기</value>
+  </data>
+  <data name="ExplorerDelete" xml:space="preserve">
+    <value>삭제</value>
+  </data>
+  <data name="RenamePrimary" xml:space="preserve">
+    <value>변경</value>
+  </data>
+  <data name="DeletePrimary" xml:space="preserve">
+    <value>삭제</value>
+  </data>
+  <data name="InvalidFileName" xml:space="preserve">
+    <value>사용할 수 없는 문자가 포함되어 있습니다.</value>
+  </data>
+  <data name="FileNameAlreadyExists" xml:space="preserve">
+    <value>같은 이름의 파일/폴더가 이미 있습니다.</value>
+  </data>
+  <data name="RenameSucceeded" xml:space="preserve">
+    <value>이름을 변경했습니다.</value>
+  </data>
+  <data name="MovedToRecycleBin" xml:space="preserve">
+    <value>휴지통으로 이동했습니다.</value>
+  </data>
+  <data name="ExternalProgramPathRequired" xml:space="preserve">
+    <value>설정에서 외부 프로그램 경로를 먼저 지정하세요.</value>
+  </data>
+  <data name="ExternalProgramConfiguredNotification" xml:space="preserve">
+    <value>외부 프로그램 설정됨: {0}</value>
+  </data>
+  <data name="ExternalProgramLaunchFailed" xml:space="preserve">
+    <value>외부 프로그램 실행 실패: {0}</value>
+  </data>
+  <data name="ExplorerOpenFailed" xml:space="preserve">
+    <value>탐색기 열기 실패: {0}</value>
+  </data>
+  <data name="DeleteConfirmation" xml:space="preserve">
+    <value>'{0}'을(를) 닫고 휴지통으로 이동할까요?</value>
+  </data>
+  <data name="RenameFailed" xml:space="preserve">
+    <value>이름 변경 실패: {0}</value>
+  </data>
+  <data name="DeleteFailed" xml:space="preserve">
+    <value>삭제 실패: {0}</value>
+  </data>
 </root>

@@ -243,8 +243,8 @@ namespace Uviewer.Controls
             EncJohabItem.Text = Strings.EncJohab;
             ChangeColorsMenuItem.Text = Strings.ChangeColors;
             SelectExternalProgramMenuItem.Text = string.IsNullOrWhiteSpace(_externalProgramPath)
-                ? "외부 프로그램 설정"
-                : $"외부 프로그램: {System.IO.Path.GetFileName(_externalProgramPath)}";
+                ? Strings.ExternalProgramSettings
+                : Strings.ExternalProgramMenuWithName(System.IO.Path.GetFileName(_externalProgramPath));
             MatchControlDirectionMenuItem.Text = Strings.MatchControlDirection;
             ToolTipService.SetToolTip(MatchControlDirectionMenuItem, Strings.MatchControlDirectionTooltip);
             AllowMultipleInstancesMenuItem.Text = Strings.AllowMultipleInstances;
@@ -319,8 +319,8 @@ namespace Uviewer.Controls
         {
             _externalProgramPath = path ?? string.Empty;
             SelectExternalProgramMenuItem.Text = string.IsNullOrWhiteSpace(_externalProgramPath)
-                ? "외부 프로그램 설정"
-                : $"외부 프로그램: {System.IO.Path.GetFileName(_externalProgramPath)}";
+                ? Strings.ExternalProgramSettings
+                : Strings.ExternalProgramMenuWithName(System.IO.Path.GetFileName(_externalProgramPath));
             ToolTipService.SetToolTip(
                 SelectExternalProgramMenuItem,
                 string.IsNullOrWhiteSpace(_externalProgramPath) ? null : _externalProgramPath);

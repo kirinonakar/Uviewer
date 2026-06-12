@@ -649,11 +649,11 @@ namespace Uviewer
         {
             var flyout = new MenuFlyout();
 
-            var openExternalItem = new MenuFlyoutItem { Text = "외부 프로그램에서 열기", Icon = new FontIcon { Glyph = "\uE8E5" } };
-            var openExplorerItem = new MenuFlyoutItem { Text = "윈도우즈 탐색기에서 경로 열기", Icon = new FontIcon { Glyph = "\uED25" } };
-            var refreshItem = new MenuFlyoutItem { Text = "새로고침", Icon = new FontIcon { Glyph = "\uE72C" } };
-            var renameItem = new MenuFlyoutItem { Text = "이름 바꾸기", Icon = new FontIcon { Glyph = "\uE8AC" } };
-            var deleteItem = new MenuFlyoutItem { Text = "삭제", Icon = new FontIcon { Glyph = "\uE74D" } };
+            var openExternalItem = new MenuFlyoutItem { Text = Strings.ExplorerOpenExternal, Icon = new FontIcon { Glyph = "\uE8E5" } };
+            var openExplorerItem = new MenuFlyoutItem { Text = Strings.ExplorerOpenInWindowsExplorer, Icon = new FontIcon { Glyph = "\uED25" } };
+            var refreshItem = new MenuFlyoutItem { Text = Strings.ExplorerRefresh, Icon = new FontIcon { Glyph = "\uE72C" } };
+            var renameItem = new MenuFlyoutItem { Text = Strings.ExplorerRename, Icon = new FontIcon { Glyph = "\uE8AC" } };
+            var deleteItem = new MenuFlyoutItem { Text = Strings.ExplorerDelete, Icon = new FontIcon { Glyph = "\uE74D" } };
 
             openExternalItem.Click += async (_, _) => await OpenExplorerItemWithExternalProgramAsync(GetExplorerContextItem());
             openExplorerItem.Click += (_, _) => OpenExplorerItemInWindowsExplorer(GetExplorerContextItem());
@@ -733,7 +733,7 @@ namespace Uviewer
             _externalProgramPath = file.Path;
             MainToolbar.SetExternalProgramPath(_externalProgramPath);
             _windowSettingsCoordinator?.SaveWindowSettings();
-            ShowNotification($"외부 프로그램 설정됨: {Path.GetFileName(_externalProgramPath)}");
+            ShowNotification(Strings.ExternalProgramConfiguredNotification(Path.GetFileName(_externalProgramPath)));
         }
 
         private async Task OpenExplorerItemWithExternalProgramAsync(FileItem? item)
@@ -742,7 +742,7 @@ namespace Uviewer
 
             if (string.IsNullOrWhiteSpace(_externalProgramPath) || !File.Exists(_externalProgramPath))
             {
-                ShowNotification("설정에서 외부 프로그램 경로를 먼저 지정하세요.", "\uE783", "Red");
+                ShowNotification(Strings.ExternalProgramPathRequired, "\uE783", "Red");
                 await SelectExternalProgramAsync();
                 return;
             }
@@ -766,7 +766,7 @@ namespace Uviewer
             }
             catch (Exception ex)
             {
-                ShowNotification($"외부 프로그램 실행 실패: {ex.Message}", "\uE783", "Red");
+                ShowNotification(Strings.ExternalProgramLaunchFailed(ex.Message), "\uE783", "Red");
             }
         }
 
@@ -793,7 +793,7 @@ namespace Uviewer
             }
             catch (Exception ex)
             {
-                ShowNotification($"탐색기 열기 실패: {ex.Message}", "\uE783", "Red");
+                ShowNotification(Strings.ExplorerOpenFailed(ex.Message), "\uE783", "Red");
             }
         }
 
@@ -819,10 +819,10 @@ namespace Uviewer
 
             var dialog = new ContentDialog
             {
-                Title = "이름 바꾸기",
+                Title = Strings.ExplorerRename,
                 Content = input,
-                PrimaryButtonText = "변경",
-                CloseButtonText = "취소",
+                PrimaryButtonText = Strings.RenamePrimary,
+                CloseButtonText = Strings.Cancel,
                 DefaultButton = ContentDialogButton.Primary,
                 XamlRoot = RootGrid.XamlRoot
             };
@@ -835,7 +835,7 @@ namespace Uviewer
 
             if (newName.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0)
             {
-                ShowNotification("사용할 수 없는 문자가 포함되어 있습니다.", "\uE783", "Red");
+                ShowNotification(Strings.InvalidFileName, "\uE783", "Red");
                 return;
             }
 
@@ -845,7 +845,7 @@ namespace Uviewer
             var newPath = Path.Combine(parent, newName);
             if (File.Exists(newPath) || Directory.Exists(newPath))
             {
-                ShowNotification("같은 이름의 파일/폴더가 이미 있습니다.", "\uE783", "Red");
+                ShowNotification(Strings.FileNameAlreadyExists, "\uE783", "Red");
                 return;
             }
 
@@ -870,11 +870,11 @@ namespace Uviewer
                     await OpenLocalFilePathAsync(newPath);
                 }
 
-                ShowNotification("이름을 변경했습니다.");
+                ShowNotification(Strings.RenameSucceeded);
             }
             catch (Exception ex)
             {
-                ShowNotification($"이름 변경 실패: {ex.Message}", "\uE783", "Red");
+                ShowNotification(Strings.RenameFailed(ex.Message), "\uE783", "Red");
             }
         }
 
@@ -892,10 +892,10 @@ namespace Uviewer
 
             var dialog = new ContentDialog
             {
-                Title = "삭제",
-                Content = $"'{item.Name}'을(를) 닫고 휴지통으로 이동할까요?",
-                PrimaryButtonText = "삭제",
-                CloseButtonText = "취소",
+                Title = Strings.ExplorerDelete,
+                Content = Strings.DeleteConfirmation(item.Name),
+                PrimaryButtonText = Strings.DeletePrimary,
+                CloseButtonText = Strings.Cancel,
                 DefaultButton = ContentDialogButton.Close,
                 XamlRoot = RootGrid.XamlRoot
             };
@@ -928,11 +928,11 @@ namespace Uviewer
                 {
                     ClearViewerAfterExplorerDeletion();
                 }
-                ShowNotification("휴지통으로 이동했습니다.");
+                ShowNotification(Strings.MovedToRecycleBin);
             }
             catch (Exception ex)
             {
-                ShowNotification($"삭제 실패: {ex.Message}", "\uE783", "Red");
+                ShowNotification(Strings.DeleteFailed(ex.Message), "\uE783", "Red");
             }
         }
 

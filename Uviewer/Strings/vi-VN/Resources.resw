@@ -545,4 +545,64 @@
   <data name="FileNotFound" xml:space="preserve">
     <value>Không tìm thấy tệp/thư mục.</value>
   </data>
+  <data name="ExternalProgramSettings" xml:space="preserve">
+    <value>Cài đặt chương trình bên ngoài</value>
+  </data>
+  <data name="ExternalProgramMenuWithName" xml:space="preserve">
+    <value>Chương trình bên ngoài: {0}</value>
+  </data>
+  <data name="ExplorerOpenExternal" xml:space="preserve">
+    <value>Mở bằng chương trình bên ngoài</value>
+  </data>
+  <data name="ExplorerOpenInWindowsExplorer" xml:space="preserve">
+    <value>Mở đường dẫn trong Windows Explorer</value>
+  </data>
+  <data name="ExplorerRefresh" xml:space="preserve">
+    <value>Làm mới</value>
+  </data>
+  <data name="ExplorerRename" xml:space="preserve">
+    <value>Đổi tên</value>
+  </data>
+  <data name="ExplorerDelete" xml:space="preserve">
+    <value>Xóa</value>
+  </data>
+  <data name="RenamePrimary" xml:space="preserve">
+    <value>Đổi</value>
+  </data>
+  <data name="DeletePrimary" xml:space="preserve">
+    <value>Xóa</value>
+  </data>
+  <data name="InvalidFileName" xml:space="preserve">
+    <value>Tên chứa ký tự không hợp lệ.</value>
+  </data>
+  <data name="FileNameAlreadyExists" xml:space="preserve">
+    <value>Đã có tệp/thư mục cùng tên.</value>
+  </data>
+  <data name="RenameSucceeded" xml:space="preserve">
+    <value>Đã đổi tên.</value>
+  </data>
+  <data name="MovedToRecycleBin" xml:space="preserve">
+    <value>Đã chuyển vào Thùng rác.</value>
+  </data>
+  <data name="ExternalProgramPathRequired" xml:space="preserve">
+    <value>Hãy đặt đường dẫn chương trình bên ngoài trong Cài đặt trước.</value>
+  </data>
+  <data name="ExternalProgramConfiguredNotification" xml:space="preserve">
+    <value>Đã đặt chương trình bên ngoài: {0}</value>
+  </data>
+  <data name="ExternalProgramLaunchFailed" xml:space="preserve">
+    <value>Không thể chạy chương trình bên ngoài: {0}</value>
+  </data>
+  <data name="ExplorerOpenFailed" xml:space="preserve">
+    <value>Không thể mở Explorer: {0}</value>
+  </data>
+  <data name="DeleteConfirmation" xml:space="preserve">
+    <value>Đóng '{0}' và chuyển vào Thùng rác?</value>
+  </data>
+  <data name="RenameFailed" xml:space="preserve">
+    <value>Đổi tên thất bại: {0}</value>
+  </data>
+  <data name="DeleteFailed" xml:space="preserve">
+    <value>Xóa thất bại: {0}</value>
+  </data>
 </root>

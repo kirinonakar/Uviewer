@@ -545,4 +545,64 @@
   <data name="FileNotFound" xml:space="preserve">
     <value>ファイル/フォルダーが見つかりません。</value>
   </data>
+  <data name="ExternalProgramSettings" xml:space="preserve">
+    <value>外部プログラム設定</value>
+  </data>
+  <data name="ExternalProgramMenuWithName" xml:space="preserve">
+    <value>外部プログラム: {0}</value>
+  </data>
+  <data name="ExplorerOpenExternal" xml:space="preserve">
+    <value>外部プログラムで開く</value>
+  </data>
+  <data name="ExplorerOpenInWindowsExplorer" xml:space="preserve">
+    <value>Windows エクスプローラーで場所を開く</value>
+  </data>
+  <data name="ExplorerRefresh" xml:space="preserve">
+    <value>更新</value>
+  </data>
+  <data name="ExplorerRename" xml:space="preserve">
+    <value>名前の変更</value>
+  </data>
+  <data name="ExplorerDelete" xml:space="preserve">
+    <value>削除</value>
+  </data>
+  <data name="RenamePrimary" xml:space="preserve">
+    <value>変更</value>
+  </data>
+  <data name="DeletePrimary" xml:space="preserve">
+    <value>削除</value>
+  </data>
+  <data name="InvalidFileName" xml:space="preserve">
+    <value>使用できない文字が含まれています。</value>
+  </data>
+  <data name="FileNameAlreadyExists" xml:space="preserve">
+    <value>同じ名前のファイル/フォルダーが既に存在します。</value>
+  </data>
+  <data name="RenameSucceeded" xml:space="preserve">
+    <value>名前を変更しました。</value>
+  </data>
+  <data name="MovedToRecycleBin" xml:space="preserve">
+    <value>ごみ箱に移動しました。</value>
+  </data>
+  <data name="ExternalProgramPathRequired" xml:space="preserve">
+    <value>まず設定で外部プログラムのパスを指定してください。</value>
+  </data>
+  <data name="ExternalProgramConfiguredNotification" xml:space="preserve">
+    <value>外部プログラムを設定しました: {0}</value>
+  </data>
+  <data name="ExternalProgramLaunchFailed" xml:space="preserve">
+    <value>外部プログラムの起動に失敗しました: {0}</value>
+  </data>
+  <data name="ExplorerOpenFailed" xml:space="preserve">
+    <value>エクスプローラーを開けませんでした: {0}</value>
+  </data>
+  <data name="DeleteConfirmation" xml:space="preserve">
+    <value>'{0}' を閉じてごみ箱に移動しますか?</value>
+  </data>
+  <data name="RenameFailed" xml:space="preserve">
+    <value>名前の変更に失敗しました: {0}</value>
+  </data>
+  <data name="DeleteFailed" xml:space="preserve">
+    <value>削除に失敗しました: {0}</value>
+  </data>
 </root>
