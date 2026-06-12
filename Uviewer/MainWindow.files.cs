@@ -824,7 +824,8 @@ namespace Uviewer
                 PrimaryButtonText = Strings.RenamePrimary,
                 CloseButtonText = Strings.Cancel,
                 DefaultButton = ContentDialogButton.Primary,
-                XamlRoot = RootGrid.XamlRoot
+                XamlRoot = RootGrid.XamlRoot,
+                RequestedTheme = RootGrid.ActualTheme
             };
 
             var result = await dialog.ShowAsync();
@@ -897,7 +898,8 @@ namespace Uviewer
                 PrimaryButtonText = Strings.DeletePrimary,
                 CloseButtonText = Strings.Cancel,
                 DefaultButton = ContentDialogButton.Close,
-                XamlRoot = RootGrid.XamlRoot
+                XamlRoot = RootGrid.XamlRoot,
+                RequestedTheme = RootGrid.ActualTheme
             };
 
             var result = await dialog.ShowAsync();
