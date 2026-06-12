@@ -81,6 +81,7 @@ namespace Uviewer.Services
                         if (lines.Length >= 21 && double.TryParse(lines[20], out double sThreshold)) settings.SharpenThreshold = sThreshold;
                         if (lines.Length >= 22 && double.TryParse(lines[21], out double thumbnailSize)) settings.ExplorerThumbnailSize = Math.Clamp(thumbnailSize, 64, 180);
                         if (lines.Length >= 23 && lines[22].Trim() == "1") settings.ShowFolderThumbnails = true;
+                        if (lines.Length >= 24) settings.ExternalProgramPath = lines[23];
                         
                         return settings;
                     }
@@ -127,7 +128,8 @@ namespace Uviewer.Services
                     settings.UnsharpRadius.ToString("F2"),
                     settings.SharpenThreshold.ToString("F3"),
                     settings.ExplorerThumbnailSize.ToString("F0"),
-                    settings.ShowFolderThumbnails ? "1" : "0"
+                    settings.ShowFolderThumbnails ? "1" : "0",
+                    settings.ExternalProgramPath ?? ""
                 };
 
                 File.WriteAllLines(_windowSettingsFile, lines);

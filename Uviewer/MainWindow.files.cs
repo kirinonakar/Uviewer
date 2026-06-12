@@ -1,9 +1,11 @@
 using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
@@ -636,6 +638,430 @@ namespace Uviewer
                 item.ApplyThumbnailSize(_explorerThumbnailSize);
             }
         }
+
+        private void InitializeExplorerContextMenus()
+        {
+            FileListView.ContextFlyout = CreateExplorerContextFlyout();
+            FileGridView.ContextFlyout = CreateExplorerContextFlyout();
+        }
+
+        private MenuFlyout CreateExplorerContextFlyout()
+        {
+            var flyout = new MenuFlyout();
+
+            var openExternalItem = new MenuFlyoutItem { Text = "외부 프로그램에서 열기", Icon = new FontIcon { Glyph = "\uE8E5" } };
+            var openExplorerItem = new MenuFlyoutItem { Text = "윈도우즈 탐색기에서 경로 열기", Icon = new FontIcon { Glyph = "\uED25" } };
+            var refreshItem = new MenuFlyoutItem { Text = "새로고침", Icon = new FontIcon { Glyph = "\uE72C" } };
+            var renameItem = new MenuFlyoutItem { Text = "이름 바꾸기", Icon = new FontIcon { Glyph = "\uE8AC" } };
+            var deleteItem = new MenuFlyoutItem { Text = "삭제", Icon = new FontIcon { Glyph = "\uE74D" } };
+
+            openExternalItem.Click += async (_, _) => await OpenExplorerItemWithExternalProgramAsync(GetExplorerContextItem());
+            openExplorerItem.Click += (_, _) => OpenExplorerItemInWindowsExplorer(GetExplorerContextItem());
+            refreshItem.Click += (_, _) => RefreshExplorer();
+            renameItem.Click += async (_, _) => await RenameExplorerItemAsync(GetExplorerContextItem());
+            deleteItem.Click += async (_, _) => await DeleteExplorerItemAsync(GetExplorerContextItem());
+
+            flyout.Opening += (_, _) =>
+            {
+                var item = GetExplorerContextItem();
+                var hasLocalItem = item != null && !item.IsWebDav;
+                var canModify = hasLocalItem && !item!.IsParentDirectory;
+
+                openExternalItem.IsEnabled = hasLocalItem && !item!.IsParentDirectory;
+                openExplorerItem.IsEnabled = hasLocalItem;
+                renameItem.IsEnabled = canModify;
+                deleteItem.IsEnabled = canModify;
+            };
+
+            flyout.Items.Add(openExternalItem);
+            flyout.Items.Add(openExplorerItem);
+            flyout.Items.Add(new MenuFlyoutSeparator());
+            flyout.Items.Add(refreshItem);
+            flyout.Items.Add(new MenuFlyoutSeparator());
+            flyout.Items.Add(renameItem);
+            flyout.Items.Add(deleteItem);
+
+            return flyout;
+        }
+
+        private void ExplorerView_RightTapped(object sender, RightTappedRoutedEventArgs e)
+        {
+            _explorerContextItem = FindExplorerItemFromSource(e.OriginalSource as DependencyObject);
+            _windowChromeController?.RefreshPointerCursor();
+        }
+
+        private FileItem? GetExplorerContextItem()
+        {
+            if (_explorerContextItem != null)
+            {
+                return _explorerContextItem;
+            }
+
+            return FileGridView.Visibility == Visibility.Visible
+                ? FileGridView.SelectedItem as FileItem
+                : FileListView.SelectedItem as FileItem;
+        }
+
+        private static FileItem? FindExplorerItemFromSource(DependencyObject? source)
+        {
+            while (source != null)
+            {
+                if (source is FrameworkElement element && element.DataContext is FileItem item)
+                {
+                    return item;
+                }
+
+                source = VisualTreeHelper.GetParent(source);
+            }
+
+            return null;
+        }
+
+        private async Task SelectExternalProgramAsync()
+        {
+            var picker = new FileOpenPicker();
+            var hwnd = WinRT.Interop.WindowNative.GetWindowHandle(this);
+            WinRT.Interop.InitializeWithWindow.Initialize(picker, hwnd);
+
+            picker.ViewMode = PickerViewMode.List;
+            picker.SuggestedStartLocation = PickerLocationId.ComputerFolder;
+            picker.FileTypeFilter.Add(".exe");
+
+            var file = await picker.PickSingleFileAsync();
+            if (file == null) return;
+
+            _externalProgramPath = file.Path;
+            MainToolbar.SetExternalProgramPath(_externalProgramPath);
+            _windowSettingsCoordinator?.SaveWindowSettings();
+            ShowNotification($"외부 프로그램 설정됨: {Path.GetFileName(_externalProgramPath)}");
+        }
+
+        private async Task OpenExplorerItemWithExternalProgramAsync(FileItem? item)
+        {
+            if (item == null || item.IsParentDirectory || item.IsWebDav) return;
+
+            if (string.IsNullOrWhiteSpace(_externalProgramPath) || !File.Exists(_externalProgramPath))
+            {
+                ShowNotification("설정에서 외부 프로그램 경로를 먼저 지정하세요.", "\uE783", "Red");
+                await SelectExternalProgramAsync();
+                return;
+            }
+
+            if (!File.Exists(item.FullPath) && !Directory.Exists(item.FullPath))
+            {
+                ShowNotification(Strings.FileNotFound, "\uE7BA", "Red");
+                RefreshExplorer();
+                return;
+            }
+
+            try
+            {
+                var startInfo = new ProcessStartInfo
+                {
+                    FileName = _externalProgramPath,
+                    UseShellExecute = false
+                };
+                startInfo.ArgumentList.Add(item.FullPath);
+                Process.Start(startInfo);
+            }
+            catch (Exception ex)
+            {
+                ShowNotification($"외부 프로그램 실행 실패: {ex.Message}", "\uE783", "Red");
+            }
+        }
+
+        private void OpenExplorerItemInWindowsExplorer(FileItem? item)
+        {
+            if (item == null || item.IsWebDav) return;
+
+            if (!File.Exists(item.FullPath) && !Directory.Exists(item.FullPath))
+            {
+                ShowNotification(Strings.FileNotFound, "\uE7BA", "Red");
+                RefreshExplorer();
+                return;
+            }
+
+            try
+            {
+                var startInfo = new ProcessStartInfo
+                {
+                    FileName = "explorer.exe",
+                    Arguments = item.IsDirectory ? QuoteArgument(item.FullPath) : $"/select,{QuoteArgument(item.FullPath)}",
+                    UseShellExecute = true
+                };
+                Process.Start(startInfo);
+            }
+            catch (Exception ex)
+            {
+                ShowNotification($"탐색기 열기 실패: {ex.Message}", "\uE783", "Red");
+            }
+        }
+
+        private async Task RenameExplorerItemAsync(FileItem? item)
+        {
+            if (item == null || item.IsParentDirectory || item.IsWebDav) return;
+
+            var originalPath = item.FullPath;
+            if (!File.Exists(originalPath) && !Directory.Exists(originalPath))
+            {
+                ShowNotification(Strings.FileNotFound, "\uE7BA", "Red");
+                RefreshExplorer();
+                return;
+            }
+
+            var input = new TextBox
+            {
+                Text = item.Name,
+                SelectionStart = 0,
+                SelectionLength = Path.GetFileNameWithoutExtension(item.Name).Length,
+                MinWidth = 320
+            };
+
+            var dialog = new ContentDialog
+            {
+                Title = "이름 바꾸기",
+                Content = input,
+                PrimaryButtonText = "변경",
+                CloseButtonText = "취소",
+                DefaultButton = ContentDialogButton.Primary,
+                XamlRoot = RootGrid.XamlRoot
+            };
+
+            var result = await dialog.ShowAsync();
+            if (result != ContentDialogResult.Primary) return;
+
+            var newName = input.Text.Trim();
+            if (string.IsNullOrEmpty(newName) || newName == item.Name) return;
+
+            if (newName.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0)
+            {
+                ShowNotification("사용할 수 없는 문자가 포함되어 있습니다.", "\uE783", "Red");
+                return;
+            }
+
+            var parent = Path.GetDirectoryName(originalPath);
+            if (string.IsNullOrEmpty(parent)) return;
+
+            var newPath = Path.Combine(parent, newName);
+            if (File.Exists(newPath) || Directory.Exists(newPath))
+            {
+                ShowNotification("같은 이름의 파일/폴더가 이미 있습니다.", "\uE783", "Red");
+                return;
+            }
+
+            var shouldReopen = IsExplorerOperationTargetOpen(originalPath, item.IsDirectory);
+            await ReleaseCurrentDocumentForExplorerOperationAsync(originalPath, item.IsDirectory);
+
+            try
+            {
+                if (item.IsDirectory)
+                {
+                    Directory.Move(originalPath, newPath);
+                }
+                else
+                {
+                    File.Move(originalPath, newPath);
+                }
+
+                RefreshExplorer();
+
+                if (shouldReopen && !item.IsDirectory)
+                {
+                    await OpenLocalFilePathAsync(newPath);
+                }
+
+                ShowNotification("이름을 변경했습니다.");
+            }
+            catch (Exception ex)
+            {
+                ShowNotification($"이름 변경 실패: {ex.Message}", "\uE783", "Red");
+            }
+        }
+
+        private async Task DeleteExplorerItemAsync(FileItem? item)
+        {
+            if (item == null || item.IsParentDirectory || item.IsWebDav) return;
+
+            var path = item.FullPath;
+            if (!File.Exists(path) && !Directory.Exists(path))
+            {
+                ShowNotification(Strings.FileNotFound, "\uE7BA", "Red");
+                RefreshExplorer();
+                return;
+            }
+
+            var dialog = new ContentDialog
+            {
+                Title = "삭제",
+                Content = $"'{item.Name}'을(를) 닫고 휴지통으로 이동할까요?",
+                PrimaryButtonText = "삭제",
+                CloseButtonText = "취소",
+                DefaultButton = ContentDialogButton.Close,
+                XamlRoot = RootGrid.XamlRoot
+            };
+
+            var result = await dialog.ShowAsync();
+            if (result != ContentDialogResult.Primary) return;
+
+            var shouldClearViewer = IsExplorerOperationTargetOpen(path, item.IsDirectory);
+            await ReleaseCurrentDocumentForExplorerOperationAsync(path, item.IsDirectory);
+
+            try
+            {
+                if (item.IsDirectory)
+                {
+                    Microsoft.VisualBasic.FileIO.FileSystem.DeleteDirectory(
+                        path,
+                        Microsoft.VisualBasic.FileIO.UIOption.OnlyErrorDialogs,
+                        Microsoft.VisualBasic.FileIO.RecycleOption.SendToRecycleBin);
+                }
+                else
+                {
+                    Microsoft.VisualBasic.FileIO.FileSystem.DeleteFile(
+                        path,
+                        Microsoft.VisualBasic.FileIO.UIOption.OnlyErrorDialogs,
+                        Microsoft.VisualBasic.FileIO.RecycleOption.SendToRecycleBin);
+                }
+
+                RefreshExplorer();
+                if (shouldClearViewer)
+                {
+                    ClearViewerAfterExplorerDeletion();
+                }
+                ShowNotification("휴지통으로 이동했습니다.");
+            }
+            catch (Exception ex)
+            {
+                ShowNotification($"삭제 실패: {ex.Message}", "\uE783", "Red");
+            }
+        }
+
+        private async Task ReleaseCurrentDocumentForExplorerOperationAsync(string targetPath, bool targetIsDirectory)
+        {
+            var shouldClose = IsExplorerOperationTargetOpen(targetPath, targetIsDirectory);
+
+            if (!shouldClose) return;
+
+            _sevenZipExtraction.CancelExtraction();
+            _imageLoadingCts?.Cancel();
+            _preloadManager.CancelAll();
+            _globalTextCts?.Cancel();
+
+            await CloseCurrentPdfAsync();
+            await CloseCurrentEpubAsync();
+            await CloseCurrentArchiveAsync();
+            CloseCurrentText();
+
+            ClearViewerAfterExplorerDeletion();
+
+            GC.Collect();
+            GC.WaitForPendingFinalizers();
+        }
+
+        private bool IsExplorerOperationTargetOpen(string targetPath, bool targetIsDirectory)
+        {
+            if (string.IsNullOrWhiteSpace(targetPath)) return false;
+
+            var currentPath = GetCurrentNavigatingPath();
+            if (PathsEqual(currentPath, targetPath)) return true;
+            if (IsCurrentFile(targetPath)) return true;
+
+            if (!string.IsNullOrEmpty(_currentPdfPath) && PathsEqual(_currentPdfPath, targetPath)) return true;
+            if (!string.IsNullOrEmpty(_archiveSession.CurrentPath) && PathsEqual(_archiveSession.CurrentPath, targetPath)) return true;
+            if (!string.IsNullOrEmpty(_currentEpubFilePath) && PathsEqual(_currentEpubFilePath, targetPath)) return true;
+            if (!string.IsNullOrEmpty(_currentTextFilePath) && PathsEqual(_currentTextFilePath, targetPath)) return true;
+
+            if (_currentIndex >= 0 && _imageEntries != null && _currentIndex < _imageEntries.Count)
+            {
+                var entry = _imageEntries[_currentIndex];
+                if (PathsEqual(entry.FilePath, targetPath) || PathsEqual(entry.WebDavPath, targetPath)) return true;
+            }
+
+            if (targetIsDirectory && !string.IsNullOrEmpty(currentPath) && IsSameOrChildPath(currentPath, targetPath))
+            {
+                return true;
+            }
+
+            return false;
+        }
+
+        private void ClearViewerAfterExplorerDeletion()
+        {
+            _animatedWebpService.Stop();
+            _fastNavigationService?.StopTimers();
+            _imageCache?.ClearAll();
+            _imageViewerState.ClearBitmaps();
+            _imageEntries = new List<ImageEntry>();
+            _currentIndex = -1;
+            _isCurrentViewSideBySide = false;
+
+            SwitchToImageMode();
+            EmptyStatePanel.Visibility = Visibility.Visible;
+            MainCanvas.Visibility = Visibility.Visible;
+            SideBySideGrid.Visibility = Visibility.Collapsed;
+            FastNavOverlay.Visibility = Visibility.Collapsed;
+            FileNameText.Text = Strings.FileSelectPlaceholder;
+            ImageInfoText.Text = string.Empty;
+            ImageIndexText.Text = string.Empty;
+            TextProgressText.Text = string.Empty;
+
+            MainCanvas?.Invalidate();
+            LeftCanvas?.Invalidate();
+            RightCanvas?.Invalidate();
+        }
+
+        private async Task OpenLocalFilePathAsync(string path)
+        {
+            var extension = Path.GetExtension(path).ToLowerInvariant();
+
+            if (FileExplorerService.SupportedArchiveExtensions.Contains(extension))
+            {
+                await LoadImagesFromArchiveAsync(path);
+            }
+            else if (FileExplorerService.SupportedPdfExtensions.Contains(extension))
+            {
+                await LoadImagesFromPdfAsync(path);
+            }
+            else
+            {
+                var file = await StorageFile.GetFileFromPathAsync(path);
+                await LoadImageFromFileAsync(file);
+            }
+        }
+
+        private static bool IsSameOrChildPath(string? candidatePath, string parentPath)
+        {
+            if (string.IsNullOrWhiteSpace(candidatePath) || string.IsNullOrWhiteSpace(parentPath))
+            {
+                return false;
+            }
+
+            var candidate = Path.GetFullPath(candidatePath).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+            var parent = Path.GetFullPath(parentPath).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+
+            return candidate.Equals(parent, StringComparison.OrdinalIgnoreCase) ||
+                candidate.StartsWith(parent + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase) ||
+                candidate.StartsWith(parent + Path.AltDirectorySeparatorChar, StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static bool PathsEqual(string? first, string? second)
+        {
+            if (string.IsNullOrWhiteSpace(first) || string.IsNullOrWhiteSpace(second))
+            {
+                return false;
+            }
+
+            try
+            {
+                return Path.GetFullPath(first).Equals(Path.GetFullPath(second), StringComparison.OrdinalIgnoreCase);
+            }
+            catch
+            {
+                return first.Equals(second, StringComparison.OrdinalIgnoreCase);
+            }
+        }
+
+        private static string QuoteArgument(string value) => $"\"{value.Replace("\"", "\\\"")}\"";
 
         private void UpdateToggleViewButtonTooltip()
         {

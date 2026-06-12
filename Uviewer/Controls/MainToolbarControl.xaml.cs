@@ -16,6 +16,7 @@ namespace Uviewer.Controls
         public event EventHandler<string>? EncodingSelected;
         public event EventHandler? ChangeColorsRequested;
         public event EventHandler? ChangeUiFontRequested;
+        public event EventHandler? SelectExternalProgramRequested;
         public event EventHandler<string>? LanguageSelected;
         public event EventHandler<bool>? MatchControlDirectionChanged;
         public event EventHandler<bool>? AllowMultipleInstancesChanged;
@@ -108,6 +109,7 @@ namespace Uviewer.Controls
             EncJohabItem.Click += EncodingItem_Click;
             ChangeColorsMenuItem.Click += (_, _) => ChangeColorsRequested?.Invoke(this, EventArgs.Empty);
             ChangeUiFontMenuItem.Click += (_, _) => ChangeUiFontRequested?.Invoke(this, EventArgs.Empty);
+            SelectExternalProgramMenuItem.Click += (_, _) => SelectExternalProgramRequested?.Invoke(this, EventArgs.Empty);
             LangAutoItem.Click += LanguageItem_Click;
             LangKoItem.Click += LanguageItem_Click;
             LangEnItem.Click += LanguageItem_Click;
@@ -240,6 +242,9 @@ namespace Uviewer.Controls
             EncSjisItem.Text = Strings.EncSjis;
             EncJohabItem.Text = Strings.EncJohab;
             ChangeColorsMenuItem.Text = Strings.ChangeColors;
+            SelectExternalProgramMenuItem.Text = string.IsNullOrWhiteSpace(_externalProgramPath)
+                ? "외부 프로그램 설정"
+                : $"외부 프로그램: {System.IO.Path.GetFileName(_externalProgramPath)}";
             MatchControlDirectionMenuItem.Text = Strings.MatchControlDirection;
             ToolTipService.SetToolTip(MatchControlDirectionMenuItem, Strings.MatchControlDirectionTooltip);
             AllowMultipleInstancesMenuItem.Text = Strings.AllowMultipleInstances;
@@ -307,6 +312,19 @@ namespace Uviewer.Controls
         public void SetAllowMultipleInstances(bool value) => AllowMultipleInstancesMenuItem.IsChecked = value;
         public void SetAutoDoublePageForArchive(bool value) => AutoDoublePageForArchiveMenuItem.IsChecked = value;
         public void SetAlwaysOnTopState(bool value) => AlwaysOnTopButton.IsChecked = value;
+
+        private string _externalProgramPath = "";
+
+        public void SetExternalProgramPath(string path)
+        {
+            _externalProgramPath = path ?? string.Empty;
+            SelectExternalProgramMenuItem.Text = string.IsNullOrWhiteSpace(_externalProgramPath)
+                ? "외부 프로그램 설정"
+                : $"외부 프로그램: {System.IO.Path.GetFileName(_externalProgramPath)}";
+            ToolTipService.SetToolTip(
+                SelectExternalProgramMenuItem,
+                string.IsNullOrWhiteSpace(_externalProgramPath) ? null : _externalProgramPath);
+        }
 
         public void SetAozoraToggleChecked(bool isChecked) => AozoraToggleButton.IsChecked = isChecked;
 

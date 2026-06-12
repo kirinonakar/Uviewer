@@ -167,7 +167,7 @@ namespace Uviewer.Services
             RefreshPointerCursor();
         }
 
-        private void RefreshPointerCursor()
+        internal void RefreshPointerCursor()
         {
             SetArrowCursor();
             _rootGrid.DispatcherQueue.TryEnqueue(DispatcherQueuePriority.Low, SetArrowCursor);

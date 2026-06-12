@@ -67,6 +67,12 @@ namespace Uviewer
             set => _showFolderThumbnails = value;
         }
 
+        string IWindowSettingsHost.ExternalProgramPath
+        {
+            get => _externalProgramPath;
+            set => _externalProgramPath = value ?? string.Empty;
+        }
+
         void IWindowSettingsHost.SetTheme(ElementTheme theme) => SetTheme(theme);
 
         void IWindowSettingsHost.RestoreMaximizedWhenActivated()
@@ -86,6 +92,7 @@ namespace Uviewer
                 _autoDoublePageForArchive,
                 _windowState.IsAlwaysOnTop);
             ApplyThumbnailSettingsToControls();
+            MainToolbar.SetExternalProgramPath(_externalProgramPath);
 
             if (AppWindow.Presenter is OverlappedPresenter op)
             {

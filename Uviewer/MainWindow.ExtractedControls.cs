@@ -62,6 +62,9 @@ namespace Uviewer
             FileGridView.SelectionChanged += FileGridView_SelectionChanged;
             FileGridView.ItemClick += FileItem_ItemClick;
             FileGridView.PreviewKeyDown += FileGridView_PreviewKeyDown;
+            FileListView.RightTapped += ExplorerView_RightTapped;
+            FileGridView.RightTapped += ExplorerView_RightTapped;
+            InitializeExplorerContextMenus();
 
             SidebarFileFavoritesList.ItemClicked += BookmarkList_ItemClicked;
             SidebarFileFavoritesList.RemoveClicked += BookmarkList_RemoveClicked;

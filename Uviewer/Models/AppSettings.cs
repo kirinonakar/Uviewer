@@ -25,5 +25,6 @@ namespace Uviewer.Models
         public double UnsharpRadius { get; set; } = 1.0;
         public double ExplorerThumbnailSize { get; set; } = 80;
         public bool ShowFolderThumbnails { get; set; } = false;
+        public string ExternalProgramPath { get; set; } = "";
     }
 }

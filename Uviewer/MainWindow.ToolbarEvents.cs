@@ -11,6 +11,7 @@ namespace Uviewer
             MainToolbar.EncodingSelected += async (_, encoding) => await ApplyEncodingSelectionAsync(encoding);
             MainToolbar.ChangeColorsRequested += (_, _) => ColorsMenu_Click(MainToolbar, new RoutedEventArgs());
             MainToolbar.ChangeUiFontRequested += (_, _) => UiFontMenu_Click(MainToolbar, new RoutedEventArgs());
+            MainToolbar.SelectExternalProgramRequested += async (_, _) => await SelectExternalProgramAsync();
             MainToolbar.LanguageSelected += async (_, language) => await ApplyLanguageSelectionAsync(language);
             MainToolbar.MatchControlDirectionChanged += (_, isChecked) => UpdateMatchControlDirection(isChecked);
             MainToolbar.AllowMultipleInstancesChanged += (_, isChecked) => UpdateAllowMultipleInstances(isChecked);

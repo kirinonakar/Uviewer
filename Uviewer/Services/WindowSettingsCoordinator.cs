@@ -50,6 +50,7 @@ namespace Uviewer.Services
             _host.IsRegistered = settings.IsRegistered;
             _host.ExplorerThumbnailSize = settings.ExplorerThumbnailSize;
             _host.ShowFolderThumbnails = settings.ShowFolderThumbnails;
+            _host.ExternalProgramPath = settings.ExternalProgramPath;
 
             // Sharpen parameters via ImageOptions
             _host.ImageOptions.UpscaleFactor = settings.UpscaleFactor;
@@ -96,6 +97,7 @@ namespace Uviewer.Services
                 IsRegistered = _host.IsRegistered,
                 ExplorerThumbnailSize = _host.ExplorerThumbnailSize,
                 ShowFolderThumbnails = _host.ShowFolderThumbnails,
+                ExternalProgramPath = _host.ExternalProgramPath,
                 UpscaleFactor = _host.ImageOptions.UpscaleFactor,
                 SharpenAmount = _host.ImageOptions.SharpenAmount,
                 SharpenThreshold = _host.ImageOptions.SharpenThreshold,
