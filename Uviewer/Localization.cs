@@ -174,6 +174,7 @@ namespace Uviewer
         public static string ExternalProgramBrowseButton => GetString("ExternalProgramBrowseButton");
         public static string ExternalProgramSaveButton => GetString("ExternalProgramSaveButton");
         public static string ExplorerOpenExternal => GetString("ExplorerOpenExternal");
+        public static string ExplorerOpenDefault => GetString("ExplorerOpenDefault");
         public static string ExplorerOpenInWindowsExplorer => GetString("ExplorerOpenInWindowsExplorer");
         public static string ExplorerRefresh => GetString("ExplorerRefresh");
         public static string ExplorerRename => GetString("ExplorerRename");
@@ -221,6 +222,7 @@ namespace Uviewer
         public static string ExternalProgramMenuWithName(string name) => string.Format(GetString("ExternalProgramMenuWithName"), name);
         public static string ExternalProgramConfiguredNotification(string name) => string.Format(GetString("ExternalProgramConfiguredNotification"), name);
         public static string ExternalProgramLaunchFailed(string msg) => string.Format(GetString("ExternalProgramLaunchFailed"), msg);
+        public static string DefaultProgramLaunchFailed(string msg) => string.Format(GetString("DefaultProgramLaunchFailed"), msg);
         public static string ExplorerOpenFailed(string msg) => string.Format(GetString("ExplorerOpenFailed"), msg);
         public static string DeleteConfirmation(string name) => string.Format(GetString("DeleteConfirmation"), name);
         public static string RenameFailed(string msg) => string.Format(GetString("RenameFailed"), msg);

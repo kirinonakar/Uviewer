@@ -650,12 +650,14 @@ namespace Uviewer
             var flyout = new MenuFlyout();
 
             var openExternalItem = new MenuFlyoutItem { Text = Strings.ExplorerOpenExternal, Icon = new FontIcon { Glyph = "\uE8E5" } };
+            var openDefaultItem = new MenuFlyoutItem { Text = Strings.ExplorerOpenDefault, Icon = new FontIcon { Glyph = "\uE8E5" } };
             var openExplorerItem = new MenuFlyoutItem { Text = Strings.ExplorerOpenInWindowsExplorer, Icon = new FontIcon { Glyph = "\uED25" } };
             var refreshItem = new MenuFlyoutItem { Text = Strings.ExplorerRefresh, Icon = new FontIcon { Glyph = "\uE72C" } };
             var renameItem = new MenuFlyoutItem { Text = Strings.ExplorerRename, Icon = new FontIcon { Glyph = "\uE8AC" } };
             var deleteItem = new MenuFlyoutItem { Text = Strings.ExplorerDelete, Icon = new FontIcon { Glyph = "\uE74D" } };
 
             openExternalItem.Click += async (_, _) => await OpenExplorerItemWithExternalProgramAsync(GetExplorerContextItem());
+            openDefaultItem.Click += (_, _) => OpenExplorerItemWithDefaultProgram(GetExplorerContextItem());
             openExplorerItem.Click += (_, _) => OpenExplorerItemInWindowsExplorer(GetExplorerContextItem());
             refreshItem.Click += (_, _) => RefreshExplorer();
             renameItem.Click += async (_, _) => await RenameExplorerItemAsync(GetExplorerContextItem());
@@ -666,14 +668,17 @@ namespace Uviewer
                 var item = GetExplorerContextItem();
                 var hasLocalItem = item != null && !item.IsWebDav;
                 var canModify = hasLocalItem && !item!.IsParentDirectory;
+                var canOpen = hasLocalItem && !item!.IsParentDirectory;
 
-                openExternalItem.IsEnabled = hasLocalItem && !item!.IsParentDirectory;
+                openExternalItem.IsEnabled = canOpen;
+                openDefaultItem.IsEnabled = canOpen;
                 openExplorerItem.IsEnabled = hasLocalItem;
                 renameItem.IsEnabled = canModify;
                 deleteItem.IsEnabled = canModify;
             };
 
             flyout.Items.Add(openExternalItem);
+            flyout.Items.Add(openDefaultItem);
             flyout.Items.Add(openExplorerItem);
             flyout.Items.Add(new MenuFlyoutSeparator());
             flyout.Items.Add(refreshItem);
@@ -849,6 +854,32 @@ namespace Uviewer
             catch (Exception ex)
             {
                 ShowNotification(Strings.ExternalProgramLaunchFailed(ex.Message), "\uE783", "Red");
+            }
+        }
+
+        private void OpenExplorerItemWithDefaultProgram(FileItem? item)
+        {
+            if (item == null || item.IsParentDirectory || item.IsWebDav) return;
+
+            if (!File.Exists(item.FullPath) && !Directory.Exists(item.FullPath))
+            {
+                ShowNotification(Strings.FileNotFound, "\uE7BA", "Red");
+                RefreshExplorer();
+                return;
+            }
+
+            try
+            {
+                var startInfo = new ProcessStartInfo
+                {
+                    FileName = item.FullPath,
+                    UseShellExecute = true
+                };
+                Process.Start(startInfo);
+            }
+            catch (Exception ex)
+            {
+                ShowNotification(Strings.DefaultProgramLaunchFailed(ex.Message), "\uE783", "Red");
             }
         }
 

@@ -566,6 +566,9 @@
   <data name="ExplorerOpenExternal" xml:space="preserve">
     <value>使用外部程序打开</value>
   </data>
+  <data name="ExplorerOpenDefault" xml:space="preserve">
+    <value>使用默认程序打开</value>
+  </data>
   <data name="ExplorerOpenInWindowsExplorer" xml:space="preserve">
     <value>在 Windows 资源管理器中打开路径</value>
   </data>
@@ -604,6 +607,9 @@
   </data>
   <data name="ExternalProgramLaunchFailed" xml:space="preserve">
     <value>外部程序启动失败: {0}</value>
+  </data>
+  <data name="DefaultProgramLaunchFailed" xml:space="preserve">
+    <value>默认程序启动失败: {0}</value>
   </data>
   <data name="ExplorerOpenFailed" xml:space="preserve">
     <value>打开资源管理器失败: {0}</value>

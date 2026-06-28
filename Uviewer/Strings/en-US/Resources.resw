@@ -566,6 +566,9 @@
   <data name="ExplorerOpenExternal" xml:space="preserve">
     <value>Open with external program</value>
   </data>
+  <data name="ExplorerOpenDefault" xml:space="preserve">
+    <value>Open with default program</value>
+  </data>
   <data name="ExplorerOpenInWindowsExplorer" xml:space="preserve">
     <value>Open path in Windows Explorer</value>
   </data>
@@ -604,6 +607,9 @@
   </data>
   <data name="ExternalProgramLaunchFailed" xml:space="preserve">
     <value>Failed to launch external program: {0}</value>
+  </data>
+  <data name="DefaultProgramLaunchFailed" xml:space="preserve">
+    <value>Failed to launch default program: {0}</value>
   </data>
   <data name="ExplorerOpenFailed" xml:space="preserve">
     <value>Failed to open Explorer: {0}</value>

@@ -566,6 +566,9 @@
   <data name="ExplorerOpenExternal" xml:space="preserve">
     <value>外部プログラムで開く</value>
   </data>
+  <data name="ExplorerOpenDefault" xml:space="preserve">
+    <value>既定のプログラムで開く</value>
+  </data>
   <data name="ExplorerOpenInWindowsExplorer" xml:space="preserve">
     <value>Windows エクスプローラーで場所を開く</value>
   </data>
@@ -604,6 +607,9 @@
   </data>
   <data name="ExternalProgramLaunchFailed" xml:space="preserve">
     <value>外部プログラムの起動に失敗しました: {0}</value>
+  </data>
+  <data name="DefaultProgramLaunchFailed" xml:space="preserve">
+    <value>既定のプログラムの起動に失敗しました: {0}</value>
   </data>
   <data name="ExplorerOpenFailed" xml:space="preserve">
     <value>エクスプローラーを開けませんでした: {0}</value>

@@ -566,6 +566,9 @@
   <data name="ExplorerOpenExternal" xml:space="preserve">
     <value>使用外部程式開啟</value>
   </data>
+  <data name="ExplorerOpenDefault" xml:space="preserve">
+    <value>使用預設程式開啟</value>
+  </data>
   <data name="ExplorerOpenInWindowsExplorer" xml:space="preserve">
     <value>在 Windows 檔案總管中開啟路徑</value>
   </data>
@@ -604,6 +607,9 @@
   </data>
   <data name="ExternalProgramLaunchFailed" xml:space="preserve">
     <value>外部程式啟動失敗: {0}</value>
+  </data>
+  <data name="DefaultProgramLaunchFailed" xml:space="preserve">
+    <value>預設程式啟動失敗: {0}</value>
   </data>
   <data name="ExplorerOpenFailed" xml:space="preserve">
     <value>開啟檔案總管失敗: {0}</value>
