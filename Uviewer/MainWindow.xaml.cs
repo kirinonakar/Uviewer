@@ -28,12 +28,12 @@ namespace Uviewer
         // Image preloading for faster navigation
         private Services.ImageCacheManager _imageCache = null!;
         private WindowStateManager _windowState = null!;
-        private readonly Services.IThumbnailService _thumbnailService = new Services.ThumbnailService();
+        private Services.IThumbnailService _thumbnailService = null!;
         private Services.PreloadManager _preloadManager = null!;
         private Services.ImageBitmapLoader _imageBitmapLoader = null!;
         private Services.ImageDoublePageDecisionService _imageDoublePageDecisionService = null!;
-        private readonly Services.ImageStatusBarService _imageStatusBarService = new();
-        private readonly Services.SideBySideImageLoadService _sideBySideImageLoadService = new();
+        private Services.ImageStatusBarService _imageStatusBarService = null!;
+        private Services.SideBySideImageLoadService _sideBySideImageLoadService = null!;
         private Services.ImageViewportNavigationService _imageViewportNavigationService = null!;
 
         // Refactored Services
@@ -41,26 +41,26 @@ namespace Uviewer
         private Services.ExplorerController _explorerController = null!;
         private Services.BookmarkPanelController _bookmarkPanelController = null!;
         private Services.FavoritesController _favoritesController = null!;
-        private readonly Services.AppSettingsService _appSettingsService = new();
-        private readonly Services.ZoomService _zoomService = new();
-        private readonly Services.ISharpeningService _sharpeningService = new Services.SharpeningService();
+        private Services.AppSettingsService _appSettingsService = null!;
+        private Services.ZoomService _zoomService = null!;
+        private Services.ISharpeningService _sharpeningService = null!;
         private Services.FastNavigationService _fastNavigationService = null!;
-        private readonly IAnimatedWebpService _animatedWebpService = null!;
-        private readonly IKeyboardShortcutService _keyboardShortcutService = new KeyboardShortcutService();
-        private readonly Services.TocService _tocService = new();
-        private readonly Services.DocumentSearchService _documentSearchService = new();
-        private readonly Services.SearchHighlightService _searchHighlightService = new();
-        private readonly Services.DocumentSearchCoordinatorService _documentSearchCoordinatorService = new();
+        private IAnimatedWebpService _animatedWebpService = null!;
+        private IKeyboardShortcutService _keyboardShortcutService = null!;
+        private Services.TocService _tocService = null!;
+        private Services.DocumentSearchService _documentSearchService = null!;
+        private Services.SearchHighlightService _searchHighlightService = null!;
+        private Services.DocumentSearchCoordinatorService _documentSearchCoordinatorService = null!;
         private Services.SearchOverlayService _searchOverlayService = null!;
-        private readonly DocumentSearchState _documentSearchState = new();
-        private readonly Services.DocumentSessionTracker _documentSessionTracker = new();
+        private DocumentSearchState _documentSearchState = null!;
+        private Services.DocumentSessionTracker _documentSessionTracker = null!;
         private string? _activeSearchQuery => _documentSearchState.Query;
         private IReadOnlyList<PdfSearchHighlight> _activePdfSearchHighlights => _documentSearchState.PdfHighlights;
         private int _activePdfSearchPageIndex => _documentSearchState.PdfPageIndex;
         private int _activePdfSearchMatchIndex => _documentSearchState.PdfMatchIndex;
-        private readonly Services.ImageResourceService _imageResourceService;
+        private Services.ImageResourceService _imageResourceService = null!;
         private bool _isWindowClosing;
-        private readonly Services.ShutdownCoordinator _shutdownCoordinator = new();
+        private Services.ShutdownCoordinator _shutdownCoordinator = null!;
         private Services.LocalDocumentOpenCoordinator _localDocumentOpenCoordinator = null!;
         private Services.WebDavDocumentOpenCoordinator _webDavDocumentOpenCoordinator = null!;
         private Services.DocumentNavigationCoordinator _documentNavigationCoordinator = null!;
@@ -75,7 +75,7 @@ namespace Uviewer
         [System.Runtime.InteropServices.DllImport("user32.dll", CharSet = System.Runtime.InteropServices.CharSet.Unicode)]
         private static extern int MessageBox(IntPtr hWnd, string text, string caption, uint type);
 
-        private readonly Services.SevenZipExtractionCoordinator _sevenZipExtraction = new();
+        private Services.SevenZipExtractionCoordinator _sevenZipExtraction = null!;
 
         private void Signal7zJump()
         {
@@ -86,8 +86,8 @@ namespace Uviewer
 
 
 
-        private Services.FavoritesService _favoritesService = new();
-        private Services.RecentService _recentService = new();
+        private Services.FavoritesService _favoritesService = null!;
+        private Services.RecentService _recentService = null!;
         private bool _isColorPickerOpen;
         private Microsoft.UI.Xaml.Controls.ContentDialog? _aboutDialog;
 
@@ -176,259 +176,7 @@ namespace Uviewer
 
         public MainWindow(string? launchFilePath = null)
         {
-            // _imageResourceService는 _sharpeningService에 의존하므로 생성자 시작 시 초기화
-            _imageResourceService = new Services.ImageResourceService(_sharpeningService);
-
-            InitializeComponent();
-            _documentReaderController = new DocumentReaderController(this);
-            _epubReaderController = new Services.EpubReaderController(this);
-            _imageViewerController = new Services.ImageViewerController(this);
-            _imageViewportNavigationService = new Services.ImageViewportNavigationService(
-                DispatcherQueue,
-                RerenderPdfCurrentPageAsync);
-            MainToolbar.ImageOptions = ImageOptions;
-            HookMainToolbarEvents();
-            HookExtractedControlEvents();
-            _searchOverlayService = new Services.SearchOverlayService(
-                SearchCurrentDocumentAsync,
-                NavigateToSearchMatchAsync,
-                GetCurrentSearchPosition,
-                SetActiveSearchQuery);
-            LoadTextSettings();
-            _documentNavigationCoordinator = new Services.DocumentNavigationCoordinator(new Services.DocumentNavigationHandlers
-            {
-                IsVerticalMode = () => _isVerticalMode,
-                IsEpubMode = () => _isEpubMode,
-                IsTextMode = () => _isTextMode,
-                IsAozoraMode = () => _isAozoraMode,
-                NavigateVerticalPage = NavigateVerticalPage,
-                NavigateEpubAsync = NavigateEpubAsync,
-                NavigateAozoraPage = NavigateAozoraPage,
-                NavigateTextPage = NavigateTextPage,
-                NavigatePreviousImageAsync = () => NavigateToPreviousAsync(),
-                NavigateNextImageAsync = () => NavigateToNextAsync()
-            });
-            _localDocumentOpenCoordinator = new Services.LocalDocumentOpenCoordinator(new Services.LocalDocumentOpenHandlers
-            {
-                OpenArchiveAsync = LoadImagesFromArchiveAsync,
-                OpenPdfAsync = LoadImagesFromPdfAsync,
-                OpenStorageFileAsync = LoadImageFromFileAsync,
-                OpenFolderAsync = LoadImagesFromFolderAsync,
-                SaveCurrentPositionAsync = () => AddToRecentAsync(true),
-                LoadExplorerFolder = LoadExplorerFolder,
-                LoadExplorerFolderInBackground = LoadExplorerFolderInBackground,
-                ShouldLoadExplorerFolder = folderPath =>
-                    !string.Equals(folderPath, _currentExplorerPath, StringComparison.OrdinalIgnoreCase),
-                HideEmptyState = () =>
-                {
-                    if (EmptyStatePanel != null) EmptyStatePanel.Visibility = Visibility.Collapsed;
-                }
-            });
-            _webDavDocumentOpenCoordinator = new Services.WebDavDocumentOpenCoordinator(new Services.WebDavDocumentOpenHandlers
-            {
-                LoadFolderAsync = LoadWebDavFolderAsync,
-                CloseCurrentPdfAsync = CloseCurrentPdfAsync,
-                CloseCurrentEpubAsync = CloseCurrentEpubAsync,
-                CloseCurrentArchiveAsync = CloseCurrentArchiveAsync,
-                SetCurrentItemPath = path => _currentWebDavItemPath = path,
-                ClearImageResources = ClearImageResources,
-                SetStatusText = text => FileNameText.Text = text,
-                CreateLoadingStatus = name => name + Strings.Loading,
-                CreateDownloadFailedStatus = () => "다운로드 실패",
-                CreateFileOpenFailedStatus = ex => $"파일 열기 실패: {ex.Message}",
-                CreateArchiveOpenFailedStatus = ex => $"압축 파일 열기 실패: {ex.Message}",
-                RestartOperation = _webDavState.RestartOperation,
-                DownloadToTempFileAsync = _webDavService.DownloadToTempFileAsync,
-                DownloadFileAsync = _webDavService.DownloadFileAsync,
-                OpenLocalArchiveAsync = LoadImagesFromArchiveAsync,
-                OpenLocalPdfAsync = LoadImagesFromPdfAsync,
-                PrepareSequentialEntries = PrepareWebDavSequentialEntries,
-                OpenEpubFileAsync = LoadEpubFileAsync,
-                DisplayCurrentImageAsync = DisplayCurrentImageAsync,
-                StartPreload = StartWebDavPreload,
-                OpenArchiveStreamAsync = OpenWebDavArchiveStreamAsync,
-                Log = message => System.Diagnostics.Debug.WriteLine(message)
-            });
-
-            // [추가] UI 크기 변경 이벤트 구독
-            RootGrid.SizeChanged += RootGrid_SizeChanged;
-
-            try
-            {
-                // Set window title
-                Title = "Uviewer - Image & Text Viewer";
-
-                // Custom Title Bar
-                ExtendsContentIntoTitleBar = true;
-                SetTitleBar(AppTitleBar);
-
-                // Set window icon (with fallback for single-file publish)
-                try
-                {
-                    var appWindow = this.AppWindow;
-                    var iconPath = Path.Combine(AppContext.BaseDirectory, "Assets", "Uviewer.ico");
-                    if (!File.Exists(iconPath))
-                    {
-                        // Try alternative path for published apps
-                        iconPath = Path.Combine(AppContext.BaseDirectory, "Uviewer.ico");
-                    }
-                    if (File.Exists(iconPath))
-                    {
-                        appWindow.SetIcon(iconPath);
-                    }
-                }
-                catch (Exception ex)
-                {
-                    System.Diagnostics.Debug.WriteLine($"Error setting window icon: {ex.Message}");
-                }
-
-                _windowState = new WindowStateManager(this);
-
-                // Load saved window position, size and maximized state
-                var appWindow2 = this.AppWindow;
-                appWindow2.Changed += AppWindow_Changed;
-
-                _overlayManager = new FullscreenOverlayManager();
-                _overlayManager.Initialize(DispatcherQueue);
-                _windowChromeController = new Services.WindowChromeController(
-                    this,
-                    RootGrid,
-                    AppTitleBar,
-                    MainToolbar,
-                    StatusBarGrid,
-                    SidebarGrid,
-                    SplitterGrid,
-                    SidebarColumn,
-                    _windowState,
-                    _overlayManager,
-                    () => _windowSettingsCoordinator.SaveWindowSettings(),
-                    InvalidateThemeTargets);
-                _overlayManager.HideToolbarRequested += (s, e) => _windowChromeController.HideToolbarUI();
-                _overlayManager.HideSidebarRequested += (s, e) => _windowChromeController.HideSidebarUI();
-
-                _fastNavigationService = new Services.FastNavigationService(DispatcherQueue);
-                _imageNavigationCoordinator = new Services.ImageNavigationCoordinator(new Services.ImageNavigationHandlers
-                {
-                    GetImageEntries = () => _imageEntries,
-                    GetCurrentIndex = () => _currentIndex,
-                    SetCurrentIndex = value => _currentIndex = value,
-                    IsCurrentViewSideBySide = () => _isCurrentViewSideBySide,
-                    SetScrollDirection = value => _imageViewportNavigationService.ScrollDirection = value,
-                    FastNavigationService = _fastNavigationService,
-                    ResetFastNavigationAsync = ResetFastNavigation,
-                    UpdateFastNavigationUi = UpdateFastNavigationUI,
-                    DisplayCurrentImageAsync = DisplayCurrentImageAsync,
-                    SaveCurrentPositionAsync = () => AddToRecentAsync(true),
-                    ShouldPreloadAfterNavigate = () => _archiveSession.CurrentArchive != null || _currentPdfDocument != null,
-                    StartPreload = StartImagePreload,
-                    FocusViewer = () => RootGrid.Focus(FocusState.Programmatic)
-                });
-                _animatedWebpService = new Services.AnimatedWebpService(_sharpeningService, DispatcherQueue);
-                _animatedWebpService.FrameUpdated += OnAnimatedWebpFrameUpdated;
-                _animatedWebpService.AnimationStopped += OnAnimatedWebpAnimationStopped;
-
-                _windowSettingsCoordinator = new Services.WindowSettingsCoordinator(this, _appSettingsService);
-                appWindow2.Closing += AppWindow_Closing;
-                _explorerController = new Services.ExplorerController(_explorerState, _thumbnailService, DispatcherQueue);
-                _bookmarkPanelController = new Services.BookmarkPanelController(_bookmarkPanelState, _favoritesService, _recentService);
-                _favoritesController = new Services.FavoritesController(_favoritesService, _bookmarkPanelController);
-                
-                // Load saved window position, size and maximized state
-                bool hasLoadedSettings = _windowSettingsCoordinator.ApplyWindowSettings(appWindow2);
-                if (!hasLoadedSettings)
-                {
-                    // 설정 파일이 없으면 기본 사이즈 적용 및 중앙 정렬
-                    var primaryArea = Microsoft.UI.Windowing.DisplayArea.Primary;
-                    var defaultSize = new Windows.Graphics.SizeInt32(1200, 800);
-                    appWindow2.Resize(defaultSize);
-                    
-                    var centerX = (primaryArea.WorkArea.Width - defaultSize.Width) / 2;
-                    var centerY = (primaryArea.WorkArea.Height - defaultSize.Height) / 2;
-                    appWindow2.Move(new Windows.Graphics.PointInt32(centerX, centerY));
-
-                    // 현재 위치와 크기를 초기값으로 저장
-                    _windowState.LastNonMaximizedRect = new Windows.Graphics.RectInt32(centerX, centerY, defaultSize.Width, defaultSize.Height);
-                }
-
-                // Initialize button states
-                UpdateSideBySideButtonState();
-                UpdateNextImageSideButtonState();
-                UpdateSharpenButtonState();
-
-                _windowChromeController.ApplyInitialChromeState();
-
-                // Enable keyboard shortcuts on the root content to ensure they catch everything
-                if (this.Content is FrameworkElement fe)
-                {
-                    fe.PreviewKeyDown += async (s, e) => await _keyboardShortcutService.HandlePreviewKeyDownAsync(s, e, this);
-                    fe.KeyDown += async (s, e) => await _keyboardShortcutService.HandleKeyDownAsync(s, e, this);
-                }
-
-                // Initialize file list
-                FileListView.ItemsSource = _fileItems;
-                FileGridView.ItemsSource = _fileItems;
-
-                _imageCache = new Services.ImageCacheManager(DispatcherQueue);
-                _preloadManager = new Services.PreloadManager(_imageCache, DispatcherQueue);
-                _imageBitmapLoader = new Services.ImageBitmapLoader(_imageCache, _sharpeningService, DispatcherQueue);
-                _imageDoublePageDecisionService = new Services.ImageDoublePageDecisionService(_imageCache);
-
-                // Apply Localization
-                ApplyLocalization();
-                MainToolbar.SetExternalProgramPath(_externalProgramPath);
-            }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"Error initializing MainWindow: {ex.Message}");
-            }
-
-            // 화면 UI(RootGrid)가 로드된 후에 초기화 작업을 시작합니다.
-            RootGrid.Loaded += async (s, e) =>
-            {
-                _windowChromeController.UpdateTitleBarColors();
-                RootGrid.Focus(FocusState.Programmatic);
-                // Win2D 캔버스 디바이스가 초기화될 시간을 아주 잠깐 확보 (안전장치)
-                await Task.Delay(50);
-                // 이전 비정상 종료 시 남은 WebDAV 임시 파일 정리
-                WebDavService.CleanupTempFiles();
-                await InitializeAsync(launchFilePath);
-            };
-
-            this.Activated += (s, e) =>
-            {
-                if (e.WindowActivationState != WindowActivationState.Deactivated)
-                {
-                    // Ensure focus is restored to the root grid on activation
-                    RootGrid.Focus(FocusState.Programmatic);
-                }
-            };
-
-
-            // Subscribe to window closed event to save settings
-            this.Closed += async (s, e) =>
-            {
-                _isWindowClosing = true;
-                bool wasPdfOpen = _currentPdfDocument != null;
-                await _shutdownCoordinator.ShutdownAsync(CreateShutdownContext(wasPdfOpen));
-            };
-
-            // Initialize notification timer
-            _notificationTimer = DispatcherQueue.GetForCurrentThread().CreateTimer();
-            _notificationTimer.Interval = TimeSpan.FromSeconds(2);
-            _notificationTimer.IsRepeating = false;
-            _notificationTimer.Tick += (s, e) =>
-            {
-                NotificationOverlay.Visibility = Visibility.Collapsed;
-            };
-
-            // Subscribe to sharpening parameter changes
-            ImageOptions.PropertyChanged += (s, e) =>
-            {
-                if (e.PropertyName != null && !e.PropertyName.EndsWith("Text"))
-                {
-                    OnSharpenParamsChanged();
-                }
-            };
+            MainWindowComposition.Initialize(this, launchFilePath);
         }
 
         private Services.ShutdownContext CreateShutdownContext(bool wasPdfOpen) => new()

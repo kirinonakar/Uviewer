@@ -19,7 +19,12 @@ namespace Uviewer
 {
     internal sealed partial class DocumentReaderController
     {
-        private readonly IDocumentReaderHost _host;
+        private readonly IReaderAppStateHost _appStateHost;
+        private readonly ITextReaderViewHost _viewHost;
+        private readonly IImageNavigationHost _imageNavigationHost;
+        private readonly IEpubNavigationHost _epubNavigationHost;
+        private readonly IDocumentSearchHost _searchHost;
+        private readonly IReaderLibraryHost _libraryHost;
 
         internal readonly AozoraBlockMeasurer _aozoraBlockMeasurer = new();
         internal readonly AozoraBlockPaginator _aozoraBlockPaginator;
@@ -46,16 +51,22 @@ namespace Uviewer
 
         internal DocumentReaderController(IDocumentReaderHost host)
         {
-            _host = host ?? throw new ArgumentNullException(nameof(host));
+            ArgumentNullException.ThrowIfNull(host);
+            _appStateHost = host;
+            _viewHost = host;
+            _imageNavigationHost = host;
+            _epubNavigationHost = host;
+            _searchHost = host;
+            _libraryHost = host;
             _aozoraBlockPaginator = new AozoraBlockPaginator(_aozoraBlockMeasurer);
             _aozoraPageMapCalculator = new AozoraPageMapCalculator(_aozoraBlockMeasurer);
             _aozoraPreviousPageCache = new AozoraPreviousPageCache(_aozoraBlockMeasurer, _aozoraBlockPaginator);
             _textLinePresenterService = new TextLinePresenterService(_textLineLayoutService);
-            _textSearchHighlightPresenterService = new TextSearchHighlightPresenterService(_host.SearchHighlightService);
+            _textSearchHighlightPresenterService = new TextSearchHighlightPresenterService(_searchHost.SearchHighlightService);
             _textStatusBarService = new TextStatusBarService(_readingProgressService);
             _textLineLoadService = new TextLineLoadService(_textLineLayoutService);
-            _textDocumentLoadService = new TextDocumentLoadService(_host.ArchiveSession);
-            _textDocumentSearchService = new TextDocumentSearchService(_host.DocumentSearchService);
+            _textDocumentLoadService = new TextDocumentLoadService(_libraryHost.ArchiveSession);
+            _textDocumentSearchService = new TextDocumentSearchService(_searchHost.DocumentSearchService);
             _textDialogService = new TextDialogService(RootGrid);
         }
 
@@ -121,74 +132,74 @@ namespace Uviewer
         internal void InvalidateAozoraTextCanvas() => AozoraTextCanvas?.Invalidate();
         internal void InvalidateVerticalTextCanvas() => VerticalTextCanvas?.Invalidate();
 
-        internal bool _isEpubMode { get => _host.IsEpubMode; set => _host.IsEpubMode = value; }
-        internal bool _isWindowClosing => _host.IsWindowClosing;
-        internal bool _isWebDavMode => _host.IsWebDavMode;
-        internal bool _isSideBySideMode { get => _host.IsSideBySideMode; set => _host.IsSideBySideMode = value; }
-        internal bool _autoDoublePageForArchive => _host.AutoDoublePageForArchive;
-        internal bool _nextImageOnRight => _host.NextImageOnRight;
-        internal bool _isNavigatingRecent { get => _host.IsNavigatingRecent; set => _host.IsNavigatingRecent = value; }
-        internal bool _sharpenEnabled => _host.SharpenEnabled;
-        internal bool _isColorPickerOpen { get => _host.IsColorPickerOpen; set => _host.IsColorPickerOpen = value; }
-        internal bool ShouldInvertControls => _host.ShouldInvertControls;
-        internal int _currentIndex { get => _host.CurrentIndex; set => _host.CurrentIndex = value; }
-        internal List<ImageEntry> _imageEntries { get => _host.ImageEntries; set => _host.ImageEntries = value; }
-        internal CanvasBitmap? _currentBitmap => _host.CurrentBitmap;
-        internal PdfDocument? _currentPdfDocument => _host.CurrentPdfDocument;
-        internal string? _activeSearchQuery => _host.ActiveSearchQuery;
-        internal int _currentEpubChapterIndex { get => _host.CurrentEpubChapterIndex; set => _host.CurrentEpubChapterIndex = value; }
-        internal int _currentEpubPageIndex { get => _host.CurrentEpubPageIndex; set => _host.CurrentEpubPageIndex = value; }
-        internal IReadOnlyList<string> _epubSpine => _host.EpubSpine;
-        internal List<EpubWin2DPage> _epubWin2DPages => _host.EpubWin2DPages;
-        internal Dictionary<int, List<EpubWin2DPage>> _epubPreloadCache => _host.EpubPreloadCache;
-        internal ArchiveSession _archiveSession => _host.ArchiveSession;
-        internal RecentService _recentService => _host.RecentService;
-        internal FavoritesService _favoritesService => _host.FavoritesService;
-        internal TocService _tocService => _host.TocService;
-        internal ImageResourceService _imageResourceService => _host.ImageResourceService;
-        internal WindowChromeController _windowChromeController => _host.WindowChromeController;
-        internal string Title { get => _host.WindowTitle; set => _host.WindowTitle = value; }
+        internal bool _isEpubMode { get => _appStateHost.IsEpubMode; set => _appStateHost.IsEpubMode = value; }
+        internal bool _isWindowClosing => _appStateHost.IsWindowClosing;
+        internal bool _isWebDavMode => _appStateHost.IsWebDavMode;
+        internal bool _isSideBySideMode { get => _imageNavigationHost.IsSideBySideMode; set => _imageNavigationHost.IsSideBySideMode = value; }
+        internal bool _autoDoublePageForArchive => _imageNavigationHost.AutoDoublePageForArchive;
+        internal bool _nextImageOnRight => _imageNavigationHost.NextImageOnRight;
+        internal bool _isNavigatingRecent { get => _appStateHost.IsNavigatingRecent; set => _appStateHost.IsNavigatingRecent = value; }
+        internal bool _sharpenEnabled => _imageNavigationHost.SharpenEnabled;
+        internal bool _isColorPickerOpen { get => _appStateHost.IsColorPickerOpen; set => _appStateHost.IsColorPickerOpen = value; }
+        internal bool ShouldInvertControls => _appStateHost.ShouldInvertControls;
+        internal int _currentIndex { get => _imageNavigationHost.CurrentIndex; set => _imageNavigationHost.CurrentIndex = value; }
+        internal List<ImageEntry> _imageEntries { get => _imageNavigationHost.ImageEntries; set => _imageNavigationHost.ImageEntries = value; }
+        internal CanvasBitmap? _currentBitmap => _imageNavigationHost.CurrentBitmap;
+        internal PdfDocument? _currentPdfDocument => _imageNavigationHost.CurrentPdfDocument;
+        internal string? _activeSearchQuery => _searchHost.ActiveSearchQuery;
+        internal int _currentEpubChapterIndex { get => _epubNavigationHost.CurrentEpubChapterIndex; set => _epubNavigationHost.CurrentEpubChapterIndex = value; }
+        internal int _currentEpubPageIndex { get => _epubNavigationHost.CurrentEpubPageIndex; set => _epubNavigationHost.CurrentEpubPageIndex = value; }
+        internal IReadOnlyList<string> _epubSpine => _epubNavigationHost.EpubSpine;
+        internal List<EpubWin2DPage> _epubWin2DPages => _epubNavigationHost.EpubWin2DPages;
+        internal Dictionary<int, List<EpubWin2DPage>> _epubPreloadCache => _epubNavigationHost.EpubPreloadCache;
+        internal ArchiveSession _archiveSession => _libraryHost.ArchiveSession;
+        internal RecentService _recentService => _libraryHost.RecentService;
+        internal FavoritesService _favoritesService => _libraryHost.FavoritesService;
+        internal TocService _tocService => _libraryHost.TocService;
+        internal ImageResourceService _imageResourceService => _libraryHost.ImageResourceService;
+        internal WindowChromeController _windowChromeController => _appStateHost.WindowChromeController;
+        internal string Title { get => _appStateHost.WindowTitle; set => _appStateHost.WindowTitle = value; }
 
-        internal DispatcherQueue DispatcherQueue => _host.DispatcherQueue;
-        internal AppWindow AppWindow => _host.AppWindow;
-        internal Grid RootGrid => _host.RootGrid;
-        internal Grid ImageArea => _host.ImageArea;
-        internal Grid TextArea => _host.TextArea;
-        internal Grid EpubArea => _host.EpubArea;
-        internal ScrollViewer TextScrollViewer => _host.TextScrollViewer;
-        internal ItemsRepeater TextItemsRepeater => _host.TextItemsRepeater;
-        internal CanvasControl MainCanvas => _host.MainCanvas;
-        internal CanvasControl AozoraTextCanvas => _host.AozoraTextCanvas;
-        internal CanvasControl VerticalTextCanvas => _host.VerticalTextCanvas;
-        internal FrameworkElement EmptyStatePanel => _host.EmptyStatePanel;
-        internal Grid TextFastNavOverlay => _host.TextFastNavOverlay;
-        internal ContentControl RootFontControl => _host.RootFontControl;
-        internal ListView FileListView => _host.FileListView;
-        internal GridView FileGridView => _host.FileGridView;
-        internal Pivot SidebarFavoritesPivot => _host.SidebarFavoritesPivot;
-        internal TextBlock CurrentPathText => _host.CurrentPathText;
-        internal TextBlock NotificationText => _host.NotificationText;
-        internal TextBlock FileNameText => _host.FileNameText;
-        internal TextBlock ImageInfoText => _host.ImageInfoText;
-        internal TextBlock TextProgressText => _host.TextProgressText;
-        internal TextBlock ImageIndexText => _host.ImageIndexText;
-        internal MainToolbarControl MainToolbar => _host.MainToolbar;
+        internal DispatcherQueue DispatcherQueue => _appStateHost.DispatcherQueue;
+        internal AppWindow AppWindow => _appStateHost.AppWindow;
+        internal Grid RootGrid => _viewHost.RootGrid;
+        internal Grid ImageArea => _viewHost.ImageArea;
+        internal Grid TextArea => _viewHost.TextArea;
+        internal Grid EpubArea => _viewHost.EpubArea;
+        internal ScrollViewer TextScrollViewer => _viewHost.TextScrollViewer;
+        internal ItemsRepeater TextItemsRepeater => _viewHost.TextItemsRepeater;
+        internal CanvasControl MainCanvas => _viewHost.MainCanvas;
+        internal CanvasControl AozoraTextCanvas => _viewHost.AozoraTextCanvas;
+        internal CanvasControl VerticalTextCanvas => _viewHost.VerticalTextCanvas;
+        internal FrameworkElement EmptyStatePanel => _viewHost.EmptyStatePanel;
+        internal Grid TextFastNavOverlay => _viewHost.TextFastNavOverlay;
+        internal ContentControl RootFontControl => _viewHost.RootFontControl;
+        internal ListView FileListView => _viewHost.FileListView;
+        internal GridView FileGridView => _viewHost.FileGridView;
+        internal Pivot SidebarFavoritesPivot => _viewHost.SidebarFavoritesPivot;
+        internal TextBlock CurrentPathText => _viewHost.CurrentPathText;
+        internal TextBlock NotificationText => _viewHost.NotificationText;
+        internal TextBlock FileNameText => _viewHost.FileNameText;
+        internal TextBlock ImageInfoText => _viewHost.ImageInfoText;
+        internal TextBlock TextProgressText => _viewHost.TextProgressText;
+        internal TextBlock ImageIndexText => _viewHost.ImageIndexText;
+        internal MainToolbarControl MainToolbar => _viewHost.MainToolbar;
 
-        internal Task AddToRecentAsync(bool immediate) => _host.AddToRecentAsync(immediate);
-        internal void SyncSidebarSelection(ImageEntry entry) => _host.SyncSidebarSelection(entry);
-        internal void EnsureMinWindowSizeForText() => _host.EnsureMinWindowSizeForText();
-        internal void UpdateSideBySideButtonState() => _host.UpdateSideBySideButtonState();
-        internal void UpdateNextImageSideButtonState() => _host.UpdateNextImageSideButtonState();
-        internal void UpdateFavoritesMenu() => _host.UpdateFavoritesMenu();
-        internal void UpdateRecentMenu() => _host.UpdateRecentMenu();
-        internal void UpdateWebDavServerList() => _host.UpdateWebDavServerList();
-        internal void ApplyLocalization() => _host.ApplyLocalization();
+        internal Task AddToRecentAsync(bool immediate) => _imageNavigationHost.AddToRecentAsync(immediate);
+        internal void SyncSidebarSelection(ImageEntry entry) => _imageNavigationHost.SyncSidebarSelection(entry);
+        internal void EnsureMinWindowSizeForText() => _appStateHost.EnsureMinWindowSizeForText();
+        internal void UpdateSideBySideButtonState() => _imageNavigationHost.UpdateSideBySideButtonState();
+        internal void UpdateNextImageSideButtonState() => _imageNavigationHost.UpdateNextImageSideButtonState();
+        internal void UpdateFavoritesMenu() => _libraryHost.UpdateFavoritesMenu();
+        internal void UpdateRecentMenu() => _libraryHost.UpdateRecentMenu();
+        internal void UpdateWebDavServerList() => _libraryHost.UpdateWebDavServerList();
+        internal void ApplyLocalization() => _appStateHost.ApplyLocalization();
         internal void ShowNotification(string message, string icon = "\uE735", string color = "Gold") =>
-            _host.ShowNotification(message, icon, color);
-        internal string GetTextSettingsFilePath() => _host.GetTextSettingsFilePath();
-        internal void UpdateStatusBar(ImageEntry entry, CanvasBitmap bitmap) => _host.UpdateStatusBar(entry, bitmap);
-        internal Task DisplayCurrentImageAsync() => _host.DisplayCurrentImageAsync();
-        internal Task NavigateEpubAsync(int direction) => _host.NavigateEpubAsync(direction);
+            _appStateHost.ShowNotification(message, icon, color);
+        internal string GetTextSettingsFilePath() => _viewHost.GetTextSettingsFilePath();
+        internal void UpdateStatusBar(ImageEntry entry, CanvasBitmap bitmap) => _imageNavigationHost.UpdateStatusBar(entry, bitmap);
+        internal Task DisplayCurrentImageAsync() => _imageNavigationHost.DisplayCurrentImageAsync();
+        internal Task NavigateEpubAsync(int direction) => _epubNavigationHost.NavigateEpubAsync(direction);
         internal Task LoadEpubChapterAsync(
             int index,
             bool fromEnd = false,
@@ -197,19 +208,19 @@ namespace Uviewer
             int targetPage = -1,
             double? progress = null,
             CancellationToken token = default) =>
-            _host.LoadEpubChapterAsync(index, fromEnd, targetLine, targetBlockIndex, targetPage, progress, token);
-        internal void JumpToEpubTocItem(EpubTocItem item) => _host.JumpToEpubTocItem(item);
-        internal void UpdateEpubStatus() => _host.UpdateEpubStatus();
-        internal void TriggerEpubResize() => _host.TriggerEpubResize();
-        internal void ToggleSidebar() => _host.ToggleSidebar();
+            _epubNavigationHost.LoadEpubChapterAsync(index, fromEnd, targetLine, targetBlockIndex, targetPage, progress, token);
+        internal void JumpToEpubTocItem(EpubTocItem item) => _epubNavigationHost.JumpToEpubTocItem(item);
+        internal void UpdateEpubStatus() => _epubNavigationHost.UpdateEpubStatus();
+        internal void TriggerEpubResize() => _epubNavigationHost.TriggerEpubResize();
+        internal void ToggleSidebar() => _appStateHost.ToggleSidebar();
         internal void HandleSmartTouchNavigation(PointerRoutedEventArgs e, Action prevAction, Action nextAction) =>
-            _host.HandleSmartTouchNavigation(e, prevAction, nextAction);
+            _appStateHost.HandleSmartTouchNavigation(e, prevAction, nextAction);
         internal void ApplySearchHighlightsToTextBlock(TextBlock textBlock, string content, int lineNumber) =>
-            _host.ApplySearchHighlightsToTextBlock(textBlock, content, lineNumber);
+            _searchHost.ApplySearchHighlightsToTextBlock(textBlock, content, lineNumber);
         internal DocumentSearchMatch? GetActiveSearchMatchFor(DocumentSearchKind kind) =>
-            _host.GetActiveSearchMatchFor(kind);
-        internal ViewingContext CreateViewingContext() => _host.CreateViewingContext();
-        internal SharpenParams CreateSharpenParams() => _host.CreateSharpenParams();
+            _searchHost.GetActiveSearchMatchFor(kind);
+        internal ViewingContext CreateViewingContext() => _imageNavigationHost.CreateViewingContext();
+        internal SharpenParams CreateSharpenParams() => _imageNavigationHost.CreateSharpenParams();
         internal Task LoadImageResourceAndInvalidateAsync(
             string resourcePath,
             string cacheKey,
@@ -217,6 +228,6 @@ namespace Uviewer
             Action invalidate,
             Action? onMissing = null,
             Func<bool>? shouldKeepLoadedBitmap = null) =>
-            _host.LoadImageResourceAndInvalidateAsync(resourcePath, cacheKey, device, invalidate, onMissing, shouldKeepLoadedBitmap);
+            _imageNavigationHost.LoadImageResourceAndInvalidateAsync(resourcePath, cacheKey, device, invalidate, onMissing, shouldKeepLoadedBitmap);
     }
 }

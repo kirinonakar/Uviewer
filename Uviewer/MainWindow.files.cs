@@ -20,7 +20,7 @@ namespace Uviewer
 {
     public sealed partial class MainWindow : Window
     {
-        private readonly Services.ArchiveSession _archiveSession = new();
+        private Services.ArchiveSession _archiveSession = null!;
 
         #region Drag and Drop
 
