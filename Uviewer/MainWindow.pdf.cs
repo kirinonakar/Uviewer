@@ -18,7 +18,20 @@ namespace Uviewer
     public sealed partial class MainWindow
     {
         private Windows.Data.Pdf.PdfDocument? _currentPdfDocument;
-        private string? _currentPdfPath;
+        private string? _currentPdfPath
+        {
+            get => _documentSessionTracker.Is(DocumentKind.Pdf) ? _documentSessionTracker.SourcePath : null;
+            set
+            {
+                if (string.IsNullOrWhiteSpace(value))
+                {
+                    _documentSessionTracker.Clear(DocumentKind.Pdf);
+                    return;
+                }
+
+                _documentSessionTracker.Replace(new PdfDocumentSession(value));
+            }
+        }
         private readonly SemaphoreSlim _pdfLock = new(1, 1);
 
         // [최적화] 세마포어를 두 개로 분리
@@ -37,7 +50,6 @@ namespace Uviewer
         {
             if (_isWindowClosing) return;
 
-            _currentPdfPath = pdfPath;
             _documentSearchService.Clear();
             _preloadManager.CancelAll();
             _imageLoadingCts?.Cancel(); // Cancel any ongoing image load
@@ -54,12 +66,11 @@ namespace Uviewer
                 try
                 {
                     CloseCurrentPdfInternal();
-                    _currentPdfPath = pdfPath;
-
 
                     var file = await StorageFile.GetFileFromPathAsync(pdfPath);
                     StartNewPdfDocumentScope();
                     _currentPdfDocument = await Windows.Data.Pdf.PdfDocument.LoadFromFileAsync(file);
+                    _currentPdfPath = pdfPath;
 
                     var newEntries = new List<ImageEntry>();
                     for (uint i = 0; i < _currentPdfDocument.PageCount; i++)

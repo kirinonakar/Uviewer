@@ -12,6 +12,7 @@
 *.env
 .agents/
 *codex*
+*.csproj.user
 
 # User-specific files (MonoDevelop/Xamarin Studio)
 *.userprefs

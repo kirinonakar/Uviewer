@@ -53,6 +53,7 @@ namespace Uviewer
         private readonly Services.DocumentSearchCoordinatorService _documentSearchCoordinatorService = new();
         private Services.SearchOverlayService _searchOverlayService = null!;
         private readonly DocumentSearchState _documentSearchState = new();
+        private readonly Services.DocumentSessionTracker _documentSessionTracker = new();
         private string? _activeSearchQuery => _documentSearchState.Query;
         private IReadOnlyList<PdfSearchHighlight> _activePdfSearchHighlights => _documentSearchState.PdfHighlights;
         private int _activePdfSearchPageIndex => _documentSearchState.PdfPageIndex;
