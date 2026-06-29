@@ -90,7 +90,7 @@ namespace Uviewer.Services
         }
     }
 
-    public sealed class PdfDocumentSession : DocumentSessionBase
+    public sealed partial class PdfDocumentSession : DocumentSessionBase
     {
         public PdfDocumentSession(string sourcePath, string? displayName = null)
             : base(DocumentKind.Pdf, DisplayNameFromPath(sourcePath, displayName), sourcePath)

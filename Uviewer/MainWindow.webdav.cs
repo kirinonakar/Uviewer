@@ -1,16 +1,12 @@
-using Microsoft.UI;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
-using Microsoft.UI.Xaml.Media;
 using System;
-using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Uviewer.Models;
 using Uviewer.Services;
-using Visibility = Microsoft.UI.Xaml.Visibility;
 
 namespace Uviewer
 {
@@ -18,6 +14,7 @@ namespace Uviewer
     {
         private readonly WebDavService _webDavService = new();
         private readonly WebDavState _webDavState = new();
+        private readonly WebDavServerUiService _webDavServerUiService = new();
         private string? _currentWebDavPath
         {
             get => _webDavState.CurrentPath;
@@ -67,118 +64,23 @@ namespace Uviewer
         /// </summary>
         private async Task ShowAddWebDavServerDialogAsync()
         {
-            var nameBox = new TextBox
-            {
-                PlaceholderText = Strings.WebDavServerName,
-                Margin = new Thickness(0, 0, 0, 8)
-            };
-            var addressBox = new TextBox
-            {
-                PlaceholderText = Strings.WebDavAddress,
-                Margin = new Thickness(0, 0, 0, 8),
-                CharacterCasing = CharacterCasing.Normal,
-                IsSpellCheckEnabled = false,
-                IsTextPredictionEnabled = false
-            };
-            var portBox = new NumberBox
-            {
-                PlaceholderText = Strings.WebDavPort,
-                Value = 443,
-                Minimum = 1,
-                Maximum = 65535,
-                SpinButtonPlacementMode = NumberBoxSpinButtonPlacementMode.Hidden,
-                Margin = new Thickness(0, 0, 0, 8)
-            };
-            var idBox = new TextBox
-            {
-                PlaceholderText = Strings.WebDavId,
-                Margin = new Thickness(0, 0, 0, 8),
-                CharacterCasing = CharacterCasing.Normal,
-                IsSpellCheckEnabled = false,
-                IsTextPredictionEnabled = false
-            };
-            var passwordBox = new PasswordBox
-            {
-                PlaceholderText = Strings.WebDavPassword,
-                Margin = new Thickness(0, 0, 0, 0)
-            };
+            var result = await _webDavServerUiService.ShowAddServerDialogAsync(
+                RootGrid.XamlRoot,
+                RootGrid.ActualTheme);
 
-            var panel = new StackPanel { Width = 320 };
-            panel.Children.Add(new TextBlock
+            if (!result.WasSubmitted)
             {
-                Text = Strings.WebDavServerName,
-                FontSize = 12,
-                Margin = new Thickness(0, 0, 0, 4)
-            });
-            panel.Children.Add(nameBox);
-            panel.Children.Add(new TextBlock
-            {
-                Text = Strings.WebDavAddress,
-                FontSize = 12,
-                Margin = new Thickness(0, 0, 0, 4)
-            });
-            panel.Children.Add(addressBox);
-            panel.Children.Add(new TextBlock
-            {
-                Text = Strings.WebDavPort,
-                FontSize = 12,
-                Margin = new Thickness(0, 0, 0, 4)
-            });
-            panel.Children.Add(portBox);
-            panel.Children.Add(new TextBlock
-            {
-                Text = Strings.WebDavId,
-                FontSize = 12,
-                Margin = new Thickness(0, 0, 0, 4)
-            });
-            panel.Children.Add(idBox);
-            panel.Children.Add(new TextBlock
-            {
-                Text = Strings.WebDavPassword,
-                FontSize = 12,
-                Margin = new Thickness(0, 0, 0, 4)
-            });
-            panel.Children.Add(passwordBox);
-
-            var dialog = new ContentDialog
-            {
-                Title = Strings.AddWebDavServer,
-                Content = panel,
-                PrimaryButtonText = Strings.WebDavSave,
-                CloseButtonText = Strings.WebDavCancel,
-                DefaultButton = ContentDialogButton.Primary,
-                XamlRoot = RootGrid.XamlRoot,
-                RequestedTheme = RootGrid.ActualTheme
-            };
-
-            var result = await dialog.ShowAsync();
-
-            if (result == ContentDialogResult.Primary)
-            {
-                var serverName = nameBox.Text.Trim();
-                var address = addressBox.Text.Trim();
-                var port = (int)portBox.Value;
-                var userId = idBox.Text.Trim();
-                var password = passwordBox.Password;
-
-                if (string.IsNullOrEmpty(serverName) || string.IsNullOrEmpty(address) || string.IsNullOrEmpty(userId))
-                {
-                    ShowNotification("필수 입력값을 확인해주세요");
-                    return;
-                }
-
-                var serverInfo = new WebDavServerInfo
-                {
-                    ServerName = serverName,
-                    Address = address,
-                    Port = port,
-                    UserId = userId,
-                    Password = password
-                };
-
-                _webDavService.SaveServer(serverInfo);
-                ShowNotification($"서버 '{serverName}' 저장됨");
+                return;
             }
+
+            if (!result.IsValid || result.ServerInfo == null)
+            {
+                ShowNotification("필수 입력값을 확인해주세요");
+                return;
+            }
+
+            _webDavService.SaveServer(result.ServerInfo);
+            ShowNotification($"서버 '{result.ServerInfo.ServerName}' 저장됨");
         }
 
         /// <summary>
@@ -188,70 +90,12 @@ namespace Uviewer
         {
             if (WebDavPanel == null) return;
 
-            // 기존 동적 항목 제거 (첫 2개: 추가 버튼 + 구분선)
-            while (WebDavPanel.Children.Count > 2)
-            {
-                WebDavPanel.Children.RemoveAt(2);
-            }
-
-            var serverNames = _webDavService.GetSavedServerNames();
-
-            foreach (var name in serverNames)
-            {
-                var itemGrid = new Grid
-                {
-                    Margin = new Thickness(0, 2, 0, 2)
-                };
-                itemGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-                itemGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-
-                // 서버 이름 버튼 (클릭하면 연결)
-                var nameTb = new TextBlock { Text = name, VerticalAlignment = VerticalAlignment.Center };
-                if (!string.IsNullOrEmpty(_settingsManager.UIFontFamily) && _settingsManager.UIFontFamily != "Unknown")
-                {
-                    try { nameTb.FontFamily = new FontFamily(_settingsManager.UIFontFamily); }
-                    catch { }
-                }
-
-                var serverButton = new Button
-                {
-                    Content = new StackPanel
-                    {
-                        Orientation = Orientation.Horizontal,
-                        Spacing = 8,
-                        Children =
-                        {
-                            new FontIcon { Glyph = "\uE774", FontSize = 14, Foreground = new SolidColorBrush(Colors.CornflowerBlue) },
-                            nameTb
-                        }
-                    },
-                    HorizontalAlignment = HorizontalAlignment.Stretch,
-                    HorizontalContentAlignment = HorizontalAlignment.Left,
-                    Background = new SolidColorBrush(Colors.Transparent),
-                    BorderThickness = new Thickness(0),
-                    Tag = name
-                };
-                serverButton.Click += WebDavServerItem_Click;
-                Grid.SetColumn(serverButton, 0);
-
-                // X 삭제 버튼
-                var deleteButton = new Button
-                {
-                    Content = new FontIcon { Glyph = "\uE711", FontSize = 12 },
-                    Padding = new Thickness(6, 4, 6, 4),
-                    Background = new SolidColorBrush(Colors.Transparent),
-                    BorderThickness = new Thickness(0),
-                    VerticalAlignment = VerticalAlignment.Center,
-                    Tag = name
-                };
-                deleteButton.Click += WebDavDeleteServer_Click;
-                Grid.SetColumn(deleteButton, 1);
-
-                itemGrid.Children.Add(serverButton);
-                itemGrid.Children.Add(deleteButton);
-
-                WebDavPanel.Children.Add(itemGrid);
-            }
+            _webDavServerUiService.RefreshServerList(
+                WebDavPanel,
+                _webDavService.GetSavedServerNames(),
+                _settingsManager?.UIFontFamily,
+                WebDavServerItem_Click,
+                WebDavDeleteServer_Click);
         }
 
         /// <summary>
