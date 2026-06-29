@@ -11,7 +11,7 @@ namespace Uviewer
             {
                 public static void InitializeController(MainWindow window)
                 {
-                    window._imageViewerController = new ImageViewerController(window);
+                    window._imageViewerController = new ImageViewerController(new ImageViewerHostAdapter(window));
                     window._imageViewportNavigationService = new ImageViewportNavigationService(
                         window.DispatcherQueue,
                         window.RerenderPdfCurrentPageAsync);

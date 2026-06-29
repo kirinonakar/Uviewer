@@ -77,7 +77,7 @@ namespace Uviewer
                 public static void InitializeWindowSettings(MainWindow window)
                 {
                     var appWindow = window.AppWindow;
-                    window._windowSettingsCoordinator = new WindowSettingsCoordinator(window, window._appSettingsService);
+                    window._windowSettingsCoordinator = new WindowSettingsCoordinator(new WindowSettingsHostAdapter(window), window._appSettingsService);
                     appWindow.Closing += window.AppWindow_Closing;
                 }
 
@@ -86,6 +86,7 @@ namespace Uviewer
                     window._explorerController = new ExplorerController(window._explorerState, window._thumbnailService, window.DispatcherQueue);
                     window._bookmarkPanelController = new BookmarkPanelController(window._bookmarkPanelState, window._favoritesService, window._recentService);
                     window._favoritesController = new FavoritesController(window._favoritesService, window._bookmarkPanelController);
+                    window._bookmarkNavigationHost = new BookmarkNavigationHostAdapter(window);
                 }
 
                 public static void ApplyInitialWindowLayout(MainWindow window)
@@ -116,10 +117,11 @@ namespace Uviewer
                 {
                     if (window.Content is FrameworkElement fe)
                     {
+                        var keyboardActions = new KeyboardShortcutActionsAdapter(window);
                         fe.PreviewKeyDown += async (s, e) =>
-                            await window._keyboardShortcutService.HandlePreviewKeyDownAsync(s, e, window);
+                            await window._keyboardShortcutService.HandlePreviewKeyDownAsync(s, e, keyboardActions);
                         fe.KeyDown += async (s, e) =>
-                            await window._keyboardShortcutService.HandleKeyDownAsync(s, e, window);
+                            await window._keyboardShortcutService.HandleKeyDownAsync(s, e, keyboardActions);
                     }
                 }
 

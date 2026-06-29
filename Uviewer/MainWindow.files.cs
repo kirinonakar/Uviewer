@@ -663,7 +663,7 @@ namespace Uviewer
 
             dialog.PrimaryButtonClick += (_, args) =>
             {
-                if (!string.IsNullOrWhiteSpace(NormalizeExternalProgramPath(input.Text))) return;
+                if (!string.IsNullOrWhiteSpace(ExplorerItemLaunchService.NormalizeExternalProgramPath(input.Text))) return;
 
                 validationText.Visibility = Visibility.Visible;
                 input.Focus(FocusState.Programmatic);
@@ -673,10 +673,10 @@ namespace Uviewer
             var result = await dialog.ShowAsync();
             if (result != ContentDialogResult.Primary) return;
 
-            _externalProgramPath = NormalizeExternalProgramPath(input.Text);
+            _externalProgramPath = ExplorerItemLaunchService.NormalizeExternalProgramPath(input.Text);
             MainToolbar.SetExternalProgramPath(_externalProgramPath);
             _windowSettingsCoordinator?.SaveWindowSettings();
-            ShowNotification(Strings.ExternalProgramConfiguredNotification(GetExternalProgramDisplayName(_externalProgramPath)));
+            ShowNotification(Strings.ExternalProgramConfiguredNotification(ExplorerItemLaunchService.GetExternalProgramDisplayName(_externalProgramPath)));
         }
 
         private async Task<StorageFile?> PickExternalProgramFileAsync()
@@ -697,111 +697,22 @@ namespace Uviewer
 
         private async Task OpenExplorerItemWithExternalProgramAsync(FileItem? item)
         {
-            if (item == null || item.IsParentDirectory || item.IsWebDav) return;
-
-            var externalProgramPath = NormalizeExternalProgramPath(_externalProgramPath);
-            if (string.IsNullOrWhiteSpace(externalProgramPath))
-            {
-                ShowNotification(Strings.ExternalProgramPathRequired, "\uE783", "Red");
-                await SelectExternalProgramAsync();
-                return;
-            }
-
-            if (!File.Exists(item.FullPath) && !Directory.Exists(item.FullPath))
-            {
-                ShowNotification(Strings.FileNotFound, "\uE7BA", "Red");
-                RefreshExplorer();
-                return;
-            }
-
-            try
-            {
-                var startInfo = new ProcessStartInfo
-                {
-                    FileName = externalProgramPath,
-                    Arguments = QuoteArgument(item.FullPath),
-                    UseShellExecute = true
-                };
-                Process.Start(startInfo);
-            }
-            catch (Exception ex)
-            {
-                ShowNotification(Strings.ExternalProgramLaunchFailed(ex.Message), "\uE783", "Red");
-            }
+            await _explorerItemLaunchService.OpenWithExternalProgramAsync(
+                item,
+                _externalProgramPath,
+                SelectExternalProgramAsync,
+                RefreshExplorer,
+                ShowNotification);
         }
 
         private void OpenExplorerItemWithDefaultProgram(FileItem? item)
         {
-            if (item == null || item.IsParentDirectory || item.IsWebDav) return;
-
-            if (!File.Exists(item.FullPath) && !Directory.Exists(item.FullPath))
-            {
-                ShowNotification(Strings.FileNotFound, "\uE7BA", "Red");
-                RefreshExplorer();
-                return;
-            }
-
-            try
-            {
-                var startInfo = new ProcessStartInfo
-                {
-                    FileName = item.FullPath,
-                    UseShellExecute = true
-                };
-                Process.Start(startInfo);
-            }
-            catch (Exception ex)
-            {
-                ShowNotification(Strings.DefaultProgramLaunchFailed(ex.Message), "\uE783", "Red");
-            }
-        }
-
-        private static string NormalizeExternalProgramPath(string? path)
-        {
-            var value = (path ?? string.Empty).Trim();
-            if (value.Length >= 2 &&
-                ((value[0] == '"' && value[^1] == '"') ||
-                 (value[0] == '\'' && value[^1] == '\'')))
-            {
-                return value[1..^1].Trim();
-            }
-
-            return value;
-        }
-
-        private static string GetExternalProgramDisplayName(string path)
-        {
-            if (string.IsNullOrWhiteSpace(path)) return path;
-
-            var fileName = Path.GetFileName(path);
-            return string.IsNullOrWhiteSpace(fileName) ? path : fileName;
+            _explorerItemLaunchService.OpenWithDefaultProgram(item, RefreshExplorer, ShowNotification);
         }
 
         private void OpenExplorerItemInWindowsExplorer(FileItem? item)
         {
-            if (item == null || item.IsWebDav) return;
-
-            if (!File.Exists(item.FullPath) && !Directory.Exists(item.FullPath))
-            {
-                ShowNotification(Strings.FileNotFound, "\uE7BA", "Red");
-                RefreshExplorer();
-                return;
-            }
-
-            try
-            {
-                var startInfo = new ProcessStartInfo
-                {
-                    FileName = "explorer.exe",
-                    Arguments = item.IsDirectory ? QuoteArgument(item.FullPath) : $"/select,{QuoteArgument(item.FullPath)}",
-                    UseShellExecute = true
-                };
-                Process.Start(startInfo);
-            }
-            catch (Exception ex)
-            {
-                ShowNotification(Strings.ExplorerOpenFailed(ex.Message), "\uE783", "Red");
-            }
+            _explorerItemLaunchService.OpenInWindowsExplorer(item, RefreshExplorer, ShowNotification);
         }
 
         private async Task RenameExplorerItemAsync(FileItem? item)
@@ -1055,8 +966,6 @@ namespace Uviewer
                 return first.Equals(second, StringComparison.OrdinalIgnoreCase);
             }
         }
-
-        private static string QuoteArgument(string value) => $"\"{value.Replace("\"", "\\\"")}\"";
 
         private void UpdateToggleViewButtonTooltip()
         {

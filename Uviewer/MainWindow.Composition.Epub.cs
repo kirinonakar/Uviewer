@@ -10,7 +10,7 @@ namespace Uviewer
             {
                 public static void Initialize(MainWindow window)
                 {
-                    window._epubReaderController = new EpubReaderController(window);
+                    window._epubReaderController = new EpubReaderController(new EpubReaderHostAdapter(window));
                 }
             }
         }

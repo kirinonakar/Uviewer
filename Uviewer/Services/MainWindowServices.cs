@@ -18,6 +18,7 @@ namespace Uviewer.Services
             DocumentSearchCoordinatorService documentSearchCoordinator,
             DocumentSearchState documentSearchState,
             DocumentSessionTracker documentSessionTracker,
+            ExplorerItemLaunchService explorerItemLaunch,
             ImageResourceService imageResource,
             ShutdownCoordinator shutdown,
             SevenZipExtractionCoordinator sevenZipExtraction,
@@ -38,6 +39,7 @@ namespace Uviewer.Services
             DocumentSearchCoordinator = documentSearchCoordinator;
             DocumentSearchState = documentSearchState;
             DocumentSessionTracker = documentSessionTracker;
+            ExplorerItemLaunch = explorerItemLaunch;
             ImageResource = imageResource;
             Shutdown = shutdown;
             SevenZipExtraction = sevenZipExtraction;
@@ -59,6 +61,7 @@ namespace Uviewer.Services
         public DocumentSearchCoordinatorService DocumentSearchCoordinator { get; }
         public DocumentSearchState DocumentSearchState { get; }
         public DocumentSessionTracker DocumentSessionTracker { get; }
+        public ExplorerItemLaunchService ExplorerItemLaunch { get; }
         public ImageResourceService ImageResource { get; }
         public ShutdownCoordinator Shutdown { get; }
         public SevenZipExtractionCoordinator SevenZipExtraction { get; }

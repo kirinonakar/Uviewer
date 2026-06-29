@@ -168,7 +168,7 @@ namespace Uviewer
         {
             try
             {
-                await _favoritesController.NavigateAsync(favorite, this);
+                await _favoritesController.NavigateAsync(favorite, _bookmarkNavigationHost);
             }
             catch (Exception ex)
             {

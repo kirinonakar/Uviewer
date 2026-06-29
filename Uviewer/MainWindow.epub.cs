@@ -16,7 +16,7 @@ using Windows.UI.Text;
 
 namespace Uviewer
 {
-    public sealed partial class MainWindow : IEpubReaderHost
+    public sealed partial class MainWindow
     {
         private EpubReaderController _epubReaderController = null!;
 
@@ -136,110 +136,5 @@ namespace Uviewer
         private void EpubTouchOverlay_PointerWheelChanged(object sender, PointerRoutedEventArgs e) =>
             _epubReaderController.EpubTouchOverlay_PointerWheelChanged(sender, e);
 
-        bool IEpubReaderHost.IsWindowClosing => _isWindowClosing;
-        bool IEpubReaderHost.IsWebDavMode => _isWebDavMode;
-        bool IEpubReaderHost.IsTextMode { get => _isTextMode; set => _isTextMode = value; }
-        bool IEpubReaderHost.IsAozoraMode { get => _isAozoraMode; set => _isAozoraMode = value; }
-        bool IEpubReaderHost.IsMarkdownRenderMode { get => _isMarkdownRenderMode; set => _isMarkdownRenderMode = value; }
-        bool IEpubReaderHost.IsVerticalMode { get => _isVerticalMode; set => _isVerticalMode = value; }
-        bool IEpubReaderHost.IsSideBySideMode => _isSideBySideMode;
-        bool IEpubReaderHost.AutoDoublePageForArchive => _autoDoublePageForArchive;
-        bool IEpubReaderHost.NextImageOnRight => _nextImageOnRight;
-        bool IEpubReaderHost.IsNavigatingRecent { get => _isNavigatingRecent; set => _isNavigatingRecent = value; }
-        int IEpubReaderHost.CurrentIndex { get => _currentIndex; set => _currentIndex = value; }
-        int IEpubReaderHost.AozoraPendingTargetLine { get => _aozoraPendingTargetLine; set => _aozoraPendingTargetLine = value; }
-        int IEpubReaderHost.TextTotalLineCountInSource { get => _textTotalLineCountInSource; set => _textTotalLineCountInSource = value; }
-        string IEpubReaderHost.CurrentTextContent { get => _currentTextContent; set => _currentTextContent = value; }
-        string IEpubReaderHost.WindowTitle { get => Title; set => Title = value; }
-        List<ImageEntry> IEpubReaderHost.ImageEntries { get => _imageEntries; set => _imageEntries = value; }
-        List<AozoraBindingModel> IEpubReaderHost.AozoraBlocks => _aozoraBlocks;
-        string? IEpubReaderHost.ActiveSearchQuery => _activeSearchQuery;
-
-        Microsoft.UI.Dispatching.DispatcherQueue IEpubReaderHost.DispatcherQueue => DispatcherQueue;
-        Microsoft.UI.Windowing.AppWindow IEpubReaderHost.AppWindow => AppWindow;
-        Grid IEpubReaderHost.RootGrid => RootGrid;
-        Grid IEpubReaderHost.ImageArea => ImageArea;
-        Grid IEpubReaderHost.TextArea => TextArea;
-        Grid IEpubReaderHost.EpubArea => EpubArea;
-        Grid IEpubReaderHost.EpubImageHost => EpubImageHost;
-        Grid IEpubReaderHost.EpubTouchOverlay => EpubTouchOverlay;
-        ScrollViewer IEpubReaderHost.TextScrollViewer => TextScrollViewer;
-        CanvasControl IEpubReaderHost.VerticalTextCanvas => VerticalTextCanvas;
-        CanvasControl IEpubReaderHost.AozoraTextCanvas => AozoraTextCanvas;
-        CanvasControl IEpubReaderHost.EpubTextCanvas => EpubTextCanvas;
-        CanvasControl IEpubReaderHost.EpubCanvasDisplay => EpubCanvasDisplay;
-        CanvasControl IEpubReaderHost.EpubCanvasDisplayLeft => EpubCanvasDisplayLeft;
-        CanvasControl IEpubReaderHost.EpubCanvasDisplayRight => EpubCanvasDisplayRight;
-        ColumnDefinition IEpubReaderHost.EpubImageLeftColumn => EpubImageLeftColumn;
-        ColumnDefinition IEpubReaderHost.EpubImageRightColumn => EpubImageRightColumn;
-        TextBlock IEpubReaderHost.FileNameText => FileNameText;
-        TextBlock IEpubReaderHost.ImageInfoText => ImageInfoText;
-        TextBlock IEpubReaderHost.TextProgressText => TextProgressText;
-        TextBlock IEpubReaderHost.ImageIndexText => ImageIndexText;
-        MainToolbarControl IEpubReaderHost.MainToolbar => MainToolbar;
-
-        TextSettingsManager IEpubReaderHost.SettingsManager => _settingsManager;
-        ReaderLayoutService IEpubReaderHost.ReaderLayoutService => _readerLayoutService;
-        TextBlockDocumentService IEpubReaderHost.TextBlockDocumentService => _textBlockDocumentService;
-        TextStatusBarService IEpubReaderHost.TextStatusBarService => _textStatusBarService;
-        TextDialogService IEpubReaderHost.TextDialogService => _textDialogService;
-        ImageResourceService IEpubReaderHost.ImageResourceService => _imageResourceService;
-        IAnimatedWebpService IEpubReaderHost.AnimatedWebpService => _animatedWebpService;
-        WebDavService IEpubReaderHost.WebDavService => _webDavService;
-        TocService IEpubReaderHost.TocService => _tocService;
-
-        Task IEpubReaderHost.AddToRecentAsync(bool immediate) => AddToRecentAsync(immediate);
-        Task<bool> IEpubReaderHost.CloseCurrentArchiveAsync() => CloseCurrentArchiveAsync();
-        Task<bool> IEpubReaderHost.CloseCurrentPdfAsync() => CloseCurrentPdfAsync();
-        void IEpubReaderHost.CancelAndResetGlobalTextCts() => CancelAndResetGlobalTextCts();
-        void IEpubReaderHost.LoadTextSettings() => LoadTextSettings();
-        void IEpubReaderHost.SaveTextSettings() => SaveTextSettings();
-        void IEpubReaderHost.EnsureMinWindowSizeForText() => EnsureMinWindowSizeForText();
-        void IEpubReaderHost.UpdateSideBySideButtonState() => UpdateSideBySideButtonState();
-        void IEpubReaderHost.UpdateNextImageSideButtonState() => UpdateNextImageSideButtonState();
-        void IEpubReaderHost.SyncSidebarSelection(ImageEntry entry) => SyncSidebarSelection(entry);
-        void IEpubReaderHost.ClearBackwardCache() => ClearBackwardCache();
-        void IEpubReaderHost.ClearVerticalDisplayState() => ClearVerticalDisplayState();
-        Task IEpubReaderHost.PrepareVerticalTextAsync(int line) => PrepareVerticalTextAsync(line);
-        void IEpubReaderHost.ShowNotification(string message, string icon, string color) => ShowNotification(message, icon, color);
-        FontWeight IEpubReaderHost.GetFontWeightForFamily(string fontFamily) => GetFontWeightForFamily(fontFamily);
-        Color IEpubReaderHost.GetVerticalBackgroundColor() => GetVerticalBackgroundColor();
-        Color IEpubReaderHost.GetVerticalTextColor() => GetVerticalTextColor();
-        DocumentSearchMatch? IEpubReaderHost.GetActiveSearchMatchFor(DocumentSearchKind kind) => GetActiveSearchMatchFor(kind);
-        List<AozoraBindingModel> IEpubReaderHost.PaginateVerticalAozoraPage(
-            ref int index,
-            List<AozoraBindingModel> blocks,
-            float availableWidth,
-            float availableHeight,
-            CanvasDevice? device) =>
-            PaginateAozoraPage(ref index, blocks, availableWidth, availableHeight, device);
-        List<AozoraBindingModel> IEpubReaderHost.PaginateHorizontalAozoraPage(
-            ref int index,
-            List<AozoraBindingModel> blocks,
-            float availableWidth,
-            float availableHeight,
-            CanvasDevice? device) =>
-            PaginateHorizontalAozoraPage(ref index, blocks, availableWidth, availableHeight, device);
-        int IEpubReaderHost.FindPreviousPageStart(
-            int targetIdx,
-            List<AozoraBindingModel> blocks,
-            float maxWidth,
-            float availHeight,
-            ICanvasResourceCreator device,
-            bool isVertical) =>
-            FindPreviousPageStart(targetIdx, blocks, maxWidth, availHeight, device, isVertical);
-        Task IEpubReaderHost.LoadImageResourceAndInvalidateAsync(
-            string resourcePath,
-            string cacheKey,
-            CanvasDevice device,
-            Action invalidate,
-            Action? onMissing,
-            Func<bool>? shouldKeepLoadedBitmap) =>
-            LoadImageResourceAndInvalidateAsync(resourcePath, cacheKey, device, invalidate, onMissing, shouldKeepLoadedBitmap);
-
-        void IEpubReaderHost.AttachVerticalPreviewKeyIfNeeded()
-        {
-            _documentReaderController.AttachVerticalPreviewKeyIfNeeded();
-        }
     }
 }

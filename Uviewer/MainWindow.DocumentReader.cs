@@ -20,7 +20,7 @@ using Windows.UI.Text;
 
 namespace Uviewer
 {
-    public sealed partial class MainWindow : IDocumentReaderHost
+    public sealed partial class MainWindow
     {
         private DocumentReaderController _documentReaderController = null!;
 
@@ -231,98 +231,5 @@ namespace Uviewer
         private FontWeight GetFontWeightForFamily(string fontFamily) =>
             _documentReaderController.GetFontWeightForFamily(fontFamily);
 
-        bool IReaderAppStateHost.IsWindowClosing => _isWindowClosing;
-        bool IReaderAppStateHost.IsWebDavMode => _isWebDavMode;
-        bool IReaderAppStateHost.IsEpubMode { get => _isEpubMode; set => _isEpubMode = value; }
-        bool IImageNavigationHost.IsSideBySideMode { get => _isSideBySideMode; set => _isSideBySideMode = value; }
-        bool IImageNavigationHost.AutoDoublePageForArchive => _autoDoublePageForArchive;
-        bool IImageNavigationHost.NextImageOnRight => _nextImageOnRight;
-        bool IReaderAppStateHost.IsNavigatingRecent { get => _isNavigatingRecent; set => _isNavigatingRecent = value; }
-        bool IImageNavigationHost.SharpenEnabled => _sharpenEnabled;
-        bool IReaderAppStateHost.IsColorPickerOpen { get => _isColorPickerOpen; set => _isColorPickerOpen = value; }
-        bool IReaderAppStateHost.ShouldInvertControls => ShouldInvertControls;
-        int IImageNavigationHost.CurrentIndex { get => _currentIndex; set => _currentIndex = value; }
-        string IReaderAppStateHost.WindowTitle { get => Title; set => Title = value; }
-        List<ImageEntry> IImageNavigationHost.ImageEntries { get => _imageEntries; set => _imageEntries = value; }
-        CanvasBitmap? IImageNavigationHost.CurrentBitmap => _currentBitmap;
-        PdfDocument? IImageNavigationHost.CurrentPdfDocument => _currentPdfDocument;
-        string? IDocumentSearchHost.ActiveSearchQuery => _activeSearchQuery;
-
-        int IEpubNavigationHost.CurrentEpubChapterIndex { get => _currentEpubChapterIndex; set => _currentEpubChapterIndex = value; }
-        int IEpubNavigationHost.CurrentEpubPageIndex { get => _currentEpubPageIndex; set => _currentEpubPageIndex = value; }
-        IReadOnlyList<string> IEpubNavigationHost.EpubSpine => _epubSpine;
-        List<EpubWin2DPage> IEpubNavigationHost.EpubWin2DPages => _epubWin2DPages;
-        Dictionary<int, List<EpubWin2DPage>> IEpubNavigationHost.EpubPreloadCache => _epubPreloadCache;
-
-        DispatcherQueue IReaderAppStateHost.DispatcherQueue => DispatcherQueue;
-        AppWindow IReaderAppStateHost.AppWindow => AppWindow;
-        Grid ITextReaderViewHost.RootGrid => RootGrid;
-        Grid ITextReaderViewHost.ImageArea => ImageArea;
-        Grid ITextReaderViewHost.TextArea => TextArea;
-        Grid ITextReaderViewHost.EpubArea => EpubArea;
-        ScrollViewer ITextReaderViewHost.TextScrollViewer => TextScrollViewer;
-        ItemsRepeater ITextReaderViewHost.TextItemsRepeater => TextItemsRepeater;
-        CanvasControl ITextReaderViewHost.MainCanvas => MainCanvas;
-        CanvasControl ITextReaderViewHost.AozoraTextCanvas => AozoraTextCanvas;
-        CanvasControl ITextReaderViewHost.VerticalTextCanvas => VerticalTextCanvas;
-        FrameworkElement ITextReaderViewHost.EmptyStatePanel => EmptyStatePanel;
-        Grid ITextReaderViewHost.TextFastNavOverlay => TextFastNavOverlay;
-        ContentControl ITextReaderViewHost.RootFontControl => RootFontControl;
-        ListView ITextReaderViewHost.FileListView => FileListView;
-        GridView ITextReaderViewHost.FileGridView => FileGridView;
-        Pivot ITextReaderViewHost.SidebarFavoritesPivot => SidebarFavoritesPivot;
-        TextBlock ITextReaderViewHost.CurrentPathText => CurrentPathText;
-        TextBlock ITextReaderViewHost.NotificationText => NotificationText;
-        TextBlock ITextReaderViewHost.FileNameText => FileNameText;
-        TextBlock ITextReaderViewHost.ImageInfoText => ImageInfoText;
-        TextBlock ITextReaderViewHost.TextProgressText => TextProgressText;
-        TextBlock ITextReaderViewHost.ImageIndexText => ImageIndexText;
-        MainToolbarControl ITextReaderViewHost.MainToolbar => MainToolbar;
-
-        ArchiveSession IReaderLibraryHost.ArchiveSession => _archiveSession;
-        RecentService IReaderLibraryHost.RecentService => _recentService;
-        FavoritesService IReaderLibraryHost.FavoritesService => _favoritesService;
-        TocService IReaderLibraryHost.TocService => _tocService;
-        DocumentSearchService IDocumentSearchHost.DocumentSearchService => _documentSearchService;
-        SearchHighlightService IDocumentSearchHost.SearchHighlightService => _searchHighlightService;
-        ImageResourceService IReaderLibraryHost.ImageResourceService => _imageResourceService;
-        WindowChromeController IReaderAppStateHost.WindowChromeController => _windowChromeController;
-
-        Task IImageNavigationHost.AddToRecentAsync(bool immediate) => AddToRecentAsync(immediate);
-        void IImageNavigationHost.SyncSidebarSelection(ImageEntry entry) => SyncSidebarSelection(entry);
-        void IReaderAppStateHost.EnsureMinWindowSizeForText() => EnsureMinWindowSizeForText();
-        void IImageNavigationHost.UpdateSideBySideButtonState() => UpdateSideBySideButtonState();
-        void IImageNavigationHost.UpdateNextImageSideButtonState() => UpdateNextImageSideButtonState();
-        void IReaderLibraryHost.UpdateFavoritesMenu() => UpdateFavoritesMenu();
-        void IReaderLibraryHost.UpdateRecentMenu() => UpdateRecentMenu();
-        void IReaderLibraryHost.UpdateWebDavServerList() => UpdateWebDavServerList();
-        void IReaderAppStateHost.ApplyLocalization() => ApplyLocalization();
-        void IReaderAppStateHost.ShowNotification(string message, string icon, string color) => ShowNotification(message, icon, color);
-        string ITextReaderViewHost.GetTextSettingsFilePath() => GetTextSettingsFilePath();
-        void IImageNavigationHost.UpdateStatusBar(ImageEntry entry, CanvasBitmap bitmap) => UpdateStatusBar(entry, bitmap);
-        Task IImageNavigationHost.DisplayCurrentImageAsync() => DisplayCurrentImageAsync();
-        Task IEpubNavigationHost.NavigateEpubAsync(int direction) => NavigateEpubAsync(direction);
-        Task IEpubNavigationHost.LoadEpubChapterAsync(int index, bool fromEnd, int targetLine, int targetBlockIndex, int targetPage, double? progress, CancellationToken token) =>
-            LoadEpubChapterAsync(index, fromEnd, targetLine, targetBlockIndex, targetPage, progress, token);
-        void IEpubNavigationHost.JumpToEpubTocItem(EpubTocItem item) => JumpToEpubTocItem(item);
-        void IEpubNavigationHost.UpdateEpubStatus() => UpdateEpubStatus();
-        void IEpubNavigationHost.TriggerEpubResize() => TriggerEpubResize();
-        void IReaderAppStateHost.ToggleSidebar() => ToggleSidebar();
-        void IReaderAppStateHost.HandleSmartTouchNavigation(PointerRoutedEventArgs e, Action prevAction, Action nextAction) =>
-            HandleSmartTouchNavigation(e, prevAction, nextAction);
-        void IDocumentSearchHost.ApplySearchHighlightsToTextBlock(TextBlock textBlock, string content, int lineNumber) =>
-            ApplySearchHighlightsToTextBlock(textBlock, content, lineNumber);
-        DocumentSearchMatch? IDocumentSearchHost.GetActiveSearchMatchFor(DocumentSearchKind kind) =>
-            GetActiveSearchMatchFor(kind);
-        ViewingContext IImageNavigationHost.CreateViewingContext() => CreateViewingContext();
-        SharpenParams IImageNavigationHost.CreateSharpenParams() => CreateSharpenParams();
-        Task IImageNavigationHost.LoadImageResourceAndInvalidateAsync(
-            string resourcePath,
-            string cacheKey,
-            CanvasDevice device,
-            Action invalidate,
-            Action? onMissing,
-            Func<bool>? shouldKeepLoadedBitmap) =>
-            LoadImageResourceAndInvalidateAsync(resourcePath, cacheKey, device, invalidate, onMissing, shouldKeepLoadedBitmap);
     }
 }

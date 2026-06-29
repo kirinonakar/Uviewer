@@ -10,7 +10,7 @@ namespace Uviewer
             {
                 public static void Initialize(MainWindow window)
                 {
-                    window._documentReaderController = new DocumentReaderController(window);
+                    window._documentReaderController = new DocumentReaderController(new DocumentReaderHostAdapter(window));
                     window._searchOverlayService = new SearchOverlayService(
                         window.SearchCurrentDocumentAsync,
                         window.NavigateToSearchMatchAsync,

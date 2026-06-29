@@ -24,6 +24,7 @@ namespace Uviewer
                     new DocumentSearchCoordinatorService(),
                     new Uviewer.Models.DocumentSearchState(),
                     new DocumentSessionTracker(),
+                    new ExplorerItemLaunchService(),
                     new ImageResourceService(sharpening),
                     new ShutdownCoordinator(),
                     new SevenZipExtractionCoordinator(),
@@ -48,6 +49,7 @@ namespace Uviewer
             _documentSearchCoordinatorService = services.DocumentSearchCoordinator;
             _documentSearchState = services.DocumentSearchState;
             _documentSessionTracker = services.DocumentSessionTracker;
+            _explorerItemLaunchService = services.ExplorerItemLaunch;
             _imageResourceService = services.ImageResource;
             _shutdownCoordinator = services.Shutdown;
             _sevenZipExtraction = services.SevenZipExtraction;

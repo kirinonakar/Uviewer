@@ -23,7 +23,7 @@ using Visibility = Microsoft.UI.Xaml.Visibility;
 
 namespace Uviewer
 {
-    public sealed partial class MainWindow : Window, IKeyboardShortcutActions
+    public sealed partial class MainWindow : Window
     {
         // Image preloading for faster navigation
         private Services.ImageCacheManager _imageCache = null!;
@@ -41,6 +41,7 @@ namespace Uviewer
         private Services.ExplorerController _explorerController = null!;
         private Services.BookmarkPanelController _bookmarkPanelController = null!;
         private Services.FavoritesController _favoritesController = null!;
+        private Services.IBookmarkNavigationHost _bookmarkNavigationHost = null!;
         private Services.AppSettingsService _appSettingsService = null!;
         private Services.ZoomService _zoomService = null!;
         private Services.ISharpeningService _sharpeningService = null!;
@@ -54,6 +55,7 @@ namespace Uviewer
         private Services.SearchOverlayService _searchOverlayService = null!;
         private DocumentSearchState _documentSearchState = null!;
         private Services.DocumentSessionTracker _documentSessionTracker = null!;
+        private Services.ExplorerItemLaunchService _explorerItemLaunchService = null!;
         private string? _activeSearchQuery => _documentSearchState.Query;
         private IReadOnlyList<PdfSearchHighlight> _activePdfSearchHighlights => _documentSearchState.PdfHighlights;
         private int _activePdfSearchPageIndex => _documentSearchState.PdfPageIndex;

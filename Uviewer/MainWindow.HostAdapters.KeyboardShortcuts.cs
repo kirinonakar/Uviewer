@@ -1,0 +1,109 @@
+using Microsoft.UI.Xaml;
+using System.Threading.Tasks;
+using Uviewer.Services;
+
+namespace Uviewer
+{
+    public sealed partial class MainWindow
+    {
+        private sealed class KeyboardShortcutActionsAdapter : IKeyboardShortcutActions
+        {
+            private readonly MainWindow _window;
+
+            public KeyboardShortcutActionsAdapter(MainWindow window)
+            {
+                _window = window;
+            }
+
+            public bool IsColorPickerOpen => _window._isColorPickerOpen;
+            public bool IsFullscreen => _window._windowState.IsFullscreen;
+            public bool IsEpubMode => _window._isEpubMode;
+            public bool IsVerticalMode
+            {
+                get => _window._isVerticalMode;
+                set
+                {
+                    _window._isVerticalMode = value;
+                    _window.MainToolbar.SetVerticalToggleState(isChecked: value);
+                }
+            }
+
+            public bool IsTextMode => _window._isTextMode;
+            public bool IsAozoraMode => _window._isAozoraMode;
+            public bool ShouldInvertControls => _window.ShouldInvertControls;
+
+            public int CurrentEpubChapterIndex
+            {
+                get => _window._currentEpubChapterIndex;
+                set => _window._currentEpubChapterIndex = value;
+            }
+
+            public int EpubSpineCount => _window._epubSpine.Count;
+
+            public int CurrentImageIndex
+            {
+                get => _window._currentIndex;
+                set => _window._currentIndex = value;
+            }
+
+            public int ImageEntriesCount => _window._imageEntries.Count;
+            public bool HasPdfDocument => _window._currentPdfDocument != null;
+            public bool IsAboutDialogActive => _window._aboutDialog != null;
+            public bool IsSearchOverlayOpen => _window._searchOverlayService?.IsOpen == true;
+            public bool CanSearchCurrentDocument => _window.CanSearchCurrentDocument;
+
+            public void ToggleFullscreen() => _window.ToggleFullscreen();
+            public void ToggleMaximizeRestore() => _window.ToggleMaximizeRestore();
+            public void CloseApp() => _window.RequestWindowClose();
+            public Task ShowEpubGoToLineDialog() => _window.ShowEpubGoToLineDialog();
+            public void ToggleFont() => _window.ToggleFont();
+
+            public void ToggleVerticalMode()
+            {
+                _window._isVerticalMode = !_window._isVerticalMode;
+                _window.MainToolbar.SetVerticalToggleState(isChecked: _window._isVerticalMode);
+                _window.SaveTextSettings();
+                _window.ToggleVerticalMode();
+            }
+
+            public void DecreaseTextSize() => _window.DecreaseTextSize();
+            public void IncreaseTextSize() => _window.IncreaseTextSize();
+            public void ToggleSidebar() => _window.ToggleSidebar();
+            public void ToggleTheme() => _window.ToggleTheme();
+            public Task LoadEpubChapterAsync(int index) => _window.LoadEpubChapterAsync(index);
+            public void ToggleSideBySide() => _window.SideBySideButton_Click(_window.MainToolbar, new RoutedEventArgs());
+            public Task NavigateDocumentPageAsync(int direction) =>
+                _window._documentNavigationCoordinator.NavigatePageAsync(direction);
+            public Task DisplayCurrentImageAsync() => _window.DisplayCurrentImageAsync();
+            public Task NavigateToFileAsync(bool forward) => _window.NavigateToFileAsync(forward);
+            public Task AddToFavoritesAsync() => _window.AddToFavoritesAsync();
+
+            public void ToggleSharpening()
+            {
+                _window.SharpenButton_Click(_window.MainToolbar, new RoutedEventArgs());
+            }
+
+            public Task ShowGoToLineDialog() => _window.ShowGoToLineDialog();
+            public Task NavigateToParentFolderAsync() => _window.NavigateToParentFolderAsync();
+            public Task OpenFileAsync() => _window.OpenFileAsync();
+            public void ZoomIn() => _window.ZoomIn();
+            public void ZoomOut() => _window.ZoomOut();
+            public void FitToWindow() => _window.FitToWindow();
+            public void ZoomActual() => _window.ZoomActualButton_Click(_window.MainToolbar, new RoutedEventArgs());
+            public void ToggleAlwaysOnTop() => _window.ToggleAlwaysOnTop();
+            public void ToggleGlobalTheme() => _window.GlobalThemeToggleButton_Click(_window.MainToolbar, new RoutedEventArgs());
+            public void TogglePin() => _window.TogglePin();
+            public void ShowSearchOverlay() => _window.ShowSearchOverlay();
+            public void HideSearchOverlay() => _window._searchOverlayService?.Hide();
+
+            public void HideAboutDialog()
+            {
+                if (_window._aboutDialog != null)
+                {
+                    _window._aboutDialog.Hide();
+                    _window._aboutDialog = null;
+                }
+            }
+        }
+    }
+}
