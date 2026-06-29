@@ -143,16 +143,16 @@ Unzip the file and run `Uviewer.exe`.
    git clone https://github.com/kirinonakar/Uviewer.git
    cd Uviewer
    ```
-2. Open `Uviewer.sln` in **Visual Studio 2022**.
+2. Open `Uviewer.slnx` in **Visual Studio 2022**.
    - Required workloads: **.NET Desktop Development**.
    - Required extension: **Windows App SDK**.
 3. Build and Run:
-   - Select `x64` or `arm64`.
+   - Select `x64`.
    - Press **F5**.
 
 ### Build via Command Line
 ```bash
-dotnet build Uviewer.sln -c Release
+dotnet build -c Release --self-contained true
 ```
 
 ## 🏗️ Architecture
