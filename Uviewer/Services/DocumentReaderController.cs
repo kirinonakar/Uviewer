@@ -49,15 +49,15 @@ namespace Uviewer
         internal readonly TextStatusBarService _textStatusBarService;
         internal readonly TextDialogService _textDialogService;
 
-        internal DocumentReaderController(IDocumentReaderHost host)
+        internal DocumentReaderController(DocumentReaderDependencies dependencies)
         {
-            ArgumentNullException.ThrowIfNull(host);
-            _appStateHost = host;
-            _viewHost = host;
-            _imageNavigationHost = host;
-            _epubNavigationHost = host;
-            _searchHost = host;
-            _libraryHost = host;
+            ArgumentNullException.ThrowIfNull(dependencies);
+            _appStateHost = dependencies.AppStateHost;
+            _viewHost = dependencies.ViewHost;
+            _imageNavigationHost = dependencies.ImageNavigationHost;
+            _epubNavigationHost = dependencies.EpubNavigationHost;
+            _searchHost = dependencies.SearchHost;
+            _libraryHost = dependencies.LibraryHost;
             _aozoraBlockPaginator = new AozoraBlockPaginator(_aozoraBlockMeasurer);
             _aozoraPageMapCalculator = new AozoraPageMapCalculator(_aozoraBlockMeasurer);
             _aozoraPreviousPageCache = new AozoraPreviousPageCache(_aozoraBlockMeasurer, _aozoraBlockPaginator);

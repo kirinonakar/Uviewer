@@ -1,0 +1,63 @@
+<UserControl
+    x:Class="Uviewer.Controls.EpubReaderControl"
+    x:Name="EpubReaderRoot"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:canvas="using:Microsoft.Graphics.Canvas.UI.Xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    mc:Ignorable="d">
+
+    <Grid x:Name="EpubArea"
+          Visibility="Collapsed"
+          Background="{ThemeResource SolidBackgroundFillColorBaseBrush}"
+          IsTabStop="False"
+          SizeChanged="EpubArea_SizeChanged">
+        <canvas:CanvasControl x:Name="EpubTextCanvas"
+                              Visibility="Collapsed"
+                              IsTabStop="True"
+                              AllowFocusOnInteraction="True"
+                              Draw="EpubTextCanvas_Draw"
+                              CreateResources="EpubTextCanvas_CreateResources"
+                              SizeChanged="EpubTextCanvas_SizeChanged" />
+
+        <Grid x:Name="EpubImageHost"
+              Visibility="Collapsed"
+              HorizontalAlignment="Stretch"
+              VerticalAlignment="Stretch"
+              ColumnSpacing="0"
+              Padding="0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition x:Name="EpubImageLeftColumn" Width="*" />
+                <ColumnDefinition x:Name="EpubImageRightColumn" Width="0" />
+            </Grid.ColumnDefinitions>
+            <canvas:CanvasControl x:Name="EpubCanvasDisplay"
+                                  Grid.Column="0"
+                                  Grid.ColumnSpan="2"
+                                  HorizontalAlignment="Stretch"
+                                  VerticalAlignment="Stretch"
+                                  Draw="EpubCanvasDisplay_Draw" />
+            <canvas:CanvasControl x:Name="EpubCanvasDisplayLeft"
+                                  Grid.Column="0"
+                                  Visibility="Collapsed"
+                                  HorizontalAlignment="Stretch"
+                                  VerticalAlignment="Stretch"
+                                  Draw="EpubCanvasDisplayLeft_Draw" />
+            <canvas:CanvasControl x:Name="EpubCanvasDisplayRight"
+                                  Grid.Column="1"
+                                  Visibility="Collapsed"
+                                  HorizontalAlignment="Stretch"
+                                  VerticalAlignment="Stretch"
+                                  Draw="EpubCanvasDisplayRight_Draw" />
+        </Grid>
+
+        <Grid x:Name="EpubTouchOverlay"
+              Background="Transparent"
+              AllowFocusOnInteraction="True"
+              IsTabStop="True"
+              PointerPressed="EpubTouchOverlay_PointerPressed"
+              PointerWheelChanged="EpubTouchOverlay_PointerWheelChanged"
+              HorizontalAlignment="Stretch"
+              VerticalAlignment="Stretch" />
+    </Grid>
+</UserControl>

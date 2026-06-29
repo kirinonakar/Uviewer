@@ -1,0 +1,75 @@
+<UserControl
+    x:Class="Uviewer.Controls.TextReaderControl"
+    x:Name="TextReaderRoot"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:canvas="using:Microsoft.Graphics.Canvas.UI.Xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    mc:Ignorable="d">
+
+    <UserControl.Resources>
+        <DataTemplate x:Key="TextItemTemplate">
+            <TextBlock TextWrapping="Wrap" HorizontalAlignment="Left" />
+        </DataTemplate>
+    </UserControl.Resources>
+
+    <Grid x:Name="TextArea"
+          Visibility="Collapsed"
+          Background="{ThemeResource SolidBackgroundFillColorBaseBrush}"
+          IsTabStop="False"
+          PointerPressed="TextArea_PointerPressed"
+          PointerWheelChanged="TextArea_PointerWheelChanged"
+          SizeChanged="TextArea_SizeChanged">
+        <ScrollViewer x:Name="TextScrollViewer"
+                      Margin="0,0,0,10"
+                      Padding="20,10,20,10"
+                      HorizontalScrollBarVisibility="Disabled"
+                      VerticalScrollBarVisibility="Hidden"
+                      SizeChanged="TextScrollViewer_SizeChanged"
+                      ViewChanged="TextScrollViewer_ViewChanged">
+            <ItemsRepeater x:Name="TextItemsRepeater"
+                           ElementPrepared="TextItemsRepeater_ElementPrepared"
+                           ItemTemplate="{StaticResource TextItemTemplate}"
+                           Margin="0,0,0,40">
+                <ItemsRepeater.Layout>
+                    <StackLayout Spacing="0" />
+                </ItemsRepeater.Layout>
+            </ItemsRepeater>
+        </ScrollViewer>
+
+        <canvas:CanvasControl x:Name="AozoraTextCanvas"
+                              Visibility="Collapsed"
+                              IsTabStop="False"
+                              Draw="AozoraTextCanvas_Draw"
+                              CreateResources="AozoraTextCanvas_CreateResources"
+                              PointerPressed="AozoraTextCanvas_PointerPressed"
+                              PointerWheelChanged="AozoraTextCanvas_PointerWheelChanged"
+                              SizeChanged="AozoraTextCanvas_SizeChanged" />
+
+        <Grid x:Name="TextFastNavOverlay"
+              Canvas.ZIndex="999"
+              IsHitTestVisible="False"
+              Visibility="Collapsed"
+              Background="#80000000"
+              HorizontalAlignment="Stretch"
+              VerticalAlignment="Stretch">
+            <TextBlock x:Name="TextFastNavText"
+                       Foreground="White"
+                       FontSize="28"
+                       FontWeight="SemiBold"
+                       HorizontalAlignment="Center"
+                       VerticalAlignment="Center"
+                       Text="페이지 이동 중..." />
+        </Grid>
+
+        <canvas:CanvasControl x:Name="VerticalTextCanvas"
+                              Visibility="Collapsed"
+                              IsTabStop="False"
+                              Draw="VerticalTextCanvas_Draw"
+                              CreateResources="VerticalTextCanvas_CreateResources"
+                              PointerPressed="VerticalTextCanvas_PointerPressed"
+                              PointerWheelChanged="VerticalTextCanvas_PointerWheelChanged"
+                              SizeChanged="VerticalTextCanvas_SizeChanged" />
+    </Grid>
+</UserControl>

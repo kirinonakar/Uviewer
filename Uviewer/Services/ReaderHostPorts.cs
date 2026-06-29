@@ -136,14 +136,4 @@ namespace Uviewer.Services
         void UpdateRecentMenu();
         void UpdateWebDavServerList();
     }
-
-    internal interface IDocumentReaderHost :
-        IReaderAppStateHost,
-        ITextReaderViewHost,
-        IImageNavigationHost,
-        IEpubNavigationHost,
-        IDocumentSearchHost,
-        IReaderLibraryHost
-    {
-    }
 }

@@ -1,0 +1,91 @@
+<UserControl
+    x:Class="Uviewer.Controls.ImageViewerControl"
+    x:Name="ImageViewerRoot"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:canvas="using:Microsoft.Graphics.Canvas.UI.Xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    mc:Ignorable="d">
+
+    <Grid x:Name="ImageArea"
+          Background="{ThemeResource SolidBackgroundFillColorBaseBrush}"
+          IsTabStop="False"
+          SizeChanged="ImageArea_SizeChanged"
+          PointerWheelChanged="ImageArea_PointerWheelChanged"
+          PointerPressed="ImageArea_PointerPressed"
+          ManipulationMode="All"
+          ManipulationDelta="ImageArea_ManipulationDelta"
+          ManipulationStarting="ImageArea_ManipulationStarting"
+          ManipulationCompleted="ImageArea_ManipulationCompleted">
+        <StackPanel x:Name="EmptyStatePanel"
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Center"
+                    Spacing="16"
+                    Visibility="Visible">
+            <FontIcon Glyph="&#xE8B9;"
+                      FontSize="64"
+                      Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+            <TextBlock Text="이미지를 여기에 드래그하거나"
+                       FontSize="18"
+                       Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                       HorizontalAlignment="Center" />
+            <TextBlock Text="'열기' 버튼을 클릭하세요"
+                       FontSize="14"
+                       Foreground="{ThemeResource TextFillColorTertiaryBrush}"
+                       HorizontalAlignment="Center" />
+            <Button Content="이미지 열기"
+                    Click="OpenFileButton_Click"
+                    Style="{StaticResource AccentButtonStyle}"
+                    HorizontalAlignment="Center"
+                    Margin="0,8,0,0" />
+        </StackPanel>
+
+        <Grid x:Name="FastNavOverlay"
+              Canvas.ZIndex="999"
+              IsHitTestVisible="False"
+              Visibility="Collapsed"
+              Background="#80000000"
+              HorizontalAlignment="Stretch"
+              VerticalAlignment="Stretch">
+            <TextBlock x:Name="FastNavText"
+                       Foreground="White"
+                       FontSize="28"
+                       FontWeight="SemiBold"
+                       HorizontalAlignment="Center"
+                       VerticalAlignment="Center"
+                       Text="빠른 탐색 중... (1/1)" />
+        </Grid>
+
+        <canvas:CanvasControl x:Name="MainCanvas"
+                              Draw="MainCanvas_Draw"
+                              Visibility="Collapsed"
+                              IsTabStop="False"
+                              CreateResources="MainCanvas_CreateResources"
+                              ManipulationMode="All"
+                              ManipulationDelta="ImageArea_ManipulationDelta"
+                              ManipulationCompleted="ImageArea_ManipulationCompleted"
+                              ManipulationStarting="ImageArea_ManipulationStarting" />
+
+        <Grid x:Name="SideBySideGrid"
+              Visibility="Collapsed"
+              ColumnSpacing="0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+
+            <canvas:CanvasControl x:Name="LeftCanvas"
+                                  Grid.Column="0"
+                                  IsTabStop="False"
+                                  Draw="LeftCanvas_Draw"
+                                  CreateResources="LeftCanvas_CreateResources" />
+
+            <canvas:CanvasControl x:Name="RightCanvas"
+                                  Grid.Column="1"
+                                  IsTabStop="False"
+                                  Draw="RightCanvas_Draw"
+                                  CreateResources="RightCanvas_CreateResources" />
+        </Grid>
+    </Grid>
+</UserControl>
