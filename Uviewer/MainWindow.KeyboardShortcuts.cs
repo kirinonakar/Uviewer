@@ -40,12 +40,6 @@ namespace Uviewer
         int IKeyboardShortcutActions.ImageEntriesCount => _imageEntries.Count;
         bool IKeyboardShortcutActions.HasPdfDocument => _currentPdfDocument != null;
 
-        bool IKeyboardShortcutActions.IsSharpenEnabled
-        {
-            get => _sharpenEnabled;
-            set => _sharpenEnabled = value;
-        }
-
         bool IKeyboardShortcutActions.IsAboutDialogActive => _aboutDialog != null;
         bool IKeyboardShortcutActions.IsSearchOverlayOpen => _searchOverlayService?.IsOpen == true;
         bool IKeyboardShortcutActions.CanSearchCurrentDocument => CanSearchCurrentDocument;
@@ -64,7 +58,6 @@ namespace Uviewer
             ToggleVerticalMode();
         }
 
-        void IKeyboardShortcutActions.SaveTextSettings() => SaveTextSettings();
         void IKeyboardShortcutActions.DecreaseTextSize() => DecreaseTextSize();
         void IKeyboardShortcutActions.IncreaseTextSize() => IncreaseTextSize();
         void IKeyboardShortcutActions.ToggleSidebar() => ToggleSidebar();
@@ -73,8 +66,6 @@ namespace Uviewer
         void IKeyboardShortcutActions.ToggleSideBySide() => SideBySideButton_Click(MainToolbar, new RoutedEventArgs());
         Task IKeyboardShortcutActions.NavigateDocumentPageAsync(int direction) =>
             _documentNavigationCoordinator.NavigatePageAsync(direction);
-        Task IKeyboardShortcutActions.NavigateToNextAsync(bool handled) => NavigateToNextAsync(handled);
-        Task IKeyboardShortcutActions.NavigateToPreviousAsync(bool handled) => NavigateToPreviousAsync(handled);
         Task IKeyboardShortcutActions.DisplayCurrentImageAsync() => DisplayCurrentImageAsync();
         Task IKeyboardShortcutActions.NavigateToFileAsync(bool forward) => NavigateToFileAsync(forward);
         Task IKeyboardShortcutActions.AddToFavoritesAsync() => AddToFavoritesAsync();

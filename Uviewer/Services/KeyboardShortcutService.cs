@@ -1,294 +1,95 @@
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
-using System;
-using System.Linq;
 using System.Threading.Tasks;
+using Windows.System;
+using Windows.UI.Core;
 
 namespace Uviewer.Services
 {
     public class KeyboardShortcutService : IKeyboardShortcutService
     {
-        public Task HandlePreviewKeyDownAsync(object sender, KeyRoutedEventArgs e, IKeyboardShortcutActions actions)
+        private readonly ShortcutRouter _router;
+        private readonly KeyboardShortcutFeatureController _featureController;
+
+        public KeyboardShortcutService()
+            : this(new ShortcutRouter(), new KeyboardShortcutFeatureController())
         {
-            if (actions.IsColorPickerOpen && e.Key == Windows.System.VirtualKey.Escape) return Task.CompletedTask;
+        }
 
-            // Allow text input controls to function normally (e.g. WebDAV dialog)
-            if (e.OriginalSource is TextBox || e.OriginalSource is PasswordBox || e.OriginalSource is NumberBox) return Task.CompletedTask;
+        internal KeyboardShortcutService(ShortcutRouter router, KeyboardShortcutFeatureController featureController)
+        {
+            _router = router;
+            _featureController = featureController;
+        }
 
-            var ctrlPressed = Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(
-                Windows.System.VirtualKey.Control).HasFlag(Windows.UI.Core.CoreVirtualKeyStates.Down);
-
-            // --- Immediate Handled Actions (Sync) ---
-
-            if (ctrlPressed && e.Key == Windows.System.VirtualKey.F && actions.CanSearchCurrentDocument)
+        public async Task HandlePreviewKeyDownAsync(object sender, KeyRoutedEventArgs e, IKeyboardShortcutActions actions)
+        {
+            if (IsTextInput(e.OriginalSource))
             {
-                e.Handled = true;
-                actions.ShowSearchOverlay();
-                return Task.CompletedTask;
+                return;
             }
 
-            if (e.Key == Windows.System.VirtualKey.Escape)
+            var input = new ShortcutInput(e.Key, IsCtrlPressed());
+            var context = CreateContext(actions);
+            if (!_router.TryRoutePreviewKeyDown(input, context, out var route))
             {
-                e.Handled = true;
-                if (actions.IsSearchOverlayOpen)
-                {
-                    actions.HideSearchOverlay();
-                }
-                else if (actions.IsAboutDialogActive)
-                {
-                    actions.HideAboutDialog();
-                }
-                else if (actions.IsFullscreen) actions.ToggleFullscreen();
-                else actions.CloseApp();
-                return Task.CompletedTask;
+                return;
             }
 
-            if (e.Key == Windows.System.VirtualKey.F11)
-            {
-                e.Handled = true;
-                actions.ToggleFullscreen();
-                return Task.CompletedTask;
-            }
-
-            if (e.Key == Windows.System.VirtualKey.F10)
-            {
-                e.Handled = true;
-                actions.ToggleMaximizeRestore();
-                return Task.CompletedTask;
-            }
-
-            // --- EPUB/Vertical Mode Handling ---
-            if (actions.IsEpubMode)
-            {
-                if (e.Key == Windows.System.VirtualKey.Left)
-                {
-                    e.Handled = true;
-                    _ = actions.NavigateDocumentPageAsync(-1);
-                    return Task.CompletedTask;
-                }
-                else if (e.Key == Windows.System.VirtualKey.Right)
-                {
-                    e.Handled = true;
-                    _ = actions.NavigateDocumentPageAsync(1);
-                    return Task.CompletedTask;
-                }
-                else if (e.Key == Windows.System.VirtualKey.G)
-                {
-                    e.Handled = true;
-                    _ = actions.ShowEpubGoToLineDialog();
-                    return Task.CompletedTask;
-                }
-                else if (e.Key == Windows.System.VirtualKey.F)
-                {
-                    e.Handled = true;
-                    actions.ToggleFont();
-                    return Task.CompletedTask;
-                }
-                else if (e.Key == Windows.System.VirtualKey.V)
-                {
-                    e.Handled = true;
-                    actions.ToggleVerticalMode();
-                    return Task.CompletedTask;
-                }
-                else if (e.Key == Windows.System.VirtualKey.Subtract || e.Key == (Windows.System.VirtualKey)189) // - key
-                {
-                    e.Handled = true;
-                    actions.DecreaseTextSize();
-                    return Task.CompletedTask;
-                }
-                else if (e.Key == Windows.System.VirtualKey.Add || e.Key == (Windows.System.VirtualKey)187) // + key
-                {
-                    e.Handled = true;
-                    actions.IncreaseTextSize();
-                    return Task.CompletedTask;
-                }
-                else if (e.Key == Windows.System.VirtualKey.B)
-                {
-                    e.Handled = true;
-                    if (ctrlPressed) actions.ToggleSidebar();
-                    else actions.ToggleTheme();
-                    return Task.CompletedTask;
-                }
-                else if (e.Key == Windows.System.VirtualKey.Home)
-                {
-                    e.Handled = true;
-                    if (actions.CurrentEpubChapterIndex > 0)
-                    {
-                        actions.CurrentEpubChapterIndex--;
-                        _ = actions.LoadEpubChapterAsync(actions.CurrentEpubChapterIndex);
-                    }
-                    return Task.CompletedTask;
-                }
-                else if (e.Key == Windows.System.VirtualKey.End)
-                {
-                    e.Handled = true;
-                    if (actions.CurrentEpubChapterIndex < actions.EpubSpineCount - 1)
-                    {
-                        actions.CurrentEpubChapterIndex++;
-                        _ = actions.LoadEpubChapterAsync(actions.CurrentEpubChapterIndex);
-                    }
-                    return Task.CompletedTask;
-                }
-            }
-
-            // Handle Space to prevent toolbar buttons from capturing it
-            if (e.Key == Windows.System.VirtualKey.Space)
-            {
-                e.Handled = true;
-                if (actions.IsTextMode) return Task.CompletedTask; // Block and ignore in text mode
-                actions.ToggleSideBySide();
-                return Task.CompletedTask;
-            }
-
-            // --- Async Actions (Fire and Forget with Handled = true) ---
-
-            if (!actions.IsTextMode && !actions.IsEpubMode)
-            {
-                // Intercept Left/Right for Archive/Image internal navigation
-                if (e.Key == Windows.System.VirtualKey.Left || e.Key == Windows.System.VirtualKey.Right)
-                {
-                    e.Handled = true;
-                    if (e.Key == Windows.System.VirtualKey.Left)
-                    {
-                        _ = actions.NavigateDocumentPageAsync(actions.ShouldInvertControls ? 1 : -1);
-                    }
-                    else
-                    {
-                        _ = actions.NavigateDocumentPageAsync(actions.ShouldInvertControls ? -1 : 1);
-                    }
-                    return Task.CompletedTask;
-                }
-
-                // Intercept Home/End for first/last image
-                if (actions.ImageEntriesCount > 0)
-                {
-                    if (e.Key == Windows.System.VirtualKey.Home)
-                    {
-                        e.Handled = true;
-                        if (actions.CurrentImageIndex != 0)
-                        {
-                            actions.CurrentImageIndex = 0;
-                            _ = actions.DisplayCurrentImageAsync();
-                        }
-                        return Task.CompletedTask;
-                    }
-                    else if (e.Key == Windows.System.VirtualKey.End)
-                    {
-                        e.Handled = true;
-                        if (actions.CurrentImageIndex != actions.ImageEntriesCount - 1)
-                        {
-                            actions.CurrentImageIndex = actions.ImageEntriesCount - 1;
-                            _ = actions.DisplayCurrentImageAsync();
-                        }
-                        return Task.CompletedTask;
-                    }
-                }
-            }
-
-            // Handle Up/Down keys in PreviewKeyDown for file navigation (Works in EPUB mode too as requested)
-            if (e.Key == Windows.System.VirtualKey.Up || e.Key == Windows.System.VirtualKey.PageUp)
-            {
-                e.Handled = true;
-                _ = actions.NavigateToFileAsync(false);
-                return Task.CompletedTask;
-            }
-            if (e.Key == Windows.System.VirtualKey.Down || e.Key == Windows.System.VirtualKey.PageDown)
-            {
-                e.Handled = true;
-                _ = actions.NavigateToFileAsync(true);
-                return Task.CompletedTask;
-            }
-
-            return Task.CompletedTask;
+            e.Handled = true;
+            await _featureController.ExecuteAsync(route, actions);
         }
 
         public async Task HandleKeyDownAsync(object sender, KeyRoutedEventArgs e, IKeyboardShortcutActions actions)
         {
-            if (e.Handled) return;
-            // Allow text input controls to function normally
-            if (e.OriginalSource is TextBox || e.OriginalSource is PasswordBox || e.OriginalSource is NumberBox) return;
-
-            var ctrlPressed = Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(
-                Windows.System.VirtualKey.Control).HasFlag(Windows.UI.Core.CoreVirtualKeyStates.Down);
-
-            switch (e.Key)
+            if (e.Handled || IsTextInput(e.OriginalSource))
             {
-                case Windows.System.VirtualKey.S:
-                    if (ctrlPressed) await actions.AddToFavoritesAsync();
-                    else if (!actions.IsTextMode || actions.IsAozoraMode || actions.IsVerticalMode) // Enable in EPUB, Aozora, and Vertical modes, keep disabled in raw text mode
-                    {
-                        actions.ToggleSharpening();
-                    }
-                    e.Handled = true;
-                    break;
-
-                case Windows.System.VirtualKey.G:
-                    if (!actions.IsTextMode && !actions.IsEpubMode && actions.HasPdfDocument)
-                    {
-                        await actions.ShowGoToLineDialog();
-                        e.Handled = true;
-                    }
-                    break;
-
-                case Windows.System.VirtualKey.Back:
-                    await actions.NavigateToParentFolderAsync();
-                    e.Handled = true;
-                    break;
-
-                case Windows.System.VirtualKey.O when ctrlPressed:
-                    await actions.OpenFileAsync();
-                    e.Handled = true;
-                    break;
-
-                case Windows.System.VirtualKey.B when ctrlPressed:
-                    actions.ToggleSidebar();
-                    e.Handled = true;
-                    break;
-
-                case Windows.System.VirtualKey.Add:
-                case (Windows.System.VirtualKey)187: // Main keyboard Plus/Equal
-                    actions.ZoomIn();
-                    e.Handled = true;
-                    break;
-
-                case Windows.System.VirtualKey.Subtract:
-                case (Windows.System.VirtualKey)189: // Main keyboard Minus
-                    actions.ZoomOut();
-                    e.Handled = true;
-                    break;
-
-                case Windows.System.VirtualKey.Number0:
-                case Windows.System.VirtualKey.NumberPad0:
-                    if (!ctrlPressed)
-                    {
-                        actions.FitToWindow();
-                        e.Handled = true;
-                    }
-                    break;
-
-                case Windows.System.VirtualKey.Number1:
-                case Windows.System.VirtualKey.NumberPad1:
-                    if (!ctrlPressed)
-                    {
-                        actions.ZoomActual();
-                        e.Handled = true;
-                    }
-                    break;
-
-                case Windows.System.VirtualKey.T when !ctrlPressed:
-                    actions.ToggleAlwaysOnTop();
-                    e.Handled = true;
-                    break;
-                case Windows.System.VirtualKey.D when !ctrlPressed:
-                    actions.ToggleGlobalTheme();
-                    e.Handled = true;
-                    break;
-                case (Windows.System.VirtualKey)192: // ` (backtick / OEM_3)
-                    actions.TogglePin();
-                    e.Handled = true;
-                    break;
+                return;
             }
+
+            var input = new ShortcutInput(e.Key, IsCtrlPressed());
+            var context = CreateContext(actions);
+            if (!_router.TryRouteKeyDown(input, context, out var route))
+            {
+                return;
+            }
+
+            e.Handled = true;
+            await _featureController.ExecuteAsync(route, actions);
+        }
+
+        private static bool IsTextInput(object originalSource)
+        {
+            return originalSource is TextBox || originalSource is PasswordBox || originalSource is NumberBox;
+        }
+
+        private static bool IsCtrlPressed()
+        {
+            return Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(VirtualKey.Control)
+                .HasFlag(CoreVirtualKeyStates.Down);
+        }
+
+        private static ShortcutContext CreateContext(IKeyboardShortcutActions actions)
+        {
+            return new ShortcutContext
+            {
+                IsColorPickerOpen = actions.IsColorPickerOpen,
+                IsFullscreen = actions.IsFullscreen,
+                IsEpubMode = actions.IsEpubMode,
+                IsTextMode = actions.IsTextMode,
+                IsAozoraMode = actions.IsAozoraMode,
+                IsVerticalMode = actions.IsVerticalMode,
+                ShouldInvertControls = actions.ShouldInvertControls,
+                CurrentEpubChapterIndex = actions.CurrentEpubChapterIndex,
+                EpubSpineCount = actions.EpubSpineCount,
+                CurrentImageIndex = actions.CurrentImageIndex,
+                ImageEntriesCount = actions.ImageEntriesCount,
+                HasPdfDocument = actions.HasPdfDocument,
+                IsAboutDialogActive = actions.IsAboutDialogActive,
+                IsSearchOverlayOpen = actions.IsSearchOverlayOpen,
+                CanSearchCurrentDocument = actions.CanSearchCurrentDocument
+            };
         }
     }
 }

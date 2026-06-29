@@ -1,6 +1,5 @@
 using Microsoft.UI.Windowing;
 using System;
-using System.IO;
 using Uviewer.Models;
 
 namespace Uviewer.Services
@@ -19,11 +18,10 @@ namespace Uviewer.Services
         public bool ApplyWindowSettings(AppWindow appWindow)
         {
             var primaryArea = DisplayArea.Primary;
+            var hasPersistedSettings = _appSettingsService.HasPersistedSettings;
             var settings = _appSettingsService.LoadSettings(primaryArea);
 
-            // Check if settings file actually had data
-            string settingsPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "Uviewer", "window_settings.txt");
-            if (!File.Exists(settingsPath))
+            if (!hasPersistedSettings)
             {
                 return false;
             }

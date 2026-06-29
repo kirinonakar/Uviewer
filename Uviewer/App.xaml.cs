@@ -35,6 +35,7 @@ namespace Uviewer
     {
         private Window? _window;
         public static string? LaunchFilePath { get; set; }
+        private readonly Services.AppSettingsService _appSettingsService = new();
         private static bool _allowMultipleInstances = true;
         private static bool _isRegistered = false;
         private static CancellationTokenSource? _pipeCts;
@@ -325,19 +326,9 @@ namespace Uviewer
         {
             try
             {
-                string settingsFile = System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "Uviewer", "window_settings.txt");
-                if (System.IO.File.Exists(settingsFile))
-                {
-                    var lines = File.ReadAllLines(settingsFile);
-                    if (lines.Length >= 11)
-                    {
-                        if (lines[10].Trim() == "0") _allowMultipleInstances = false;
-                    }
-                    if (lines.Length >= 16)
-                    {
-                        if (lines[15].Trim() == "1") _isRegistered = true;
-                    }
-                }
+                var settings = _appSettingsService.LoadSettings();
+                _allowMultipleInstances = settings.AllowMultipleInstances;
+                _isRegistered = settings.IsRegistered;
             }
             catch { }
         }
@@ -346,31 +337,7 @@ namespace Uviewer
         {
             try
             {
-                string settingsFile = System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "Uviewer", "window_settings.txt");
-                string[] lines;
-                if (System.IO.File.Exists(settingsFile))
-                {
-                    lines = File.ReadAllLines(settingsFile);
-                }
-                else
-                {
-                    lines = new string[16];
-                    for (int i = 0; i < 16; i++) lines[i] = "0";
-                    // Default values for essentials if file didn't exist
-                    lines[0] = "100"; lines[1] = "100"; lines[2] = "1200"; lines[3] = "800"; // Default rect
-                    lines[10] = _allowMultipleInstances ? "1" : "0";
-                    lines[11] = "1"; // Sidebar visible
-                    lines[12] = "1"; // Pinned
-                }
-
-                if (lines.Length < 16)
-                {
-                    Array.Resize(ref lines, 16);
-                    for (int i = lines.Length; i < 16; i++) lines[i] = "0";
-                }
-
-                lines[15] = "1"; // Mark as registered
-                File.WriteAllLines(settingsFile, lines);
+                _appSettingsService.SaveRegistrationStatus(isRegistered: true, allowMultipleInstances: _allowMultipleInstances);
             }
             catch { }
         }

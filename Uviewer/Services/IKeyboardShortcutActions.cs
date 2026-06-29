@@ -16,7 +16,6 @@ namespace Uviewer.Services
         int CurrentImageIndex { get; set; }
         int ImageEntriesCount { get; }
         bool HasPdfDocument { get; }
-        bool IsSharpenEnabled { get; set; }
         bool IsAboutDialogActive { get; }
         bool IsSearchOverlayOpen { get; }
         bool CanSearchCurrentDocument { get; }
@@ -27,7 +26,6 @@ namespace Uviewer.Services
         Task ShowEpubGoToLineDialog();
         void ToggleFont();
         void ToggleVerticalMode();
-        void SaveTextSettings();
         void DecreaseTextSize();
         void IncreaseTextSize();
         void ToggleSidebar();
@@ -35,8 +33,6 @@ namespace Uviewer.Services
         Task LoadEpubChapterAsync(int index);
         void ToggleSideBySide();
         Task NavigateDocumentPageAsync(int direction);
-        Task NavigateToNextAsync(bool handled);
-        Task NavigateToPreviousAsync(bool handled);
         Task DisplayCurrentImageAsync();
         Task NavigateToFileAsync(bool forward);
         Task AddToFavoritesAsync();
