@@ -714,13 +714,7 @@ namespace Uviewer
                 // [추가] 샤프닝 토글 시 주변 이미지들도 즉시 샤프닝 작업 시작 (스크롤 시 부분적으로 보이는 이미지용)
                 if (_imageEntries != null && _imageEntries.Count > 0)
                 {
-                    _ = _preloadManager.StartPreloadAsync(
-                        _currentIndex, _imageEntries, _currentPdfDocument != null, _zoomLevel,
-                        _currentBitmap, _leftBitmap, _rightBitmap,
-                        LoadBitmapForPreloadAsync,
-                        () => MainCanvas?.Invalidate(),
-                        prioritizeNext: true,
-                        requireSharpening: _sharpenEnabled);
+                    StartImagePreload(prioritizeNext: true);
                 }
             }
             catch (OperationCanceledException) { }
@@ -1026,7 +1020,7 @@ namespace Uviewer
 
         private async Task NavigateToPreviousAsync(bool isManualClick = false)
         {
-            await NavigateImageAsync(forward: false, isManualClick);
+            await _imageNavigationCoordinator.NavigatePreviousAsync(isManualClick);
         }
 
         private async void OnSharpenParamsChanged()
@@ -1064,13 +1058,7 @@ namespace Uviewer
                     // [추가] 샤프닝 옵션 변경 시 주변 이미지들도 즉시 새 설정으로 샤프닝 다시 시작
                     if (_imageEntries != null && _imageEntries.Count > 0)
                     {
-                        _ = _preloadManager.StartPreloadAsync(
-                            _currentIndex, _imageEntries, _currentPdfDocument != null, _zoomLevel,
-                            _currentBitmap, _leftBitmap, _rightBitmap,
-                            LoadBitmapForPreloadAsync,
-                            () => MainCanvas?.Invalidate(),
-                            prioritizeNext: true,
-                            requireSharpening: _sharpenEnabled);
+                        StartImagePreload(prioritizeNext: true);
                     }
                 }
                 
@@ -1092,48 +1080,18 @@ namespace Uviewer
 
         private async Task NavigateToNextAsync(bool isManualClick = false)
         {
-            await NavigateImageAsync(forward: true, isManualClick);
+            await _imageNavigationCoordinator.NavigateNextAsync(isManualClick);
         }
 
-        private async Task NavigateImageAsync(bool forward, bool isManualClick)
+        private void StartImagePreload(bool prioritizeNext)
         {
-            _imageViewportNavigationService.ScrollDirection = forward ? 1 : -1;
-
-            bool canNavigate = forward
-                ? _currentIndex < _imageEntries.Count - 1
-                : _currentIndex > 0;
-
-            if (canNavigate)
-            {
-                bool isFast = !isManualClick && _fastNavigationService.DetectFastNavigation(ResetFastNavigation);
-
-                int step = _isCurrentViewSideBySide ? 2 : 1;
-                _currentIndex = FileExplorerService.GetNextImageIndex(_imageEntries, _currentIndex, step, forward);
-
-                if (isFast)
-                {
-                    UpdateFastNavigationUI();
-                    return;
-                }
-
-                await DisplayCurrentImageAsync();
-
-                await AddToRecentAsync(true);
-
-                // [최적화] 프리로드 재시작 디바운스 (PDF 한정)
-                if (_archiveSession.CurrentArchive != null || _currentPdfDocument != null)
-                {
-                    _ = _preloadManager.StartPreloadAsync(
-                        _currentIndex, _imageEntries, _currentPdfDocument != null, _zoomLevel,
-                        _currentBitmap, _leftBitmap, _rightBitmap,
-                        LoadBitmapForPreloadAsync,
-                        () => MainCanvas?.Invalidate(),
-                        prioritizeNext: forward,
-                        requireSharpening: _sharpenEnabled);
-                }
-            }
-
-            RootGrid.Focus(FocusState.Programmatic);
+            _ = _preloadManager.StartPreloadAsync(
+                _currentIndex, _imageEntries, _currentPdfDocument != null, _zoomLevel,
+                _currentBitmap, _leftBitmap, _rightBitmap,
+                LoadBitmapForPreloadAsync,
+                () => MainCanvas?.Invalidate(),
+                prioritizeNext: prioritizeNext,
+                requireSharpening: _sharpenEnabled);
         }
 
         private string? GetCurrentNavigatingPath()

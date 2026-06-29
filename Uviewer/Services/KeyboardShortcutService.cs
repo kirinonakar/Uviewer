@@ -64,15 +64,13 @@ namespace Uviewer.Services
                 if (e.Key == Windows.System.VirtualKey.Left)
                 {
                     e.Handled = true;
-                    if (actions.IsVerticalMode) actions.NavigateVerticalPage(1);
-                    else _ = actions.NavigateEpubAsync(-1);
+                    _ = actions.NavigateDocumentPageAsync(-1);
                     return Task.CompletedTask;
                 }
                 else if (e.Key == Windows.System.VirtualKey.Right)
                 {
                     e.Handled = true;
-                    if (actions.IsVerticalMode) actions.NavigateVerticalPage(-1);
-                    else _ = actions.NavigateEpubAsync(1);
+                    _ = actions.NavigateDocumentPageAsync(1);
                     return Task.CompletedTask;
                 }
                 else if (e.Key == Windows.System.VirtualKey.G)
@@ -153,13 +151,11 @@ namespace Uviewer.Services
                     e.Handled = true;
                     if (e.Key == Windows.System.VirtualKey.Left)
                     {
-                        if (actions.ShouldInvertControls) _ = actions.NavigateToNextAsync(false);
-                        else _ = actions.NavigateToPreviousAsync(false);
+                        _ = actions.NavigateDocumentPageAsync(actions.ShouldInvertControls ? 1 : -1);
                     }
                     else
                     {
-                        if (actions.ShouldInvertControls) _ = actions.NavigateToPreviousAsync(false);
-                        else _ = actions.NavigateToNextAsync(false);
+                        _ = actions.NavigateDocumentPageAsync(actions.ShouldInvertControls ? -1 : 1);
                     }
                     return Task.CompletedTask;
                 }

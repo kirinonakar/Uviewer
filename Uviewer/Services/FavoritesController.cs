@@ -520,12 +520,10 @@ namespace Uviewer.Services
             FileItem? fileItem,
             IBookmarkNavigationHost host)
         {
-            bool isEpub = fileItem?.IsEpub == true ||
-                          favorite.Path.EndsWith(".epub", StringComparison.OrdinalIgnoreCase);
-            bool isText = fileItem?.IsText == true ||
-                          FileExplorerService.SupportedTextExtensions.Contains(Path.GetExtension(favorite.Path).ToLowerInvariant());
-            bool isPdf = fileItem?.IsPdf == true ||
-                         favorite.Path.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase);
+            var favoriteKind = FileExplorerService.GetSupportedFileKind(favorite.Path);
+            bool isEpub = fileItem?.IsEpub == true || favoriteKind == SupportedFileKind.Epub;
+            bool isText = fileItem?.IsText == true || favoriteKind == SupportedFileKind.Text;
+            bool isPdf = fileItem?.IsPdf == true || favoriteKind == SupportedFileKind.Pdf;
 
             if (isEpub)
             {
@@ -548,19 +546,16 @@ namespace Uviewer.Services
 
         private static FileItem CreateWebDavFileItem(FavoriteItem favorite)
         {
-            string ext = Path.GetExtension(favorite.Path).ToLowerInvariant();
-            return new FileItem
+            var fileItem = new FileItem
             {
                 Name = favorite.Name,
                 WebDavPath = favorite.Path,
                 IsWebDav = true,
-                IsDirectory = favorite.Type == "Folder",
-                IsArchive = favorite.Type == "Archive",
-                IsImage = FileExplorerService.SupportedImageExtensions.Contains(ext),
-                IsText = FileExplorerService.SupportedTextExtensions.Contains(ext),
-                IsEpub = FileExplorerService.SupportedEpubExtensions.Contains(ext),
-                IsPdf = FileExplorerService.SupportedPdfExtensions.Contains(ext)
+                IsDirectory = favorite.Type == "Folder"
             };
+            FileExplorerService.ApplyFileKind(fileItem, FileExplorerService.GetSupportedFileKind(favorite.Path));
+            fileItem.IsArchive = fileItem.IsArchive || favorite.Type == "Archive";
+            return fileItem;
         }
 
         private static string GetWebDavParentPath(string path)

@@ -47,41 +47,7 @@ namespace Uviewer
 
                     if (items.Count > 0)
                     {
-                        var item = items[0];
-
-                        if (item is StorageFile file)
-                        {
-                            var ext = Path.GetExtension(file.Name).ToLowerInvariant();
-
-                            if (FileExplorerService.SupportedArchiveExtensions.Contains(ext))
-                            {
-                                await LoadImagesFromArchiveAsync(file.Path);
-                            }
-                            else if (FileExplorerService.SupportedEpubExtensions.Contains(ext))
-                            {
-                                await LoadImageFromFileAsync(file);
-                            }
-                            else if (FileExplorerService.SupportedPdfExtensions.Contains(ext))
-                            {
-                                await LoadImagesFromPdfAsync(file.Path);
-                            }
-                            else if (FileExplorerService.SupportedImageExtensions.Contains(ext) || FileExplorerService.SupportedTextExtensions.Contains(ext))
-                            {
-                                await LoadImageFromFileAsync(file);
-                            }
-
-                            // Update explorer
-                            var folder = Path.GetDirectoryName(file.Path);
-                            if (folder != null)
-                            {
-                                LoadExplorerFolder(folder);
-                            }
-                        }
-                        else if (item is StorageFolder folder)
-                        {
-                            LoadExplorerFolder(folder.Path);
-                            await LoadImagesFromFolderAsync(folder);
-                        }
+                        await _localDocumentOpenCoordinator.OpenDroppedStorageItemAsync(items[0]);
                     }
                 }
             }
@@ -129,31 +95,7 @@ namespace Uviewer
         {
             try
             {
-                if (_isVerticalMode)
-                {
-                    // In vertical mode, the left button (Prev) should go to the Next page for EPUB
-                    if (_isEpubMode) NavigateVerticalPage(1);
-                    else NavigateVerticalPage(-1); // Default behavior for other modes
-                }
-                else if (_isEpubMode)
-                {
-                    await NavigateEpubAsync(-1);
-                }
-                else if (_isTextMode)
-                {
-                    if (_isAozoraMode)
-                    {
-                        NavigateAozoraPage(-1);
-                    }
-                    else
-                    {
-                        NavigateTextPage(-1);
-                    }
-                }
-                else
-                {
-                    await NavigateToPreviousAsync();
-                }
+                await _documentNavigationCoordinator.NavigatePreviousAsync();
             }
             catch (OperationCanceledException) { }
             catch (Exception ex)
@@ -167,31 +109,7 @@ namespace Uviewer
         {
             try
             {
-                if (_isVerticalMode)
-                {
-                    // In vertical mode, the right button (Next) should go to the Previous page for EPUB
-                    if (_isEpubMode) NavigateVerticalPage(-1);
-                    else NavigateVerticalPage(1); // Default behavior for other modes
-                }
-                else if (_isEpubMode)
-                {
-                    await NavigateEpubAsync(1);
-                }
-                else if (_isTextMode)
-                {
-                    if (_isAozoraMode)
-                    {
-                        NavigateAozoraPage(1);
-                    }
-                    else
-                    {
-                        NavigateTextPage(1);
-                    }
-                }
-                else
-                {
-                    await NavigateToNextAsync();
-                }
+                await _documentNavigationCoordinator.NavigateNextAsync();
             }
             catch (OperationCanceledException) { }
             catch (Exception ex)
@@ -212,58 +130,13 @@ namespace Uviewer
             picker.ViewMode = PickerViewMode.Thumbnail;
             picker.SuggestedStartLocation = PickerLocationId.PicturesLibrary;
 
-            // Add image extensions
-            foreach (var ext in FileExplorerService.SupportedImageExtensions)
-            {
-                picker.FileTypeFilter.Add(ext);
-            }
-
-            // Add archive extensions
-            foreach (var ext in FileExplorerService.SupportedArchiveExtensions)
-            {
-                picker.FileTypeFilter.Add(ext);
-            }
-
-            foreach (var ext in FileExplorerService.SupportedEpubExtensions)
-            {
-                 picker.FileTypeFilter.Add(ext);
-            }
-
-            // Add text extensions
-            foreach (var ext in FileExplorerService.SupportedFileExtensions)
-            {
-                picker.FileTypeFilter.Add(ext);
-            }
+            _localDocumentOpenCoordinator.AddPickerFileTypeFilters(picker.FileTypeFilter);
 
             var file = await picker.PickSingleFileAsync();
 
             if (file != null)
             {
-                var extension = Path.GetExtension(file.Path).ToLowerInvariant();
-                if (FileExplorerService.SupportedArchiveExtensions.Contains(extension))
-                {
-                    await LoadImagesFromArchiveAsync(file.Path);
-                }
-                else if (FileExplorerService.SupportedPdfExtensions.Contains(extension))
-                {
-                    await LoadImagesFromPdfAsync(file.Path);
-                }
-                else if (FileExplorerService.SupportedEpubExtensions.Contains(extension))
-                {
-                    await LoadImageFromFileAsync(file);
-                }
-                else
-                {
-                    await AddToRecentAsync(true);
-                    await LoadImageFromFileAsync(file);
-                }
-
-                // Update explorer to show the file's folder
-                var folder = Path.GetDirectoryName(file.Path);
-                if (folder != null && folder != _currentExplorerPath)
-                {
-                    LoadExplorerFolder(folder);
-                }
+                await _localDocumentOpenCoordinator.OpenPickedFileAsync(file);
             }
         }
 
@@ -1148,21 +1021,7 @@ namespace Uviewer
 
         private async Task OpenLocalFilePathAsync(string path)
         {
-            var extension = Path.GetExtension(path).ToLowerInvariant();
-
-            if (FileExplorerService.SupportedArchiveExtensions.Contains(extension))
-            {
-                await LoadImagesFromArchiveAsync(path);
-            }
-            else if (FileExplorerService.SupportedPdfExtensions.Contains(extension))
-            {
-                await LoadImagesFromPdfAsync(path);
-            }
-            else
-            {
-                var file = await StorageFile.GetFileFromPathAsync(path);
-                await LoadImageFromFileAsync(file);
-            }
+            await _localDocumentOpenCoordinator.OpenExistingFilePathAsync(path, saveCurrentPositionBeforeOpen: false);
         }
 
         private static bool IsSameOrChildPath(string? candidatePath, string parentPath)
@@ -1468,7 +1327,7 @@ namespace Uviewer
                 // Do not auto-navigate to folder on selection (Arrow keys/Single click)
                 // LoadExplorerFolder(item.FullPath);
             }
-            else if (item.IsArchive)
+            else if (item.IsArchive || item.IsPdf || item.IsImage || item.IsText || item.IsEpub)
             {
                 if (!File.Exists(item.FullPath))
                 {
@@ -1476,31 +1335,9 @@ namespace Uviewer
                     RefreshExplorer();
                     return;
                 }
-                await AddToRecentAsync(true);
-                await LoadImagesFromArchiveAsync(item.FullPath);
-            }
-            else if (item.IsPdf)
-            {
-                if (!File.Exists(item.FullPath))
-                {
-                    ShowNotification(Strings.FileNotFound, "\uE7BA", "Red");
-                    RefreshExplorer();
-                    return;
-                }
-                await AddToRecentAsync(true);
-                await LoadImagesFromPdfAsync(item.FullPath);
-            }
-            else if (item.IsImage || item.IsText || item.IsEpub)
-            {
-                if (!File.Exists(item.FullPath))
-                {
-                    ShowNotification(Strings.FileNotFound, "\uE7BA", "Red");
-                    RefreshExplorer();
-                    return;
-                }
-                await AddToRecentAsync(true);
-                var file = await StorageFile.GetFileFromPathAsync(item.FullPath);
-                await LoadImageFromFileAsync(file);
+                await _localDocumentOpenCoordinator.OpenExistingFilePathAsync(
+                    item.FullPath,
+                    saveCurrentPositionBeforeOpen: true);
             }
         }
 

@@ -53,8 +53,6 @@ namespace Uviewer
         void IKeyboardShortcutActions.ToggleFullscreen() => ToggleFullscreen();
         void IKeyboardShortcutActions.ToggleMaximizeRestore() => ToggleMaximizeRestore();
         void IKeyboardShortcutActions.CloseApp() => RequestWindowClose();
-        void IKeyboardShortcutActions.NavigateVerticalPage(int offset) => NavigateVerticalPage(offset);
-        Task IKeyboardShortcutActions.NavigateEpubAsync(int offset) => NavigateEpubAsync(offset);
         Task IKeyboardShortcutActions.ShowEpubGoToLineDialog() => ShowEpubGoToLineDialog();
         void IKeyboardShortcutActions.ToggleFont() => ToggleFont();
 
@@ -73,6 +71,8 @@ namespace Uviewer
         void IKeyboardShortcutActions.ToggleTheme() => ToggleTheme();
         Task IKeyboardShortcutActions.LoadEpubChapterAsync(int index) => LoadEpubChapterAsync(index);
         void IKeyboardShortcutActions.ToggleSideBySide() => SideBySideButton_Click(MainToolbar, new RoutedEventArgs());
+        Task IKeyboardShortcutActions.NavigateDocumentPageAsync(int direction) =>
+            _documentNavigationCoordinator.NavigatePageAsync(direction);
         Task IKeyboardShortcutActions.NavigateToNextAsync(bool handled) => NavigateToNextAsync(handled);
         Task IKeyboardShortcutActions.NavigateToPreviousAsync(bool handled) => NavigateToPreviousAsync(handled);
         Task IKeyboardShortcutActions.DisplayCurrentImageAsync() => DisplayCurrentImageAsync();

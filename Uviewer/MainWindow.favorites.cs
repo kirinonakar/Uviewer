@@ -578,13 +578,10 @@ namespace Uviewer
                             WebDavPath = targetPath,
                             IsWebDav = true,
                             IsDirectory = targetType == "Folder",
-                            IsArchive = targetType == "Archive",
                         };
                         string ext = Path.GetExtension(targetPath).ToLowerInvariant();
-                        fileItem.IsImage = FileExplorerService.SupportedImageExtensions.Contains(ext);
-                        fileItem.IsText = FileExplorerService.SupportedTextExtensions.Contains(ext);
-                        fileItem.IsEpub = FileExplorerService.SupportedEpubExtensions.Contains(ext);
-                        fileItem.IsPdf = FileExplorerService.SupportedPdfExtensions.Contains(ext);
+                        FileExplorerService.ApplyFileKind(fileItem, FileExplorerService.GetSupportedFileKind(ext));
+                        fileItem.IsArchive = fileItem.IsArchive || targetType == "Archive";
 
                         if (targetType != "Folder")
                         {

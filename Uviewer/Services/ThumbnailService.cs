@@ -105,7 +105,7 @@ namespace Uviewer.Services
                 using var archive = new SevenZipExtractor.ArchiveFile(item.FullPath, libraryPath);
                 var entry = archive.Entries
                     .Where(e => !e.IsFolder &&
-                           FileExplorerService.SupportedImageExtensions.Contains(Path.GetExtension(e.FileName)?.ToLowerInvariant() ?? ""))
+                           FileExplorerService.GetSupportedFileKind(e.FileName) == SupportedFileKind.Image)
                     .OrderBy(e => e.FileName, NaturalSortComparer.Default)
                     .FirstOrDefault();
 
@@ -170,7 +170,7 @@ namespace Uviewer.Services
                 using var archive = ArchiveFactory.OpenArchive(item.FullPath);
                 var entry = archive.Entries
                     .Where(e => !e.IsDirectory &&
-                           FileExplorerService.SupportedImageExtensions.Contains(Path.GetExtension(e.Key)?.ToLowerInvariant() ?? ""))
+                           FileExplorerService.GetSupportedFileKind(e.Key) == SupportedFileKind.Image)
                     .OrderBy(e => e.Key, NaturalSortComparer.Default)
                     .FirstOrDefault();
 
@@ -247,7 +247,7 @@ namespace Uviewer.Services
             try
             {
                 var firstImagePath = Directory.EnumerateFiles(item.FullPath)
-                    .Where(path => FileExplorerService.SupportedImageExtensions.Contains(Path.GetExtension(path).ToLowerInvariant()))
+                    .Where(path => FileExplorerService.GetSupportedFileKind(path) == SupportedFileKind.Image)
                     .OrderBy(Path.GetFileName, NaturalSortComparer.Default)
                     .FirstOrDefault();
 

@@ -82,6 +82,10 @@ namespace Uviewer
         private readonly Services.ImageResourceService _imageResourceService;
         private bool _isWindowClosing;
         private readonly Services.ShutdownCoordinator _shutdownCoordinator = new();
+        private Services.LocalDocumentOpenCoordinator _localDocumentOpenCoordinator = null!;
+        private Services.WebDavDocumentOpenCoordinator _webDavDocumentOpenCoordinator = null!;
+        private Services.DocumentNavigationCoordinator _documentNavigationCoordinator = null!;
+        private Services.ImageNavigationCoordinator _imageNavigationCoordinator = null!;
 
         // ImageResourceService를 _sharpeningService 다음에 생성해야 하므로
         // 필드 초기화 식 대신 생성자 내부에서 초기화합니다.
@@ -176,54 +180,20 @@ namespace Uviewer
         {
             try
             {
-                launchFilePath = launchFilePath.Trim('\"');
-                launchFilePath = Path.GetFullPath(launchFilePath);
-                if (File.Exists(launchFilePath))
-                {
-                    // Hide empty state immediately
-                    if (EmptyStatePanel != null) EmptyStatePanel.Visibility = Visibility.Collapsed;
-
-                    var fileFolder = Path.GetDirectoryName(launchFilePath);
-                    if (!string.IsNullOrEmpty(fileFolder) && Directory.Exists(fileFolder))
-                    {
-                        var extension = Path.GetExtension(launchFilePath).ToLowerInvariant();
-
-                        // [Step 1] Priority Load: Load the file first
-                        if (FileExplorerService.SupportedArchiveExtensions.Contains(extension))
-                        {
-                            await LoadImagesFromArchiveAsync(launchFilePath);
-                        }
-                        else if (FileExplorerService.SupportedPdfExtensions.Contains(extension))
-                        {
-                            await LoadImagesFromPdfAsync(launchFilePath);
-                        }
-                        else if (FileExplorerService.SupportedEpubExtensions.Contains(extension))
-                        {
-                            var file = await StorageFile.GetFileFromPathAsync(launchFilePath);
-                            await LoadImageFromFileAsync(file, true); // Use fast initial load
-                        }
-                        else
-                        {
-                            var file = await StorageFile.GetFileFromPathAsync(launchFilePath);
-                            await LoadImageFromFileAsync(file, true); // Use fast initial load
-                        }
-
-                        // [Step 2] Background: Load explorer folder
-                        _ = Task.Run(() =>
-                        {
-                            DispatcherQueue.TryEnqueue(() => LoadExplorerFolder(fileFolder));
-                        });
-                    }
-                }
-                else if (Directory.Exists(launchFilePath))
-                {
-                    LoadExplorerFolder(launchFilePath);
-                }
+                await _localDocumentOpenCoordinator.OpenLaunchPathAsync(launchFilePath);
             }
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"Error processing launch path: {ex.Message}");
             }
+        }
+
+        private void LoadExplorerFolderInBackground(string folderPath)
+        {
+            _ = Task.Run(() =>
+            {
+                DispatcherQueue.TryEnqueue(() => LoadExplorerFolder(folderPath));
+            });
         }
 
         public MainWindow(string? launchFilePath = null)
@@ -254,6 +224,60 @@ namespace Uviewer
                 SetActiveSearchQuery);
             _textDialogService = new Services.TextDialogService(RootGrid);
             LoadTextSettings();
+            _documentNavigationCoordinator = new Services.DocumentNavigationCoordinator(new Services.DocumentNavigationHandlers
+            {
+                IsVerticalMode = () => _isVerticalMode,
+                IsEpubMode = () => _isEpubMode,
+                IsTextMode = () => _isTextMode,
+                IsAozoraMode = () => _isAozoraMode,
+                NavigateVerticalPage = NavigateVerticalPage,
+                NavigateEpubAsync = NavigateEpubAsync,
+                NavigateAozoraPage = NavigateAozoraPage,
+                NavigateTextPage = NavigateTextPage,
+                NavigatePreviousImageAsync = () => NavigateToPreviousAsync(),
+                NavigateNextImageAsync = () => NavigateToNextAsync()
+            });
+            _localDocumentOpenCoordinator = new Services.LocalDocumentOpenCoordinator(new Services.LocalDocumentOpenHandlers
+            {
+                OpenArchiveAsync = LoadImagesFromArchiveAsync,
+                OpenPdfAsync = LoadImagesFromPdfAsync,
+                OpenStorageFileAsync = LoadImageFromFileAsync,
+                OpenFolderAsync = LoadImagesFromFolderAsync,
+                SaveCurrentPositionAsync = () => AddToRecentAsync(true),
+                LoadExplorerFolder = LoadExplorerFolder,
+                LoadExplorerFolderInBackground = LoadExplorerFolderInBackground,
+                ShouldLoadExplorerFolder = folderPath =>
+                    !string.Equals(folderPath, _currentExplorerPath, StringComparison.OrdinalIgnoreCase),
+                HideEmptyState = () =>
+                {
+                    if (EmptyStatePanel != null) EmptyStatePanel.Visibility = Visibility.Collapsed;
+                }
+            });
+            _webDavDocumentOpenCoordinator = new Services.WebDavDocumentOpenCoordinator(new Services.WebDavDocumentOpenHandlers
+            {
+                LoadFolderAsync = LoadWebDavFolderAsync,
+                CloseCurrentPdfAsync = CloseCurrentPdfAsync,
+                CloseCurrentEpubAsync = CloseCurrentEpubAsync,
+                CloseCurrentArchiveAsync = CloseCurrentArchiveAsync,
+                SetCurrentItemPath = path => _currentWebDavItemPath = path,
+                ClearImageResources = ClearImageResources,
+                SetStatusText = text => FileNameText.Text = text,
+                CreateLoadingStatus = name => name + Strings.Loading,
+                CreateDownloadFailedStatus = () => "다운로드 실패",
+                CreateFileOpenFailedStatus = ex => $"파일 열기 실패: {ex.Message}",
+                CreateArchiveOpenFailedStatus = ex => $"압축 파일 열기 실패: {ex.Message}",
+                RestartOperation = _webDavState.RestartOperation,
+                DownloadToTempFileAsync = _webDavService.DownloadToTempFileAsync,
+                DownloadFileAsync = _webDavService.DownloadFileAsync,
+                OpenLocalArchiveAsync = LoadImagesFromArchiveAsync,
+                OpenLocalPdfAsync = LoadImagesFromPdfAsync,
+                PrepareSequentialEntries = PrepareWebDavSequentialEntries,
+                OpenEpubFileAsync = LoadEpubFileAsync,
+                DisplayCurrentImageAsync = DisplayCurrentImageAsync,
+                StartPreload = StartWebDavPreload,
+                OpenArchiveStreamAsync = OpenWebDavArchiveStreamAsync,
+                Log = message => System.Diagnostics.Debug.WriteLine(message)
+            });
 
             // [추가] UI 크기 변경 이벤트 구독
             RootGrid.SizeChanged += RootGrid_SizeChanged;
@@ -312,6 +336,22 @@ namespace Uviewer
                 _overlayManager.HideSidebarRequested += (s, e) => _windowChromeController.HideSidebarUI();
 
                 _fastNavigationService = new Services.FastNavigationService(DispatcherQueue);
+                _imageNavigationCoordinator = new Services.ImageNavigationCoordinator(new Services.ImageNavigationHandlers
+                {
+                    GetImageEntries = () => _imageEntries,
+                    GetCurrentIndex = () => _currentIndex,
+                    SetCurrentIndex = value => _currentIndex = value,
+                    IsCurrentViewSideBySide = () => _isCurrentViewSideBySide,
+                    SetScrollDirection = value => _imageViewportNavigationService.ScrollDirection = value,
+                    FastNavigationService = _fastNavigationService,
+                    ResetFastNavigationAsync = ResetFastNavigation,
+                    UpdateFastNavigationUi = UpdateFastNavigationUI,
+                    DisplayCurrentImageAsync = DisplayCurrentImageAsync,
+                    SaveCurrentPositionAsync = () => AddToRecentAsync(true),
+                    ShouldPreloadAfterNavigate = () => _archiveSession.CurrentArchive != null || _currentPdfDocument != null,
+                    StartPreload = StartImagePreload,
+                    FocusViewer = () => RootGrid.Focus(FocusState.Programmatic)
+                });
                 _animatedWebpService = new Services.AnimatedWebpService(_sharpeningService, DispatcherQueue);
                 _animatedWebpService.FrameUpdated += OnAnimatedWebpFrameUpdated;
                 _animatedWebpService.AnimationStopped += OnAnimatedWebpAnimationStopped;

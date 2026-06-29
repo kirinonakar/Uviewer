@@ -1,0 +1,77 @@
+using System;
+using System.Collections.Generic;
+using System.Threading.Tasks;
+using Uviewer.Models;
+
+namespace Uviewer.Services
+{
+    internal sealed class ImageNavigationHandlers
+    {
+        public Func<IList<ImageEntry>> GetImageEntries { get; init; } = null!;
+        public Func<int> GetCurrentIndex { get; init; } = null!;
+        public Action<int> SetCurrentIndex { get; init; } = null!;
+        public Func<bool> IsCurrentViewSideBySide { get; init; } = null!;
+        public Action<int> SetScrollDirection { get; init; } = null!;
+        public FastNavigationService FastNavigationService { get; init; } = null!;
+        public Func<Task> ResetFastNavigationAsync { get; init; } = null!;
+        public Action UpdateFastNavigationUi { get; init; } = null!;
+        public Func<Task> DisplayCurrentImageAsync { get; init; } = null!;
+        public Func<Task> SaveCurrentPositionAsync { get; init; } = null!;
+        public Func<bool> ShouldPreloadAfterNavigate { get; init; } = null!;
+        public Action<bool> StartPreload { get; init; } = null!;
+        public Action FocusViewer { get; init; } = null!;
+    }
+
+    internal sealed class ImageNavigationCoordinator
+    {
+        private readonly ImageNavigationHandlers _handlers;
+
+        public ImageNavigationCoordinator(ImageNavigationHandlers handlers)
+        {
+            _handlers = handlers ?? throw new ArgumentNullException(nameof(handlers));
+        }
+
+        public Task NavigatePreviousAsync(bool isManualClick = false) =>
+            NavigateAsync(forward: false, isManualClick);
+
+        public Task NavigateNextAsync(bool isManualClick = false) =>
+            NavigateAsync(forward: true, isManualClick);
+
+        private async Task NavigateAsync(bool forward, bool isManualClick)
+        {
+            _handlers.SetScrollDirection(forward ? 1 : -1);
+
+            var entries = _handlers.GetImageEntries();
+            int currentIndex = _handlers.GetCurrentIndex();
+            bool canNavigate = forward
+                ? currentIndex < entries.Count - 1
+                : currentIndex > 0;
+
+            if (canNavigate)
+            {
+                bool isFast = !isManualClick &&
+                    _handlers.FastNavigationService.DetectFastNavigation(_handlers.ResetFastNavigationAsync);
+
+                int step = _handlers.IsCurrentViewSideBySide() ? 2 : 1;
+                int nextIndex = FileExplorerService.GetNextImageIndex(entries, currentIndex, step, forward);
+                _handlers.SetCurrentIndex(nextIndex);
+
+                if (isFast)
+                {
+                    _handlers.UpdateFastNavigationUi();
+                    return;
+                }
+
+                await _handlers.DisplayCurrentImageAsync();
+                await _handlers.SaveCurrentPositionAsync();
+
+                if (_handlers.ShouldPreloadAfterNavigate())
+                {
+                    _handlers.StartPreload(forward);
+                }
+            }
+
+            _handlers.FocusViewer();
+        }
+    }
+}

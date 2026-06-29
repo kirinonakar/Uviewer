@@ -255,7 +255,7 @@ namespace Uviewer.Services
         {
             return archive.Entries
                 .Where(e => !e.IsFolder &&
-                    FileExplorerService.SupportedImageExtensions.Contains(Path.GetExtension(e.FileName ?? "").ToLowerInvariant()))
+                    FileExplorerService.GetSupportedFileKind(e.FileName) == SupportedFileKind.Image)
                 .OrderBy(e => e.FileName, NaturalSortComparer.Default)
                 .Select(e => new ImageEntry
                 {
@@ -269,7 +269,7 @@ namespace Uviewer.Services
         {
             return archive.Entries
                 .Where(e => !e.IsDirectory &&
-                    FileExplorerService.SupportedImageExtensions.Contains(Path.GetExtension(e.Key ?? "").ToLowerInvariant()))
+                    FileExplorerService.GetSupportedFileKind(e.Key) == SupportedFileKind.Image)
                 .OrderBy(e => e.Key, NaturalSortComparer.Default)
                 .Select(e => new ImageEntry
                 {
@@ -294,7 +294,7 @@ namespace Uviewer.Services
                 string libraryPath = Path.Combine(AppContext.BaseDirectory, "Libs", "7z.dll");
                 using var archive = new ArchiveFile(archivePath, libraryPath);
                 var entries = archive.Entries
-                    .Where(e => !e.IsFolder && FileExplorerService.SupportedImageExtensions.Contains(Path.GetExtension(e.FileName ?? "").ToLowerInvariant()))
+                    .Where(e => !e.IsFolder && FileExplorerService.GetSupportedFileKind(e.FileName) == SupportedFileKind.Image)
                     .ToList();
                 var entryMap = entries.ToDictionary(e => e.FileName!, e => e);
 

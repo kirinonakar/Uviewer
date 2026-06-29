@@ -14,6 +14,16 @@ namespace Uviewer.Services
         DateAsc
     }
 
+    public enum SupportedFileKind
+    {
+        Unsupported,
+        Image,
+        Text,
+        Archive,
+        Epub,
+        Pdf
+    }
+
     public static class FileExplorerService
     {
         #region Existing Extension Helpers
@@ -38,10 +48,35 @@ namespace Uviewer.Services
             return null;
         }
 
-        public static bool IsTextEntry(ImageEntry entry) => !string.IsNullOrEmpty(GetEntryExtension(entry)) && SupportedTextExtensions.Contains(GetEntryExtension(entry)!.ToLowerInvariant());
-        public static bool IsEpubEntry(ImageEntry entry) => !string.IsNullOrEmpty(GetEntryExtension(entry)) && SupportedEpubExtensions.Contains(GetEntryExtension(entry)!.ToLowerInvariant());
-        public static bool IsPdfEntry(ImageEntry entry) => (!string.IsNullOrEmpty(GetEntryExtension(entry)) && SupportedPdfExtensions.Contains(GetEntryExtension(entry)!.ToLowerInvariant())) || (entry?.IsPdfEntry ?? false);
-        public static bool IsImageEntry(ImageEntry entry) => !string.IsNullOrEmpty(GetEntryExtension(entry)) && SupportedImageExtensions.Contains(GetEntryExtension(entry)!.ToLowerInvariant());
+        public static SupportedFileKind GetSupportedFileKind(string? pathOrExtension)
+        {
+            var extension = NormalizeExtension(pathOrExtension);
+
+            if (SupportedImageExtensions.Contains(extension)) return SupportedFileKind.Image;
+            if (SupportedTextExtensions.Contains(extension)) return SupportedFileKind.Text;
+            if (SupportedArchiveExtensions.Contains(extension)) return SupportedFileKind.Archive;
+            if (SupportedEpubExtensions.Contains(extension)) return SupportedFileKind.Epub;
+            if (SupportedPdfExtensions.Contains(extension)) return SupportedFileKind.Pdf;
+
+            return SupportedFileKind.Unsupported;
+        }
+
+        public static bool IsSupportedFile(string? pathOrExtension) =>
+            GetSupportedFileKind(pathOrExtension) != SupportedFileKind.Unsupported;
+
+        public static void ApplyFileKind(FileItem item, SupportedFileKind kind)
+        {
+            item.IsImage = kind == SupportedFileKind.Image;
+            item.IsText = kind == SupportedFileKind.Text;
+            item.IsArchive = kind == SupportedFileKind.Archive;
+            item.IsEpub = kind == SupportedFileKind.Epub;
+            item.IsPdf = kind == SupportedFileKind.Pdf;
+        }
+
+        public static bool IsTextEntry(ImageEntry entry) => GetSupportedFileKind(GetEntryExtension(entry)) == SupportedFileKind.Text;
+        public static bool IsEpubEntry(ImageEntry entry) => GetSupportedFileKind(GetEntryExtension(entry)) == SupportedFileKind.Epub;
+        public static bool IsPdfEntry(ImageEntry entry) => GetSupportedFileKind(GetEntryExtension(entry)) == SupportedFileKind.Pdf || (entry?.IsPdfEntry ?? false);
+        public static bool IsImageEntry(ImageEntry entry) => GetSupportedFileKind(GetEntryExtension(entry)) == SupportedFileKind.Image;
         public static bool IsNavigableImage(ImageEntry entry) => entry != null && (IsPdfEntry(entry) || IsImageEntry(entry));
         
         public static string GetFormattedDisplayName(string displayName, bool isArchiveEntry, string? archivePath = null, string? webDavItemPath = null)
@@ -112,26 +147,17 @@ namespace Uviewer.Services
                 // Add supported files
                 foreach (var file in sortedFiles)
                 {
-                    var ext = file.Extension.ToLowerInvariant();
-                    var isImage = SupportedImageExtensions.Contains(ext);
-                    var isArchive = SupportedArchiveExtensions.Contains(ext);
-                    var isText = SupportedTextExtensions.Contains(ext);
-                    var isEpub = SupportedEpubExtensions.Contains(ext);
-                    var isPdf = SupportedPdfExtensions.Contains(ext);
-
-                    if (isImage || isArchive || isText || isEpub || isPdf)
+                    var kind = GetSupportedFileKind(file.Extension);
+                    if (kind != SupportedFileKind.Unsupported)
                     {
-                        items.Add(new FileItem
+                        var fileItem = new FileItem
                         {
                             Name = file.Name,
                             FullPath = file.FullName,
-                            IsDirectory = false,
-                            IsImage = isImage,
-                            IsArchive = isArchive,
-                            IsText = isText,
-                            IsEpub = isEpub,
-                            IsPdf = isPdf
-                        });
+                            IsDirectory = false
+                        };
+                        ApplyFileKind(fileItem, kind);
+                        items.Add(fileItem);
                     }
                 }
 
@@ -202,5 +228,20 @@ namespace Uviewer.Services
         }
 
         #endregion
+
+        private static string NormalizeExtension(string? pathOrExtension)
+        {
+            if (string.IsNullOrWhiteSpace(pathOrExtension))
+            {
+                return string.Empty;
+            }
+
+            var value = pathOrExtension.Trim();
+            bool looksLikeExtension = value.StartsWith('.') &&
+                !value.Contains(Path.DirectorySeparatorChar) &&
+                !value.Contains(Path.AltDirectorySeparatorChar);
+
+            return (looksLikeExtension ? value : Path.GetExtension(value)).ToLowerInvariant();
+        }
     }
 }

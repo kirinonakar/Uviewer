@@ -1,5 +1,4 @@
 using System.Collections.Generic;
-using System.IO;
 using System.Linq;
 using Uviewer.Models;
 
@@ -67,32 +66,24 @@ namespace Uviewer.Services
         private static FileItem? CreateFileItem(WebDavItem item)
         {
             var name = item.Name;
-            var ext = Path.GetExtension(name).ToLowerInvariant();
+            var kind = FileExplorerService.GetSupportedFileKind(name);
 
-            var isImage = FileExplorerService.SupportedImageExtensions.Contains(ext);
-            var isArchive = FileExplorerService.SupportedArchiveExtensions.Contains(ext);
-            var isText = FileExplorerService.SupportedTextExtensions.Contains(ext);
-            var isEpub = FileExplorerService.SupportedEpubExtensions.Contains(ext);
-            var isPdf = FileExplorerService.SupportedPdfExtensions.Contains(ext);
-
-            if (!item.IsDirectory && !isImage && !isArchive && !isText && !isEpub && !isPdf)
+            if (!item.IsDirectory && kind == SupportedFileKind.Unsupported)
             {
                 return null;
             }
 
-            return new FileItem
+            var fileItem = new FileItem
             {
                 Name = name,
                 FullPath = item.FullPath,
                 IsDirectory = item.IsDirectory,
-                IsImage = isImage,
-                IsArchive = isArchive,
-                IsText = isText,
-                IsEpub = isEpub,
-                IsPdf = isPdf,
                 IsWebDav = true,
                 WebDavPath = item.FullPath
             };
+
+            FileExplorerService.ApplyFileKind(fileItem, kind);
+            return fileItem;
         }
     }
 }

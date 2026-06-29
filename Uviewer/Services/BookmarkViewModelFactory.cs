@@ -1,5 +1,4 @@
 using System;
-using System.IO;
 using System.Linq;
 using Uviewer.Models;
 
@@ -105,7 +104,7 @@ namespace Uviewer.Services
         {
             return type == "File" &&
                    !string.IsNullOrEmpty(path) &&
-                   FileExplorerService.SupportedImageExtensions.Contains(Path.GetExtension(path).ToLowerInvariant());
+                   FileExplorerService.GetSupportedFileKind(path) == SupportedFileKind.Image;
         }
     }
 }

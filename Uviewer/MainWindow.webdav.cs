@@ -8,7 +8,6 @@ using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using Windows.Storage;
 using Uviewer.Models;
 using Uviewer.Services;
 using Visibility = Microsoft.UI.Xaml.Visibility;
@@ -393,177 +392,65 @@ namespace Uviewer
         /// </summary>
         private async Task HandleWebDavFileSelectionAsync(FileItem item)
         {
-            if (!item.IsWebDav || string.IsNullOrEmpty(item.WebDavPath))
-                return;
-
-            if (item.IsDirectory)
-            {
-                await LoadWebDavFolderAsync(item.WebDavPath);
-            }
-            else if (item.IsArchive)
-            {
-                var ext = Path.GetExtension(item.WebDavPath ?? item.Name).ToLowerInvariant();
-                // 7z 파일은 스트리밍 대신 임시 파일로 다운로드하여 로컬처럼 백그라운드 압축 해제 사용 (성능 및 호환성)
-                if (ext == ".7z")
-                {
-                    await OpenWebDavFileAsync(item);
-                }
-                else
-                {
-                    await OpenWebDavArchiveAsync(item);
-                }
-            }
-            else if (item.IsImage || item.IsText || item.IsEpub || item.IsPdf)
-            {
-                await OpenWebDavFileAsync(item);
-            }
+            await _webDavDocumentOpenCoordinator.OpenItemAsync(item);
         }
 
         /// <summary>
         /// WebDAV 일반 파일 (이미지/텍스트/epub) 열기 - 임시 파일로 다운로드 후 표시
         /// </summary>
-        private async Task OpenWebDavFileAsync(FileItem item)
-        {
-            if (string.IsNullOrEmpty(item.WebDavPath)) return;
-
-            // Close other formats first
-            if (!await CloseCurrentPdfAsync()) return;
-            if (!await CloseCurrentEpubAsync()) return;
-            if (!await CloseCurrentArchiveAsync()) return;
-            _currentWebDavItemPath = item.WebDavPath;
-            ClearImageResources();
-            FileNameText.Text = item.Name + Strings.Loading;
-
-            var token = _webDavState.RestartOperation();
-
-            try
-            {
-                var tempPath = await _webDavService.DownloadToTempFileAsync(item.WebDavPath, token);
-                if (string.IsNullOrEmpty(tempPath))
-                {
-                    FileNameText.Text = "다운로드 실패";
-                    return;
-                }
-
-                var ext = Path.GetExtension(item.WebDavPath ?? item.Name).ToLowerInvariant();
-
-                if (FileExplorerService.SupportedArchiveExtensions.Contains(ext))
-                {
-                    await LoadImagesFromArchiveAsync(tempPath);
-                }
-                else if (FileExplorerService.SupportedPdfExtensions.Contains(ext))
-                {
-                    await LoadImagesFromPdfAsync(tempPath);
-                }
-                else if (FileExplorerService.SupportedEpubExtensions.Contains(ext))
-                {
-                    // Sequential navigation - include all supported files in folder
-                    var viewableItems = _fileItems.Where(f => !f.IsDirectory && !f.IsParentDirectory).ToList();
-                    _imageEntries = viewableItems.Select(f => new ImageEntry 
-                    { 
-                        DisplayName = f.Name, 
-                        WebDavPath = f.WebDavPath 
-                    }).ToList();
-                    
-                    _currentIndex = _imageEntries.FindIndex(e => e.WebDavPath == item.WebDavPath);
-                    if (_currentIndex >= 0) _imageEntries[_currentIndex].FilePath = tempPath;
-
-                    var file = await StorageFile.GetFileFromPathAsync(tempPath);
-                    var entry = _currentIndex >= 0 ? _imageEntries[_currentIndex] : null;
-                    await LoadEpubFileAsync(file, entry, token);
-                }
-                else
-                {
-                    // Sequential navigation - include all supported files in folder
-                    var viewableItems = _fileItems.Where(f => !f.IsDirectory && !f.IsParentDirectory).ToList();
-                    _imageEntries = viewableItems.Select(f => new ImageEntry 
-                    { 
-                        DisplayName = f.Name, 
-                        WebDavPath = f.WebDavPath 
-                    }).ToList();
-                    
-                    _currentIndex = _imageEntries.FindIndex(e => e.WebDavPath == item.WebDavPath);
-                    
-                    if (_currentIndex >= 0)
-                    {
-                        _imageEntries[_currentIndex].FilePath = tempPath;
-                    }
-
-                    await DisplayCurrentImageAsync();
-                    
-                    // Trigger preloading for WebDAV
-                    _ = _preloadManager.StartPreloadAsync(
-                        _currentIndex, _imageEntries, _currentPdfDocument != null, _zoomLevel,
-                        _currentBitmap, _leftBitmap, _rightBitmap,
-                        LoadBitmapForPreloadAsync,
-                        () => MainCanvas?.Invalidate(),
-                        prioritizeNext: true,
-                        requireSharpening: _sharpenEnabled);
-                }
-            }
-            catch (OperationCanceledException) { }
-            catch (Exception ex)
-            {
-                FileNameText.Text = $"파일 열기 실패: {ex.Message}";
-                System.Diagnostics.Debug.WriteLine($"WebDAV open file error: {ex.Message}");
-            }
-        }
+        private Task OpenWebDavFileAsync(FileItem item) =>
+            _webDavDocumentOpenCoordinator.OpenDownloadedFileAsync(item);
 
         /// <summary>
         /// WebDAV 압축 파일 열기 - 스트리밍 다운로드 → MemoryStream → SharpCompress
         /// </summary>
-        private async Task OpenWebDavArchiveAsync(FileItem item)
+        private Task OpenWebDavArchiveAsync(FileItem item) =>
+            _webDavDocumentOpenCoordinator.OpenStreamedArchiveAsync(item);
+
+        private ImageEntry? PrepareWebDavSequentialEntries(string webDavPath, string tempPath)
         {
-            if (string.IsNullOrEmpty(item.WebDavPath)) return;
+            var viewableItems = _fileItems
+                .Where(f => !f.IsDirectory && !f.IsParentDirectory)
+                .ToList();
 
-            // Close other formats first
-            if (!await CloseCurrentPdfAsync()) return;
-            if (!await CloseCurrentEpubAsync()) return;
-            if (!await CloseCurrentArchiveAsync()) return;
+            _imageEntries = viewableItems
+                .Select(f => new ImageEntry
+                {
+                    DisplayName = f.Name,
+                    WebDavPath = f.WebDavPath
+                })
+                .ToList();
 
-            _currentWebDavItemPath = item.WebDavPath;
-            ClearImageResources();
-            FileNameText.Text = item.Name + Strings.Loading;
-
-            var token = _webDavState.RestartOperation();
-
-            try
+            _currentIndex = _imageEntries.FindIndex(e => e.WebDavPath == webDavPath);
+            if (_currentIndex >= 0)
             {
-                // Do NOT use 'using' - SharpCompress needs the stream to stay alive
-                var stream = await _webDavService.DownloadFileAsync(item.WebDavPath, token);
-                if (stream == null)
-                {
-                    FileNameText.Text = "다운로드 실패";
-                    return;
-                }
-
-                // SharpCompress needs seekable stream - we already have MemoryStream from service
-                _imageEntries = (await _archiveSession.OpenStreamAsync($"WebDAV:{item.WebDavPath}", stream)).ToList();
-
-                if (_imageEntries.Count > 0)
-                {
-                    _currentIndex = 0;
-                    await DisplayCurrentImageAsync();
-
-                    _ = _preloadManager.StartPreloadAsync(
-                        _currentIndex, _imageEntries, _currentPdfDocument != null, _zoomLevel,
-                        _currentBitmap, _leftBitmap, _rightBitmap,
-                        LoadBitmapForPreloadAsync,
-                        () => MainCanvas?.Invalidate(),
-                        prioritizeNext: true,
-                        requireSharpening: _sharpenEnabled);
-                }
-                else
-                {
-                    FileNameText.Text = "이 압축 파일에 이미지가 없습니다";
-                }
+                _imageEntries[_currentIndex].FilePath = tempPath;
+                return _imageEntries[_currentIndex];
             }
-            catch (OperationCanceledException) { }
-            catch (Exception ex)
+
+            return null;
+        }
+
+        private async Task OpenWebDavArchiveStreamAsync(string webDavPath, Stream stream)
+        {
+            // SharpCompress needs the stream to stay alive, so do not dispose it here.
+            _imageEntries = (await _archiveSession.OpenStreamAsync($"WebDAV:{webDavPath}", stream)).ToList();
+
+            if (_imageEntries.Count > 0)
             {
-                FileNameText.Text = $"압축 파일 열기 실패: {ex.Message}";
-                System.Diagnostics.Debug.WriteLine($"WebDAV archive error: {ex.Message}");
+                _currentIndex = 0;
+                await DisplayCurrentImageAsync();
+                StartWebDavPreload();
             }
+            else
+            {
+                FileNameText.Text = "이 압축 파일에 이미지가 없습니다";
+            }
+        }
+
+        private void StartWebDavPreload()
+        {
+            StartImagePreload(prioritizeNext: true);
         }
 
         /// <summary>

@@ -24,8 +24,6 @@ namespace Uviewer.Services
         void ToggleFullscreen();
         void ToggleMaximizeRestore();
         void CloseApp();
-        void NavigateVerticalPage(int offset);
-        Task NavigateEpubAsync(int offset);
         Task ShowEpubGoToLineDialog();
         void ToggleFont();
         void ToggleVerticalMode();
@@ -36,6 +34,7 @@ namespace Uviewer.Services
         void ToggleTheme();
         Task LoadEpubChapterAsync(int index);
         void ToggleSideBySide();
+        Task NavigateDocumentPageAsync(int direction);
         Task NavigateToNextAsync(bool handled);
         Task NavigateToPreviousAsync(bool handled);
         Task DisplayCurrentImageAsync();
