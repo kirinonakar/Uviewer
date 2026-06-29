@@ -64,7 +64,6 @@ namespace Uviewer
         private readonly Services.ReaderPageMapCalculationService _readerPageMapCalculationService = new();
         private readonly Services.ReaderPageNavigationService _readerPageNavigationService = new();
         private readonly Services.AozoraPreviousPageCache _aozoraPreviousPageCache;
-        private readonly Services.EpubPageFlowService _epubPageFlowService = new();
         private readonly Services.ReaderLayoutService _readerLayoutService = new();
         private readonly Services.TextBlockDocumentService _textBlockDocumentService = new();
         private readonly Services.TextDocumentLoadService _textDocumentLoadService;
@@ -212,6 +211,7 @@ namespace Uviewer
             _textDocumentSearchService = new Services.TextDocumentSearchService(_documentSearchService);
 
             InitializeComponent();
+            _epubReaderController = new Services.EpubReaderController(this);
             _imageViewerController = new Services.ImageViewerController(this);
             _imageViewportNavigationService = new Services.ImageViewportNavigationService(
                 DispatcherQueue,
