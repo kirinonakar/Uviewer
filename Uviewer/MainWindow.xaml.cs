@@ -13,7 +13,6 @@ using System.Collections.Generic;
 using System.ComponentModel;
 using System.IO;
 using System.Linq;
-using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
 using Windows.Storage;
@@ -82,8 +81,7 @@ namespace Uviewer
         private readonly Services.TextStatusBarService _textStatusBarService;
         private readonly Services.ImageResourceService _imageResourceService;
         private bool _isWindowClosing;
-        private int _windowCloseRequested;
-        private int _processTerminationRequested;
+        private readonly Services.ShutdownCoordinator _shutdownCoordinator = new();
 
         // ImageResourceService를 _sharpeningService 다음에 생성해야 하므로
         // 필드 초기화 식 대신 생성자 내부에서 초기화합니다.
@@ -93,13 +91,6 @@ namespace Uviewer
 
         [System.Runtime.InteropServices.DllImport("user32.dll", CharSet = System.Runtime.InteropServices.CharSet.Unicode)]
         private static extern int MessageBox(IntPtr hWnd, string text, string caption, uint type);
-
-        [System.Runtime.InteropServices.DllImport("kernel32.dll", ExactSpelling = true)]
-        private static extern IntPtr GetCurrentProcess();
-
-        [System.Runtime.InteropServices.DllImport("kernel32.dll", ExactSpelling = true)]
-        [return: System.Runtime.InteropServices.MarshalAs(System.Runtime.InteropServices.UnmanagedType.Bool)]
-        private static extern bool TerminateProcess(IntPtr hProcess, uint uExitCode);
 
         private readonly Services.SevenZipExtractionCoordinator _sevenZipExtraction = new();
 
@@ -406,99 +397,8 @@ namespace Uviewer
             this.Closed += async (s, e) =>
             {
                 _isWindowClosing = true;
-                SaveWindowSettingsForShutdown();
                 bool wasPdfOpen = _currentPdfDocument != null;
-                using var shutdownFallbackCts = new CancellationTokenSource();
-                _ = Task.Run(async () =>
-                {
-                    try
-                    {
-                        await Task.Delay(TimeSpan.FromSeconds(8), shutdownFallbackCts.Token);
-                        TerminateCurrentProcess();
-                    }
-                    catch (OperationCanceledException) { }
-                    catch { }
-                });
-
-                try
-                {
-                    // Save current position before document state is cleared.
-                    await AddToRecentAsync(true);
-
-                    _preloadManager?.Dispose();
-
-                    // Stop all timers
-                    _notificationTimer?.Stop();
-                    _verticalResizeTimer?.Stop();
-                    _overlayManager.StopAll();
-                    _animatedWebpService.Stop();
-                    _searchOverlayService?.Dispose();
-
-
-                    // Cancel any ongoing operations
-                    _imageLoadingCts?.Cancel();
-                    _textReaderState.CancelGlobalLoad();
-                    _textReaderState.CancelPageCalculation();
-                    ShutdownPdfResources();
-                    ShutdownEpubResources();
-                    // Clean up fast navigation timer
-                    _fastNavigationService?.Dispose();
-                    _imageViewportNavigationService?.Dispose();
-
-                    // Clean up archive resources
-                    _archiveSession.CloseOpenHandles();
-                    _epubSession.Dispose();
-                    _imageViewerState.ClearBitmaps();
-
-                    if (!wasPdfOpen)
-                    {
-                        _imageCache?.Dispose();
-                    }
-
-                    // 이미지 엔트리의 파일 경로 참조 해제
-                    if (_imageEntries != null)
-                    {
-                        foreach (var entry in _imageEntries) entry.FilePath = null;
-                    }
-
-                    if (!wasPdfOpen)
-                    {
-                        // Native 리소스와 파일 핸들을 즉시 해제하기 위해 GC 강제 실행
-                        GC.Collect();
-                        GC.WaitForPendingFinalizers();
-                    }
-
-                    _sevenZipExtraction.CleanupTempData(immediate: true);
-                    WebDavService.CleanupTempFiles();
-
-                    // Save settings
-                    SaveWindowSettingsForShutdown();
-
-                    await _recentService.SaveRecentItemsAsync();
-                    await _favoritesService.SaveFavoritesAsync();
-
-                    // Dispose archive session and its lock
-                    _archiveSession.Dispose();
-
-                    // Cleanup WebDAV
-                    _webDavService?.Dispose();
-                    _webDavState.Dispose();
-
-                    // Dispose cancellation tokens
-                    _imageLoadingCts?.Dispose();
-                    _textReaderState.Dispose();
-                    _documentSearchState.Dispose();
-                    _animatedWebpService.Dispose();
-                }
-                catch (Exception ex)
-                {
-                    System.Diagnostics.Debug.WriteLine($"Error during cleanup: {ex.Message}");
-                }
-                finally
-                {
-                    shutdownFallbackCts.Cancel();
-                    TerminateCurrentProcess();
-                }
+                await _shutdownCoordinator.ShutdownAsync(CreateShutdownContext(wasPdfOpen));
             };
 
             // Initialize notification timer
@@ -519,6 +419,38 @@ namespace Uviewer
                 }
             };
         }
+
+        private Services.ShutdownContext CreateShutdownContext(bool wasPdfOpen) => new()
+        {
+            WasPdfOpen = wasPdfOpen,
+            SaveCurrentPositionAsync = () => AddToRecentAsync(true),
+            SaveWindowSettings = SaveWindowSettingsForShutdown,
+            StopNotificationTimer = () => _notificationTimer?.Stop(),
+            StopVerticalResizeTimer = () => _verticalResizeTimer?.Stop(),
+            StopOverlayTimers = () => _overlayManager?.StopAll(),
+            PreloadManager = _preloadManager,
+            SearchOverlayService = _searchOverlayService,
+            ImageLoadingCts = _imageLoadingCts,
+            TextReaderState = _textReaderState,
+            DocumentSearchState = _documentSearchState,
+            ShutdownPdfResources = ShutdownPdfResources,
+            ShutdownEpubResources = ShutdownEpubResources,
+            FastNavigationService = _fastNavigationService,
+            ImageViewportNavigationService = _imageViewportNavigationService,
+            ArchiveSession = _archiveSession,
+            EpubSession = _epubSession,
+            ImageViewerState = _imageViewerState,
+            ImageCache = _imageCache,
+            ImageEntries = _imageEntries,
+            SevenZipExtraction = _sevenZipExtraction,
+            CleanupWebDavTempFiles = WebDavService.CleanupTempFiles,
+            RecentService = _recentService,
+            FavoritesService = _favoritesService,
+            WebDavService = _webDavService,
+            WebDavState = _webDavState,
+            AnimatedWebpService = _animatedWebpService,
+            RequestApplicationExit = () => Application.Current?.Exit()
+        };
 
         public void ShowNotification(string message, string icon = "\uE735", string color = "Gold")
         {
@@ -745,33 +677,7 @@ namespace Uviewer
 
         private void RequestWindowClose()
         {
-            if (Interlocked.Exchange(ref _windowCloseRequested, 1) != 0) return;
-
-            _ = Task.Run(async () =>
-            {
-                try
-                {
-                    await Task.Delay(TimeSpan.FromSeconds(10));
-                    TerminateCurrentProcess();
-                }
-                catch { }
-            });
-
-            Close();
-        }
-
-        private void TerminateCurrentProcess()
-        {
-            if (Interlocked.Exchange(ref _processTerminationRequested, 1) != 0) return;
-
-            try
-            {
-                TerminateProcess(GetCurrentProcess(), 0);
-            }
-            catch
-            {
-                Environment.Exit(0);
-            }
+            _shutdownCoordinator.RequestClose(Close);
         }
 
         private void AboutMenu_Click(object sender, RoutedEventArgs e)
