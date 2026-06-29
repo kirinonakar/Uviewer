@@ -58,27 +58,6 @@ namespace Uviewer
         private IReadOnlyList<PdfSearchHighlight> _activePdfSearchHighlights => _documentSearchState.PdfHighlights;
         private int _activePdfSearchPageIndex => _documentSearchState.PdfPageIndex;
         private int _activePdfSearchMatchIndex => _documentSearchState.PdfMatchIndex;
-        private readonly Services.AozoraBlockMeasurer _aozoraBlockMeasurer = new();
-        private readonly Services.AozoraBlockPaginator _aozoraBlockPaginator;
-        private readonly Services.AozoraPageMapCalculator _aozoraPageMapCalculator;
-        private readonly Services.ReaderPageMapCalculationService _readerPageMapCalculationService = new();
-        private readonly Services.ReaderPageNavigationService _readerPageNavigationService = new();
-        private readonly Services.AozoraPreviousPageCache _aozoraPreviousPageCache;
-        private readonly Services.ReaderLayoutService _readerLayoutService = new();
-        private readonly Services.TextBlockDocumentService _textBlockDocumentService = new();
-        private readonly Services.TextDocumentLoadService _textDocumentLoadService;
-        private readonly Services.TextDocumentSearchService _textDocumentSearchService;
-        private readonly Services.TextDisplayPreparationService _textDisplayPreparationService = new();
-        private readonly Services.TextLineLayoutService _textLineLayoutService = new();
-        private readonly Services.TextLineLoadService _textLineLoadService;
-        private readonly Services.TextLinePresenterService _textLinePresenterService;
-        private readonly Services.TextSearchHighlightPresenterService _textSearchHighlightPresenterService;
-        private readonly Services.TextViewportService _textViewportService = new();
-        private readonly Services.TextPageCalculationService _textPageCalculationService = new();
-        private readonly Services.TextResumeService _textResumeService = new();
-        private readonly Services.TextUiSettingsService _textUiSettingsService = new();
-        private readonly Services.ReadingProgressService _readingProgressService = new();
-        private readonly Services.TextStatusBarService _textStatusBarService;
         private readonly Services.ImageResourceService _imageResourceService;
         private bool _isWindowClosing;
         private readonly Services.ShutdownCoordinator _shutdownCoordinator = new();
@@ -109,7 +88,6 @@ namespace Uviewer
 
         private Services.FavoritesService _favoritesService = new();
         private Services.RecentService _recentService = new();
-        private Services.TextDialogService _textDialogService = null!;
         private bool _isColorPickerOpen;
         private Microsoft.UI.Xaml.Controls.ContentDialog? _aboutDialog;
 
@@ -200,17 +178,9 @@ namespace Uviewer
         {
             // _imageResourceService는 _sharpeningService에 의존하므로 생성자 시작 시 초기화
             _imageResourceService = new Services.ImageResourceService(_sharpeningService);
-            _aozoraBlockPaginator = new Services.AozoraBlockPaginator(_aozoraBlockMeasurer);
-            _aozoraPageMapCalculator = new Services.AozoraPageMapCalculator(_aozoraBlockMeasurer);
-            _aozoraPreviousPageCache = new Services.AozoraPreviousPageCache(_aozoraBlockMeasurer, _aozoraBlockPaginator);
-            _textLinePresenterService = new Services.TextLinePresenterService(_textLineLayoutService);
-            _textSearchHighlightPresenterService = new Services.TextSearchHighlightPresenterService(_searchHighlightService);
-            _textStatusBarService = new Services.TextStatusBarService(_readingProgressService);
-            _textLineLoadService = new Services.TextLineLoadService(_textLineLayoutService);
-            _textDocumentLoadService = new Services.TextDocumentLoadService(_archiveSession);
-            _textDocumentSearchService = new Services.TextDocumentSearchService(_documentSearchService);
 
             InitializeComponent();
+            _documentReaderController = new DocumentReaderController(this);
             _epubReaderController = new Services.EpubReaderController(this);
             _imageViewerController = new Services.ImageViewerController(this);
             _imageViewportNavigationService = new Services.ImageViewportNavigationService(
@@ -224,7 +194,6 @@ namespace Uviewer
                 NavigateToSearchMatchAsync,
                 GetCurrentSearchPosition,
                 SetActiveSearchQuery);
-            _textDialogService = new Services.TextDialogService(RootGrid);
             LoadTextSettings();
             _documentNavigationCoordinator = new Services.DocumentNavigationCoordinator(new Services.DocumentNavigationHandlers
             {
@@ -468,7 +437,7 @@ namespace Uviewer
             SaveCurrentPositionAsync = () => AddToRecentAsync(true),
             SaveWindowSettings = SaveWindowSettingsForShutdown,
             StopNotificationTimer = () => _notificationTimer?.Stop(),
-            StopVerticalResizeTimer = () => _verticalResizeTimer?.Stop(),
+            StopVerticalResizeTimer = () => _documentReaderController.StopVerticalResizeTimer(),
             StopOverlayTimers = () => _overlayManager?.StopAll(),
             PreloadManager = _preloadManager,
             SearchOverlayService = _searchOverlayService,

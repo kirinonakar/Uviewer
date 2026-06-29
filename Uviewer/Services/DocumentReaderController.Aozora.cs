@@ -20,41 +20,41 @@ using Uviewer.Renderers;
 
 namespace Uviewer
 {
-    public sealed partial class MainWindow
+    internal sealed partial class DocumentReaderController
     {
-        private bool _isAozoraMode = true;
-        private bool _isMarkdownRenderMode = false;
-        private List<AozoraBindingModel> _aozoraBlocks = new();
-        private int _aozoraTotalLineCount = 0;
-        private int _aozoraTotalLineCountInSource = 0;
+        internal bool _isAozoraMode = true;
+        internal bool _isMarkdownRenderMode = false;
+        internal List<AozoraBindingModel> _aozoraBlocks = new();
+        internal int _aozoraTotalLineCount = 0;
+        internal int _aozoraTotalLineCountInSource = 0;
 
         // Win2D Rendering State
-        private readonly ReaderPageState _aozoraPageState = new();
-        private ReaderPageInfo _currentAozoraPageInfo
+        internal readonly ReaderPageState _aozoraPageState = new();
+        internal ReaderPageInfo _currentAozoraPageInfo
         {
             get => _aozoraPageState.CurrentPage;
             set => _aozoraPageState.CurrentPage = value;
         }
-        private int _currentAozoraStartBlockIndex
+        internal int _currentAozoraStartBlockIndex
         {
             get => _aozoraPageState.StartBlockIndex;
             set => _aozoraPageState.StartBlockIndex = value;
         }
-        private int _currentAozoraEndBlockIndex
+        internal int _currentAozoraEndBlockIndex
         {
             get => _aozoraPageState.EndBlockIndex;
             set => _aozoraPageState.EndBlockIndex = value;
         }
         // 이미지 캐시는 _imageResourceService 로 통합됨 (접두어 "text:")
-        private Dictionary<int, int> _aozoraBlockToPageMap
+        internal Dictionary<int, int> _aozoraBlockToPageMap
         {
             get => _aozoraPageState.BlockToPageMap;
             set => _aozoraPageState.BlockToPageMap = value;
         }
 
-        private void ClearBackwardCache() => _aozoraPreviousPageCache.Clear();
+        internal void ClearBackwardCache() => _aozoraPreviousPageCache.Clear();
 
-        private AozoraBlockPaginationContext CreatePreviousPageContext(
+        internal AozoraBlockPaginationContext CreatePreviousPageContext(
             Microsoft.Graphics.Canvas.ICanvasResourceCreator? device,
             float maxWidth,
             float availHeight,
@@ -72,7 +72,7 @@ namespace Uviewer
                 isVertical ? new Func<string, bool>(ShouldPairTextImage) : null);
         }
 
-        private int FindPreviousPageStart(int targetIdx, List<AozoraBindingModel> blocks, float maxWidth, float availHeight, Microsoft.Graphics.Canvas.ICanvasResourceCreator device, bool isVertical)
+        internal int FindPreviousPageStart(int targetIdx, List<AozoraBindingModel> blocks, float maxWidth, float availHeight, Microsoft.Graphics.Canvas.ICanvasResourceCreator device, bool isVertical)
         {
             var context = CreatePreviousPageContext(device as CanvasDevice, maxWidth, availHeight, isVertical);
             return _aozoraPreviousPageCache.FindPreviousPageStart(
@@ -82,7 +82,7 @@ namespace Uviewer
                 isVertical ? AozoraPageOrientation.Vertical : AozoraPageOrientation.Horizontal);
         }
 
-        private int GetOrFindPreviousPageStart(int targetIdx, List<AozoraBindingModel> blocks, float maxWidth, float availHeight, Microsoft.Graphics.Canvas.ICanvasResourceCreator device, bool isVertical)
+        internal int GetOrFindPreviousPageStart(int targetIdx, List<AozoraBindingModel> blocks, float maxWidth, float availHeight, Microsoft.Graphics.Canvas.ICanvasResourceCreator device, bool isVertical)
         {
             var context = CreatePreviousPageContext(device as CanvasDevice, maxWidth, availHeight, isVertical);
             return _aozoraPreviousPageCache.GetOrFindPreviousPageStart(
@@ -93,7 +93,7 @@ namespace Uviewer
         }
 
         // 백그라운드에서 최대 10페이지 분량을 미리 계산하여 캐시에 적재합니다.
-        private void StartBackwardPageCaching(int currentStartIdx, bool isVertical)
+        internal void StartBackwardPageCaching(int currentStartIdx, bool isVertical)
         {
             if (currentStartIdx <= 0 || _aozoraBlocks == null || _aozoraBlocks.Count == 0) return;
 
@@ -115,18 +115,18 @@ namespace Uviewer
         }
 
         // Page Calculation
-        private int _aozoraTotalPages
+        internal int _aozoraTotalPages
         {
             get => _aozoraPageState.TotalPages;
             set => _aozoraPageState.TotalPages = value;
         }
-        private bool _isAozoraPageCalcCompleted
+        internal bool _isAozoraPageCalcCompleted
         {
             get => _aozoraPageState.IsPageCalculationCompleted;
             set => _aozoraPageState.IsPageCalculationCompleted = value;
         }
-        private System.Threading.CancellationTokenSource? _aozoraPageCalcCts;
-        private int _aozoraCalculatedCurrentPage
+        internal System.Threading.CancellationTokenSource? _aozoraPageCalcCts;
+        internal int _aozoraCalculatedCurrentPage
         {
             get => _aozoraPageState.CalculatedCurrentPage;
             set => _aozoraPageState.CalculatedCurrentPage = value;
@@ -138,13 +138,13 @@ namespace Uviewer
             public bool IsAozoraModeEnabled { get; set; } = true;
         }
 
-        private const string AozoraSettingsFilePath = "aozora_settings.json";
-        private string GetAozoraSettingsFilePath() => System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "Uviewer", AozoraSettingsFilePath);
+        internal const string AozoraSettingsFilePath = "aozora_settings.json";
+        internal string GetAozoraSettingsFilePath() => System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "Uviewer", AozoraSettingsFilePath);
 
         [System.Text.Json.Serialization.JsonSerializable(typeof(AozoraSettings))]
         public partial class AozoraSettingsContext : System.Text.Json.Serialization.JsonSerializerContext;
 
-        private void LoadAozoraSettings()
+        internal void LoadAozoraSettings()
         {
             try
             {
@@ -164,7 +164,7 @@ namespace Uviewer
             catch { }
         }
 
-        private void SaveAozoraSettings()
+        internal void SaveAozoraSettings()
         {
             try
             {
@@ -180,12 +180,12 @@ namespace Uviewer
             catch { }
         }
 
-        private void AozoraToggleButton_Click(object sender, RoutedEventArgs e)
+        internal void AozoraToggleButton_Click(object sender, RoutedEventArgs e)
         {
             ToggleAozoraMode();
         }
 
-        private async void ToggleAozoraMode()
+        internal async void ToggleAozoraMode()
         {
             try
             {
@@ -254,7 +254,7 @@ namespace Uviewer
             }
         }
 
-        private async Task ReloadTextDisplayFromCacheAsync(string fileName, int targetLine)
+        internal async Task ReloadTextDisplayFromCacheAsync(string fileName, int targetLine)
         {
             try
             {
@@ -311,10 +311,10 @@ namespace Uviewer
             }
         }
 
-        private int _aozoraPendingTargetLine = 0;
-        private int _aozoraPendingTargetBlockIndex = -1;
+        internal int _aozoraPendingTargetLine = 0;
+        internal int _aozoraPendingTargetBlockIndex = -1;
 
-        private async Task PrepareAozoraDisplayAsync(string rawContent, int targetLine = 1, int targetBlockIndex = -1, CancellationToken token = default)
+        internal async Task PrepareAozoraDisplayAsync(string rawContent, int targetLine = 1, int targetBlockIndex = -1, CancellationToken token = default)
 {
     int startIdx = 0;
     try
@@ -430,7 +430,7 @@ namespace Uviewer
     }
 }
 
-        private void AozoraTextCanvas_SizeChanged(object sender, SizeChangedEventArgs e)
+        internal void AozoraTextCanvas_SizeChanged(object sender, SizeChangedEventArgs e)
         {
             if (!_isTextMode || !_isAozoraMode) return;
             if (_aozoraBlocks.Count == 0) return;
@@ -441,7 +441,7 @@ namespace Uviewer
             StartAozoraPageCalculationAsync();
         }
 
-        private async Task RenderAozoraDynamicPage(int startIdx)
+        internal async Task RenderAozoraDynamicPage(int startIdx)
         {
             if (AozoraTextCanvas == null || _aozoraBlocks == null || _aozoraBlocks.Count == 0)
             {
@@ -483,7 +483,7 @@ namespace Uviewer
             StartBackwardPageCaching(_currentAozoraStartBlockIndex, false); // <-- 현재 페이지 렌더링 직후 백그라운드 캐싱 시작
         }
 
-        private async void StartAozoraPageCalculationAsync()
+        internal async void StartAozoraPageCalculationAsync()
         {
             try
             {
@@ -536,7 +536,7 @@ namespace Uviewer
             }
         }
 
-        private List<AozoraBindingModel> PaginateHorizontalAozoraPage(ref int index, List<AozoraBindingModel> blocks, float availableWidth, float availableHeight, CanvasDevice? device = null)
+        internal List<AozoraBindingModel> PaginateHorizontalAozoraPage(ref int index, List<AozoraBindingModel> blocks, float availableWidth, float availableHeight, CanvasDevice? device = null)
         {
             return _aozoraBlockPaginator.PaginateHorizontalPage(
                 ref index,
@@ -551,11 +551,11 @@ namespace Uviewer
                     DoesAozoraImageExist));
         }
 
-        private void AozoraTextCanvas_CreateResources(CanvasControl sender, Microsoft.Graphics.Canvas.UI.CanvasCreateResourcesEventArgs args)
+        internal void AozoraTextCanvas_CreateResources(CanvasControl sender, Microsoft.Graphics.Canvas.UI.CanvasCreateResourcesEventArgs args)
         {
         }
 
-        private void AozoraTextCanvas_Draw(CanvasControl sender, CanvasDrawEventArgs args)
+        internal void AozoraTextCanvas_Draw(CanvasControl sender, CanvasDrawEventArgs args)
         {
             if (!_isAozoraMode) return;
 
@@ -599,7 +599,7 @@ namespace Uviewer
             );
         }
 
-        private void AozoraTextCanvas_PointerPressed(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
+        internal void AozoraTextCanvas_PointerPressed(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
         {
             if (AozoraTextCanvas == null || !_isAozoraMode) return;
             var pt = e.GetCurrentPoint(AozoraTextCanvas).Position;
@@ -613,7 +613,7 @@ namespace Uviewer
             RootGrid.Focus(FocusState.Programmatic);
         }
 
-        private void AozoraTextCanvas_PointerWheelChanged(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
+        internal void AozoraTextCanvas_PointerWheelChanged(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
         {
             if (AozoraTextCanvas == null || !_isAozoraMode) return;
             var delta = e.GetCurrentPoint(AozoraTextCanvas).Properties.MouseWheelDelta;
@@ -622,7 +622,7 @@ namespace Uviewer
             e.Handled = true;
         }
 
-        private void NavigateAozoraPage(int direction)
+        internal void NavigateAozoraPage(int direction)
         {
             if (_aozoraBlocks == null || _aozoraBlocks.Count == 0) return;
 
@@ -658,7 +658,7 @@ namespace Uviewer
             }
         }
 
-        private void UpdateAozoraStatusBar()
+        internal void UpdateAozoraStatusBar()
         {
             if (!_isTextMode || !_isAozoraMode || _aozoraBlocks.Count == 0) return;
 
@@ -692,11 +692,11 @@ namespace Uviewer
         }
 
 
-        private bool DoesAozoraImageExist(string relativePath)
+        internal bool DoesAozoraImageExist(string relativePath)
             => _imageResourceService.DoesImageExist(relativePath, CreateViewingContext());
 
 
-        private void DrawHorizontalImage(CanvasDrawingSession ds, Size canvasSize, string relativePath)
+        internal void DrawHorizontalImage(CanvasDrawingSession ds, Size canvasSize, string relativePath)
         {
             if (string.IsNullOrEmpty(relativePath)) return;
 
@@ -720,7 +720,7 @@ namespace Uviewer
             }
         }
 
-        private async Task LoadAozoraImageAsync(string relativePath)
+        internal async Task LoadAozoraImageAsync(string relativePath)
         {
             string cacheKey = Services.ImageResourceService.GetTextCacheKey(relativePath);
             var device = AozoraTextCanvas?.Device ?? Microsoft.Graphics.Canvas.CanvasDevice.GetSharedDevice();
@@ -743,7 +743,7 @@ namespace Uviewer
 
         // TOC Handlers
 
-        private async void TocButton_Click(object sender, RoutedEventArgs e)
+        internal async void TocButton_Click(object sender, RoutedEventArgs e)
         {
             try
             {
@@ -839,7 +839,7 @@ namespace Uviewer
             }
         }
 
-        private void TocListView_ItemClick(object sender, ItemClickEventArgs e)
+        internal void TocListView_ItemClick(object sender, ItemClickEventArgs e)
         {
             if (e.ClickedItem is TocItem item)
             {

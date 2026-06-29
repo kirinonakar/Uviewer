@@ -239,11 +239,7 @@ namespace Uviewer
 
         void IEpubReaderHost.AttachVerticalPreviewKeyIfNeeded()
         {
-            if (!_verticalKeyAttached && RootGrid != null)
-            {
-                RootGrid.PreviewKeyDown += RootGrid_Vertical_PreviewKeyDown;
-                _verticalKeyAttached = true;
-            }
+            _documentReaderController.AttachVerticalPreviewKeyIfNeeded();
         }
     }
 }

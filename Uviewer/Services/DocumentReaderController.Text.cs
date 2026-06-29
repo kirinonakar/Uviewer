@@ -13,57 +13,57 @@ using Uviewer.Services;
 
 namespace Uviewer
 {
-    public sealed partial class MainWindow
+    internal sealed partial class DocumentReaderController
     {
-        private readonly TextReaderState _textReaderState = new();
-        private readonly TextPreviewKeyNavigationService _textPreviewKeyNavigationService = new();
-        private List<TextLine> _textLines
+        internal readonly TextReaderState _textReaderState = new();
+        internal readonly TextPreviewKeyNavigationService _textPreviewKeyNavigationService = new();
+        internal List<TextLine> _textLines
         {
             get => _textReaderState.Lines;
             set => _textReaderState.Lines = value ?? new List<TextLine>();
         }
 
-        private string _currentTextContent
+        internal string _currentTextContent
         {
             get => _textReaderState.Content;
             set => _textReaderState.Content = value ?? string.Empty;
         }
 
-        private TextSettingsManager _settingsManager = null!;
-        private bool _isTextMode = false;
-        private int _textTotalLineCountInSource
+        internal TextSettingsManager _settingsManager = null!;
+        internal bool _isTextMode = false;
+        internal int _textTotalLineCountInSource
         {
             get => _textReaderState.TotalLineCountInSource;
             set => _textReaderState.TotalLineCountInSource = value;
         }
 
-        private bool _isTextLinesFullyLoaded
+        internal bool _isTextLinesFullyLoaded
         {
             get => _textReaderState.LinesFullyLoaded;
             set => _textReaderState.LinesFullyLoaded = value;
         }
 
-        private CancellationTokenSource? _globalTextCts => _textReaderState.GlobalCts;
-        private bool _textInputInitialized = false;
-        private string? _currentTextFilePath
+        internal CancellationTokenSource? _globalTextCts => _textReaderState.GlobalCts;
+        internal bool _textInputInitialized = false;
+        internal string? _currentTextFilePath
         {
             get => _textReaderState.FilePath;
             set => _textReaderState.FilePath = value;
         }
 
-        private string? _currentTextArchiveEntryKey
+        internal string? _currentTextArchiveEntryKey
         {
             get => _textReaderState.ArchiveEntryKey;
             set => _textReaderState.ArchiveEntryKey = value;
         }
 
-        private int _lastRecentSaveLine
+        internal int _lastRecentSaveLine
         {
             get => _textReaderState.LastRecentSaveLine;
             set => _textReaderState.LastRecentSaveLine = value;
         }
 
-        private async void EncodingItem_Click(object sender, RoutedEventArgs e)
+        internal async void EncodingItem_Click(object sender, RoutedEventArgs e)
         {
             if (sender is ToggleMenuFlyoutItem item && item.Tag is string tag)
             {
@@ -71,7 +71,7 @@ namespace Uviewer
             }
         }
 
-        private async Task ApplyEncodingSelectionAsync(string tag)
+        internal async Task ApplyEncodingSelectionAsync(string tag)
         {
             try
             {
@@ -107,7 +107,7 @@ namespace Uviewer
             }
         }
 
-        private void InitializeText()
+        internal void InitializeText()
         {
             try
             {
@@ -122,7 +122,7 @@ namespace Uviewer
             catch { }
         }
 
-        private void CancelAndResetGlobalTextCts()
+        internal void CancelAndResetGlobalTextCts()
         {
             try
             {
@@ -133,7 +133,7 @@ namespace Uviewer
             _textReaderState.RestartGlobalLoad();
         }
 
-        private async Task LoadTextFileAsync(StorageFile file)
+        internal async Task LoadTextFileAsync(StorageFile file)
         {
             // Save position of current file before switching
             await AddToRecentAsync(true);
@@ -167,7 +167,7 @@ namespace Uviewer
             }
         }
 
-        private async Task LoadTextEntryAsync(ImageEntry entry)
+        internal async Task LoadTextEntryAsync(ImageEntry entry)
         {
             if (entry.IsArchiveEntry)
             {
@@ -180,7 +180,7 @@ namespace Uviewer
             }
         }
 
-        private async Task LoadTextFromArchiveEntryAsync(ImageEntry entry)
+        internal async Task LoadTextFromArchiveEntryAsync(ImageEntry entry)
         {
             _isNavigatingRecent = true; // [추가] 로드 및 위치 복원 완료 전까지 자동 저장 차단
             try
@@ -211,7 +211,7 @@ namespace Uviewer
             }
         }
 
-        private async Task DisplayLoadedText(string content, string name, string? uniquePath = null, CancellationToken token = default)
+        internal async Task DisplayLoadedText(string content, string name, string? uniquePath = null, CancellationToken token = default)
         {
             var preparedText = _textDisplayPreparationService.Prepare(content, name);
             content = preparedText.Content;
@@ -313,7 +313,7 @@ namespace Uviewer
             }
         }
 
-        private int GetSavedStartLine(string name, string? path)
+        internal int GetSavedStartLine(string name, string? path)
         {
             return _textResumeService.GetSavedStartLine(
                 _recentService.RecentItems,
@@ -322,7 +322,7 @@ namespace Uviewer
                 path);
         }
 
-        private async Task RestoreTextPositionAsync(string name)
+        internal async Task RestoreTextPositionAsync(string name)
         {
             // For Aozora mode, position is now restored progressively via targetLine in PrepareAozoraDisplayAsync
             if (_isAozoraMode) return;
@@ -356,7 +356,7 @@ namespace Uviewer
             catch { }
         }
 
-        private void SwitchToTextMode()
+        internal void SwitchToTextMode()
         {
             _isTextMode = true;
             _isEpubMode = false; // Reset Epub mode
@@ -402,7 +402,7 @@ namespace Uviewer
             Title = "Uviewer - Image & Text Viewer";
         }
 
-        private void LoadTextSettings()
+        internal void LoadTextSettings()
         {
             if (_settingsManager == null)
             {
@@ -441,7 +441,7 @@ namespace Uviewer
             LoadAozoraSettings(); // Load Aozora settings
         }
 
-        private void SaveTextSettings()
+        internal void SaveTextSettings()
         {
             if (_settingsManager != null)
             {
@@ -450,7 +450,7 @@ namespace Uviewer
             }
         }
 
-        private void SwitchToImageMode()
+        internal void SwitchToImageMode()
         {
             _isTextMode = false;
             _isEpubMode = false; // Reset Epub mode
@@ -474,7 +474,7 @@ namespace Uviewer
             UpdateNextImageSideButtonState();
         }
 
-        private void DisableVerticalModeForImageDocument()
+        internal void DisableVerticalModeForImageDocument()
         {
             _isVerticalMode = false; // Images and PDFs always use horizontal/image layout.
 
@@ -488,7 +488,7 @@ namespace Uviewer
             if (VerticalTextCanvas != null) VerticalTextCanvas.Visibility = Visibility.Collapsed;
         }
 
-        private void CloseCurrentText()
+        internal void CloseCurrentText()
         {
             _textReaderState.ClearDocument();
             _aozoraBlocks.Clear();
@@ -497,7 +497,7 @@ namespace Uviewer
         /// <summary>
         /// Progressive loading for simple text mode - loads initial chunk first, then rest in background
         /// </summary>
-        private async Task LoadTextLinesProgressivelyAsync(string content, int targetLine = 1, CancellationToken token = default)
+        internal async Task LoadTextLinesProgressivelyAsync(string content, int targetLine = 1, CancellationToken token = default)
         {
             var loadPlan = _textLineLoadService.CreatePlan(content, targetLine);
             _textTotalLineCountInSource = loadPlan.TotalLineCount;
@@ -610,19 +610,19 @@ namespace Uviewer
             if (TextFastNavOverlay != null) TextFastNavOverlay.Visibility = Visibility.Collapsed;
         }
 
-        private double GetUrlMaxWidth()
+        internal double GetUrlMaxWidth()
         {
             return _textLineLayoutService.CalculateReadableMaxWidth(
                 TextArea?.ActualWidth ?? 0,
                 _settingsManager.FontSize);
         }
 
-        private Windows.UI.Text.FontWeight GetFontWeightForFamily(string fontFamily)
+        internal Windows.UI.Text.FontWeight GetFontWeightForFamily(string fontFamily)
         {
             return _textLineLayoutService.GetFontWeightForFamily(fontFamily);
         }
 
-        private async Task RefreshTextDisplay(bool resetScroll = false)
+        internal async Task RefreshTextDisplay(bool resetScroll = false)
         {
             if (_isEpubMode)
             {
@@ -726,12 +726,12 @@ namespace Uviewer
 
         // --- Toolbar Handlers ---
 
-        private void ColorsMenu_Click(object sender, RoutedEventArgs e)
+        internal void ColorsMenu_Click(object sender, RoutedEventArgs e)
         {
             _ = ShowColorPickerDialog();
         }
 
-        private async void LanguageItem_Click(object sender, RoutedEventArgs e)
+        internal async void LanguageItem_Click(object sender, RoutedEventArgs e)
         {
             if (sender is ToggleMenuFlyoutItem item && item.Tag is string lang)
             {
@@ -739,7 +739,7 @@ namespace Uviewer
             }
         }
 
-        private async Task ApplyLanguageSelectionAsync(string lang)
+        internal async Task ApplyLanguageSelectionAsync(string lang)
         {
             try
             {
@@ -774,12 +774,12 @@ namespace Uviewer
             }
         }
 
-        private void ApplyLanguage(string lang)
+        internal void ApplyLanguage(string lang)
         {
             _textUiSettingsService.ApplyLanguage(_settingsManager, lang);
         }
 
-        private void UpdateLanguageMenuCheckmark()
+        internal void UpdateLanguageMenuCheckmark()
         {
             string current = _settingsManager.Language;
             if (string.IsNullOrEmpty(current)) current = "Auto";
@@ -788,7 +788,7 @@ namespace Uviewer
         }
 
 
-        private async Task ShowColorPickerDialog()
+        internal async Task ShowColorPickerDialog()
         {
             var currentBg = _settingsManager.CustomBackgroundColor ?? ((SolidColorBrush)_settingsManager.GetThemeBackground()).Color;
             var currentFg = _settingsManager.CustomForegroundColor ?? ((SolidColorBrush)_settingsManager.GetThemeForeground()).Color;
@@ -812,17 +812,17 @@ namespace Uviewer
             }
         }
 
-        private void FontToggleButton_Click(object sender, RoutedEventArgs e)
+        internal void FontToggleButton_Click(object sender, RoutedEventArgs e)
         {
             ToggleFont();
         }
 
-        private void FontMenu_Click(object sender, RoutedEventArgs e)
+        internal void FontMenu_Click(object sender, RoutedEventArgs e)
         {
             _ = ShowFontPickerDialog();
         }
 
-        private async Task ShowFontPickerDialog()
+        internal async Task ShowFontPickerDialog()
         {
             var selectedFont = await _textDialogService.ShowFontPickerAsync(_settingsManager.FontFamily, Strings.FontSelectionTitle);
             if (selectedFont != null)
@@ -831,7 +831,7 @@ namespace Uviewer
             }
         }
 
-        private async void SetTextFont(string fontFamily)
+        internal async void SetTextFont(string fontFamily)
         {
             try
             {
@@ -847,12 +847,12 @@ namespace Uviewer
             }
         }
 
-        private void UiFontMenu_Click(object sender, RoutedEventArgs e)
+        internal void UiFontMenu_Click(object sender, RoutedEventArgs e)
         {
             _ = ShowUiFontPickerDialog();
         }
 
-        private async Task ShowUiFontPickerDialog()
+        internal async Task ShowUiFontPickerDialog()
         {
             var selectedFont = await _textDialogService.ShowFontPickerAsync(_settingsManager.UIFontFamily, Strings.UIFontSelectionTitle);
             if (selectedFont != null)
@@ -861,7 +861,7 @@ namespace Uviewer
             }
         }
 
-        private void SetUiFont(string fontFamily)
+        internal void SetUiFont(string fontFamily)
         {
             if (_textUiSettingsService.ApplyUiFont(_settingsManager, fontFamily, CreateUiFontApplyTargets()))
             {
@@ -869,7 +869,7 @@ namespace Uviewer
             }
         }
 
-        private UiFontApplyTargets CreateUiFontApplyTargets()
+        internal UiFontApplyTargets CreateUiFontApplyTargets()
         {
             return new UiFontApplyTargets(
                 Controls: new Control?[]
@@ -897,7 +897,7 @@ namespace Uviewer
 
 
 
-        private async void ToggleFont()
+        internal async void ToggleFont()
         {
             try
             {
@@ -913,22 +913,22 @@ namespace Uviewer
             }
         }
 
-        private void UpdateFontSettingsMenu()
+        internal void UpdateFontSettingsMenu()
         {
             MainToolbar.UpdateDefaultFontMenu(_settingsManager.DefaultFont1, _settingsManager.DefaultFont2);
         }
 
-        private void SetDefaultFont1MenuItem_Click(object sender, RoutedEventArgs e)
+        internal void SetDefaultFont1MenuItem_Click(object sender, RoutedEventArgs e)
         {
             _ = ShowFontPickerDialogForDefault(1);
         }
 
-        private void SetDefaultFont2MenuItem_Click(object sender, RoutedEventArgs e)
+        internal void SetDefaultFont2MenuItem_Click(object sender, RoutedEventArgs e)
         {
             _ = ShowFontPickerDialogForDefault(2);
         }
 
-        private async void ResetDefaultFontsMenuItem_Click(object sender, RoutedEventArgs e)
+        internal async void ResetDefaultFontsMenuItem_Click(object sender, RoutedEventArgs e)
         {
             try
             {
@@ -943,7 +943,7 @@ namespace Uviewer
             }
         }
 
-        private async Task ShowFontPickerDialogForDefault(int slot)
+        internal async Task ShowFontPickerDialogForDefault(int slot)
         {
             string currentFont = (slot == 1) ? _settingsManager.DefaultFont1 : _settingsManager.DefaultFont2;
             var selectedFont = await _textDialogService.ShowFontPickerAsync(currentFont, Strings.FontSelectionSlotTitle(slot));
@@ -956,12 +956,12 @@ namespace Uviewer
             }
         }
 
-        private void TextSizeUpButton_Click(object sender, RoutedEventArgs e)
+        internal void TextSizeUpButton_Click(object sender, RoutedEventArgs e)
         {
             IncreaseTextSize();
         }
 
-        private async void IncreaseTextSize()
+        internal async void IncreaseTextSize()
         {
             try
             {
@@ -978,12 +978,12 @@ namespace Uviewer
             }
         }
 
-        private void TextSizeDownButton_Click(object sender, RoutedEventArgs e)
+        internal void TextSizeDownButton_Click(object sender, RoutedEventArgs e)
         {
             DecreaseTextSize();
         }
 
-        private async void DecreaseTextSize()
+        internal async void DecreaseTextSize()
         {
             try
             {
@@ -1000,12 +1000,12 @@ namespace Uviewer
             }
         }
 
-        private void ThemeToggleButton_Click(object sender, RoutedEventArgs e)
+        internal void ThemeToggleButton_Click(object sender, RoutedEventArgs e)
         {
             ToggleTheme();
         }
 
-        private async void ToggleTheme()
+        internal async void ToggleTheme()
         {
             try
             {
@@ -1021,19 +1021,19 @@ namespace Uviewer
             }
         }
 
-        private void GoToPageButton_Click(object sender, RoutedEventArgs e)
+        internal void GoToPageButton_Click(object sender, RoutedEventArgs e)
         {
             _ = ShowGoToLineDialog();
         }
 
-        private async void RootGrid_Text_PreviewKeyDown(object sender, KeyRoutedEventArgs e)
+        internal async void RootGrid_Text_PreviewKeyDown(object sender, KeyRoutedEventArgs e)
         {
             await _textPreviewKeyNavigationService.HandleAsync(
                 e,
                 CreateTextPreviewKeyNavigationContext());
         }
 
-        private TextPreviewKeyNavigationContext CreateTextPreviewKeyNavigationContext()
+        internal TextPreviewKeyNavigationContext CreateTextPreviewKeyNavigationContext()
         {
             return new TextPreviewKeyNavigationContext
             {
@@ -1081,7 +1081,7 @@ namespace Uviewer
             };
         }
 
-        private async Task ToggleVerticalModeFromShortcutAsync()
+        internal async Task ToggleVerticalModeFromShortcutAsync()
         {
             await AddToRecentAsync(true);
             _isVerticalMode = !_isVerticalMode;
@@ -1090,7 +1090,7 @@ namespace Uviewer
             ToggleVerticalMode();
         }
 
-        private async Task ShowGoToLineDialog()
+        internal async Task ShowGoToLineDialog()
         {
             int currentLine = 1;
             int totalLines = 1;
@@ -1122,7 +1122,7 @@ namespace Uviewer
             }
         }
 
-        private async Task GoToLine(string lineText)
+        internal async Task GoToLine(string lineText)
         {
             if (!int.TryParse(lineText, out int line) || line < 1) return;
 
@@ -1157,7 +1157,7 @@ namespace Uviewer
             }
         }
 
-        private void TextItemsRepeater_ElementPrepared(ItemsRepeater sender, ItemsRepeaterElementPreparedEventArgs args)
+        internal void TextItemsRepeater_ElementPrepared(ItemsRepeater sender, ItemsRepeaterElementPreparedEventArgs args)
         {
             if (_isAozoraMode)
             {
@@ -1172,7 +1172,7 @@ namespace Uviewer
         }
         // --- Input Handling ---
 
-        private void TextArea_PointerPressed(object sender, PointerRoutedEventArgs e)
+        internal void TextArea_PointerPressed(object sender, PointerRoutedEventArgs e)
         {
             // Use unified touch handler (Next/Prev + Fullscreen Edge UI)
             var ptr = e.GetCurrentPoint(RootGrid);
@@ -1196,7 +1196,7 @@ namespace Uviewer
             }
         }
 
-        private void TextArea_PointerWheelChanged(object sender, PointerRoutedEventArgs e)
+        internal void TextArea_PointerWheelChanged(object sender, PointerRoutedEventArgs e)
         {
             if (_isVerticalMode) return;
             var ptr = e.GetCurrentPoint(TextArea);
@@ -1217,7 +1217,7 @@ namespace Uviewer
             e.Handled = true;
         }
 
-        private void NavigateTextPage(int direction)
+        internal void NavigateTextPage(int direction)
         {
             if (TextScrollViewer == null) return;
 
@@ -1225,7 +1225,7 @@ namespace Uviewer
             UpdateTextStatusBar();
         }
 
-        private void UpdateTextStatusBar(string? fileName = null, int? totalLines = null, int? currentPage = null)
+        internal void UpdateTextStatusBar(string? fileName = null, int? totalLines = null, int? currentPage = null)
         {
             if (!_isTextMode && !_isEpubMode) return;
             if (_isVerticalMode) { UpdateVerticalStatusBar(); return; }
@@ -1254,12 +1254,12 @@ namespace Uviewer
             }
         }
 
-        private void TextScrollViewer_ViewChanged(object sender, ScrollViewerViewChangedEventArgs e)
+        internal void TextScrollViewer_ViewChanged(object sender, ScrollViewerViewChangedEventArgs e)
         {
             UpdateTextStatusBar();
         }
 
-        private void TextScrollViewer_SizeChanged(object sender, SizeChangedEventArgs e)
+        internal void TextScrollViewer_SizeChanged(object sender, SizeChangedEventArgs e)
         {
             // Re-calc max width if needed, but it is bound to line prop.
             if (_isTextMode && !_isAozoraMode)
@@ -1268,7 +1268,7 @@ namespace Uviewer
             }
         }
 
-        private void TextArea_SizeChanged(object sender, SizeChangedEventArgs e)
+        internal void TextArea_SizeChanged(object sender, SizeChangedEventArgs e)
         {
             // Handle TextArea resize for window drag resizing in Aozora mode.
             // AozoraTextCanvas_SizeChanged handles the canvas itself;
@@ -1281,7 +1281,7 @@ namespace Uviewer
             }
         }
 
-        private async void StartPageCalculationAsync()
+        internal async void StartPageCalculationAsync()
         {
             try
             {
@@ -1315,7 +1315,7 @@ namespace Uviewer
             }
         }
 
-        private int GetTopVisibleLineIndex()
+        internal int GetTopVisibleLineIndex()
         {
             if (TextItemsRepeater == null || TextScrollViewer == null) return 1;
             if (_textLines == null || _textLines.Count == 0) return 1;
@@ -1327,7 +1327,7 @@ namespace Uviewer
                 _settingsManager.FontSize);
         }
 
-        private async void ScrollToLine(int line)
+        internal async void ScrollToLine(int line)
         {
             try
             {

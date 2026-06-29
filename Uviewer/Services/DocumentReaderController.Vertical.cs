@@ -19,56 +19,56 @@ using Uviewer.Renderers;
 
 namespace Uviewer
 {
-    public sealed partial class MainWindow
+    internal sealed partial class DocumentReaderController
     {
-        private bool _isVerticalMode = false;
-        private bool _verticalKeyAttached = false;
+        internal bool _isVerticalMode = false;
+        internal bool _verticalKeyAttached = false;
         // 이미지 캐시는 _imageResourceService 로 통합됨 (접두어 "text:")
-        private int? _pendingVerticalScrollLine = null;
-        private int _pendingVerticalStartBlockIndex = -1;
+        internal int? _pendingVerticalScrollLine = null;
+        internal int _pendingVerticalStartBlockIndex = -1;
 
         // 가상화 렌더링을 위한 단일 페이지 캐시 및 네비게이션 상태
-        private readonly ReaderPageState _verticalPageState = new();
-        private ReaderPageInfo _currentVerticalPageInfo
+        internal readonly ReaderPageState _verticalPageState = new();
+        internal ReaderPageInfo _currentVerticalPageInfo
         {
             get => _verticalPageState.CurrentPage;
             set => _verticalPageState.CurrentPage = value;
         }
-        private int _currentVerticalStartBlockIndex
+        internal int _currentVerticalStartBlockIndex
         {
             get => _verticalPageState.StartBlockIndex;
             set => _verticalPageState.StartBlockIndex = value;
         }
-        private int _currentVerticalEndBlockIndex
+        internal int _currentVerticalEndBlockIndex
         {
             get => _verticalPageState.EndBlockIndex;
             set => _verticalPageState.EndBlockIndex = value;
         }
         
         // 백그라운드 전체 페이지 계산용 상태
-        private int _verticalTotalPages
+        internal int _verticalTotalPages
         {
             get => _verticalPageState.TotalPages;
             set => _verticalPageState.TotalPages = value;
         }
-        private bool _isVerticalPageCalcCompleted
+        internal bool _isVerticalPageCalcCompleted
         {
             get => _verticalPageState.IsPageCalculationCompleted;
             set => _verticalPageState.IsPageCalculationCompleted = value;
         }
-        private Dictionary<int, int> _verticalBlockToPageMap
+        internal Dictionary<int, int> _verticalBlockToPageMap
         {
             get => _verticalPageState.BlockToPageMap;
             set => _verticalPageState.BlockToPageMap = value;
         }
-        private System.Threading.CancellationTokenSource? _verticalPageCalcCts;
-        private int _verticalCalculatedCurrentPage
+        internal System.Threading.CancellationTokenSource? _verticalPageCalcCts;
+        internal int _verticalCalculatedCurrentPage
         {
             get => _verticalPageState.CalculatedCurrentPage;
             set => _verticalPageState.CalculatedCurrentPage = value;
         }
-        private CancellationTokenSource? _currentVerticalRenderCts;
-        private Microsoft.UI.Dispatching.DispatcherQueueTimer? _verticalResizeTimer;
+        internal CancellationTokenSource? _currentVerticalRenderCts;
+        internal Microsoft.UI.Dispatching.DispatcherQueueTimer? _verticalResizeTimer;
 
         public void TriggerVerticalResize()
         {
@@ -117,7 +117,7 @@ namespace Uviewer
             _verticalResizeTimer.Start();
         }
         
-        private void ClearVerticalDisplayState()
+        internal void ClearVerticalDisplayState()
         {
             _currentVerticalRenderCts?.Cancel();
             _verticalPageCalcCts?.Cancel();
@@ -132,7 +132,7 @@ namespace Uviewer
             }
         }
 
-        private async void VerticalToggleButton_Click(object sender, RoutedEventArgs e)
+        internal async void VerticalToggleButton_Click(object sender, RoutedEventArgs e)
         {
             try
             {
@@ -150,7 +150,7 @@ namespace Uviewer
             }
         }
 
-        private async void ToggleVerticalMode()
+        internal async void ToggleVerticalMode()
         {
             try
             {
@@ -298,7 +298,7 @@ namespace Uviewer
         }
 
 
-        private async Task PrepareVerticalTextAsync(int targetLine = 1, int targetBlockIndex = -1, CancellationToken externalToken = default)
+        internal async Task PrepareVerticalTextAsync(int targetLine = 1, int targetBlockIndex = -1, CancellationToken externalToken = default)
         {
             if (string.IsNullOrEmpty(_currentTextContent) && !_isEpubMode)
             {
@@ -383,7 +383,7 @@ namespace Uviewer
             }
         }
 
-        private async Task RenderVerticalDynamicPageAsync(int startIdx, CancellationToken token = default)
+        internal async Task RenderVerticalDynamicPageAsync(int startIdx, CancellationToken token = default)
         {
             if (token.IsCancellationRequested) return;
 
@@ -435,7 +435,7 @@ namespace Uviewer
             StartBackwardPageCaching(_currentVerticalStartBlockIndex, true); // <-- 현재 페이지 렌더링 직후 백그라운드 캐싱 시작
         }
 
-        private async void StartVerticalPageCalculationAsync()
+        internal async void StartVerticalPageCalculationAsync()
         {
             try
             {
@@ -487,7 +487,7 @@ namespace Uviewer
             }
         }
 
-        private List<AozoraBindingModel> PaginateAozoraPage(ref int index, List<AozoraBindingModel> blocks, float availableWidth, float availableHeight, Microsoft.Graphics.Canvas.CanvasDevice? device = null)
+        internal List<AozoraBindingModel> PaginateAozoraPage(ref int index, List<AozoraBindingModel> blocks, float availableWidth, float availableHeight, Microsoft.Graphics.Canvas.CanvasDevice? device = null)
         {
             return _aozoraBlockPaginator.PaginateVerticalPage(
                 ref index,
@@ -504,7 +504,7 @@ namespace Uviewer
                     ShouldPairTextImage));
         }
 
-        private bool ShouldPairTextImage(string source)
+        internal bool ShouldPairTextImage(string source)
         {
             bool isTall = !_autoDoublePageForArchive;
             var bitmap = _imageResourceService.TryGetCached(ImageResourceService.GetTextCacheKey(source));
@@ -517,11 +517,11 @@ namespace Uviewer
 
             return isTall;
         }
-        private void VerticalTextCanvas_CreateResources(CanvasControl sender, Microsoft.Graphics.Canvas.UI.CanvasCreateResourcesEventArgs args)
+        internal void VerticalTextCanvas_CreateResources(CanvasControl sender, Microsoft.Graphics.Canvas.UI.CanvasCreateResourcesEventArgs args)
         {
         }
 
-        private void VerticalTextCanvas_Draw(CanvasControl sender, CanvasDrawEventArgs args)
+        internal void VerticalTextCanvas_Draw(CanvasControl sender, CanvasDrawEventArgs args)
         {
             if (!_isVerticalMode) return;
 
@@ -577,17 +577,17 @@ namespace Uviewer
             );
         }
 
-        private Color GetVerticalTextColor()
+        internal Color GetVerticalTextColor()
         {
             return _settingsManager.GetThemeForegroundColor();
         }
 
-        private Color GetVerticalBackgroundColor()
+        internal Color GetVerticalBackgroundColor()
         {
             return _settingsManager.GetThemeBackgroundColor();
         }
 
-        private Color GetVerticalAppBackgroundColor()
+        internal Color GetVerticalAppBackgroundColor()
         {
             // 사용자의 요청에 따라 다크 모드 시 완전한 검은색 대신 일반 이미지 보기 배경색(#202020)을 사용합니다.
             if (RootGrid?.ActualTheme == Microsoft.UI.Xaml.ElementTheme.Dark) 
@@ -597,7 +597,7 @@ namespace Uviewer
             return Microsoft.UI.ColorHelper.FromArgb(255, 243, 243, 243); // #F3F3F3
         }
 
-        private void VerticalTextCanvas_PointerPressed(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
+        internal void VerticalTextCanvas_PointerPressed(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
         {
             if (VerticalTextCanvas == null) return;
             var pt = e.GetCurrentPoint(VerticalTextCanvas).Position;
@@ -616,7 +616,7 @@ namespace Uviewer
             RootGrid.Focus(FocusState.Programmatic);
         }
 
-        private void VerticalTextCanvas_PointerWheelChanged(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
+        internal void VerticalTextCanvas_PointerWheelChanged(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
         {
             if (VerticalTextCanvas == null) return;
             RootGrid.Focus(Microsoft.UI.Xaml.FocusState.Programmatic);
@@ -626,7 +626,7 @@ namespace Uviewer
             e.Handled = true;
         }
 
-        private async void NavigateVerticalPage(int direction)
+        internal async void NavigateVerticalPage(int direction)
         {
             try
             {
@@ -679,7 +679,7 @@ namespace Uviewer
             }
         }
 
-        private void UpdateVerticalStatusBar()
+        internal void UpdateVerticalStatusBar()
         {
             if (!_isVerticalMode) return;
             if (_isEpubMode)
@@ -715,7 +715,7 @@ namespace Uviewer
             }
         }
 
-        private void VerticalTextCanvas_SizeChanged(object sender, SizeChangedEventArgs e)
+        internal void VerticalTextCanvas_SizeChanged(object sender, SizeChangedEventArgs e)
         {
             if (_isVerticalMode && e.NewSize.Width > 0 && e.NewSize.Height > 0)
             {
@@ -723,7 +723,7 @@ namespace Uviewer
             }
         }
 
-        private async void RootGrid_Vertical_PreviewKeyDown(object sender, Microsoft.UI.Xaml.Input.KeyRoutedEventArgs e)
+        internal async void RootGrid_Vertical_PreviewKeyDown(object sender, Microsoft.UI.Xaml.Input.KeyRoutedEventArgs e)
         {
             try
             {
@@ -805,7 +805,7 @@ namespace Uviewer
             }
         }
 
-        private void DrawVerticalImagesSBS(CanvasDrawingSession ds, Size canvasSize, string path1, string path2)
+        internal void DrawVerticalImagesSBS(CanvasDrawingSession ds, Size canvasSize, string path1, string path2)
         {
             float halfW = (float)canvasSize.Width / 2;
             float canvasH = (float)canvasSize.Height;
@@ -824,12 +824,12 @@ namespace Uviewer
             }
         }
 
-        private void DrawVerticalImage(CanvasDrawingSession ds, Size canvasSize, string relativePath)
+        internal void DrawVerticalImage(CanvasDrawingSession ds, Size canvasSize, string relativePath)
         {
             DrawImageInRect(ds, relativePath, new Rect(0, 0, canvasSize.Width, canvasSize.Height));
         }
 
-        private void DrawImageInRect(CanvasDrawingSession ds, string path, Rect rect, HorizontalAlignment align = HorizontalAlignment.Center)
+        internal void DrawImageInRect(CanvasDrawingSession ds, string path, Rect rect, HorizontalAlignment align = HorizontalAlignment.Center)
         {
             if (string.IsNullOrEmpty(path)) return;
 
@@ -854,10 +854,10 @@ namespace Uviewer
         }
 
 
-        private bool DoesVerticalImageExist(string relativePath)
+        internal bool DoesVerticalImageExist(string relativePath)
             => _imageResourceService.DoesImageExist(relativePath, CreateViewingContext());
 
-        private async Task LoadVerticalImageAsync(string relativePath)
+        internal async Task LoadVerticalImageAsync(string relativePath)
         {
             string cacheKey = Services.ImageResourceService.GetTextCacheKey(relativePath);
             var device = VerticalTextCanvas?.Device ?? Microsoft.Graphics.Canvas.CanvasDevice.GetSharedDevice();
