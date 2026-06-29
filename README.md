@@ -84,7 +84,7 @@
 ## 🛠️ System Requirements
 - **OS**: Windows 10 (Version 19041+) or Windows 11.
 - **Runtime**: .NET 10.0.
-- **Framework**: Windows App SDK 1.8+.
+- **Framework**: Windows App SDK 2.2.0.
 
 ## ⌨️ Keyboard Shortcuts
 
