@@ -212,6 +212,7 @@ namespace Uviewer
             _textDocumentSearchService = new Services.TextDocumentSearchService(_documentSearchService);
 
             InitializeComponent();
+            _imageViewerController = new Services.ImageViewerController(this);
             _imageViewportNavigationService = new Services.ImageViewportNavigationService(
                 DispatcherQueue,
                 RerenderPdfCurrentPageAsync);
