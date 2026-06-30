@@ -61,9 +61,25 @@ namespace Uviewer.Services
             _layoutService = layoutService;
         }
 
-        public TextLineLoadPlan CreatePlan(string content, int targetLine)
+        public Task<TextLineLoadPlan> CreatePlanAsync(
+            string content,
+            int targetLine,
+            bool splitLongLines,
+            CancellationToken token)
         {
-            var lines = TextLineLayoutService.SplitNormalizedLines(content);
+            return Task.Run(() =>
+            {
+                token.ThrowIfCancellationRequested();
+                return CreatePlan(content, targetLine, splitLongLines);
+            }, token);
+        }
+
+        public TextLineLoadPlan CreatePlan(string content, int targetLine, bool splitLongLines = false)
+        {
+            int maxLineLength = splitLongLines
+                ? TextLineLayoutService.PlainTextLockedMaxLineLength
+                : 0;
+            var lines = TextLineLayoutService.SplitNormalizedLines(content, maxLineLength);
             int initialLimit = CalculateInitialLimit(targetLine);
             return new TextLineLoadPlan(lines, initialLimit);
         }

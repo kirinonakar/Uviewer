@@ -33,6 +33,8 @@ namespace Uviewer
         internal TextSettingsManager _settingsManager = null!;
         internal bool _isTextMode = false;
         internal bool _isCurrentTextPlainModeLocked = false;
+        private const int PlainTextLockedPrecisePaginationLineLimit = 10000;
+        private const int PlainTextLockedPrecisePaginationCharacterLimit = 2_000_000;
         internal int _textTotalLineCountInSource
         {
             get => _textReaderState.TotalLineCountInSource;
@@ -556,7 +558,11 @@ namespace Uviewer
         /// </summary>
         internal async Task LoadTextLinesProgressivelyAsync(string content, int targetLine = 1, CancellationToken token = default)
         {
-            var loadPlan = _textLineLoadService.CreatePlan(content, targetLine);
+            var loadPlan = await _textLineLoadService.CreatePlanAsync(
+                content,
+                targetLine,
+                _isCurrentTextPlainModeLocked,
+                token);
             _textTotalLineCountInSource = loadPlan.TotalLineCount;
             _isTextLinesFullyLoaded = false;
 
@@ -1212,6 +1218,13 @@ namespace Uviewer
             {
                 if (_isAozoraMode) return;
                 if (TextScrollViewer == null) return;
+                if (ShouldSkipPrecisePlainTextPagination())
+                {
+                    _textReaderState.CancelPageCalculation();
+                    _textPageCalculationService.CompleteFallback(_textReaderState, TextScrollViewer);
+                    UpdateTextStatusBar();
+                    return;
+                }
 
                 var token = _textReaderState.RestartPageCalculation();
                 UpdateTextStatusBar(); 
@@ -1238,6 +1251,13 @@ namespace Uviewer
                     DispatcherQueue.TryEnqueue(() => UpdateTextStatusBar());
                 }
             }
+        }
+
+        private bool ShouldSkipPrecisePlainTextPagination()
+        {
+            return _isCurrentTextPlainModeLocked &&
+                (_textLines.Count > PlainTextLockedPrecisePaginationLineLimit ||
+                 _currentTextContent.Length > PlainTextLockedPrecisePaginationCharacterLimit);
         }
 
         internal int GetTopVisibleLineIndex()

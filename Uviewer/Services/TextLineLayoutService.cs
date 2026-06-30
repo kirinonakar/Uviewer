@@ -25,9 +25,41 @@ namespace Uviewer.Services
 
     public sealed class TextLineLayoutService
     {
-        public static string[] SplitNormalizedLines(string content)
+        public const int PlainTextLockedMaxLineLength = 2048;
+
+        public static string[] SplitNormalizedLines(string content, int maxLineLength = 0)
         {
-            return content.Replace("\r\n", "\n").Replace("\r", "\n").Split('\n');
+            if (maxLineLength <= 0)
+            {
+                return content.Replace("\r\n", "\n").Replace("\r", "\n").Split('\n');
+            }
+
+            var lines = new List<string>();
+            int lineStart = 0;
+            int index = 0;
+
+            while (index < content.Length)
+            {
+                char current = content[index];
+                if (current == '\r' || current == '\n')
+                {
+                    AddWrappedSegments(lines, content, lineStart, index - lineStart, maxLineLength);
+
+                    if (current == '\r' && index + 1 < content.Length && content[index + 1] == '\n')
+                    {
+                        index++;
+                    }
+
+                    index++;
+                    lineStart = index;
+                    continue;
+                }
+
+                index++;
+            }
+
+            AddWrappedSegments(lines, content, lineStart, content.Length - lineStart, maxLineLength);
+            return lines.ToArray();
         }
 
         public List<TextLine> CreatePlainLines(IEnumerable<string> lines, TextLineStyle style)
@@ -115,6 +147,50 @@ namespace Uviewer.Services
                 line.Foreground = style.Foreground;
                 line.MaxWidth = style.MaxWidth;
             }
+        }
+
+        private static void AddWrappedSegments(List<string> lines, string content, int start, int length, int maxLineLength)
+        {
+            if (length <= maxLineLength)
+            {
+                lines.Add(content.Substring(start, length));
+                return;
+            }
+
+            int remainingStart = start;
+            int remainingEnd = start + length;
+
+            while (remainingEnd - remainingStart > maxLineLength)
+            {
+                int hardEnd = remainingStart + maxLineLength;
+                int splitEnd = FindReadableSplitEnd(content, remainingStart, hardEnd, maxLineLength);
+                lines.Add(content.Substring(remainingStart, splitEnd - remainingStart));
+                remainingStart = splitEnd;
+            }
+
+            lines.Add(content.Substring(remainingStart, remainingEnd - remainingStart));
+        }
+
+        private static int FindReadableSplitEnd(string content, int start, int hardEnd, int maxLineLength)
+        {
+            int lowerBound = Math.Max(start + 1, hardEnd - (maxLineLength / 2));
+
+            for (int i = hardEnd - 1; i >= lowerBound; i--)
+            {
+                char c = content[i];
+                if (char.IsWhiteSpace(c) ||
+                    c == ',' ||
+                    c == ';' ||
+                    c == '{' ||
+                    c == '}' ||
+                    c == '[' ||
+                    c == ']')
+                {
+                    return i + 1;
+                }
+            }
+
+            return hardEnd;
         }
     }
 }
