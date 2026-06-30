@@ -39,6 +39,7 @@ namespace Uviewer
         // Refactored Services
         private Services.WindowSettingsCoordinator _windowSettingsCoordinator = null!;
         private Services.ExplorerController _explorerController = null!;
+        private Services.ExplorerSidebarController _explorerSidebarController = null!;
         private Services.BookmarkPanelController _bookmarkPanelController = null!;
         private Services.FavoritesController _favoritesController = null!;
         private Services.RecentController _recentController = null!;
