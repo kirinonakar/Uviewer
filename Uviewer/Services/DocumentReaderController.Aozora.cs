@@ -664,15 +664,12 @@ namespace Uviewer
 
             int startLine = _aozoraBlocks[_currentAozoraStartBlockIndex].SourceLineNumber;
             int totalLines = _aozoraTotalLineCountInSource;
-            var content = _textStatusBarService.CreatePagedReader(
+            _readingProgressController.UpdatePagedReader(
                 _aozoraPageState,
                 startLine,
-                totalLines);
-
-            ImageInfoText.Text = content.LineInfo;
-            TextProgressText.Text = content.ProgressText;
-            ImageIndexText.Text = content.PageInfo;
-            _ = AddToRecentAsync(true);
+                totalLines,
+                _textReaderState,
+                RecentSavePolicy.Always);
         }
 
         public void JumpToAozoraLine(int targetLine)

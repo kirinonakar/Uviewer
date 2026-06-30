@@ -107,12 +107,12 @@ namespace Uviewer
 
         private void HookImageViewerControlEvents()
         {
-            ImageViewer.ImageAreaSizeChanged += ImageArea_SizeChanged;
-            ImageViewer.ImageAreaPointerWheelChanged += ImageArea_PointerWheelChanged;
-            ImageViewer.ImageAreaPointerPressed += ImageArea_PointerPressed;
-            ImageViewer.ImageAreaManipulationStarting += ImageArea_ManipulationStarting;
-            ImageViewer.ImageAreaManipulationDelta += ImageArea_ManipulationDelta;
-            ImageViewer.ImageAreaManipulationCompleted += ImageArea_ManipulationCompleted;
+            ImageViewer.ImageAreaSizeChanged += (_, e) => _imageViewerController.ImageAreaSizeChanged(e);
+            ImageViewer.ImageAreaPointerWheelChanged += async (_, e) => await _imageViewerController.HandlePointerWheelAsync(e);
+            ImageViewer.ImageAreaPointerPressed += async (_, e) => await _imageViewerController.PointerPressedAsync(e);
+            ImageViewer.ImageAreaManipulationStarting += (_, e) => _imageViewerController.ManipulationStarting(e);
+            ImageViewer.ImageAreaManipulationDelta += async (_, e) => await _imageViewerController.ManipulationDeltaAsync(e);
+            ImageViewer.ImageAreaManipulationCompleted += (_, _) => _imageViewerController.ManipulationCompleted();
             ImageViewer.OpenFileRequested += OpenFileButton_Click;
             ImageViewer.MainCanvasCreateResources += MainCanvas_CreateResources;
             ImageViewer.MainCanvasDraw += MainCanvas_Draw;
@@ -124,35 +124,35 @@ namespace Uviewer
 
         private void HookEpubReaderControlEvents()
         {
-            EpubReader.EpubAreaSizeChanged += EpubArea_SizeChanged;
-            EpubReader.EpubTextCanvasCreateResources += EpubTextCanvas_CreateResources;
-            EpubReader.EpubTextCanvasSizeChanged += EpubTextCanvas_SizeChanged;
-            EpubReader.EpubTextCanvasDraw += EpubTextCanvas_Draw;
-            EpubReader.EpubCanvasDisplayDraw += EpubCanvasDisplay_Draw;
-            EpubReader.EpubCanvasDisplayLeftDraw += EpubCanvasDisplayLeft_Draw;
-            EpubReader.EpubCanvasDisplayRightDraw += EpubCanvasDisplayRight_Draw;
-            EpubReader.EpubTouchOverlayPointerPressed += EpubTouchOverlay_PointerPressed;
-            EpubReader.EpubTouchOverlayPointerWheelChanged += EpubTouchOverlay_PointerWheelChanged;
+            EpubReader.EpubAreaSizeChanged += _epubReaderController.EpubArea_SizeChanged;
+            EpubReader.EpubTextCanvasCreateResources += _epubReaderController.EpubTextCanvas_CreateResources;
+            EpubReader.EpubTextCanvasSizeChanged += _epubReaderController.EpubTextCanvas_SizeChanged;
+            EpubReader.EpubTextCanvasDraw += _epubReaderController.EpubTextCanvas_Draw;
+            EpubReader.EpubCanvasDisplayDraw += _epubReaderController.EpubCanvasDisplay_Draw;
+            EpubReader.EpubCanvasDisplayLeftDraw += _epubReaderController.EpubCanvasDisplayLeft_Draw;
+            EpubReader.EpubCanvasDisplayRightDraw += _epubReaderController.EpubCanvasDisplayRight_Draw;
+            EpubReader.EpubTouchOverlayPointerPressed += _epubReaderController.EpubTouchOverlay_PointerPressed;
+            EpubReader.EpubTouchOverlayPointerWheelChanged += _epubReaderController.EpubTouchOverlay_PointerWheelChanged;
         }
 
         private void HookTextReaderControlEvents()
         {
-            TextReader.TextItemsRepeaterElementPrepared += TextItemsRepeater_ElementPrepared;
-            TextReader.TextAreaPointerPressed += TextArea_PointerPressed;
-            TextReader.TextAreaPointerWheelChanged += TextArea_PointerWheelChanged;
-            TextReader.TextAreaSizeChanged += TextArea_SizeChanged;
-            TextReader.TextScrollViewerViewChanged += TextScrollViewer_ViewChanged;
-            TextReader.TextScrollViewerSizeChanged += TextScrollViewer_SizeChanged;
-            TextReader.AozoraTextCanvasCreateResources += AozoraTextCanvas_CreateResources;
-            TextReader.AozoraTextCanvasDraw += AozoraTextCanvas_Draw;
-            TextReader.AozoraTextCanvasPointerPressed += AozoraTextCanvas_PointerPressed;
-            TextReader.AozoraTextCanvasPointerWheelChanged += AozoraTextCanvas_PointerWheelChanged;
-            TextReader.AozoraTextCanvasSizeChanged += AozoraTextCanvas_SizeChanged;
-            TextReader.VerticalTextCanvasCreateResources += VerticalTextCanvas_CreateResources;
-            TextReader.VerticalTextCanvasDraw += VerticalTextCanvas_Draw;
-            TextReader.VerticalTextCanvasPointerPressed += VerticalTextCanvas_PointerPressed;
-            TextReader.VerticalTextCanvasPointerWheelChanged += VerticalTextCanvas_PointerWheelChanged;
-            TextReader.VerticalTextCanvasSizeChanged += VerticalTextCanvas_SizeChanged;
+            TextReader.TextItemsRepeaterElementPrepared += _documentReaderController.TextItemsRepeater_ElementPrepared;
+            TextReader.TextAreaPointerPressed += _documentReaderController.TextArea_PointerPressed;
+            TextReader.TextAreaPointerWheelChanged += _documentReaderController.TextArea_PointerWheelChanged;
+            TextReader.TextAreaSizeChanged += _documentReaderController.TextArea_SizeChanged;
+            TextReader.TextScrollViewerViewChanged += _documentReaderController.TextScrollViewer_ViewChanged;
+            TextReader.TextScrollViewerSizeChanged += _documentReaderController.TextScrollViewer_SizeChanged;
+            TextReader.AozoraTextCanvasCreateResources += _documentReaderController.AozoraTextCanvas_CreateResources;
+            TextReader.AozoraTextCanvasDraw += _documentReaderController.AozoraTextCanvas_Draw;
+            TextReader.AozoraTextCanvasPointerPressed += _documentReaderController.AozoraTextCanvas_PointerPressed;
+            TextReader.AozoraTextCanvasPointerWheelChanged += _documentReaderController.AozoraTextCanvas_PointerWheelChanged;
+            TextReader.AozoraTextCanvasSizeChanged += _documentReaderController.AozoraTextCanvas_SizeChanged;
+            TextReader.VerticalTextCanvasCreateResources += _documentReaderController.VerticalTextCanvas_CreateResources;
+            TextReader.VerticalTextCanvasDraw += _documentReaderController.VerticalTextCanvas_Draw;
+            TextReader.VerticalTextCanvasPointerPressed += _documentReaderController.VerticalTextCanvas_PointerPressed;
+            TextReader.VerticalTextCanvasPointerWheelChanged += _documentReaderController.VerticalTextCanvas_PointerWheelChanged;
+            TextReader.VerticalTextCanvasSizeChanged += _documentReaderController.VerticalTextCanvas_SizeChanged;
         }
     }
 }

@@ -699,20 +699,12 @@ namespace Uviewer
                 _textTotalLineCountInSource = totalLines;
             }
 
-            var content = _textStatusBarService.CreatePagedReader(
+            _readingProgressController.UpdatePagedReader(
                 _verticalPageState,
                 currentLine,
-                totalLines);
-
-            ImageInfoText.Text = content.LineInfo;
-            TextProgressText.Text = content.ProgressText;
-            ImageIndexText.Text = content.PageInfo;
-
-            if (content.CurrentLine != _lastRecentSaveLine)
-            {
-                _lastRecentSaveLine = content.CurrentLine;
-                _ = AddToRecentAsync(true);
-            }
+                totalLines,
+                _textReaderState,
+                RecentSavePolicy.WhenLineChanges);
         }
 
         internal void VerticalTextCanvas_SizeChanged(object sender, SizeChangedEventArgs e)

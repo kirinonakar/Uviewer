@@ -1117,7 +1117,7 @@ namespace Uviewer
                             break;
                         case Windows.System.VirtualKey.Space:
                             // Toggle Side by Side
-                            SideBySideButton_Click(sender, new RoutedEventArgs());
+                            _imageViewerController.ToggleSideBySide();
                             e.Handled = true;
                             break;
                         case Windows.System.VirtualKey.Home:

@@ -18,14 +18,6 @@ namespace Uviewer
 
         private Task ResetFastNavigation() => _imageViewerController.ResetFastNavigationAsync();
 
-        private void ZoomInButton_Click(object sender, RoutedEventArgs e) => ZoomIn();
-
-        private void ZoomOutButton_Click(object sender, RoutedEventArgs e) => ZoomOut();
-
-        private void ZoomFitButton_Click(object sender, RoutedEventArgs e) => FitToWindow();
-
-        private void ZoomActualButton_Click(object sender, RoutedEventArgs e) => _imageViewerController.ZoomActual();
-
         private void ZoomIn() => _imageViewerController.ZoomIn();
 
         private void ZoomOut() => _imageViewerController.ZoomOut();
@@ -46,14 +38,7 @@ namespace Uviewer
         private void OnAnimatedWebpAnimationStopped(object? sender, System.EventArgs e) =>
             _imageViewerController.OnAnimatedWebpAnimationStopped(sender, e);
 
-        private async void SharpenButton_Click(object sender, RoutedEventArgs e) =>
-            await _imageViewerController.ToggleSharpeningAsync();
-
         internal void UpdateSharpenButtonState() => _imageViewerController.UpdateSharpenButtonState();
-
-        private void SideBySideButton_Click(object sender, RoutedEventArgs e) => _imageViewerController.ToggleSideBySide();
-
-        private void NextImageSideButton_Click(object sender, RoutedEventArgs e) => _imageViewerController.ToggleNextImageSide();
 
         internal void UpdateSideBySideButtonState() => _imageViewerController.UpdateSideBySideButtonState();
 
@@ -64,26 +49,8 @@ namespace Uviewer
         private void UpdateStatusBar(ImageEntry entry, CanvasBitmap bitmap) =>
             _imageViewerController.UpdateStatusBar(entry, bitmap);
 
-        private void ImageArea_SizeChanged(object sender, SizeChangedEventArgs e) =>
-            _imageViewerController.ImageAreaSizeChanged(e);
-
-        private async void ImageArea_PointerWheelChanged(object sender, PointerRoutedEventArgs e) =>
-            await _imageViewerController.HandlePointerWheelAsync(e);
-
-        private void ImageArea_ManipulationStarting(object sender, ManipulationStartingRoutedEventArgs e) =>
-            _imageViewerController.ManipulationStarting(e);
-
-        private async void ImageArea_ManipulationDelta(object sender, ManipulationDeltaRoutedEventArgs e) =>
-            await _imageViewerController.ManipulationDeltaAsync(e);
-
-        private void ImageArea_ManipulationCompleted(object sender, ManipulationCompletedRoutedEventArgs e) =>
-            _imageViewerController.ManipulationCompleted();
-
         private Task HandlePdfScrollAsync(double deltaX, double deltaY) =>
             _imageViewerController.HandlePdfScrollAsync(deltaX, deltaY);
-
-        private async void ImageArea_PointerPressed(object sender, PointerRoutedEventArgs e) =>
-            await _imageViewerController.PointerPressedAsync(e);
 
         private void ClearImageResources() => _imageViewerController.ClearImageResources();
 
@@ -92,8 +59,6 @@ namespace Uviewer
 
         private async void OnSharpenParamsChanged() =>
             await _imageViewerController.OnSharpenParamsChangedAsync();
-
-        private void SharpenParams_Reset_Click(object sender, RoutedEventArgs e) => ImageOptions.Reset();
 
         private Task NavigateToNextAsync(bool isManualClick = false) =>
             _imageViewerController.NavigateToNextAsync(isManualClick);

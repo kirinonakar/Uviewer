@@ -117,24 +117,5 @@ namespace Uviewer
             CancellationToken token = default) =>
             _epubReaderController.LoadEpubChapterAsync(index, fromEnd, targetLine, targetBlockIndex, targetPage, progress, token);
 
-        private void EpubArea_SizeChanged(object sender, SizeChangedEventArgs e) =>
-            _epubReaderController.EpubArea_SizeChanged(sender, e);
-        private void EpubTextCanvas_CreateResources(CanvasControl sender, Microsoft.Graphics.Canvas.UI.CanvasCreateResourcesEventArgs args) =>
-            _epubReaderController.EpubTextCanvas_CreateResources(sender, args);
-        private void EpubTextCanvas_SizeChanged(object sender, SizeChangedEventArgs e) =>
-            _epubReaderController.EpubTextCanvas_SizeChanged(sender, e);
-        private void EpubCanvasDisplay_Draw(CanvasControl sender, CanvasDrawEventArgs args) =>
-            _epubReaderController.EpubCanvasDisplay_Draw(sender, args);
-        private void EpubCanvasDisplayLeft_Draw(CanvasControl sender, CanvasDrawEventArgs args) =>
-            _epubReaderController.EpubCanvasDisplayLeft_Draw(sender, args);
-        private void EpubCanvasDisplayRight_Draw(CanvasControl sender, CanvasDrawEventArgs args) =>
-            _epubReaderController.EpubCanvasDisplayRight_Draw(sender, args);
-        private void EpubTextCanvas_Draw(CanvasControl sender, CanvasDrawEventArgs args) =>
-            _epubReaderController.EpubTextCanvas_Draw(sender, args);
-        private void EpubTouchOverlay_PointerPressed(object sender, PointerRoutedEventArgs e) =>
-            _epubReaderController.EpubTouchOverlay_PointerPressed(sender, e);
-        private void EpubTouchOverlay_PointerWheelChanged(object sender, PointerRoutedEventArgs e) =>
-            _epubReaderController.EpubTouchOverlay_PointerWheelChanged(sender, e);
-
     }
 }

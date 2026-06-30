@@ -814,60 +814,26 @@ namespace Uviewer
 
         internal void FontToggleButton_Click(object sender, RoutedEventArgs e)
         {
-            ToggleFont();
+            _textReaderSettingsController.FontToggleButton_Click(sender, e);
         }
 
         internal void FontMenu_Click(object sender, RoutedEventArgs e)
         {
-            _ = ShowFontPickerDialog();
+            _textReaderSettingsController.FontMenu_Click(sender, e);
         }
 
-        internal async Task ShowFontPickerDialog()
-        {
-            var selectedFont = await _textDialogService.ShowFontPickerAsync(_settingsManager.FontFamily, Strings.FontSelectionTitle);
-            if (selectedFont != null)
-            {
-                SetTextFont(selectedFont);
-            }
-        }
+        internal Task ShowFontPickerDialog() => _textReaderSettingsController.ShowFontPickerDialog();
 
-        internal async void SetTextFont(string fontFamily)
-        {
-            try
-            {
-                _settingsManager.FontFamily = fontFamily;
-                SaveTextSettings();
-                await RefreshTextDisplay();
-            }
-            catch (OperationCanceledException) { }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"Error in SetTextFont: {ex.Message}");
-                ShowNotification($"{ex.Message}", "\uE783", "Red");
-            }
-        }
+        internal void SetTextFont(string fontFamily) => _textReaderSettingsController.SetTextFont(fontFamily);
 
         internal void UiFontMenu_Click(object sender, RoutedEventArgs e)
         {
-            _ = ShowUiFontPickerDialog();
+            _textReaderSettingsController.UiFontMenu_Click(sender, e);
         }
 
-        internal async Task ShowUiFontPickerDialog()
-        {
-            var selectedFont = await _textDialogService.ShowFontPickerAsync(_settingsManager.UIFontFamily, Strings.UIFontSelectionTitle);
-            if (selectedFont != null)
-            {
-                SetUiFont(selectedFont);
-            }
-        }
+        internal Task ShowUiFontPickerDialog() => _textReaderSettingsController.ShowUiFontPickerDialog();
 
-        internal void SetUiFont(string fontFamily)
-        {
-            if (_textUiSettingsService.ApplyUiFont(_settingsManager, fontFamily, CreateUiFontApplyTargets()))
-            {
-                SaveTextSettings();
-            }
-        }
+        internal void SetUiFont(string fontFamily) => _textReaderSettingsController.SetUiFont(fontFamily);
 
         internal UiFontApplyTargets CreateUiFontApplyTargets()
         {
@@ -897,129 +863,36 @@ namespace Uviewer
 
 
 
-        internal async void ToggleFont()
-        {
-            try
-            {
-                _textUiSettingsService.ToggleFont(_settingsManager);
-                SaveTextSettings();
-                await RefreshTextDisplay();
-            }
-            catch (OperationCanceledException) { }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"Error in ToggleFont: {ex.Message}");
-                ShowNotification($"{ex.Message}", "\uE783", "Red");
-            }
-        }
+        internal void ToggleFont() => _textReaderSettingsController.ToggleFont();
 
-        internal void UpdateFontSettingsMenu()
-        {
-            MainToolbar.UpdateDefaultFontMenu(_settingsManager.DefaultFont1, _settingsManager.DefaultFont2);
-        }
+        internal void UpdateFontSettingsMenu() => _textReaderSettingsController.UpdateFontSettingsMenu();
 
-        internal void SetDefaultFont1MenuItem_Click(object sender, RoutedEventArgs e)
-        {
-            _ = ShowFontPickerDialogForDefault(1);
-        }
+        internal void SetDefaultFont1MenuItem_Click(object sender, RoutedEventArgs e) =>
+            _textReaderSettingsController.SetDefaultFont1MenuItem_Click(sender, e);
 
-        internal void SetDefaultFont2MenuItem_Click(object sender, RoutedEventArgs e)
-        {
-            _ = ShowFontPickerDialogForDefault(2);
-        }
+        internal void SetDefaultFont2MenuItem_Click(object sender, RoutedEventArgs e) =>
+            _textReaderSettingsController.SetDefaultFont2MenuItem_Click(sender, e);
 
-        internal async void ResetDefaultFontsMenuItem_Click(object sender, RoutedEventArgs e)
-        {
-            try
-            {
-                _textUiSettingsService.ResetDefaultFonts(_settingsManager);
-                UpdateFontSettingsMenu();
-                SaveTextSettings();
-            }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"Error in ResetDefaultFontsMenuItem_Click: {ex.Message}");
-                ShowNotification($"{ex.Message}", "\uE783", "Red");
-            }
-        }
+        internal void ResetDefaultFontsMenuItem_Click(object sender, RoutedEventArgs e) =>
+            _textReaderSettingsController.ResetDefaultFontsMenuItem_Click(sender, e);
 
-        internal async Task ShowFontPickerDialogForDefault(int slot)
-        {
-            string currentFont = (slot == 1) ? _settingsManager.DefaultFont1 : _settingsManager.DefaultFont2;
-            var selectedFont = await _textDialogService.ShowFontPickerAsync(currentFont, Strings.FontSelectionSlotTitle(slot));
-            
-            if (selectedFont != null)
-            {
-                _textUiSettingsService.SetDefaultFont(_settingsManager, slot, selectedFont);
-                UpdateFontSettingsMenu();
-                SaveTextSettings();
-            }
-        }
+        internal Task ShowFontPickerDialogForDefault(int slot) =>
+            _textReaderSettingsController.ShowFontPickerDialogForDefault(slot);
 
-        internal void TextSizeUpButton_Click(object sender, RoutedEventArgs e)
-        {
-            IncreaseTextSize();
-        }
+        internal void TextSizeUpButton_Click(object sender, RoutedEventArgs e) =>
+            _textReaderSettingsController.TextSizeUpButton_Click(sender, e);
 
-        internal async void IncreaseTextSize()
-        {
-            try
-            {
-                _textUiSettingsService.IncreaseFontSize(_settingsManager);
-                MainToolbar.SetTextSizeLevel(_settingsManager.FontSize);
-                SaveTextSettings();
-                await RefreshTextDisplay();
-            }
-            catch (OperationCanceledException) { }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"Error in IncreaseTextSize: {ex.Message}");
-                ShowNotification($"{ex.Message}", "\uE783", "Red");
-            }
-        }
+        internal void IncreaseTextSize() => _textReaderSettingsController.IncreaseTextSize();
 
-        internal void TextSizeDownButton_Click(object sender, RoutedEventArgs e)
-        {
-            DecreaseTextSize();
-        }
+        internal void TextSizeDownButton_Click(object sender, RoutedEventArgs e) =>
+            _textReaderSettingsController.TextSizeDownButton_Click(sender, e);
 
-        internal async void DecreaseTextSize()
-        {
-            try
-            {
-                _textUiSettingsService.DecreaseFontSize(_settingsManager);
-                MainToolbar.SetTextSizeLevel(_settingsManager.FontSize);
-                SaveTextSettings();
-                await RefreshTextDisplay();
-            }
-            catch (OperationCanceledException) { }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"Error in DecreaseTextSize: {ex.Message}");
-                ShowNotification($"{ex.Message}", "\uE783", "Red");
-            }
-        }
+        internal void DecreaseTextSize() => _textReaderSettingsController.DecreaseTextSize();
 
-        internal void ThemeToggleButton_Click(object sender, RoutedEventArgs e)
-        {
-            ToggleTheme();
-        }
+        internal void ThemeToggleButton_Click(object sender, RoutedEventArgs e) =>
+            _textReaderSettingsController.ThemeToggleButton_Click(sender, e);
 
-        internal async void ToggleTheme()
-        {
-            try
-            {
-                _textUiSettingsService.ToggleTheme(_settingsManager);
-                SaveTextSettings();
-                await RefreshTextDisplay();
-            }
-            catch (OperationCanceledException) { }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"Error in ToggleTheme: {ex.Message}");
-                ShowNotification($"{ex.Message}", "\uE783", "Red");
-            }
-        }
+        internal void ToggleTheme() => _textReaderSettingsController.ToggleTheme();
 
         internal void GoToPageButton_Click(object sender, RoutedEventArgs e)
         {
@@ -1234,24 +1107,13 @@ namespace Uviewer
 
             if (TextScrollViewer == null) return;
 
-            var content = _textStatusBarService.Create(
+            _readingProgressController.UpdatePlainText(
                 fileName,
                 _currentTextArchiveEntryKey != null,
                 totalLines,
                 _textReaderState,
                 TextScrollViewer,
                 GetTopVisibleLineIndex());
-
-            if (content.FileName != null) FileNameText.Text = content.FileName;
-            ImageInfoText.Text = content.LineInfo;
-            TextProgressText.Text = content.ProgressText;
-            ImageIndexText.Text = content.PageInfo;
-
-            if (content.CurrentLine != _lastRecentSaveLine)
-            {
-                _lastRecentSaveLine = content.CurrentLine;
-                _ = AddToRecentAsync(true);
-            }
         }
 
         internal void TextScrollViewer_ViewChanged(object sender, ScrollViewerViewChangedEventArgs e)

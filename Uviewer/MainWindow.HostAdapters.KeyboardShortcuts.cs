@@ -56,22 +56,22 @@ namespace Uviewer
             public void ToggleMaximizeRestore() => _window.ToggleMaximizeRestore();
             public void CloseApp() => _window.RequestWindowClose();
             public Task ShowEpubGoToLineDialog() => _window.ShowEpubGoToLineDialog();
-            public void ToggleFont() => _window.ToggleFont();
+            public void ToggleFont() => _window._documentReaderController.ToggleFont();
 
             public void ToggleVerticalMode()
             {
                 _window._isVerticalMode = !_window._isVerticalMode;
                 _window.MainToolbar.SetVerticalToggleState(isChecked: _window._isVerticalMode);
                 _window.SaveTextSettings();
-                _window.ToggleVerticalMode();
+                _window._documentReaderController.ToggleVerticalMode();
             }
 
-            public void DecreaseTextSize() => _window.DecreaseTextSize();
-            public void IncreaseTextSize() => _window.IncreaseTextSize();
+            public void DecreaseTextSize() => _window._documentReaderController.DecreaseTextSize();
+            public void IncreaseTextSize() => _window._documentReaderController.IncreaseTextSize();
             public void ToggleSidebar() => _window.ToggleSidebar();
-            public void ToggleTheme() => _window.ToggleTheme();
+            public void ToggleTheme() => _window._documentReaderController.ToggleTheme();
             public Task LoadEpubChapterAsync(int index) => _window.LoadEpubChapterAsync(index);
-            public void ToggleSideBySide() => _window.SideBySideButton_Click(_window.MainToolbar, new RoutedEventArgs());
+            public void ToggleSideBySide() => _window._imageViewerController.ToggleSideBySide();
             public Task NavigateDocumentPageAsync(int direction) =>
                 _window._documentNavigationCoordinator.NavigatePageAsync(direction);
             public Task DisplayCurrentImageAsync() => _window.DisplayCurrentImageAsync();
@@ -80,16 +80,16 @@ namespace Uviewer
 
             public void ToggleSharpening()
             {
-                _window.SharpenButton_Click(_window.MainToolbar, new RoutedEventArgs());
+                _ = _window._imageViewerController.ToggleSharpeningAsync();
             }
 
-            public Task ShowGoToLineDialog() => _window.ShowGoToLineDialog();
+            public Task ShowGoToLineDialog() => _window._documentReaderController.ShowGoToLineDialog();
             public Task NavigateToParentFolderAsync() => _window.NavigateToParentFolderAsync();
             public Task OpenFileAsync() => _window.OpenFileAsync();
             public void ZoomIn() => _window.ZoomIn();
             public void ZoomOut() => _window.ZoomOut();
             public void FitToWindow() => _window.FitToWindow();
-            public void ZoomActual() => _window.ZoomActualButton_Click(_window.MainToolbar, new RoutedEventArgs());
+            public void ZoomActual() => _window._imageViewerController.ZoomActual();
             public void ToggleAlwaysOnTop() => _window.ToggleAlwaysOnTop();
             public void ToggleGlobalTheme() => _window.GlobalThemeToggleButton_Click(_window.MainToolbar, new RoutedEventArgs());
             public void TogglePin() => _window.TogglePin();

@@ -47,6 +47,8 @@ namespace Uviewer
         internal readonly TextUiSettingsService _textUiSettingsService = new();
         internal readonly ReadingProgressService _readingProgressService = new();
         internal readonly TextStatusBarService _textStatusBarService;
+        internal readonly ReadingProgressController _readingProgressController;
+        internal readonly TextReaderSettingsController _textReaderSettingsController;
         internal readonly TextDialogService _textDialogService;
 
         internal DocumentReaderController(DocumentReaderDependencies dependencies)
@@ -68,6 +70,19 @@ namespace Uviewer
             _textDocumentLoadService = new TextDocumentLoadService(_libraryHost.ArchiveSession);
             _textDocumentSearchService = new TextDocumentSearchService(_searchHost.DocumentSearchService);
             _textDialogService = new TextDialogService(RootGrid);
+            _readingProgressController = new ReadingProgressController(
+                _textStatusBarService,
+                _viewHost,
+                () => AddToRecentAsync(true));
+            _textReaderSettingsController = new TextReaderSettingsController(
+                () => _settingsManager,
+                _textUiSettingsService,
+                _textDialogService,
+                _viewHost,
+                SaveTextSettings,
+                () => RefreshTextDisplay(),
+                CreateUiFontApplyTargets,
+                ShowNotification);
         }
 
         internal TextReaderState TextReaderState => _textReaderState;
