@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading.Tasks;
 using Uviewer.Models;
 using Uviewer.Services;
@@ -18,6 +19,7 @@ namespace Uviewer
             }
 
             public bool IsWebDavMode => _window._isWebDavMode;
+            public bool IsNavigatingRecent { get => _window._isNavigatingRecent; set => _window._isNavigatingRecent = value; }
             public string? CurrentWebDavServerName => _window._webDavService.CurrentServer?.ServerName;
             public IReadOnlyList<ImageEntry> ImageEntries => _window._imageEntries;
 
@@ -41,6 +43,25 @@ namespace Uviewer
 
             public void LoadExplorerFolder(string path) =>
                 _window.LoadExplorerFolder(path);
+
+            public void SelectExplorerItemByName(string fileName)
+            {
+                var item = _window._fileItems.FirstOrDefault(
+                    f => f.Name.Equals(fileName, System.StringComparison.OrdinalIgnoreCase));
+                if (item == null)
+                {
+                    return;
+                }
+
+                if (_window._isExplorerGrid)
+                {
+                    _window.FileGridView.SelectedItem = item;
+                }
+                else
+                {
+                    _window.FileListView.SelectedItem = item;
+                }
+            }
 
             public Task LoadImagesFromPdfAsync(string path) =>
                 _window.LoadImagesFromPdfAsync(path);
@@ -96,6 +117,11 @@ namespace Uviewer
             public void NotifyWebDavFavoriteOpenFailed(string message)
             {
                 _window.ShowNotification($"WebDAV 즐겨찾기 열기 실패: {message}");
+            }
+
+            public void NotifyWebDavRecentOpenFailed(string message)
+            {
+                _window.ShowNotification($"WebDAV 최근 항목 열기 실패: {message}");
             }
         }
     }

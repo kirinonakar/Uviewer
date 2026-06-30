@@ -11,7 +11,7 @@ namespace Uviewer
             MainToolbar.EncodingSelected += async (_, encoding) => await _documentReaderController.ApplyEncodingSelectionAsync(encoding);
             MainToolbar.ChangeColorsRequested += (_, _) => _documentReaderController.ColorsMenu_Click(MainToolbar, new RoutedEventArgs());
             MainToolbar.ChangeUiFontRequested += (_, _) => _documentReaderController.UiFontMenu_Click(MainToolbar, new RoutedEventArgs());
-            MainToolbar.SelectExternalProgramRequested += async (_, _) => await SelectExternalProgramAsync();
+            MainToolbar.SelectExternalProgramRequested += async (_, _) => await _externalProgramSettingsController.SelectExternalProgramAsync();
             MainToolbar.LanguageSelected += async (_, language) => await _documentReaderController.ApplyLanguageSelectionAsync(language);
             MainToolbar.MatchControlDirectionChanged += (_, isChecked) => UpdateMatchControlDirection(isChecked);
             MainToolbar.AllowMultipleInstancesChanged += (_, isChecked) => UpdateAllowMultipleInstances(isChecked);
@@ -24,11 +24,11 @@ namespace Uviewer
             MainToolbar.AddToFavoritesRequested += (_, _) => AddToFavoritesMenuItem_Click(MainToolbar, new RoutedEventArgs());
             MainToolbar.OpenFileRequested += MainToolbar_OpenFileRequested;
             MainToolbar.OpenFolderRequested += MainToolbar_OpenFolderRequested;
-            MainToolbar.FavoriteItemClicked += BookmarkList_ItemClicked;
-            MainToolbar.FavoriteRemoveClicked += BookmarkList_RemoveClicked;
-            MainToolbar.FavoritePinClicked += BookmarkList_PinClicked;
-            MainToolbar.RecentItemClicked += RecentList_ItemClicked;
-            MainToolbar.RecentRemoveClicked += RecentList_RemoveClicked;
+            MainToolbar.FavoriteItemClicked += async (_, item) => await _bookmarkInteractionController.HandleFavoriteClickedAsync(item);
+            MainToolbar.FavoriteRemoveClicked += async (_, item) => await _bookmarkInteractionController.HandleFavoriteRemoveClickedAsync(item);
+            MainToolbar.FavoritePinClicked += async (_, item) => await _bookmarkInteractionController.HandleFavoritePinClickedAsync(item);
+            MainToolbar.RecentItemClicked += async (_, item) => await _bookmarkInteractionController.HandleRecentClickedAsync(item);
+            MainToolbar.RecentRemoveClicked += async (_, item) => await _bookmarkInteractionController.HandleRecentRemoveClickedAsync(item);
             MainToolbar.PdfTocRequested += (_, _) => PdfTocButton_Click(MainToolbar, new RoutedEventArgs());
             MainToolbar.PdfTocItemClicked += PdfTocListView_ItemClick;
             MainToolbar.PdfGoToPageRequested += (_, _) => _documentReaderController.GoToPageButton_Click(MainToolbar, new RoutedEventArgs());
@@ -62,10 +62,10 @@ namespace Uviewer
         }
 
         private void MainToolbar_OpenFileRequested(object? sender, EventArgs e) =>
-            OpenFileButton_Click(MainToolbar, new RoutedEventArgs());
+            _ = _fileOpenController.OpenFileAsync();
 
         private void MainToolbar_OpenFolderRequested(object? sender, EventArgs e) =>
-            OpenFolderButton_Click(MainToolbar, new RoutedEventArgs());
+            _ = _fileOpenController.OpenFolderAsync();
 
         private void UpdateMatchControlDirection(bool isChecked)
         {

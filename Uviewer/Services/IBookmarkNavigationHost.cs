@@ -8,6 +8,7 @@ namespace Uviewer.Services
     internal interface IBookmarkNavigationHost
     {
         bool IsWebDavMode { get; }
+        bool IsNavigatingRecent { get; set; }
         string? CurrentWebDavServerName { get; }
         IReadOnlyList<ImageEntry> ImageEntries { get; }
         int CurrentImageIndex { get; set; }
@@ -18,6 +19,7 @@ namespace Uviewer.Services
         Task OpenWebDavArchiveAsync(FileItem item);
 
         void LoadExplorerFolder(string path);
+        void SelectExplorerItemByName(string fileName);
         Task LoadImagesFromPdfAsync(string path);
         Task LoadImageFromFileAsync(StorageFile file);
         Task LoadImagesFromArchiveAsync(string path);
@@ -30,5 +32,6 @@ namespace Uviewer.Services
 
         void NotifyFileNotFound();
         void NotifyWebDavFavoriteOpenFailed(string message);
+        void NotifyWebDavRecentOpenFailed(string message);
     }
 }

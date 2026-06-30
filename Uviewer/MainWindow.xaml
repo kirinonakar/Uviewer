@@ -15,7 +15,6 @@
 
     <ContentControl x:Name="RootFontControl" HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch">
         <Grid x:Name="RootGrid" AllowDrop="True" IsTabStop="True" Background="Transparent"
-              DragOver="Grid_DragOver" Drop="Grid_Drop"
               PointerMoved="RootGrid_PointerMoved"
               PointerExited="RootGrid_PointerExited"
               PointerPressed="RootGrid_PointerPressed">

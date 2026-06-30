@@ -76,6 +76,14 @@ namespace Uviewer.Services
             LoadContainingExplorerFolder(file.Path, inBackground: false, onlyIfChanged: true);
         }
 
+        public async Task OpenPickedFolderAsync(StorageFolder folder)
+        {
+            if (folder == null) return;
+
+            _handlers.LoadExplorerFolder(folder.Path);
+            await _handlers.OpenFolderAsync(folder);
+        }
+
         public async Task OpenDroppedStorageItemAsync(IStorageItem item)
         {
             switch (item)

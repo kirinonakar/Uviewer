@@ -86,7 +86,45 @@ namespace Uviewer
                     window._explorerController = new ExplorerController(window._explorerState, window._thumbnailService, window.DispatcherQueue);
                     window._bookmarkPanelController = new BookmarkPanelController(window._bookmarkPanelState, window._favoritesService, window._recentService);
                     window._favoritesController = new FavoritesController(window._favoritesService, window._bookmarkPanelController);
+                    window._recentController = new RecentController(window._recentService, window._bookmarkPanelController);
                     window._bookmarkNavigationHost = new BookmarkNavigationHostAdapter(window);
+                    window._bookmarkInteractionController = new BookmarkInteractionController(
+                        window._favoritesController,
+                        window._recentController,
+                        window._bookmarkNavigationHost,
+                        window.CreateFavoriteCaptureContext,
+                        window.CreateRecentCaptureContext,
+                        new BookmarkInteractionHandlers
+                        {
+                            HideFavoritesFlyouts = () =>
+                            {
+                                window.MainToolbar.HideFavoritesFlyout();
+                                window.SidebarFavoritesFlyout?.Hide();
+                            },
+                            HideRecentFlyouts = () =>
+                            {
+                                window.MainToolbar.HideRecentFlyout();
+                                window.SidebarRecentFlyout?.Hide();
+                            },
+                            SetFavoriteSources = window.MainToolbar.SetFavoriteSources,
+                            SetFileFavoriteSidebarSource = (items, emptyMessage) =>
+                            {
+                                window.SidebarFileFavoritesList.ItemsSource = items;
+                                window.SidebarFileFavoritesList.EmptyMessage = emptyMessage;
+                            },
+                            SetFolderFavoriteSidebarSource = (items, emptyMessage) =>
+                            {
+                                window.SidebarFolderFavoritesList.ItemsSource = items;
+                                window.SidebarFolderFavoritesList.EmptyMessage = emptyMessage;
+                            },
+                            SetRecentSources = window.MainToolbar.SetRecentSource,
+                            SetRecentSidebarSource = (items, emptyMessage) =>
+                            {
+                                window.SidebarRecentList.ItemsSource = items;
+                                window.SidebarRecentList.EmptyMessage = emptyMessage;
+                            },
+                            ShowNotification = window.ShowNotification
+                        });
                 }
 
                 public static void ApplyInitialWindowLayout(MainWindow window)
@@ -115,6 +153,9 @@ namespace Uviewer
 
                 public static void InitializeRootInput(MainWindow window)
                 {
+                    window.RootGrid.DragOver += window._fileOpenController.HandleDragOver;
+                    window.RootGrid.Drop += window._fileOpenController.HandleDrop;
+
                     if (window.Content is FrameworkElement fe)
                     {
                         var keyboardActions = new KeyboardShortcutActionsAdapter(window);

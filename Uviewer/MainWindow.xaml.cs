@@ -41,6 +41,8 @@ namespace Uviewer
         private Services.ExplorerController _explorerController = null!;
         private Services.BookmarkPanelController _bookmarkPanelController = null!;
         private Services.FavoritesController _favoritesController = null!;
+        private Services.RecentController _recentController = null!;
+        private Services.BookmarkInteractionController _bookmarkInteractionController = null!;
         private Services.IBookmarkNavigationHost _bookmarkNavigationHost = null!;
         private Services.AppSettingsService _appSettingsService = null!;
         private Services.ZoomService _zoomService = null!;
@@ -67,6 +69,11 @@ namespace Uviewer
         private Services.WebDavDocumentOpenCoordinator _webDavDocumentOpenCoordinator = null!;
         private Services.DocumentNavigationCoordinator _documentNavigationCoordinator = null!;
         private Services.ImageNavigationCoordinator _imageNavigationCoordinator = null!;
+        private Services.ArchiveDocumentController _archiveDocumentController = null!;
+        private Services.FileOpenController _fileOpenController = null!;
+        private Services.ExternalProgramSettingsController _externalProgramSettingsController = null!;
+        private Services.ExplorerItemOperationController _explorerItemOperationController = null!;
+        private Services.DocumentOpenStateQuery _documentOpenStateQuery = null!;
 
         // ImageResourceService를 _sharpeningService 다음에 생성해야 하므로
         // 필드 초기화 식 대신 생성자 내부에서 초기화합니다.

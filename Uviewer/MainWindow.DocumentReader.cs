@@ -22,6 +22,12 @@ namespace Uviewer
 {
     public sealed partial class MainWindow
     {
+        private const string TextSettingsFilePath = "text_settings.json";
+        private string GetTextSettingsFilePath() => System.IO.Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+            "Uviewer",
+            TextSettingsFilePath);
+
         private DocumentReaderController _documentReaderController = null!;
 
         private TextReaderState _textReaderState => _documentReaderController.TextReaderState;

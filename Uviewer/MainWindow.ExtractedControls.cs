@@ -95,14 +95,14 @@ namespace Uviewer
             FileGridView.RightTapped += ExplorerView_RightTapped;
             InitializeExplorerContextMenus();
 
-            SidebarFileFavoritesList.ItemClicked += BookmarkList_ItemClicked;
-            SidebarFileFavoritesList.RemoveClicked += BookmarkList_RemoveClicked;
-            SidebarFileFavoritesList.PinClicked += BookmarkList_PinClicked;
-            SidebarFolderFavoritesList.ItemClicked += BookmarkList_ItemClicked;
-            SidebarFolderFavoritesList.RemoveClicked += BookmarkList_RemoveClicked;
-            SidebarFolderFavoritesList.PinClicked += BookmarkList_PinClicked;
-            SidebarRecentList.ItemClicked += RecentList_ItemClicked;
-            SidebarRecentList.RemoveClicked += RecentList_RemoveClicked;
+            SidebarFileFavoritesList.ItemClicked += async (_, item) => await _bookmarkInteractionController.HandleFavoriteClickedAsync(item);
+            SidebarFileFavoritesList.RemoveClicked += async (_, item) => await _bookmarkInteractionController.HandleFavoriteRemoveClickedAsync(item);
+            SidebarFileFavoritesList.PinClicked += async (_, item) => await _bookmarkInteractionController.HandleFavoritePinClickedAsync(item);
+            SidebarFolderFavoritesList.ItemClicked += async (_, item) => await _bookmarkInteractionController.HandleFavoriteClickedAsync(item);
+            SidebarFolderFavoritesList.RemoveClicked += async (_, item) => await _bookmarkInteractionController.HandleFavoriteRemoveClickedAsync(item);
+            SidebarFolderFavoritesList.PinClicked += async (_, item) => await _bookmarkInteractionController.HandleFavoritePinClickedAsync(item);
+            SidebarRecentList.ItemClicked += async (_, item) => await _bookmarkInteractionController.HandleRecentClickedAsync(item);
+            SidebarRecentList.RemoveClicked += async (_, item) => await _bookmarkInteractionController.HandleRecentRemoveClickedAsync(item);
         }
 
         private void HookImageViewerControlEvents()
@@ -113,7 +113,7 @@ namespace Uviewer
             ImageViewer.ImageAreaManipulationStarting += (_, e) => _imageViewerController.ManipulationStarting(e);
             ImageViewer.ImageAreaManipulationDelta += async (_, e) => await _imageViewerController.ManipulationDeltaAsync(e);
             ImageViewer.ImageAreaManipulationCompleted += (_, _) => _imageViewerController.ManipulationCompleted();
-            ImageViewer.OpenFileRequested += OpenFileButton_Click;
+            ImageViewer.OpenFileRequested += async (_, _) => await _fileOpenController.OpenFileAsync();
             ImageViewer.MainCanvasCreateResources += MainCanvas_CreateResources;
             ImageViewer.MainCanvasDraw += MainCanvas_Draw;
             ImageViewer.LeftCanvasCreateResources += LeftCanvas_CreateResources;

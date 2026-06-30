@@ -16,6 +16,9 @@ namespace Uviewer
                 ImageFeatureComposition.InitializeController(window);
                 ShellComposition.InitializeToolbar(window);
                 DocumentFeatureComposition.InitializeLocalOpenCoordinator(window);
+                DocumentFeatureComposition.InitializeFileOpenController(window);
+                DocumentFeatureComposition.InitializeDocumentOpenStateQuery(window);
+                DocumentFeatureComposition.InitializeExplorerItemOperations(window);
                 WebDavFeatureComposition.Initialize(window);
 
                 window.RootGrid.SizeChanged += window.RootGrid_SizeChanged;
@@ -32,6 +35,7 @@ namespace Uviewer
                     ShellComposition.InitializeRootInput(window);
                     ShellComposition.InitializeExplorerLists(window);
                     ImageFeatureComposition.InitializePipeline(window);
+                    DocumentFeatureComposition.InitializeArchiveController(window);
 
                     window.ApplyLocalization();
                     window.MainToolbar.SetExternalProgramPath(window._externalProgramPath);

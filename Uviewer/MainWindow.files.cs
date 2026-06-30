@@ -22,60 +22,7 @@ namespace Uviewer
     {
         private Services.ArchiveSession _archiveSession = null!;
 
-        #region Drag and Drop
-
-        private void Grid_DragOver(object sender, DragEventArgs e)
-        {
-            e.AcceptedOperation = Windows.ApplicationModel.DataTransfer.DataPackageOperation.Copy;
-
-            if (e.DragUIOverride != null)
-            {
-                e.DragUIOverride.Caption = "이미지 열기";
-                e.DragUIOverride.IsCaptionVisible = true;
-                e.DragUIOverride.IsContentVisible = true;
-                e.DragUIOverride.IsGlyphVisible = true;
-            }
-        }
-
-        private async void Grid_Drop(object sender, DragEventArgs e)
-        {
-            try
-            {
-                if (e.DataView.Contains(Windows.ApplicationModel.DataTransfer.StandardDataFormats.StorageItems))
-                {
-                    var items = await e.DataView.GetStorageItemsAsync();
-
-                    if (items.Count > 0)
-                    {
-                        await _localDocumentOpenCoordinator.OpenDroppedStorageItemAsync(items[0]);
-                    }
-                }
-            }
-            catch (OperationCanceledException) { }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"Error in Grid_Drop: {ex.Message}");
-                ShowNotification($"{ex.Message}", "\uE783", "Red");
-            }
-        }
-
-        #endregion
-
         #region File Operations
-
-        private async void OpenFileButton_Click(object sender, RoutedEventArgs e)
-        {
-            try { await OpenFileAsync(); }
-            catch (OperationCanceledException) { }
-            catch (Exception ex) { ShowNotification(ex.Message, "\uE783", "Red"); }
-        }
-
-        private async void OpenFolderButton_Click(object sender, RoutedEventArgs e)
-        {
-            try { await OpenFolderAsync(); }
-            catch (OperationCanceledException) { }
-            catch (Exception ex) { ShowNotification(ex.Message, "\uE783", "Red"); }
-        }
 
         private async void PrevFileButton_Click(object sender, RoutedEventArgs e)
         {
@@ -116,46 +63,6 @@ namespace Uviewer
             {
                 System.Diagnostics.Debug.WriteLine($"Error in NextPageButton_Click: {ex.Message}");
                 ShowNotification($"{ex.Message}", "\uE783", "Red");
-            }
-        }
-
-        private async Task OpenFileAsync()
-        {
-            var picker = new FileOpenPicker();
-
-            // Initialize picker with window handle
-            var hwnd = WinRT.Interop.WindowNative.GetWindowHandle(this);
-            WinRT.Interop.InitializeWithWindow.Initialize(picker, hwnd);
-
-            picker.ViewMode = PickerViewMode.Thumbnail;
-            picker.SuggestedStartLocation = PickerLocationId.PicturesLibrary;
-
-            _localDocumentOpenCoordinator.AddPickerFileTypeFilters(picker.FileTypeFilter);
-
-            var file = await picker.PickSingleFileAsync();
-
-            if (file != null)
-            {
-                await _localDocumentOpenCoordinator.OpenPickedFileAsync(file);
-            }
-        }
-
-        private async Task OpenFolderAsync()
-        {
-            var picker = new FolderPicker();
-
-            var hwnd = WinRT.Interop.WindowNative.GetWindowHandle(this);
-            WinRT.Interop.InitializeWithWindow.Initialize(picker, hwnd);
-
-            picker.SuggestedStartLocation = PickerLocationId.PicturesLibrary;
-            picker.FileTypeFilter.Add("*");
-
-            var folder = await picker.PickSingleFolderAsync();
-
-            if (folder != null)
-            {
-                LoadExplorerFolder(folder.Path);
-                await LoadImagesFromFolderAsync(folder);
             }
         }
 
@@ -297,111 +204,11 @@ namespace Uviewer
             }
         }
 
-        private async Task LoadImagesFromArchiveAsync(string archivePath)
-        {
-            // 이전 작업 즉시 중단
-            _sevenZipExtraction.CancelExtraction();
-            _preloadManager.CancelAll();
-            _imageLoadingCts?.Cancel();
-            _globalTextCts?.Cancel();
-
-            // Close other formats first
-            if (!await CloseCurrentPdfAsync()) return;
-            if (!await CloseCurrentEpubAsync()) return;
-            if (!await CloseCurrentArchiveAsync()) return;
-
-            try
-            {
-                _imageEntries = (await _archiveSession.OpenLocalAsync(archivePath)).ToList();
-
-                if (_imageEntries.Count > 0)
-                {
-                    _currentIndex = 0;
-
-                    await DisplayCurrentImageAsync();
- 
-                    // 7z 파일인 경우 백그라운드 압축 해제 시작
-                    if (_archiveSession.IsSevenZipArchive)
-                    {
-                        var extractToken = _sevenZipExtraction.StartNewExtraction();
-                        _ = _archiveSession.ExtractSevenZipEntriesInBackgroundAsync(
-                            archivePath,
-                            _imageEntries,
-                            () => _currentIndex,
-                            _sevenZipExtraction,
-                            extractToken);
-                    }
-
-                    // Start preloading images after displaying the first one
-                    _ = _preloadManager.StartPreloadAsync(
-                        _currentIndex, _imageEntries, _currentPdfDocument != null, _zoomLevel,
-                        _currentBitmap, _leftBitmap, _rightBitmap,
-                        LoadBitmapForPreloadAsync,
-                        () => MainCanvas?.Invalidate(),
-                        prioritizeNext: true,
-                        requireSharpening: _sharpenEnabled);
-
-                    // Update title to show archive name
-                    Title = "Uviewer - Image & Text Viewer";
-                }
-                else
-                {
-                    FileNameText.Text = "이 압축 파일에 이미지가 없습니다";
-                }
-            }
-            catch (Exception ex)
-            {
-                FileNameText.Text = $"압축 파일 열기 실패: {ex.Message}";
-            }
-        }
-
-        private void CloseCurrentArchive()
-        {
-            if (!_archiveSession.HasArchive) return;
-
-            // [Immediate Stop] 락을 기다리기 전에 추출 작업 즉시 취소
-            _sevenZipExtraction.CancelExtraction();
-            _preloadManager.CancelAll();
-
-            if (_archiveSession.Close(TimeSpan.FromSeconds(2)))
-            {
-                AfterArchiveClosed();
-            }
-        }
+        private Task LoadImagesFromArchiveAsync(string archivePath)
+            => _archiveDocumentController.LoadImagesFromArchiveAsync(archivePath);
 
         private async Task<bool> CloseCurrentArchiveAsync()
-        {
-            if (!_archiveSession.HasArchive) return true;
-
-            _sevenZipExtraction.CancelExtraction();
-            _preloadManager.CancelAll();
-
-            if (!await _archiveSession.CloseAsync(TimeSpan.FromSeconds(10)))
-            {
-                return false;
-            }
-
-            AfterArchiveClosed();
-            return true;
-        }
-
-        private void AfterArchiveClosed()
-        {
-            // 메인 UI 스레드에서 타이틀 변경 (안전하게 처리)
-            DispatcherQueue.TryEnqueue(() =>
-            {
-                Title = "Uviewer - Image & Text Viewer";
-            });
-
-            _imageCache?.ClearAll();
-
-            // Clean up fast navigation
-            _fastNavigationService?.StopTimers();
-
-            _imageViewerState.ClearBitmaps();
-
-            _sevenZipExtraction.CleanupTempData();
-        }
+            => await _archiveDocumentController.CloseCurrentArchiveAsync();
 
         #endregion
 
@@ -529,12 +336,12 @@ namespace Uviewer
             var renameItem = new MenuFlyoutItem { Text = Strings.ExplorerRename, Icon = new FontIcon { Glyph = "\uE8AC" } };
             var deleteItem = new MenuFlyoutItem { Text = Strings.ExplorerDelete, Icon = new FontIcon { Glyph = "\uE74D" } };
 
-            openExternalItem.Click += async (_, _) => await OpenExplorerItemWithExternalProgramAsync(GetExplorerContextItem());
-            openDefaultItem.Click += (_, _) => OpenExplorerItemWithDefaultProgram(GetExplorerContextItem());
-            openExplorerItem.Click += (_, _) => OpenExplorerItemInWindowsExplorer(GetExplorerContextItem());
+            openExternalItem.Click += async (_, _) => await _explorerItemOperationController.OpenWithExternalProgramAsync(GetExplorerContextItem());
+            openDefaultItem.Click += (_, _) => _explorerItemOperationController.OpenWithDefaultProgram(GetExplorerContextItem());
+            openExplorerItem.Click += (_, _) => _explorerItemOperationController.OpenInWindowsExplorer(GetExplorerContextItem());
             refreshItem.Click += (_, _) => RefreshExplorer();
-            renameItem.Click += async (_, _) => await RenameExplorerItemAsync(GetExplorerContextItem());
-            deleteItem.Click += async (_, _) => await DeleteExplorerItemAsync(GetExplorerContextItem());
+            renameItem.Click += async (_, _) => await _explorerItemOperationController.RenameAsync(GetExplorerContextItem());
+            deleteItem.Click += async (_, _) => await _explorerItemOperationController.DeleteAsync(GetExplorerContextItem());
 
             flyout.Opening += (_, _) =>
             {
@@ -595,267 +402,6 @@ namespace Uviewer
             return null;
         }
 
-        private async Task SelectExternalProgramAsync()
-        {
-            const double dialogContentWidth = 420;
-
-            var input = new TextBox
-            {
-                Text = _externalProgramPath,
-                PlaceholderText = Strings.ExternalProgramPathPlaceholder,
-                Width = dialogContentWidth,
-                MaxWidth = dialogContentWidth,
-                HorizontalAlignment = HorizontalAlignment.Stretch
-            };
-
-            var browseButton = new Button
-            {
-                Content = Strings.ExternalProgramBrowseButton,
-                HorizontalAlignment = HorizontalAlignment.Right
-            };
-
-            browseButton.Click += async (_, _) =>
-            {
-                var file = await PickExternalProgramFileAsync();
-                if (file == null) return;
-
-                input.Text = file.Path;
-                input.Focus(FocusState.Programmatic);
-                input.Select(input.Text.Length, 0);
-            };
-
-            var validationText = new TextBlock
-            {
-                Text = Strings.ExternalProgramPathRequired,
-                Visibility = Visibility.Collapsed,
-                TextWrapping = TextWrapping.Wrap
-            };
-            input.TextChanged += (_, _) => validationText.Visibility = Visibility.Collapsed;
-
-            var panel = new StackPanel
-            {
-                Width = dialogContentWidth,
-                MaxWidth = dialogContentWidth,
-                Spacing = 8,
-                Children =
-                {
-                    new TextBlock
-                    {
-                        Text = Strings.ExternalProgramPathDescription,
-                        TextWrapping = TextWrapping.Wrap
-                    },
-                    input,
-                    browseButton,
-                    validationText
-                }
-            };
-
-            var dialog = new ContentDialog
-            {
-                Title = Strings.ExternalProgramSettings,
-                Content = panel,
-                PrimaryButtonText = Strings.ExternalProgramSaveButton,
-                CloseButtonText = Strings.Cancel,
-                DefaultButton = ContentDialogButton.Primary,
-                XamlRoot = RootGrid.XamlRoot,
-                RequestedTheme = RootGrid.ActualTheme
-            };
-
-            dialog.PrimaryButtonClick += (_, args) =>
-            {
-                if (!string.IsNullOrWhiteSpace(ExplorerItemLaunchService.NormalizeExternalProgramPath(input.Text))) return;
-
-                validationText.Visibility = Visibility.Visible;
-                input.Focus(FocusState.Programmatic);
-                args.Cancel = true;
-            };
-
-            var result = await dialog.ShowAsync();
-            if (result != ContentDialogResult.Primary) return;
-
-            _externalProgramPath = ExplorerItemLaunchService.NormalizeExternalProgramPath(input.Text);
-            MainToolbar.SetExternalProgramPath(_externalProgramPath);
-            _windowSettingsCoordinator?.SaveWindowSettings();
-            ShowNotification(Strings.ExternalProgramConfiguredNotification(ExplorerItemLaunchService.GetExternalProgramDisplayName(_externalProgramPath)));
-        }
-
-        private async Task<StorageFile?> PickExternalProgramFileAsync()
-        {
-            var picker = new FileOpenPicker();
-            var hwnd = WinRT.Interop.WindowNative.GetWindowHandle(this);
-            WinRT.Interop.InitializeWithWindow.Initialize(picker, hwnd);
-
-            picker.ViewMode = PickerViewMode.List;
-            picker.SuggestedStartLocation = PickerLocationId.ComputerFolder;
-            picker.FileTypeFilter.Add(".exe");
-            picker.FileTypeFilter.Add(".cmd");
-            picker.FileTypeFilter.Add(".bat");
-            picker.FileTypeFilter.Add(".com");
-
-            return await picker.PickSingleFileAsync();
-        }
-
-        private async Task OpenExplorerItemWithExternalProgramAsync(FileItem? item)
-        {
-            await _explorerItemLaunchService.OpenWithExternalProgramAsync(
-                item,
-                _externalProgramPath,
-                SelectExternalProgramAsync,
-                RefreshExplorer,
-                ShowNotification);
-        }
-
-        private void OpenExplorerItemWithDefaultProgram(FileItem? item)
-        {
-            _explorerItemLaunchService.OpenWithDefaultProgram(item, RefreshExplorer, ShowNotification);
-        }
-
-        private void OpenExplorerItemInWindowsExplorer(FileItem? item)
-        {
-            _explorerItemLaunchService.OpenInWindowsExplorer(item, RefreshExplorer, ShowNotification);
-        }
-
-        private async Task RenameExplorerItemAsync(FileItem? item)
-        {
-            if (item == null || item.IsParentDirectory || item.IsWebDav) return;
-
-            var originalPath = item.FullPath;
-            if (!File.Exists(originalPath) && !Directory.Exists(originalPath))
-            {
-                ShowNotification(Strings.FileNotFound, "\uE7BA", "Red");
-                RefreshExplorer();
-                return;
-            }
-
-            var input = new TextBox
-            {
-                Text = item.Name,
-                SelectionStart = 0,
-                SelectionLength = Path.GetFileNameWithoutExtension(item.Name).Length,
-                MinWidth = 320
-            };
-
-            var dialog = new ContentDialog
-            {
-                Title = Strings.ExplorerRename,
-                Content = input,
-                PrimaryButtonText = Strings.RenamePrimary,
-                CloseButtonText = Strings.Cancel,
-                DefaultButton = ContentDialogButton.Primary,
-                XamlRoot = RootGrid.XamlRoot,
-                RequestedTheme = RootGrid.ActualTheme
-            };
-
-            var result = await dialog.ShowAsync();
-            if (result != ContentDialogResult.Primary) return;
-
-            var newName = input.Text.Trim();
-            if (string.IsNullOrEmpty(newName) || newName == item.Name) return;
-
-            if (newName.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0)
-            {
-                ShowNotification(Strings.InvalidFileName, "\uE783", "Red");
-                return;
-            }
-
-            var parent = Path.GetDirectoryName(originalPath);
-            if (string.IsNullOrEmpty(parent)) return;
-
-            var newPath = Path.Combine(parent, newName);
-            if (File.Exists(newPath) || Directory.Exists(newPath))
-            {
-                ShowNotification(Strings.FileNameAlreadyExists, "\uE783", "Red");
-                return;
-            }
-
-            var shouldReopen = IsExplorerOperationTargetOpen(originalPath, item.IsDirectory);
-            await ReleaseCurrentDocumentForExplorerOperationAsync(originalPath, item.IsDirectory);
-
-            try
-            {
-                if (item.IsDirectory)
-                {
-                    Directory.Move(originalPath, newPath);
-                }
-                else
-                {
-                    File.Move(originalPath, newPath);
-                }
-
-                RefreshExplorer();
-
-                if (shouldReopen && !item.IsDirectory)
-                {
-                    await OpenLocalFilePathAsync(newPath);
-                }
-
-                ShowNotification(Strings.RenameSucceeded);
-            }
-            catch (Exception ex)
-            {
-                ShowNotification(Strings.RenameFailed(ex.Message), "\uE783", "Red");
-            }
-        }
-
-        private async Task DeleteExplorerItemAsync(FileItem? item)
-        {
-            if (item == null || item.IsParentDirectory || item.IsWebDav) return;
-
-            var path = item.FullPath;
-            if (!File.Exists(path) && !Directory.Exists(path))
-            {
-                ShowNotification(Strings.FileNotFound, "\uE7BA", "Red");
-                RefreshExplorer();
-                return;
-            }
-
-            var dialog = new ContentDialog
-            {
-                Title = Strings.ExplorerDelete,
-                Content = Strings.DeleteConfirmation(item.Name),
-                PrimaryButtonText = Strings.DeletePrimary,
-                CloseButtonText = Strings.Cancel,
-                DefaultButton = ContentDialogButton.Close,
-                XamlRoot = RootGrid.XamlRoot,
-                RequestedTheme = RootGrid.ActualTheme
-            };
-
-            var result = await dialog.ShowAsync();
-            if (result != ContentDialogResult.Primary) return;
-
-            var shouldClearViewer = IsExplorerOperationTargetOpen(path, item.IsDirectory);
-            await ReleaseCurrentDocumentForExplorerOperationAsync(path, item.IsDirectory);
-
-            try
-            {
-                if (item.IsDirectory)
-                {
-                    Microsoft.VisualBasic.FileIO.FileSystem.DeleteDirectory(
-                        path,
-                        Microsoft.VisualBasic.FileIO.UIOption.OnlyErrorDialogs,
-                        Microsoft.VisualBasic.FileIO.RecycleOption.SendToRecycleBin);
-                }
-                else
-                {
-                    Microsoft.VisualBasic.FileIO.FileSystem.DeleteFile(
-                        path,
-                        Microsoft.VisualBasic.FileIO.UIOption.OnlyErrorDialogs,
-                        Microsoft.VisualBasic.FileIO.RecycleOption.SendToRecycleBin);
-                }
-
-                RefreshExplorer();
-                if (shouldClearViewer)
-                {
-                    ClearViewerAfterExplorerDeletion();
-                }
-                ShowNotification(Strings.MovedToRecycleBin);
-            }
-            catch (Exception ex)
-            {
-                ShowNotification(Strings.DeleteFailed(ex.Message), "\uE783", "Red");
-            }
-        }
-
         private async Task ReleaseCurrentDocumentForExplorerOperationAsync(string targetPath, bool targetIsDirectory)
         {
             var shouldClose = IsExplorerOperationTargetOpen(targetPath, targetIsDirectory);
@@ -879,31 +425,7 @@ namespace Uviewer
         }
 
         private bool IsExplorerOperationTargetOpen(string targetPath, bool targetIsDirectory)
-        {
-            if (string.IsNullOrWhiteSpace(targetPath)) return false;
-
-            var currentPath = GetCurrentNavigatingPath();
-            if (PathsEqual(currentPath, targetPath)) return true;
-            if (IsCurrentFile(targetPath)) return true;
-
-            if (!string.IsNullOrEmpty(_currentPdfPath) && PathsEqual(_currentPdfPath, targetPath)) return true;
-            if (!string.IsNullOrEmpty(_archiveSession.CurrentPath) && PathsEqual(_archiveSession.CurrentPath, targetPath)) return true;
-            if (!string.IsNullOrEmpty(_currentEpubFilePath) && PathsEqual(_currentEpubFilePath, targetPath)) return true;
-            if (!string.IsNullOrEmpty(_currentTextFilePath) && PathsEqual(_currentTextFilePath, targetPath)) return true;
-
-            if (_currentIndex >= 0 && _imageEntries != null && _currentIndex < _imageEntries.Count)
-            {
-                var entry = _imageEntries[_currentIndex];
-                if (PathsEqual(entry.FilePath, targetPath) || PathsEqual(entry.WebDavPath, targetPath)) return true;
-            }
-
-            if (targetIsDirectory && !string.IsNullOrEmpty(currentPath) && IsSameOrChildPath(currentPath, targetPath))
-            {
-                return true;
-            }
-
-            return false;
-        }
+            => _documentOpenStateQuery.IsExplorerOperationTargetOpen(targetPath, targetIsDirectory);
 
         private void ClearViewerAfterExplorerDeletion()
         {
@@ -933,38 +455,6 @@ namespace Uviewer
         private async Task OpenLocalFilePathAsync(string path)
         {
             await _localDocumentOpenCoordinator.OpenExistingFilePathAsync(path, saveCurrentPositionBeforeOpen: false);
-        }
-
-        private static bool IsSameOrChildPath(string? candidatePath, string parentPath)
-        {
-            if (string.IsNullOrWhiteSpace(candidatePath) || string.IsNullOrWhiteSpace(parentPath))
-            {
-                return false;
-            }
-
-            var candidate = Path.GetFullPath(candidatePath).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
-            var parent = Path.GetFullPath(parentPath).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
-
-            return candidate.Equals(parent, StringComparison.OrdinalIgnoreCase) ||
-                candidate.StartsWith(parent + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase) ||
-                candidate.StartsWith(parent + Path.AltDirectorySeparatorChar, StringComparison.OrdinalIgnoreCase);
-        }
-
-        private static bool PathsEqual(string? first, string? second)
-        {
-            if (string.IsNullOrWhiteSpace(first) || string.IsNullOrWhiteSpace(second))
-            {
-                return false;
-            }
-
-            try
-            {
-                return Path.GetFullPath(first).Equals(Path.GetFullPath(second), StringComparison.OrdinalIgnoreCase);
-            }
-            catch
-            {
-                return first.Equals(second, StringComparison.OrdinalIgnoreCase);
-            }
         }
 
         private void UpdateToggleViewButtonTooltip()
@@ -1043,38 +533,7 @@ namespace Uviewer
         }
 
         private bool IsCurrentFile(string path)
-        {
-            if (string.IsNullOrEmpty(path)) return false;
-
-            // Direct match for major formats
-            if (!string.IsNullOrEmpty(_currentPdfPath) && _currentPdfPath.Equals(path, StringComparison.OrdinalIgnoreCase)) return true;
-            if (!string.IsNullOrEmpty(_archiveSession.CurrentPath) && _archiveSession.CurrentPath.Equals(path, StringComparison.OrdinalIgnoreCase)) return true;
-            if (!string.IsNullOrEmpty(_currentEpubFilePath) && _currentEpubFilePath.Equals(path, StringComparison.OrdinalIgnoreCase)) return true;
-            if (!string.IsNullOrEmpty(_currentTextFilePath) && _currentTextFilePath.Equals(path, StringComparison.OrdinalIgnoreCase)) return true;
-
-            // WebDAV 모드인 경우 원격 경로 비교 추가
-            if (_isWebDavMode && _currentIndex >= 0 && _imageEntries != null && _currentIndex < _imageEntries.Count)
-            {
-                var entry = _imageEntries[_currentIndex];
-                if (entry.IsWebDavEntry && entry.WebDavPath == path) return true;
-                if (entry.IsArchiveEntry && _archiveSession.CurrentPath != null &&
-                    (_archiveSession.CurrentPath == path || _archiveSession.CurrentPath == $"WebDAV:{path}")) return true;
-            }
-
-            if (_currentIndex >= 0 && _imageEntries != null && _currentIndex < _imageEntries.Count)
-            {
-                var entry = _imageEntries[_currentIndex];
-                if (entry.IsArchiveEntry)
-                {
-                    return _archiveSession.CurrentPath != null && _archiveSession.CurrentPath.Equals(path, StringComparison.OrdinalIgnoreCase);
-                }
-                else
-                {
-                    return entry.FilePath != null && entry.FilePath.Equals(path, StringComparison.OrdinalIgnoreCase);
-                }
-            }
-            return false;
-        }
+            => _documentOpenStateQuery.IsCurrentFile(path);
 
         private async void FileGridView_PreviewKeyDown(object sender, Microsoft.UI.Xaml.Input.KeyRoutedEventArgs e)
         {

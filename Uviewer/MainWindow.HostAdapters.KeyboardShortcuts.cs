@@ -85,7 +85,7 @@ namespace Uviewer
 
             public Task ShowGoToLineDialog() => _window._documentReaderController.ShowGoToLineDialog();
             public Task NavigateToParentFolderAsync() => _window.NavigateToParentFolderAsync();
-            public Task OpenFileAsync() => _window.OpenFileAsync();
+            public Task OpenFileAsync() => _window._fileOpenController.OpenFileAsync();
             public void ZoomIn() => _window.ZoomIn();
             public void ZoomOut() => _window.ZoomOut();
             public void FitToWindow() => _window.FitToWindow();
