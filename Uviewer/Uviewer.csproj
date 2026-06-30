@@ -22,13 +22,10 @@
 
   <!-- Use Package.appxmanifest as the source of truth for app and assembly versions. -->
   <Target Name="ReadManifestVersion">
-    <XmlPeek XmlInputPath="$(MSBuildProjectDirectory)\Package.appxmanifest"
-             Namespaces="&lt;Namespace Prefix='ns' Uri='http://schemas.microsoft.com/appx/manifest/foundation/windows10' /&gt;"
-             Query="/ns:Package/ns:Identity/@Version">
+    <XmlPeek XmlInputPath="$(MSBuildProjectDirectory)\Package.appxmanifest" Namespaces="&lt;Namespace Prefix='ns' Uri='http://schemas.microsoft.com/appx/manifest/foundation/windows10' /&gt;" Query="/ns:Package/ns:Identity/@Version">
       <Output TaskParameter="Result" PropertyName="ManifestVersion" />
     </XmlPeek>
-    <Error Condition="'$(ManifestVersion)' == ''"
-           Text="Package.appxmanifest Identity Version is missing." />
+    <Error Condition="'$(ManifestVersion)' == ''" Text="Package.appxmanifest Identity Version is missing." />
     <PropertyGroup>
       <Version>$(ManifestVersion)</Version>
       <AssemblyVersion>$(ManifestVersion)</AssemblyVersion>
@@ -67,9 +64,9 @@
     <ProjectCapability Include="Msix" />
   </ItemGroup>
   <ItemGroup>
-    <PackageReference Include="Microsoft.Windows.SDK.BuildTools" Version="10.0.28000.1839" />
+    <PackageReference Include="Microsoft.Windows.SDK.BuildTools" Version="10.0.28000.2270" />
     <PackageReference Include="Microsoft.WindowsAppSDK" Version="2.2.0" />
-    <PackageReference Include="PdfPig" Version="0.1.14" />
+    <PackageReference Include="PdfPig" Version="0.1.15" />
     <PackageReference Include="SevenZipExtractor" Version="1.0.19" />
     <PackageReference Include="SharpCompress" Version="0.49.1" />
     <PackageReference Include="Microsoft.Graphics.Win2D" Version="1.4.0" />
