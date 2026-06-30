@@ -14,7 +14,7 @@ namespace Uviewer
 {
     public sealed partial class MainWindow
     {
-        private sealed class ImageViewerHostAdapter : IImageViewerHost
+        private sealed class ImageViewerHostAdapter : IImageViewerHost, IImageBitmapLifetimeHost, IImageDocumentEntryHost, IImageExplorerNavigationHost, IImageFastNavigationHost, IImageInputHost, IImagePdfPageDisplayHost, IImagePresentationHost, IImagePreloadHost, IImageSideBySideDisplayHost, IImageSingleDisplayHost, IImageViewingOptionsHost, IImageZoomHost
         {
             private readonly MainWindow _window;
 

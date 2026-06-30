@@ -28,7 +28,7 @@ namespace Uviewer.Services
     {
         #region Existing Extension Helpers
         public static readonly string[] SupportedImageExtensions = { ".jpg", ".jpeg", ".png", ".bmp", ".gif", ".webp", ".avif", ".jxl", ".ico", ".tiff", ".tif" };
-        public static readonly string[] SupportedTextExtensions = { ".txt", ".log", ".json", ".toml", ".html", ".htm", ".md", ".xml" };
+        public static readonly string[] SupportedTextExtensions = { ".txt", ".log", ".json", ".toml", ".csv", ".html", ".htm", ".md", ".xml" };
         public static readonly string[] SupportedArchiveExtensions = { ".zip", ".rar", ".7z", ".tar", ".gz", ".cbz", ".cbr" };
         public static readonly string[] SupportedEpubExtensions = { ".epub" };
         public static readonly string[] SupportedPdfExtensions = { ".pdf" };

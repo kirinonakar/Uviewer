@@ -1,10 +1,10 @@
 namespace Uviewer.Services
 {
-    internal sealed class ImageZoomController
+    internal sealed class ImageZoomCoordinator
     {
-        private readonly IImageViewerHost _host;
+        private readonly IImageZoomHost _host;
 
-        public ImageZoomController(IImageViewerHost host)
+        public ImageZoomCoordinator(IImageZoomHost host)
         {
             _host = host;
         }

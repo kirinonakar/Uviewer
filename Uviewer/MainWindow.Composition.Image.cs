@@ -11,7 +11,22 @@ namespace Uviewer
             {
                 public static void InitializeController(MainWindow window)
                 {
-                    window._imageViewerController = new ImageViewerController(new ImageViewerHostAdapter(window));
+                    var imageHost = new ImageViewerHostAdapter(window);
+                    window._imageViewerController = new ImageViewerController(
+                        new ImageViewerControllerDependencies(
+                            host: imageHost,
+                            bitmapLifetimeHost: imageHost,
+                            documentEntryHost: imageHost,
+                            explorerNavigationHost: imageHost,
+                            fastNavigationHost: imageHost,
+                            inputHost: imageHost,
+                            pdfPageDisplayHost: imageHost,
+                            presentationHost: imageHost,
+                            preloadHost: imageHost,
+                            sideBySideDisplayHost: imageHost,
+                            singleDisplayHost: imageHost,
+                            viewingOptionsHost: imageHost,
+                            zoomHost: imageHost));
                     window._imageViewportNavigationService = new ImageViewportNavigationService(
                         window.DispatcherQueue,
                         window.RerenderPdfCurrentPageAsync);

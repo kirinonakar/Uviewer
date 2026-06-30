@@ -4,13 +4,13 @@ using Visibility = Microsoft.UI.Xaml.Visibility;
 
 namespace Uviewer.Services
 {
-    internal sealed class ImageFastNavigationController
+    internal sealed class ImageFastNavigationPresenter
     {
-        private readonly IImageViewerHost _host;
+        private readonly IImageFastNavigationHost _host;
         private readonly Func<Task> _displayCurrentImageAsync;
 
-        public ImageFastNavigationController(
-            IImageViewerHost host,
+        public ImageFastNavigationPresenter(
+            IImageFastNavigationHost host,
             Func<Task> displayCurrentImageAsync)
         {
             _host = host;

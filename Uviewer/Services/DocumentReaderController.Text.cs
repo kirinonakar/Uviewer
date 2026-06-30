@@ -365,7 +365,8 @@ namespace Uviewer
             string extension = Path.GetExtension(source);
             return string.Equals(extension, ".json", StringComparison.OrdinalIgnoreCase) ||
                    string.Equals(extension, ".log", StringComparison.OrdinalIgnoreCase) ||
-                   string.Equals(extension, ".toml", StringComparison.OrdinalIgnoreCase);
+                   string.Equals(extension, ".toml", StringComparison.OrdinalIgnoreCase) ||
+                   string.Equals(extension, ".csv", StringComparison.OrdinalIgnoreCase);
         }
 
         internal int GetSavedStartLine(string name, string? path)
