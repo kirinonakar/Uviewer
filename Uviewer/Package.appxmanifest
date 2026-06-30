@@ -57,6 +57,9 @@
               <uap:FileType>.tiff</uap:FileType>
               <uap:FileType>.tif</uap:FileType>
               <uap:FileType>.txt</uap:FileType>
+              <uap:FileType>.log</uap:FileType>
+              <uap:FileType>.json</uap:FileType>
+              <uap:FileType>.toml</uap:FileType>
               <uap:FileType>.html</uap:FileType>
               <uap:FileType>.htm</uap:FileType>
               <uap:FileType>.md</uap:FileType>

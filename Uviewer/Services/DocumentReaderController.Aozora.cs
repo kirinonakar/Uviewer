@@ -189,6 +189,12 @@ namespace Uviewer
         {
             try
             {
+                if (IsPlainTextModeLockedDocumentActive())
+                {
+                    ApplyPlainTextModeLock();
+                    return;
+                }
+
                 if (TextFastNavOverlay != null) TextFastNavOverlay.Visibility = Visibility.Visible;
                 await Task.Delay(10);
                 

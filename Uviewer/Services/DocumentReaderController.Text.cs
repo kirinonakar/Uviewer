@@ -4,6 +4,7 @@ using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -31,6 +32,7 @@ namespace Uviewer
 
         internal TextSettingsManager _settingsManager = null!;
         internal bool _isTextMode = false;
+        internal bool _isCurrentTextPlainModeLocked = false;
         internal int _textTotalLineCountInSource
         {
             get => _textReaderState.TotalLineCountInSource;
@@ -215,6 +217,16 @@ namespace Uviewer
         {
             var preparedText = _textDisplayPreparationService.Prepare(content, name);
             content = preparedText.Content;
+            _isCurrentTextPlainModeLocked = RequiresPlainTextModeLock(name, uniquePath);
+            if (_isCurrentTextPlainModeLocked)
+            {
+                ApplyPlainTextModeLock();
+            }
+            else
+            {
+                MainToolbar.SetAozoraToggleState(isChecked: _isAozoraMode, isEnabled: true);
+            }
+
             _currentTextContent = content; // Save for reload
             _tocService.SetProvider(new TextTocProvider(content));
             _ = _tocService.LoadTocAsync(token);
@@ -226,9 +238,10 @@ namespace Uviewer
             _lastRecentSaveLine = -1;
 
             _isMarkdownRenderMode = preparedText.IsMarkdownRenderMode;
+            bool canUseVerticalMode = preparedText.CanUseVerticalMode && !_isCurrentTextPlainModeLocked;
             MainToolbar.SetVerticalToggleState(
-                isChecked: preparedText.CanUseVerticalMode && _isVerticalMode,
-                isEnabled: preparedText.CanUseVerticalMode);
+                isChecked: canUseVerticalMode && _isVerticalMode,
+                isEnabled: canUseVerticalMode);
 
             // Unified Target Line Logic
             int targetLine = 1;
@@ -311,6 +324,46 @@ namespace Uviewer
                     _ = RestoreTextPositionAsync(name);
                 }
             }
+        }
+
+        internal bool IsPlainTextModeLockedDocumentActive() => _isTextMode && _isCurrentTextPlainModeLocked;
+
+        internal void ApplyPlainTextModeLock()
+        {
+            _isAozoraMode = false;
+            _isVerticalMode = false;
+            _aozoraPendingTargetLine = 0;
+            _aozoraPendingTargetBlockIndex = -1;
+            _pendingVerticalScrollLine = null;
+            _pendingVerticalStartBlockIndex = -1;
+
+            _aozoraPageCalcCts?.Cancel();
+            _verticalPageCalcCts?.Cancel();
+            _currentVerticalRenderCts?.Cancel();
+            _textReaderState.CancelPageCalculation();
+            ClearBackwardCache();
+
+            if (_verticalKeyAttached && RootGrid != null)
+            {
+                RootGrid.PreviewKeyDown -= RootGrid_Vertical_PreviewKeyDown;
+                _verticalKeyAttached = false;
+            }
+
+            MainToolbar.SetAozoraToggleState(isChecked: false, isEnabled: false);
+            MainToolbar.SetVerticalToggleState(isChecked: false, isEnabled: false);
+
+            if (AozoraTextCanvas != null) AozoraTextCanvas.Visibility = Visibility.Collapsed;
+            if (VerticalTextCanvas != null) VerticalTextCanvas.Visibility = Visibility.Collapsed;
+            if (TextScrollViewer != null) TextScrollViewer.Visibility = Visibility.Visible;
+        }
+
+        private static bool RequiresPlainTextModeLock(string name, string? uniquePath)
+        {
+            string source = !string.IsNullOrWhiteSpace(uniquePath) ? uniquePath : name;
+            string extension = Path.GetExtension(source);
+            return string.Equals(extension, ".json", StringComparison.OrdinalIgnoreCase) ||
+                   string.Equals(extension, ".log", StringComparison.OrdinalIgnoreCase) ||
+                   string.Equals(extension, ".toml", StringComparison.OrdinalIgnoreCase);
         }
 
         internal int GetSavedStartLine(string name, string? path)
@@ -445,7 +498,11 @@ namespace Uviewer
         {
             if (_settingsManager != null)
             {
-                _settingsManager.IsVerticalMode = _isVerticalMode;
+                if (!_isCurrentTextPlainModeLocked)
+                {
+                    _settingsManager.IsVerticalMode = _isVerticalMode;
+                }
+
                 _settingsManager.Save();
             }
         }
@@ -956,6 +1013,12 @@ namespace Uviewer
 
         internal async Task ToggleVerticalModeFromShortcutAsync()
         {
+            if (IsPlainTextModeLockedDocumentActive())
+            {
+                ApplyPlainTextModeLock();
+                return;
+            }
+
             await AddToRecentAsync(true);
             _isVerticalMode = !_isVerticalMode;
             MainToolbar.SetVerticalToggleState(isChecked: _isVerticalMode);

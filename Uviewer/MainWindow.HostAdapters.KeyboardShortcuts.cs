@@ -60,6 +60,12 @@ namespace Uviewer
 
             public void ToggleVerticalMode()
             {
+                if (_window._documentReaderController.IsPlainTextModeLockedDocumentActive())
+                {
+                    _window._documentReaderController.ApplyPlainTextModeLock();
+                    return;
+                }
+
                 _window._isVerticalMode = !_window._isVerticalMode;
                 _window.MainToolbar.SetVerticalToggleState(isChecked: _window._isVerticalMode);
                 _window.SaveTextSettings();

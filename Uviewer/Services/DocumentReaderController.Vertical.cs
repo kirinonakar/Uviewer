@@ -136,6 +136,12 @@ namespace Uviewer
         {
             try
             {
+                if (IsPlainTextModeLockedDocumentActive())
+                {
+                    ApplyPlainTextModeLock();
+                    return;
+                }
+
                 // Save current position before switching mode
                 await AddToRecentAsync(true);
                 _isVerticalMode = MainToolbar.IsVerticalToggleChecked;
@@ -154,6 +160,12 @@ namespace Uviewer
         {
             try
             {
+                if (IsPlainTextModeLockedDocumentActive())
+                {
+                    ApplyPlainTextModeLock();
+                    return;
+                }
+
                 if (TextFastNavOverlay != null) TextFastNavOverlay.Visibility = Visibility.Visible;
                 await Task.Delay(10); 
 

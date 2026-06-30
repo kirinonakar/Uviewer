@@ -328,6 +328,12 @@ namespace Uviewer.Controls
 
         public void SetAozoraToggleChecked(bool isChecked) => AozoraToggleButton.IsChecked = isChecked;
 
+        public void SetAozoraToggleState(bool? isChecked = null, bool? isEnabled = null)
+        {
+            if (isChecked.HasValue) AozoraToggleButton.IsChecked = isChecked.Value;
+            if (isEnabled.HasValue) AozoraToggleButton.IsEnabled = isEnabled.Value;
+        }
+
         public bool IsVerticalToggleChecked => VerticalToggleButton.IsChecked ?? false;
 
         public void SetVerticalToggleState(bool? isChecked = null, bool? isEnabled = null)

@@ -450,7 +450,7 @@ namespace Uviewer
             {
                 string[] extensions = { 
                     ".jpg", ".jpeg", ".png", ".bmp", ".gif", ".webp", ".avif", ".jxl", ".ico", ".tiff", ".tif", 
-                    ".txt", ".html", ".htm", ".md", ".xml", 
+                    ".txt", ".log", ".json", ".toml", ".html", ".htm", ".md", ".xml", 
                     ".zip", ".rar", ".7z", ".tar", ".gz", ".cbz", ".cbr", 
                     ".epub", ".pdf" 
                 };
