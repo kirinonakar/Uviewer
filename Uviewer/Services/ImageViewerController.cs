@@ -19,127 +19,29 @@ namespace Uviewer.Services
     internal sealed class ImageViewerController
     {
         private readonly IImageViewerHost _host;
+        private readonly ImageFastNavigationController _fastNavigationController;
+        private readonly ImageZoomController _zoomController;
 
         public ImageViewerController(IImageViewerHost host)
         {
             _host = host ?? throw new ArgumentNullException(nameof(host));
+            _fastNavigationController = new ImageFastNavigationController(_host, DisplayCurrentImageAsync);
+            _zoomController = new ImageZoomController(_host);
         }
 
-        public void UpdateFastNavigationUI()
-        {
-            if (_host.CurrentIndex < 0 || _host.ImageEntries.Count == 0)
-                return;
+        public void UpdateFastNavigationUI() => _fastNavigationController.UpdateFastNavigationUI();
 
-            var currentEntry = _host.ImageEntries[_host.CurrentIndex];
-            string displayName = FileExplorerService.GetFormattedDisplayName(currentEntry.DisplayName, currentEntry.IsArchiveEntry);
+        public Task ResetFastNavigationAsync() => _fastNavigationController.ResetFastNavigationAsync();
 
-            _host.FastNavigationService.UpdateState(
-                _host.CurrentIndex,
-                _host.ImageEntries.Count,
-                displayName,
-                _host.IsCurrentViewSideBySide);
+        public void ZoomActual() => _zoomController.ZoomActual();
 
-            _host.Signal7zJump();
+        public void ZoomIn() => _zoomController.ZoomIn();
 
-            _host.FastNavigationService.ShowOverlay(
-                showCallback: () =>
-                {
-                    _host.FastNavText.Text = _host.FastNavigationService.GetOverlayMessage();
-                    _host.FastNavOverlay.Visibility = Visibility.Visible;
-                },
-                hideCallback: () =>
-                {
-                    _host.FastNavOverlay.Visibility = Visibility.Collapsed;
-                });
+        public void ZoomOut() => _zoomController.ZoomOut();
 
-            _host.FileNameText.Text = _host.FastNavigationService.DisplayName;
-            _host.ImageIndexText.Text = _host.FastNavigationService.GetImageIndexMessage();
-            _host.TextProgressText.Text = "";
-            _host.ImageInfoText.Text = "빠르게 넘어가는 중...";
-        }
+        public void FitToWindow() => _zoomController.FitToWindow();
 
-        public async Task ResetFastNavigationAsync()
-        {
-            _host.FastNavigationService.StopOverlayTimer();
-            if (_host.CurrentIndex >= 0 && _host.CurrentIndex < _host.ImageEntries.Count)
-            {
-                _host.Signal7zJump();
-                await DisplayCurrentImageAsync();
-            }
-
-            _host.FastNavOverlay.Visibility = Visibility.Collapsed;
-            _host.MainCanvas?.Invalidate();
-        }
-
-        public void ZoomActual()
-        {
-            if (_host.IsCurrentViewSideBySide && !_host.IsPdfMode) return;
-
-            if (CanvasBitmapHelper.TryGetBitmapSize(_host.CurrentBitmap, out var bitmapSize))
-            {
-                var containerWidth = _host.ImageArea.ActualWidth;
-                var containerHeight = _host.ImageArea.ActualHeight;
-
-                if (containerWidth > 0 && containerHeight > 0)
-                {
-                    _host.ZoomService.CalculateActualZoom(
-                        containerWidth,
-                        containerHeight,
-                        bitmapSize.Width,
-                        bitmapSize.Height,
-                        _host.MainCanvas.Dpi / 96.0f,
-                        _host.IsPdfMode);
-                    ApplyZoom();
-                }
-            }
-        }
-
-        public void ZoomIn()
-        {
-            if (_host.IsCurrentViewSideBySide && !_host.IsPdfMode) return;
-            _host.ZoomService.ZoomIn();
-            ApplyZoom();
-        }
-
-        public void ZoomOut()
-        {
-            if (_host.IsCurrentViewSideBySide && !_host.IsPdfMode) return;
-            _host.ZoomService.ZoomOut();
-            ApplyZoom();
-        }
-
-        public void FitToWindow()
-        {
-            _host.ZoomService.FitToWindow();
-            ApplyZoom();
-        }
-
-        public void ApplyZoom()
-        {
-            if (!CanvasBitmapHelper.IsUsable(_host.CurrentBitmap) ||
-                _host.ImageArea.ActualWidth <= 0 ||
-                _host.ImageArea.ActualHeight <= 0)
-            {
-                return;
-            }
-
-            if (!_host.IsCurrentViewSideBySide || _host.IsPdfMode)
-            {
-                _host.MainCanvas?.Invalidate();
-            }
-            else
-            {
-                _host.LeftCanvas?.Invalidate();
-                _host.RightCanvas?.Invalidate();
-            }
-
-            _host.MainToolbar.SetZoomLevel(_host.ZoomLevel);
-
-            if (_host.IsPdfMode && !_host.ImageViewportNavigationService.IsSmoothZoomRunning)
-            {
-                _ = _host.RerenderPdfCurrentPageAsync();
-            }
-        }
+        public void ApplyZoom() => _zoomController.ApplyZoom();
 
         public async Task DisplayCurrentImageAsync()
         {

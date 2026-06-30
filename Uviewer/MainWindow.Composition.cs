@@ -8,34 +8,25 @@ namespace Uviewer
         {
             public static void Initialize(MainWindow window, string? launchFilePath)
             {
+                var modules = CreateModules();
+
                 window.ApplyCoreServices(CreateCoreServices());
 
                 window.InitializeComponent();
-                TextFeatureComposition.Initialize(window);
-                EpubFeatureComposition.Initialize(window);
-                ImageFeatureComposition.InitializeController(window);
-                ShellComposition.InitializeToolbar(window);
-                DocumentFeatureComposition.InitializeLocalOpenCoordinator(window);
-                DocumentFeatureComposition.InitializeFileOpenController(window);
-                DocumentFeatureComposition.InitializeDocumentOpenStateQuery(window);
-                DocumentFeatureComposition.InitializeExplorerItemOperations(window);
-                WebDavFeatureComposition.Initialize(window);
+
+                foreach (var module in modules.InitializeOrder)
+                {
+                    module.Initialize(window);
+                }
 
                 window.RootGrid.SizeChanged += window.RootGrid_SizeChanged;
 
                 try
                 {
-                    ShellComposition.InitializeWindowShell(window);
-                    ShellComposition.InitializeWindowControllers(window);
-                    DocumentFeatureComposition.InitializeNavigation(window);
-                    ImageFeatureComposition.InitializeNavigation(window);
-                    ShellComposition.InitializeWindowSettings(window);
-                    ShellComposition.InitializeExplorerAndBookmarks(window);
-                    ShellComposition.ApplyInitialWindowLayout(window);
-                    ShellComposition.InitializeRootInput(window);
-                    ShellComposition.InitializeExplorerLists(window);
-                    ImageFeatureComposition.InitializePipeline(window);
-                    DocumentFeatureComposition.InitializeArchiveController(window);
+                    foreach (var step in modules.PostLayoutOrder)
+                    {
+                        step(window);
+                    }
 
                     window.ApplyLocalization();
                     window.MainToolbar.SetExternalProgramPath(window._externalProgramPath);
