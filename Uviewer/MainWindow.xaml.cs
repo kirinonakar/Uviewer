@@ -107,8 +107,8 @@ namespace Uviewer
                 // Always load metadata first to prevent race conditions and data loss
                 await _favoritesService.LoadFavoritesAsync();
                 await _recentService.LoadRecentItemsAsync();
-                UpdateFavoritesMenu();
-                UpdateRecentMenu();
+                _bookmarkInteractionController.UpdateFavoritesMenu(_fileFavoriteItems, _folderFavoriteItems);
+                _bookmarkInteractionController.UpdateRecentMenu(_recentItemsList);
 
                 // Clean up any stale/incomplete temp files at startup
                 _sevenZipExtraction.CleanupZeroByteTempFiles();
@@ -191,7 +191,7 @@ namespace Uviewer
         private Services.ShutdownContext CreateShutdownContext(bool wasPdfOpen) => new()
         {
             WasPdfOpen = wasPdfOpen,
-            SaveCurrentPositionAsync = () => AddToRecentAsync(true),
+            SaveCurrentPositionAsync = () => _bookmarkInteractionController.AddCurrentRecentAsync(true),
             SaveWindowSettings = SaveWindowSettingsForShutdown,
             StopNotificationTimer = () => _notificationTimer?.Stop(),
             StopVerticalResizeTimer = () => _documentReaderController.StopVerticalResizeTimer(),
@@ -201,8 +201,8 @@ namespace Uviewer
             ImageLoadingCts = _imageLoadingCts,
             TextReaderState = _textReaderState,
             DocumentSearchState = _documentSearchState,
-            ShutdownPdfResources = ShutdownPdfResources,
-            ShutdownEpubResources = ShutdownEpubResources,
+            ShutdownPdfResources = _pdfDocumentController.ShutdownPdfResources,
+            ShutdownEpubResources = _epubReaderController.ShutdownEpubResources,
             FastNavigationService = _fastNavigationService,
             ImageViewportNavigationService = _imageViewportNavigationService,
             ArchiveSession = _archiveSession,
@@ -290,7 +290,7 @@ namespace Uviewer
             if (SidebarFolderFavoritesPivotItem != null) SidebarFolderFavoritesPivotItem.Header = Strings.FavoritesFolders;
 
             // Clear and re-populate favorites to refresh tooltips
-            UpdateFavoritesMenu();
+            _bookmarkInteractionController.UpdateFavoritesMenu(_fileFavoriteItems, _folderFavoriteItems);
 
             // Sort Menu & Tooltip
             UpdateSortIcon();
@@ -322,7 +322,7 @@ namespace Uviewer
             {
                 if (args.DidSizeChange)
                 {
-                    TriggerEpubResize();
+                    _epubReaderController.TriggerEpubResize();
                     TextWindowLayoutService.EnforceMinWindowSize(sender, _windowState, _isTextMode || _isEpubMode);
                 }
 

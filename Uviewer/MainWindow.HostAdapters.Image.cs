@@ -62,9 +62,9 @@ namespace Uviewer
             public void Signal7zJump() => Window.Signal7zJump();
             public void SwitchToImageMode() => Window.SwitchToImageMode();
             public Task<CanvasBitmap?> LoadPdfPageBitmapAsync(uint pageIndex, CanvasControl canvas, CancellationToken token = default, bool isPreload = false) =>
-                Window.LoadPdfPageBitmapAsync(pageIndex, canvas, token, isPreload);
+                Window._pdfDocumentController.LoadPageBitmapAsync(pageIndex, canvas, token, isPreload);
 
-            public Task AddToRecentAsync(bool immediate) => Window.AddToRecentAsync(immediate);
+            public Task AddToRecentAsync(bool immediate) => Window._bookmarkInteractionController.AddCurrentRecentAsync(immediate);
             public SharpenParams CreateSharpenParams() => Window.CreateSharpenParams();
             public void ShowNotification(string message, string icon = "\uE735", string color = "Gold") =>
                 Window.ShowNotification(message, icon, color);
@@ -118,7 +118,7 @@ namespace Uviewer
 
             public ImageViewportNavigationService ImageViewportNavigationService => Window._imageViewportNavigationService;
 
-            public Task RerenderPdfCurrentPageAsync() => Window.RerenderPdfCurrentPageAsync();
+            public Task RerenderPdfCurrentPageAsync() => Window._pdfDocumentController.RerenderCurrentPageAsync();
             public void ShowNotification(string message, string icon = "\uE735", string color = "Gold") =>
                 Window.ShowNotification(message, icon, color);
 
@@ -147,10 +147,10 @@ namespace Uviewer
 
             public void SwitchToImageMode() => Window.SwitchToImageMode();
             public Task<CanvasBitmap?> LoadPdfPageBitmapAsync(uint pageIndex, CanvasControl canvas, CancellationToken token = default, bool isPreload = false) =>
-                Window.LoadPdfPageBitmapAsync(pageIndex, canvas, token, isPreload);
+                Window._pdfDocumentController.LoadPageBitmapAsync(pageIndex, canvas, token, isPreload);
 
-            public Task AddToRecentAsync(bool immediate) => Window.AddToRecentAsync(immediate);
-            public Task RerenderPdfCurrentPageAsync() => Window.RerenderPdfCurrentPageAsync();
+            public Task AddToRecentAsync(bool immediate) => Window._bookmarkInteractionController.AddCurrentRecentAsync(immediate);
+            public Task RerenderPdfCurrentPageAsync() => Window._pdfDocumentController.RerenderCurrentPageAsync();
             public void FocusRoot() => Window.RootGrid.Focus(Microsoft.UI.Xaml.FocusState.Programmatic);
         }
 
@@ -222,7 +222,7 @@ namespace Uviewer
             public ZoomService ZoomService => Window._zoomService;
             public ImageViewportNavigationService ImageViewportNavigationService => Window._imageViewportNavigationService;
 
-            public Task RerenderPdfCurrentPageAsync() => Window.RerenderPdfCurrentPageAsync();
+            public Task RerenderPdfCurrentPageAsync() => Window._pdfDocumentController.RerenderCurrentPageAsync();
         }
 
         private sealed class ImageNavigationPort : ImageWindowPort, IImageExplorerNavigationHost, IImageFastNavigationHost
@@ -258,7 +258,7 @@ namespace Uviewer
             public ArchiveSession ArchiveSession => Window._archiveSession;
 
             public void Signal7zJump() => Window.Signal7zJump();
-            public Task AddToRecentAsync(bool immediate) => Window.AddToRecentAsync(immediate);
+            public Task AddToRecentAsync(bool immediate) => Window._bookmarkInteractionController.AddCurrentRecentAsync(immediate);
             public Task HandleFileSelectionAsync(FileItem item) => Window.HandleFileSelectionAsync(item);
             public void FocusRoot() => Window.RootGrid.Focus(Microsoft.UI.Xaml.FocusState.Programmatic);
         }
@@ -286,16 +286,16 @@ namespace Uviewer
             public ScrollViewer? TextScrollViewer => Window.TextScrollViewer;
             public EpubWin2DPage? CurrentEpubWin2DPage => Window.CurrentEpubWin2DPage;
 
-            public Task AddToRecentAsync(bool immediate) => Window.AddToRecentAsync(immediate);
+            public Task AddToRecentAsync(bool immediate) => Window._bookmarkInteractionController.AddCurrentRecentAsync(immediate);
             public Task LoadTextEntryAsync(ImageEntry entry) => Window.LoadTextEntryAsync(entry);
             public Task ReloadTextDisplayFromCacheAsync(string fileName, int targetLine) =>
                 Window.ReloadTextDisplayFromCacheAsync(fileName, targetLine);
 
-            public Task LoadEpubEntryAsync(ImageEntry entry, CancellationToken token) => Window.LoadEpubEntryAsync(entry, token);
+            public Task LoadEpubEntryAsync(ImageEntry entry, CancellationToken token) => Window._epubReaderController.LoadEpubEntryAsync(entry, token);
             public Task LoadEpubChapterAsync(int index, int targetLine = -1, int targetBlockIndex = -1, int targetPage = -1) =>
-                Window.LoadEpubChapterAsync(index, targetLine: targetLine, targetBlockIndex: targetBlockIndex, targetPage: targetPage);
+                Window._epubReaderController.LoadEpubChapterAsync(index, targetLine: targetLine, targetBlockIndex: targetBlockIndex, targetPage: targetPage);
 
-            public void ShowEpubImagePage(EpubWin2DPage page) => Window.ShowEpubImagePage(page);
+            public void ShowEpubImagePage(EpubWin2DPage page) => Window._epubReaderController.ShowEpubImagePage(page);
             public void InvalidateEpubTextCanvas() => Window.EpubTextCanvas?.Invalidate();
             public void InvalidateVerticalTextCanvas() => Window.VerticalTextCanvas?.Invalidate();
             public void InvalidateAozoraTextCanvas() => Window.AozoraTextCanvas?.Invalidate();
@@ -359,11 +359,11 @@ namespace Uviewer
             public ImageResourceService ImageResourceService => Window._imageResourceService;
 
             public Task LoadEpubChapterAsync(int index, int targetLine = -1, int targetBlockIndex = -1, int targetPage = -1) =>
-                Window.LoadEpubChapterAsync(index, targetLine: targetLine, targetBlockIndex: targetBlockIndex, targetPage: targetPage);
+                Window._epubReaderController.LoadEpubChapterAsync(index, targetLine: targetLine, targetBlockIndex: targetBlockIndex, targetPage: targetPage);
 
             public Task PrepareVerticalTextAsync(int line) => Window.PrepareVerticalTextAsync(line);
-            public void SetEpubPageIndex(int index) => Window.SetEpubPageIndex(index);
-            public void ShowEpubImagePage(EpubWin2DPage page) => Window.ShowEpubImagePage(page);
+            public void SetEpubPageIndex(int index) => Window._epubReaderController.SetEpubPageIndex(index);
+            public void ShowEpubImagePage(EpubWin2DPage page) => Window._epubReaderController.ShowEpubImagePage(page);
             public void InvalidateEpubTextCanvas() => Window.EpubTextCanvas?.Invalidate();
             public void InvalidateVerticalTextCanvas() => Window.VerticalTextCanvas?.Invalidate();
             public void InvalidateAozoraTextCanvas() => Window.AozoraTextCanvas?.Invalidate();

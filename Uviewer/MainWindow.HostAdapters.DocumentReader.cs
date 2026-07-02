@@ -101,7 +101,7 @@ namespace Uviewer
             public CanvasBitmap? CurrentBitmap => _window._imageViewerState.CurrentBitmap;
             public PdfDocument? CurrentPdfDocument => _window._currentPdfDocument;
 
-            public Task AddToRecentAsync(bool immediate) => _window.AddToRecentAsync(immediate);
+            public Task AddToRecentAsync(bool immediate) => _window._bookmarkInteractionController.AddCurrentRecentAsync(immediate);
             public void SyncSidebarSelection(ImageEntry entry) => _window.SyncSidebarSelection(entry);
             public void UpdateSideBySideButtonState() => _window.UpdateSideBySideButtonState();
             public void UpdateNextImageSideButtonState() => _window.UpdateNextImageSideButtonState();
@@ -134,7 +134,7 @@ namespace Uviewer
             public List<EpubWin2DPage> EpubWin2DPages => _window._epubWin2DPages;
             public Dictionary<int, List<EpubWin2DPage>> EpubPreloadCache => _window._epubPreloadCache;
 
-            public Task NavigateEpubAsync(int direction) => _window.NavigateEpubAsync(direction);
+            public Task NavigateEpubAsync(int direction) => _window._epubReaderController.NavigateEpubAsync(direction);
             public Task LoadEpubChapterAsync(
                 int index,
                 bool fromEnd = false,
@@ -143,10 +143,10 @@ namespace Uviewer
                 int targetPage = -1,
                 double? progress = null,
                 CancellationToken token = default) =>
-                _window.LoadEpubChapterAsync(index, fromEnd, targetLine, targetBlockIndex, targetPage, progress, token);
-            public void JumpToEpubTocItem(EpubTocItem item) => _window.JumpToEpubTocItem(item);
-            public void UpdateEpubStatus() => _window.UpdateEpubStatus();
-            public void TriggerEpubResize() => _window.TriggerEpubResize();
+                _window._epubReaderController.LoadEpubChapterAsync(index, fromEnd, targetLine, targetBlockIndex, targetPage, progress, token);
+            public void JumpToEpubTocItem(EpubTocItem item) => _window._epubReaderController.JumpToEpubTocItem(item);
+            public void UpdateEpubStatus() => _window._epubReaderController.UpdateEpubStatus();
+            public void TriggerEpubResize() => _window._epubReaderController.TriggerEpubResize();
         }
 
         private sealed class DocumentSearchHostAdapter : IDocumentSearchHost
@@ -183,8 +183,10 @@ namespace Uviewer
             public TocService TocService => _window._tocService;
             public ImageResourceService ImageResourceService => _window._imageResourceService;
 
-            public void UpdateFavoritesMenu() => _window.UpdateFavoritesMenu();
-            public void UpdateRecentMenu() => _window.UpdateRecentMenu();
+            public void UpdateFavoritesMenu() =>
+                _window._bookmarkInteractionController.UpdateFavoritesMenu(_window._fileFavoriteItems, _window._folderFavoriteItems);
+            public void UpdateRecentMenu() =>
+                _window._bookmarkInteractionController.UpdateRecentMenu(_window._recentItemsList);
             public void UpdateWebDavServerList() => _window.UpdateWebDavServerList();
         }
     }

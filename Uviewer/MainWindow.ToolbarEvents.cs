@@ -29,8 +29,8 @@ namespace Uviewer
             MainToolbar.FavoritePinClicked += async (_, item) => await _bookmarkInteractionController.HandleFavoritePinClickedAsync(item);
             MainToolbar.RecentItemClicked += async (_, item) => await _bookmarkInteractionController.HandleRecentClickedAsync(item);
             MainToolbar.RecentRemoveClicked += async (_, item) => await _bookmarkInteractionController.HandleRecentRemoveClickedAsync(item);
-            MainToolbar.PdfTocRequested += (_, _) => PdfTocButton_Click(MainToolbar, new RoutedEventArgs());
-            MainToolbar.PdfTocItemClicked += PdfTocListView_ItemClick;
+            MainToolbar.PdfTocRequested += (_, _) => _pdfDocumentController.ShowToc();
+            MainToolbar.PdfTocItemClicked += (_, args) => _pdfDocumentController.OpenTocItem(args.ClickedItem);
             MainToolbar.PdfGoToPageRequested += (_, _) => _documentReaderController.GoToPageButton_Click(MainToolbar, new RoutedEventArgs());
             MainToolbar.SearchRequested += SearchButton_RightTapped;
             MainToolbar.ZoomOutRequested += (_, _) => ZoomOut();

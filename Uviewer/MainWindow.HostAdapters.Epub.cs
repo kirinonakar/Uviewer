@@ -77,9 +77,9 @@ namespace Uviewer
             public WebDavService WebDavService => _window._webDavService;
             public TocService TocService => _window._tocService;
 
-            public Task AddToRecentAsync(bool immediate) => _window.AddToRecentAsync(immediate);
+            public Task AddToRecentAsync(bool immediate) => _window._bookmarkInteractionController.AddCurrentRecentAsync(immediate);
             public Task<bool> CloseCurrentArchiveAsync() => _window.CloseCurrentArchiveAsync();
-            public Task<bool> CloseCurrentPdfAsync() => _window.CloseCurrentPdfAsync();
+            public Task<bool> CloseCurrentPdfAsync() => _window._pdfDocumentController.CloseCurrentPdfAsync();
             public void CancelAndResetGlobalTextCts() => _window.CancelAndResetGlobalTextCts();
             public void LoadTextSettings() => _window.LoadTextSettings();
             public void SaveTextSettings() => _window.SaveTextSettings();

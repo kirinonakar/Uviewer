@@ -23,6 +23,7 @@ namespace Uviewer.Services
             ShutdownCoordinator shutdown,
             SevenZipExtractionCoordinator sevenZipExtraction,
             ArchiveSession archiveSession,
+            ImageExifDialogService imageExifDialog,
             FavoritesService favorites,
             RecentService recent)
         {
@@ -44,6 +45,7 @@ namespace Uviewer.Services
             Shutdown = shutdown;
             SevenZipExtraction = sevenZipExtraction;
             ArchiveSession = archiveSession;
+            ImageExifDialog = imageExifDialog;
             Favorites = favorites;
             Recent = recent;
         }
@@ -66,6 +68,7 @@ namespace Uviewer.Services
         public ShutdownCoordinator Shutdown { get; }
         public SevenZipExtractionCoordinator SevenZipExtraction { get; }
         public ArchiveSession ArchiveSession { get; }
+        public ImageExifDialogService ImageExifDialog { get; }
         public FavoritesService Favorites { get; }
         public RecentService Recent { get; }
     }

@@ -64,7 +64,7 @@ namespace Uviewer
             }
 
             public Task LoadImagesFromPdfAsync(string path) =>
-                _window.LoadImagesFromPdfAsync(path);
+                _window._pdfDocumentController.LoadImagesFromPdfAsync(path);
 
             public Task LoadImageFromFileAsync(StorageFile file) =>
                 _window.LoadImageFromFileAsync(file);

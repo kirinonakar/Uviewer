@@ -201,7 +201,7 @@ namespace Uviewer
                     window.Closed += async (s, e) =>
                     {
                         window._isWindowClosing = true;
-                        bool wasPdfOpen = window._currentPdfDocument != null;
+                        bool wasPdfOpen = window._pdfDocumentController.HasOpenDocument;
                         await window._shutdownCoordinator.ShutdownAsync(window.CreateShutdownContext(wasPdfOpen));
                     };
                 }

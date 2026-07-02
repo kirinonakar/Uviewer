@@ -55,7 +55,7 @@ namespace Uviewer
             public void ToggleFullscreen() => _window.ToggleFullscreen();
             public void ToggleMaximizeRestore() => _window.ToggleMaximizeRestore();
             public void CloseApp() => _window.RequestWindowClose();
-            public Task ShowEpubGoToLineDialog() => _window.ShowEpubGoToLineDialog();
+            public Task ShowEpubGoToLineDialog() => _window._epubReaderController.ShowEpubGoToLineDialog();
             public void ToggleFont() => _window._documentReaderController.ToggleFont();
 
             public void ToggleVerticalMode()
@@ -76,13 +76,13 @@ namespace Uviewer
             public void IncreaseTextSize() => _window._documentReaderController.IncreaseTextSize();
             public void ToggleSidebar() => _window.ToggleSidebar();
             public void ToggleTheme() => _window._documentReaderController.ToggleTheme();
-            public Task LoadEpubChapterAsync(int index) => _window.LoadEpubChapterAsync(index);
+            public Task LoadEpubChapterAsync(int index) => _window._epubReaderController.LoadEpubChapterAsync(index);
             public void ToggleSideBySide() => _window._imageViewerController.ToggleSideBySide();
             public Task NavigateDocumentPageAsync(int direction) =>
                 _window._documentNavigationCoordinator.NavigatePageAsync(direction);
             public Task DisplayCurrentImageAsync() => _window.DisplayCurrentImageAsync();
             public Task NavigateToFileAsync(bool forward) => _window.NavigateToFileAsync(forward);
-            public Task AddToFavoritesAsync() => _window.AddToFavoritesAsync();
+            public Task AddToFavoritesAsync() => _window._bookmarkInteractionController.AddCurrentFavoriteAsync();
 
             public void ToggleSharpening()
             {

@@ -138,11 +138,11 @@ namespace Uviewer
                 PrepareVerticalTextAsync = (line, blockIndex) => PrepareVerticalTextAsync(line, blockIndex),
                 RenderAozoraDynamicPageAsync = RenderAozoraDynamicPage,
                 LoadEpubChapterAsync = (chapterIndex, line, blockIndex) =>
-                    LoadEpubChapterAsync(chapterIndex, targetLine: line, targetBlockIndex: blockIndex),
+                    _epubReaderController.LoadEpubChapterAsync(chapterIndex, targetLine: line, targetBlockIndex: blockIndex),
                 UpdateAozoraStatusBar = UpdateAozoraStatusBar,
                 UpdateTextStatusBar = () => UpdateTextStatusBar(),
                 ScrollToLine = ScrollToLine,
-                SetEpubPageIndex = SetEpubPageIndex
+                SetEpubPageIndex = _epubReaderController.SetEpubPageIndex
             };
         }
 

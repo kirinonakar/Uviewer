@@ -121,8 +121,8 @@ namespace Uviewer
             _preloadManager.CancelAll();
             _globalTextCts?.Cancel();
 
-            await CloseCurrentPdfAsync();
-            await CloseCurrentEpubAsync();
+            await _pdfDocumentController.CloseCurrentPdfAsync();
+            await _epubReaderController.CloseCurrentEpubAsync();
             await CloseCurrentArchiveAsync();
             CloseCurrentText();
 
@@ -236,7 +236,7 @@ namespace Uviewer
         {
             try
             {
-                await AddToFavoritesAsync();
+                await _bookmarkInteractionController.AddCurrentFavoriteAsync();
             }
             catch (OperationCanceledException) { }
             catch (Exception ex)

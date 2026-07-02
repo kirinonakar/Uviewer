@@ -13,8 +13,8 @@ namespace Uviewer
                     window._webDavDocumentOpenCoordinator = new WebDavDocumentOpenCoordinator(new WebDavDocumentOpenHandlers
                     {
                         LoadFolderAsync = window.LoadWebDavFolderAsync,
-                        CloseCurrentPdfAsync = window.CloseCurrentPdfAsync,
-                        CloseCurrentEpubAsync = window.CloseCurrentEpubAsync,
+                        CloseCurrentPdfAsync = () => window._pdfDocumentController.CloseCurrentPdfAsync(),
+                        CloseCurrentEpubAsync = () => window._epubReaderController.CloseCurrentEpubAsync(),
                         CloseCurrentArchiveAsync = window.CloseCurrentArchiveAsync,
                         SetCurrentItemPath = path => window._currentWebDavItemPath = path,
                         ClearImageResources = window.ClearImageResources,
@@ -27,9 +27,9 @@ namespace Uviewer
                         DownloadToTempFileAsync = window._webDavService.DownloadToTempFileAsync,
                         DownloadFileAsync = window._webDavService.DownloadFileAsync,
                         OpenLocalArchiveAsync = window.LoadImagesFromArchiveAsync,
-                        OpenLocalPdfAsync = window.LoadImagesFromPdfAsync,
+                        OpenLocalPdfAsync = path => window._pdfDocumentController.LoadImagesFromPdfAsync(path),
                         PrepareSequentialEntries = window.PrepareWebDavSequentialEntries,
-                        OpenEpubFileAsync = window.LoadEpubFileAsync,
+                        OpenEpubFileAsync = (file, entry, token) => window._epubReaderController.LoadEpubFileAsync(file, entry, token),
                         DisplayCurrentImageAsync = window.DisplayCurrentImageAsync,
                         StartPreload = window.StartWebDavPreload,
                         OpenArchiveStreamAsync = window.OpenWebDavArchiveStreamAsync,

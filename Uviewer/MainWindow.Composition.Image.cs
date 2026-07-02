@@ -40,7 +40,39 @@ namespace Uviewer
                             zoomHost: imageZoomPort));
                     window._imageViewportNavigationService = new ImageViewportNavigationService(
                         window.DispatcherQueue,
-                        window.RerenderPdfCurrentPageAsync);
+                        () => window._pdfDocumentController.RerenderCurrentPageAsync());
+
+                    WireExifDialog(window);
+                }
+
+                private static void WireExifDialog(MainWindow window)
+                {
+                    window.FileNameText.Tapped += async (_, e) =>
+                    {
+                        try
+                        {
+                            if (!window._imageExifDialogService.TryGetInspectableEntry(
+                                    window._imageViewerState.Entries,
+                                    window._imageViewerState.CurrentIndex,
+                                    out var entry))
+                            {
+                                return;
+                            }
+
+                            await window._imageExifDialogService.ShowAsync(
+                                entry,
+                                window._archiveSession,
+                                window.RootGrid.XamlRoot,
+                                window.RootGrid.ActualTheme,
+                                window._imageViewerState.ImageLoadingCts?.Token ?? default);
+                            e.Handled = true;
+                        }
+                        catch (System.Exception ex)
+                        {
+                            System.Diagnostics.Debug.WriteLine($"Error showing EXIF: {ex.Message}");
+                            window.ShowNotification(Strings.ExifUnavailable, "\uE783", "Red");
+                        }
+                    };
                 }
 
                 public static void InitializeNavigation(MainWindow window)
@@ -57,8 +89,8 @@ namespace Uviewer
                         ResetFastNavigationAsync = window.ResetFastNavigation,
                         UpdateFastNavigationUi = window.UpdateFastNavigationUI,
                         DisplayCurrentImageAsync = window.DisplayCurrentImageAsync,
-                        SaveCurrentPositionAsync = () => window.AddToRecentAsync(true),
-                        ShouldPreloadAfterNavigate = () => window._archiveSession.CurrentArchive != null || window._currentPdfDocument != null,
+                        SaveCurrentPositionAsync = () => window._bookmarkInteractionController.AddCurrentRecentAsync(true),
+                        ShouldPreloadAfterNavigate = () => window._archiveSession.CurrentArchive != null || window._pdfDocumentController.HasOpenDocument,
                         StartPreload = window.StartImagePreload,
                         FocusViewer = () => window.RootGrid.Focus(FocusState.Programmatic)
                     });

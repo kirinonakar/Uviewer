@@ -1,68 +1,76 @@
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
-using Microsoft.UI.Xaml.Input;
 using System;
 using System.Collections.Generic;
+using System.Threading;
 using System.Threading.Tasks;
 using Uviewer.Models;
-using Uviewer.Services;
 
-namespace Uviewer
+namespace Uviewer.Services
 {
-    public sealed partial class MainWindow
+    internal sealed class ImageExifDialogService
     {
         private readonly ImageExifService _imageExifService = new();
 
-        private async void FileNameText_Tapped(object sender, TappedRoutedEventArgs e)
-        {
-            try
-            {
-                if (!TryGetCurrentImageEntry(out var entry))
-                {
-                    return;
-                }
-
-                await ShowImageExifDialogAsync(entry);
-                e.Handled = true;
-            }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"Error showing EXIF: {ex.Message}");
-                ShowNotification(Strings.ExifUnavailable, "\uE783", "Red");
-            }
-        }
-
-        private bool TryGetCurrentImageEntry(out ImageEntry entry)
+        public bool TryGetInspectableEntry(
+            IReadOnlyList<ImageEntry> entries,
+            int currentIndex,
+            out ImageEntry entry)
         {
             entry = null!;
 
-            if (_imageEntries == null || _imageEntries.Count == 0)
+            if (entries.Count == 0 || currentIndex < 0 || currentIndex >= entries.Count)
             {
                 return false;
             }
 
-            if (_currentIndex < 0 || _currentIndex >= _imageEntries.Count)
-            {
-                return false;
-            }
-
-            entry = _imageEntries[_currentIndex];
+            entry = entries[currentIndex];
             return !entry.IsPdfEntry && FileExplorerService.IsImageEntry(entry);
         }
 
-        private async Task ShowImageExifDialogAsync(ImageEntry entry)
+        public async Task ShowAsync(
+            ImageEntry entry,
+            ArchiveSession archiveSession,
+            XamlRoot xamlRoot,
+            ElementTheme requestedTheme,
+            CancellationToken token = default)
         {
             var rows = await _imageExifService.BuildRowsAsync(
                 entry,
-                GetEntryDisplayPath(entry),
-                _archiveSession,
-                _imageLoadingCts?.Token ?? default);
+                ResolveDisplayPath(entry, archiveSession),
+                archiveSession,
+                token);
 
             if (rows.Count == 0)
             {
                 rows.Add(new KeyValuePair<string, string>(Strings.ExifNoMetadata, Strings.ExifUnavailable));
             }
 
+            var dialog = new ContentDialog
+            {
+                Title = Strings.ExifDialogTitle,
+                Content = CreateDialogContent(rows),
+                CloseButtonText = Strings.ExifCloseButton,
+                XamlRoot = xamlRoot,
+                RequestedTheme = requestedTheme
+            };
+
+            await dialog.ShowAsync();
+        }
+
+        private static string? ResolveDisplayPath(ImageEntry entry, ArchiveSession archiveSession)
+        {
+            if (entry.IsWebDavEntry) return entry.WebDavPath;
+            if (entry.IsArchiveEntry && !string.IsNullOrEmpty(archiveSession.CurrentPath))
+            {
+                return $"{archiveSession.CurrentPath} :: {entry.ArchiveEntryKey}";
+            }
+
+            return entry.FilePath;
+        }
+
+        private static ScrollViewer CreateDialogContent(IReadOnlyList<KeyValuePair<string, string>> rows)
+        {
             var panel = new StackPanel
             {
                 Width = 472,
@@ -74,29 +82,20 @@ namespace Uviewer
                 panel.Children.Add(CreateExifRow(row.Key, row.Value));
             }
 
-            var dialog = new ContentDialog
+            return new ScrollViewer
             {
-                Title = Strings.ExifDialogTitle,
-                Content = new ScrollViewer
+                Content = new Border
                 {
-                    Content = new Border
-                    {
-                        Padding = new Thickness(0, 0, 12, 0),
-                        Child = panel
-                    },
-                    MaxHeight = 520,
-                    HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
-                    VerticalScrollBarVisibility = ScrollBarVisibility.Auto
+                    Padding = new Thickness(0, 0, 12, 0),
+                    Child = panel
                 },
-                CloseButtonText = Strings.ExifCloseButton,
-                XamlRoot = RootGrid.XamlRoot,
-                RequestedTheme = RootGrid.ActualTheme
+                MaxHeight = 520,
+                HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
+                VerticalScrollBarVisibility = ScrollBarVisibility.Auto
             };
-
-            await dialog.ShowAsync();
         }
 
-        private FrameworkElement CreateExifRow(string label, string value)
+        private static FrameworkElement CreateExifRow(string label, string value)
         {
             var grid = new Grid
             {
@@ -133,17 +132,6 @@ namespace Uviewer
             grid.Children.Add(labelBlock);
             grid.Children.Add(valueBlock);
             return grid;
-        }
-
-        private string? GetEntryDisplayPath(ImageEntry entry)
-        {
-            if (entry.IsWebDavEntry) return entry.WebDavPath;
-            if (entry.IsArchiveEntry && !string.IsNullOrEmpty(_archiveSession.CurrentPath))
-            {
-                return $"{_archiveSession.CurrentPath} :: {entry.ArchiveEntryKey}";
-            }
-
-            return entry.FilePath;
         }
     }
 }

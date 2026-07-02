@@ -29,6 +29,7 @@ namespace Uviewer
                     new ShutdownCoordinator(),
                     new SevenZipExtractionCoordinator(),
                     new ArchiveSession(),
+                    new ImageExifDialogService(),
                     new FavoritesService(),
                     new RecentService());
             }
@@ -54,6 +55,7 @@ namespace Uviewer
             _shutdownCoordinator = services.Shutdown;
             _sevenZipExtraction = services.SevenZipExtraction;
             _archiveSession = services.ArchiveSession;
+            _imageExifDialogService = services.ImageExifDialog;
             _favoritesService = services.Favorites;
             _recentService = services.Recent;
         }
