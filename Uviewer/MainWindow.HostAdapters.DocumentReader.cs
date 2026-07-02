@@ -37,13 +37,13 @@ namespace Uviewer
 
             public DispatcherQueue DispatcherQueue => _window.DispatcherQueue;
             public AppWindow AppWindow => _window.AppWindow;
-            public WindowChromeController WindowChromeController => _window._windowChromeController;
+            public WindowShellController WindowShellController => _window._windowShellController;
 
             public void EnsureMinWindowSizeForText() => _window.EnsureMinWindowSizeForText();
             public void ApplyLocalization() => _window.ApplyLocalization();
             public void ShowNotification(string message, string icon = "\uE735", string color = "Gold") =>
                 _window.ShowNotification(message, icon, color);
-            public void ToggleSidebar() => _window._windowChromeController.ToggleSidebar();
+            public void ToggleSidebar() => _window._windowShellController.ToggleSidebar();
             public void HandleSmartTouchNavigation(PointerRoutedEventArgs e, Action prevAction, Action nextAction) =>
                 _window.HandleSmartTouchNavigation(e, prevAction, nextAction);
         }

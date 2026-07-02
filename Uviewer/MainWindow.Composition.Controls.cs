@@ -39,10 +39,10 @@ namespace Uviewer
                                 _ = window._imageViewerController.DisplayCurrentImageAsync();
                             },
                             ShowAboutAsync = () => window.ShowAboutDialog(),
-                            ToggleGlobalTheme = () => window._windowChromeController.ToggleGlobalTheme(),
+                            ToggleGlobalTheme = () => window._windowShellController.ToggleGlobalTheme(),
                             TogglePin = window.TogglePin,
                             ToggleAlwaysOnTop = window.ToggleAlwaysOnTop,
-                            ToggleSidebar = () => window._windowChromeController.ToggleSidebar(),
+                            ToggleSidebar = () => window._windowShellController.ToggleSidebar(),
                             AddToFavoritesAsync = () => window._bookmarkInteractionController.AddCurrentFavoriteAsync(),
                             OpenFileAsync = () => window._fileOpenController.OpenFileAsync(),
                             OpenFolderAsync = () => window._fileOpenController.OpenFolderAsync(),

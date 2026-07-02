@@ -65,7 +65,7 @@ namespace Uviewer
                 _window._imageViewerController.SyncSidebarSelection(entry);
 
             public void RefreshPointerCursor() =>
-                _window._windowChromeController?.RefreshPointerCursor();
+                _window._windowShellController?.RefreshPointerCursor();
 
             public void SaveWindowSettings() =>
                 _window._windowSettingsCoordinator?.SaveWindowSettings();

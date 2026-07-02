@@ -38,7 +38,7 @@ namespace Uviewer
                 set => _window._imageViewerState.NextImageOnRight = value;
             }
 
-            public ElementTheme CurrentTheme => _window._windowChromeController.CurrentTheme;
+            public ElementTheme CurrentTheme => _window._windowShellController.CurrentTheme;
 
             public bool MatchControlDirection
             {

@@ -1014,7 +1014,7 @@ namespace Uviewer
                 ToggleFont = ToggleFont,
                 ToggleSidebar = ToggleSidebar,
                 ToggleTheme = ToggleTheme,
-                ToggleGlobalTheme = () => _windowChromeController.ToggleGlobalTheme()
+                ToggleGlobalTheme = () => _windowShellController.ToggleGlobalTheme()
             };
         }
 

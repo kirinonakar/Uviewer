@@ -69,7 +69,7 @@ namespace Uviewer
         private System.Collections.ObjectModel.ObservableCollection<BookmarkViewModel> _recentItemsList => _bookmarkPanelState.RecentItems;
 
         private FullscreenOverlayManager _overlayManager = null!;
-        private WindowChromeController _windowChromeController = null!;
+        private WindowShellController _windowShellController = null!;
         private MainToolbarController _mainToolbarController = null!;
         private MainWindowControlEventBinder _controlEventBinder = null!;
         private DispatcherQueueTimer? _notificationTimer;

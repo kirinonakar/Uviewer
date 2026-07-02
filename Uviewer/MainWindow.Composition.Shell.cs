@@ -49,7 +49,7 @@ namespace Uviewer
                     window._overlayManager = new FullscreenOverlayManager();
                     window._overlayManager.Initialize(window.DispatcherQueue);
 
-                    window._windowChromeController = new WindowChromeController(
+                    window._windowShellController = new WindowShellController(
                         window,
                         window.RootGrid,
                         window.AppTitleBar,
@@ -63,8 +63,8 @@ namespace Uviewer
                         () => window._windowSettingsCoordinator.SaveWindowSettings(),
                         window.InvalidateThemeTargets);
 
-                    window._overlayManager.HideToolbarRequested += (s, e) => window._windowChromeController.HideToolbarUI();
-                    window._overlayManager.HideSidebarRequested += (s, e) => window._windowChromeController.HideSidebarUI();
+                    window._overlayManager.HideToolbarRequested += (s, e) => window._windowShellController.HideToolbarUI();
+                    window._overlayManager.HideSidebarRequested += (s, e) => window._windowShellController.HideSidebarUI();
                 }
 
                 public static void InitializeWindowSettings(MainWindow window)
@@ -149,7 +149,7 @@ namespace Uviewer
                     window._imageViewerController.UpdateSideBySideButtonState();
                     window._imageViewerController.UpdateNextImageSideButtonState();
                     window._imageViewerController.UpdateSharpenButtonState();
-                    window._windowChromeController.ApplyInitialChromeState();
+                    window._windowShellController.ApplyInitialShellState();
                 }
 
                 public static void InitializeRootInput(MainWindow window)
@@ -177,7 +177,7 @@ namespace Uviewer
                 {
                     window.RootGrid.Loaded += async (s, e) =>
                     {
-                        window._windowChromeController.UpdateTitleBarColors();
+                        window._windowShellController.UpdateTitleBarColors();
                         window.RootGrid.Focus(FocusState.Programmatic);
                         await Task.Delay(50);
                         WebDavService.CleanupTempFiles();

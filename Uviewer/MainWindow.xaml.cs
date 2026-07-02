@@ -364,7 +364,7 @@ namespace Uviewer
 
         private void Splitter_ResizeCompleted(object? sender, EventArgs e)
         {
-            _windowChromeController.CaptureSidebarResize();
+            _windowShellController.CaptureSidebarResize();
         }
 
         // [추가] 텍스트를 열 때 창 크기가 작으면 800x600 크기 이상으로 강제로 늘리는 메서드
@@ -484,23 +484,23 @@ namespace Uviewer
 
         private void ToggleFullscreen()
         {
-            _windowChromeController.ToggleFullscreen();
+            _windowShellController.ToggleFullscreen();
         }
 
         private void ApplyFullscreenUiState()
         {
-            _windowChromeController.ApplyFullscreenUiState();
+            _windowShellController.ApplyFullscreenUiState();
         }
 
         private void ToggleMaximizeRestore()
         {
-            _windowChromeController.ToggleMaximizeRestore();
+            _windowShellController.ToggleMaximizeRestore();
         }
 
 
         private void RootGrid_PointerMoved(object sender, PointerRoutedEventArgs e)
         {
-            _windowChromeController.HandlePointerMoved(e);
+            _windowShellController.HandlePointerMoved(e);
         }
 
         private void RootGrid_PointerPressed(object sender, PointerRoutedEventArgs e)
@@ -511,14 +511,14 @@ namespace Uviewer
 
         private void RootGrid_PointerExited(object sender, PointerRoutedEventArgs e)
         {
-            _windowChromeController.HandlePointerExited();
+            _windowShellController.HandlePointerExited();
         }
 
 
         // Unified Touch Handler for Text, Aozora, and Epub modes
         private void HandleSmartTouchNavigation(PointerRoutedEventArgs e, Action prevAction, Action nextAction)
         {
-            _windowChromeController.HandleSmartTouchNavigation(e, ShouldInvertControls, prevAction, nextAction);
+            _windowShellController.HandleSmartTouchNavigation(e, ShouldInvertControls, prevAction, nextAction);
         }
 
         #endregion
@@ -531,7 +531,7 @@ namespace Uviewer
 
         private void TogglePin()
         {
-            _windowChromeController.TogglePin();
+            _windowShellController.TogglePin();
         }
 
         private void AlwaysOnTopButton_Click(object sender, RoutedEventArgs e)
@@ -541,17 +541,17 @@ namespace Uviewer
 
         private void ToggleAlwaysOnTop()
         {
-            _windowChromeController.ToggleAlwaysOnTop();
+            _windowShellController.ToggleAlwaysOnTop();
         }
 
         private void GlobalThemeToggleButton_Click(object sender, RoutedEventArgs e)
         {
-            _windowChromeController.ToggleGlobalTheme();
+            _windowShellController.ToggleGlobalTheme();
         }
 
         internal void SetTheme(ElementTheme theme)
         {
-            _windowChromeController.SetTheme(theme);
+            _windowShellController.SetTheme(theme);
         }
 
         private void InvalidateThemeTargets()
@@ -564,7 +564,7 @@ namespace Uviewer
 
         private void UpdateThemeToggleButtonTooltip()
         {
-            _windowChromeController.UpdateThemeToggleButtonTooltip();
+            _windowShellController.UpdateThemeToggleButtonTooltip();
         }
 
 

@@ -172,7 +172,7 @@ namespace Uviewer
         internal FavoritesService _favoritesService => _libraryHost.FavoritesService;
         internal TocService _tocService => _libraryHost.TocService;
         internal ImageResourceService _imageResourceService => _libraryHost.ImageResourceService;
-        internal WindowChromeController _windowChromeController => _appStateHost.WindowChromeController;
+        internal WindowShellController _windowShellController => _appStateHost.WindowShellController;
         internal string Title { get => _appStateHost.WindowTitle; set => _appStateHost.WindowTitle = value; }
 
         internal DispatcherQueue DispatcherQueue => _appStateHost.DispatcherQueue;

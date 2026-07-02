@@ -11,7 +11,7 @@ using Uviewer.Controls;
 
 namespace Uviewer.Services
 {
-    internal sealed class WindowChromeController
+    internal sealed class WindowShellController
     {
         private readonly Window _window;
         private readonly Grid _rootGrid;
@@ -27,7 +27,7 @@ namespace Uviewer.Services
         private readonly Action _invalidateThemeTargets;
         private const int IdcArrow = 32512;
 
-        internal WindowChromeController(
+        internal WindowShellController(
             Window window,
             Grid rootGrid,
             UIElement appTitleBar,
@@ -63,7 +63,7 @@ namespace Uviewer.Services
         [DllImport("user32.dll")]
         private static extern IntPtr SetCursor(IntPtr hCursor);
 
-        internal void ApplyInitialChromeState()
+        internal void ApplyInitialShellState()
         {
             if (!_windowState.IsSidebarVisible)
             {

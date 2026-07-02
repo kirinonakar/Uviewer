@@ -27,7 +27,7 @@ namespace Uviewer.Services
 
         DispatcherQueue DispatcherQueue { get; }
         AppWindow AppWindow { get; }
-        WindowChromeController WindowChromeController { get; }
+        WindowShellController WindowShellController { get; }
 
         void EnsureMinWindowSizeForText();
         void ApplyLocalization();
