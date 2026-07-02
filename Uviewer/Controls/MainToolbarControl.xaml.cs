@@ -41,6 +41,7 @@ namespace Uviewer.Controls
         public event EventHandler? AozoraToggleRequested;
         public event EventHandler? VerticalToggleRequested;
         public event EventHandler? FontToggleRequested;
+        public event EventHandler? RestorePointerCursorRequested;
         public event EventHandler? SetDefaultFont1Requested;
         public event EventHandler? SetDefaultFont2Requested;
         public event EventHandler? ResetDefaultFontsRequested;
@@ -159,6 +160,9 @@ namespace Uviewer.Controls
             AozoraToggleButton.Click += (_, _) => AozoraToggleRequested?.Invoke(this, EventArgs.Empty);
             VerticalToggleButton.Click += (_, _) => VerticalToggleRequested?.Invoke(this, EventArgs.Empty);
             FontToggleButton.Click += (_, _) => FontToggleRequested?.Invoke(this, EventArgs.Empty);
+            FontToggleButton.RightTapped += (_, _) => RestorePointerCursorRequested?.Invoke(this, EventArgs.Empty);
+            FontSettingsFlyout.Opening += (_, _) => RestorePointerCursorRequested?.Invoke(this, EventArgs.Empty);
+            FontSettingsFlyout.Opened += (_, _) => RestorePointerCursorRequested?.Invoke(this, EventArgs.Empty);
             SetDefaultFont1MenuItem.Click += (_, _) => SetDefaultFont1Requested?.Invoke(this, EventArgs.Empty);
             SetDefaultFont2MenuItem.Click += (_, _) => SetDefaultFont2Requested?.Invoke(this, EventArgs.Empty);
             ResetDefaultFontsMenuItem.Click += (_, _) => ResetDefaultFontsRequested?.Invoke(this, EventArgs.Empty);

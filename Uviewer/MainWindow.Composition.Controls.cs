@@ -62,6 +62,7 @@ namespace Uviewer
                             ToggleAozora = () => window._documentReaderController.AozoraToggleButton_Click(window.MainToolbar, new RoutedEventArgs()),
                             ToggleVertical = () => window._documentReaderController.VerticalToggleButton_Click(window.MainToolbar, new RoutedEventArgs()),
                             ToggleFont = () => window._documentReaderController.FontToggleButton_Click(window.MainToolbar, new RoutedEventArgs()),
+                            RefreshPointerCursor = () => window._windowShellController.RefreshPointerCursor(),
                             SetDefaultFont1 = () => window._documentReaderController.SetDefaultFont1MenuItem_Click(window.MainToolbar, new RoutedEventArgs()),
                             SetDefaultFont2 = () => window._documentReaderController.SetDefaultFont2MenuItem_Click(window.MainToolbar, new RoutedEventArgs()),
                             ResetDefaultFonts = () => window._documentReaderController.ResetDefaultFontsMenuItem_Click(window.MainToolbar, new RoutedEventArgs()),

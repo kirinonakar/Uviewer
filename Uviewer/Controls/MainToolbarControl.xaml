@@ -300,7 +300,7 @@
                     
                     <Button x:Name="FontToggleButton" ToolTipService.ToolTip="폰트 변경(F)">
                         <Button.ContextFlyout>
-                            <MenuFlyout>
+                            <MenuFlyout x:Name="FontSettingsFlyout">
                                 <MenuFlyoutItem x:Name="SetDefaultFont1MenuItem">
                                     <MenuFlyoutItem.Icon>
                                         <FontIcon Glyph="&#xE8D2;"/>

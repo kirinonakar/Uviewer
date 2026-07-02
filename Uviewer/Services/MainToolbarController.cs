@@ -42,6 +42,7 @@ namespace Uviewer.Services
         public Action ToggleAozora { get; init; } = null!;
         public Action ToggleVertical { get; init; } = null!;
         public Action ToggleFont { get; init; } = null!;
+        public Action RefreshPointerCursor { get; init; } = null!;
         public Action SetDefaultFont1 { get; init; } = null!;
         public Action SetDefaultFont2 { get; init; } = null!;
         public Action ResetDefaultFonts { get; init; } = null!;
@@ -115,6 +116,7 @@ namespace Uviewer.Services
             _toolbar.AozoraToggleRequested += (_, _) => _handlers.ToggleAozora();
             _toolbar.VerticalToggleRequested += (_, _) => _handlers.ToggleVertical();
             _toolbar.FontToggleRequested += (_, _) => _handlers.ToggleFont();
+            _toolbar.RestorePointerCursorRequested += (_, _) => _handlers.RefreshPointerCursor();
             _toolbar.SetDefaultFont1Requested += (_, _) => _handlers.SetDefaultFont1();
             _toolbar.SetDefaultFont2Requested += (_, _) => _handlers.SetDefaultFont2();
             _toolbar.ResetDefaultFontsRequested += (_, _) => _handlers.ResetDefaultFonts();
