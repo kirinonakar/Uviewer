@@ -10,6 +10,7 @@ namespace Uviewer
             {
                 public static void Initialize(MainWindow window)
                 {
+                    SearchFeatureComposition.Initialize(window);
                     window._documentReaderController = new DocumentReaderController(
                         new DocumentReaderDependencies(
                             new ReaderAppStateHostAdapter(window),
@@ -19,10 +20,10 @@ namespace Uviewer
                             new DocumentSearchHostAdapter(window),
                             new ReaderLibraryHostAdapter(window)));
                     window._searchOverlayService = new SearchOverlayService(
-                        window.SearchCurrentDocumentAsync,
-                        window.NavigateToSearchMatchAsync,
-                        window.GetCurrentSearchPosition,
-                        window.SetActiveSearchQuery);
+                        window._searchController.SearchCurrentDocumentAsync,
+                        window._searchController.NavigateToMatchAsync,
+                        window._searchController.GetCurrentPosition,
+                        window._searchController.SetActiveQuery);
                     window.LoadTextSettings();
                 }
             }

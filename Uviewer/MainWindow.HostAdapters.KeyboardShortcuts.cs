@@ -50,7 +50,7 @@ namespace Uviewer
             public bool HasPdfDocument => _window._currentPdfDocument != null;
             public bool IsAboutDialogActive => _window._aboutDialog != null;
             public bool IsSearchOverlayOpen => _window._searchOverlayService?.IsOpen == true;
-            public bool CanSearchCurrentDocument => _window.CanSearchCurrentDocument;
+            public bool CanSearchCurrentDocument => _window._searchController.CanSearchCurrentDocument;
 
             public void ToggleFullscreen() => _window.ToggleFullscreen();
             public void ToggleMaximizeRestore() => _window.ToggleMaximizeRestore();
@@ -99,7 +99,7 @@ namespace Uviewer
             public void ToggleAlwaysOnTop() => _window.ToggleAlwaysOnTop();
             public void ToggleGlobalTheme() => _window.GlobalThemeToggleButton_Click(_window.MainToolbar, new RoutedEventArgs());
             public void TogglePin() => _window.TogglePin();
-            public void ShowSearchOverlay() => _window.ShowSearchOverlay();
+            public void ShowSearchOverlay() => _window._searchController.ShowOverlay();
             public void HideSearchOverlay() => _window._searchOverlayService?.Hide();
 
             public void HideAboutDialog()

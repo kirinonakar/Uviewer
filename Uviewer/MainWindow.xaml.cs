@@ -56,6 +56,7 @@ namespace Uviewer
         private Services.SearchHighlightService _searchHighlightService = null!;
         private Services.DocumentSearchCoordinatorService _documentSearchCoordinatorService = null!;
         private Services.SearchOverlayService _searchOverlayService = null!;
+        private Services.MainWindowSearchController _searchController = null!;
         private DocumentSearchState _documentSearchState = null!;
         private Services.DocumentSessionTracker _documentSessionTracker = null!;
         private Services.ExplorerItemLaunchService _explorerItemLaunchService = null!;

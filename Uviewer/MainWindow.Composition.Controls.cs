@@ -54,7 +54,7 @@ namespace Uviewer
                             ShowPdfToc = () => window._pdfDocumentController.ShowToc(),
                             OpenPdfTocItem = item => window._pdfDocumentController.OpenTocItem(item),
                             ShowGoToPage = () => window._documentReaderController.GoToPageButton_Click(window.MainToolbar, new RoutedEventArgs()),
-                            SearchRequested = window.SearchButton_RightTapped,
+                            SearchRequested = window._searchController.HandleRightTapped,
                             ZoomOut = window.ZoomOut,
                             ZoomIn = window.ZoomIn,
                             ZoomFit = window.FitToWindow,

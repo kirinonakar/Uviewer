@@ -158,14 +158,14 @@ namespace Uviewer
                 _window = window;
             }
 
-            public string? ActiveSearchQuery => _window._activeSearchQuery;
+            public string? ActiveSearchQuery => _window._searchController.ActiveSearchQuery;
             public DocumentSearchService DocumentSearchService => _window._documentSearchService;
             public SearchHighlightService SearchHighlightService => _window._searchHighlightService;
 
             public void ApplySearchHighlightsToTextBlock(TextBlock textBlock, string content, int lineNumber) =>
-                _window.ApplySearchHighlightsToTextBlock(textBlock, content, lineNumber);
+                _window._searchController.ApplyHighlightsToTextBlock(textBlock, content, lineNumber);
             public DocumentSearchMatch? GetActiveSearchMatchFor(DocumentSearchKind kind) =>
-                _window.GetActiveSearchMatchFor(kind);
+                _window._searchController.GetActiveMatchFor(kind);
         }
 
         private sealed class ReaderLibraryHostAdapter : IReaderLibraryHost

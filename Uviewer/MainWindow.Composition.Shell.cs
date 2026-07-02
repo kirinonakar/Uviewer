@@ -88,12 +88,13 @@ namespace Uviewer
                     window._favoritesController = new FavoritesController(window._favoritesService, window._bookmarkPanelController);
                     window._recentController = new RecentController(window._recentService, window._bookmarkPanelController);
                     window._bookmarkNavigationHost = new BookmarkNavigationHostAdapter(window);
+                    var bookmarkCaptureContextFactory = CreateBookmarkCaptureContextFactory(window);
                     window._bookmarkInteractionController = new BookmarkInteractionController(
                         window._favoritesController,
                         window._recentController,
                         window._bookmarkNavigationHost,
-                        window.CreateFavoriteCaptureContext,
-                        window.CreateRecentCaptureContext,
+                        bookmarkCaptureContextFactory.CreateFavoriteContext,
+                        bookmarkCaptureContextFactory.CreateRecentContext,
                         new BookmarkInteractionHandlers
                         {
                             HideFavoritesFlyouts = () =>

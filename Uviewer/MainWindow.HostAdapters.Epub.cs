@@ -42,7 +42,7 @@ namespace Uviewer
             public string WindowTitle { get => _window.Title; set => _window.Title = value; }
             public List<ImageEntry> ImageEntries { get => _window._imageViewerState.Entries; set => _window._imageViewerState.Entries = value ?? new List<ImageEntry>(); }
             public List<AozoraBindingModel> AozoraBlocks => _window._aozoraBlocks;
-            public string? ActiveSearchQuery => _window._activeSearchQuery;
+            public string? ActiveSearchQuery => _window._searchController.ActiveSearchQuery;
 
             public Microsoft.UI.Dispatching.DispatcherQueue DispatcherQueue => _window.DispatcherQueue;
             public AppWindow AppWindow => _window.AppWindow;
@@ -94,7 +94,8 @@ namespace Uviewer
             public FontWeight GetFontWeightForFamily(string fontFamily) => _window.GetFontWeightForFamily(fontFamily);
             public Color GetVerticalBackgroundColor() => _window.GetVerticalBackgroundColor();
             public Color GetVerticalTextColor() => _window.GetVerticalTextColor();
-            public DocumentSearchMatch? GetActiveSearchMatchFor(DocumentSearchKind kind) => _window.GetActiveSearchMatchFor(kind);
+            public DocumentSearchMatch? GetActiveSearchMatchFor(DocumentSearchKind kind) =>
+                _window._searchController.GetActiveMatchFor(kind);
             public List<AozoraBindingModel> PaginateVerticalAozoraPage(
                 ref int index,
                 List<AozoraBindingModel> blocks,
