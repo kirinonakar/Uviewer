@@ -42,7 +42,7 @@ namespace Uviewer
                             ToggleGlobalTheme = () => window._windowChromeController.ToggleGlobalTheme(),
                             TogglePin = window.TogglePin,
                             ToggleAlwaysOnTop = window.ToggleAlwaysOnTop,
-                            ToggleSidebar = window._windowChromeController.ToggleSidebar,
+                            ToggleSidebar = () => window._windowChromeController.ToggleSidebar(),
                             AddToFavoritesAsync = () => window._bookmarkInteractionController.AddCurrentFavoriteAsync(),
                             OpenFileAsync = () => window._fileOpenController.OpenFileAsync(),
                             OpenFolderAsync = () => window._fileOpenController.OpenFolderAsync(),
