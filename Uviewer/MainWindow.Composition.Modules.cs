@@ -42,7 +42,8 @@ namespace Uviewer
                         image.InitializePipeline,
                         document.InitializeLocalImageController,
                         document.InitializePdfController,
-                        document.InitializeArchiveController
+                        document.InitializeArchiveController,
+                        document.InitializeExplorerDocumentRelease
                     });
             }
 
@@ -117,6 +118,9 @@ namespace Uviewer
                 public void InitializePdfController(MainWindow window) => DocumentFeatureComposition.InitializePdfController(window);
 
                 public void InitializeArchiveController(MainWindow window) => DocumentFeatureComposition.InitializeArchiveController(window);
+
+                public void InitializeExplorerDocumentRelease(MainWindow window) =>
+                    DocumentFeatureComposition.InitializeExplorerDocumentRelease(window);
             }
 
             private sealed class WebDavFeatureModule : IMainWindowCompositionModule

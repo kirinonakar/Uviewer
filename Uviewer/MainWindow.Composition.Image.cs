@@ -86,18 +86,18 @@ namespace Uviewer
                         IsCurrentViewSideBySide = () => window._imageViewerState.IsCurrentViewSideBySide,
                         SetScrollDirection = value => window._imageViewportNavigationService.ScrollDirection = value,
                         FastNavigationService = window._fastNavigationService,
-                        ResetFastNavigationAsync = window.ResetFastNavigation,
-                        UpdateFastNavigationUi = window.UpdateFastNavigationUI,
-                        DisplayCurrentImageAsync = window.DisplayCurrentImageAsync,
+                        ResetFastNavigationAsync = window._imageViewerController.ResetFastNavigationAsync,
+                        UpdateFastNavigationUi = window._imageViewerController.UpdateFastNavigationUI,
+                        DisplayCurrentImageAsync = window._imageViewerController.DisplayCurrentImageAsync,
                         SaveCurrentPositionAsync = () => window._bookmarkInteractionController.AddCurrentRecentAsync(true),
                         ShouldPreloadAfterNavigate = () => window._archiveSession.CurrentArchive != null || window._pdfDocumentController.HasOpenDocument,
-                        StartPreload = window.StartImagePreload,
+                        StartPreload = window._imageViewerController.StartImagePreload,
                         FocusViewer = () => window.RootGrid.Focus(FocusState.Programmatic)
                     });
 
                     window._animatedWebpService = new AnimatedWebpService(window._sharpeningService, window.DispatcherQueue);
-                    window._animatedWebpService.FrameUpdated += window.OnAnimatedWebpFrameUpdated;
-                    window._animatedWebpService.AnimationStopped += window.OnAnimatedWebpAnimationStopped;
+                    window._animatedWebpService.FrameUpdated += window._imageViewerController.OnAnimatedWebpFrameUpdated;
+                    window._animatedWebpService.AnimationStopped += window._imageViewerController.OnAnimatedWebpAnimationStopped;
                 }
 
                 public static void InitializePipeline(MainWindow window)
@@ -110,11 +110,11 @@ namespace Uviewer
 
                 public static void WireImageOptions(MainWindow window)
                 {
-                    window.ImageOptions.PropertyChanged += (s, e) =>
+                    window.ImageOptions.PropertyChanged += async (s, e) =>
                     {
                         if (e.PropertyName != null && !e.PropertyName.EndsWith("Text"))
                         {
-                            window.OnSharpenParamsChanged();
+                            await window._imageViewerController.OnSharpenParamsChangedAsync();
                         }
                     };
                 }

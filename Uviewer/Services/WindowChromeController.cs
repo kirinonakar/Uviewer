@@ -106,6 +106,41 @@ namespace Uviewer.Services
             }
         }
 
+        internal void ToggleSidebar()
+        {
+            if (_windowState.IsSidebarVisible && !_windowState.IsFullscreen)
+            {
+                _windowState.SidebarWidth = (int)_sidebarColumn.Width.Value > 200
+                    ? (int)_sidebarColumn.Width.Value
+                    : 320;
+            }
+
+            if ((int)_sidebarColumn.Width.Value > 200)
+            {
+                _windowState.IsSidebarVisible = true;
+            }
+
+            _windowState.IsSidebarVisible = !_windowState.IsSidebarVisible;
+            _sidebarGrid.Visibility = _windowState.IsSidebarVisible ? Visibility.Visible : Visibility.Collapsed;
+            if (_splitterGrid != null)
+            {
+                _splitterGrid.Visibility = _windowState.IsSidebarVisible ? Visibility.Visible : Visibility.Collapsed;
+            }
+
+            _sidebarColumn.Width = _windowState.IsSidebarVisible
+                ? new GridLength(_windowState.SidebarWidth)
+                : new GridLength(0);
+            _saveWindowSettings();
+        }
+
+        internal void CaptureSidebarResize()
+        {
+            if (_sidebarColumn.Width.IsAbsolute && _sidebarColumn.Width.Value > 200)
+            {
+                _windowState.SidebarWidth = (int)_sidebarColumn.Width.Value;
+            }
+        }
+
         internal void ToggleFullscreen()
         {
             _windowState.ToggleFullscreen();

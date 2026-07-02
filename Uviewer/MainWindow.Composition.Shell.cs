@@ -83,7 +83,7 @@ namespace Uviewer
                         window._explorerItemOperationController,
                         new ExplorerSidebarHostAdapter(window),
                         hwnd);
-                    window.InitializeExplorerContextMenus();
+                    window._explorerSidebarController.InitializeContextMenus();
                     window._bookmarkPanelController = new BookmarkPanelController(window._bookmarkPanelState, window._favoritesService, window._recentService);
                     window._favoritesController = new FavoritesController(window._favoritesService, window._bookmarkPanelController);
                     window._recentController = new RecentController(window._recentService, window._bookmarkPanelController);
@@ -146,9 +146,9 @@ namespace Uviewer
                             new Windows.Graphics.RectInt32(centerX, centerY, defaultSize.Width, defaultSize.Height);
                     }
 
-                    window.UpdateSideBySideButtonState();
-                    window.UpdateNextImageSideButtonState();
-                    window.UpdateSharpenButtonState();
+                    window._imageViewerController.UpdateSideBySideButtonState();
+                    window._imageViewerController.UpdateNextImageSideButtonState();
+                    window._imageViewerController.UpdateSharpenButtonState();
                     window._windowChromeController.ApplyInitialChromeState();
                 }
 

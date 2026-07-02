@@ -65,7 +65,7 @@ namespace Uviewer
                         FindAozoraStartBlockIndex = (line, blockIndex) =>
                             window._textBlockDocumentService.FindStartBlockIndex(window._aozoraBlocks, line, blockIndex),
                         FindEpubPageIndex = match => FindEpubPageIndex(window, match),
-                        DisplayCurrentImageAsync = window.DisplayCurrentImageAsync,
+                        DisplayCurrentImageAsync = window._imageViewerController.DisplayCurrentImageAsync,
                         PrepareVerticalTextAsync = (line, blockIndex) => window.PrepareVerticalTextAsync(line, blockIndex),
                         RenderAozoraDynamicPageAsync = window.RenderAozoraDynamicPage,
                         LoadEpubChapterAsync = (chapterIndex, line, blockIndex) =>

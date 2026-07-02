@@ -259,7 +259,7 @@ namespace Uviewer
 
             public void Signal7zJump() => Window.Signal7zJump();
             public Task AddToRecentAsync(bool immediate) => Window._bookmarkInteractionController.AddCurrentRecentAsync(immediate);
-            public Task HandleFileSelectionAsync(FileItem item) => Window.HandleFileSelectionAsync(item);
+            public Task HandleFileSelectionAsync(FileItem item) => Window._explorerSidebarController.HandleFileSelectionAsync(item);
             public void FocusRoot() => Window.RootGrid.Focus(Microsoft.UI.Xaml.FocusState.Programmatic);
         }
 

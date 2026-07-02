@@ -43,7 +43,7 @@ namespace Uviewer
             public void ApplyLocalization() => _window.ApplyLocalization();
             public void ShowNotification(string message, string icon = "\uE735", string color = "Gold") =>
                 _window.ShowNotification(message, icon, color);
-            public void ToggleSidebar() => _window.ToggleSidebar();
+            public void ToggleSidebar() => _window._windowChromeController.ToggleSidebar();
             public void HandleSmartTouchNavigation(PointerRoutedEventArgs e, Action prevAction, Action nextAction) =>
                 _window.HandleSmartTouchNavigation(e, prevAction, nextAction);
         }
@@ -102,11 +102,11 @@ namespace Uviewer
             public PdfDocument? CurrentPdfDocument => _window._currentPdfDocument;
 
             public Task AddToRecentAsync(bool immediate) => _window._bookmarkInteractionController.AddCurrentRecentAsync(immediate);
-            public void SyncSidebarSelection(ImageEntry entry) => _window.SyncSidebarSelection(entry);
-            public void UpdateSideBySideButtonState() => _window.UpdateSideBySideButtonState();
-            public void UpdateNextImageSideButtonState() => _window.UpdateNextImageSideButtonState();
-            public void UpdateStatusBar(ImageEntry entry, CanvasBitmap bitmap) => _window.UpdateStatusBar(entry, bitmap);
-            public Task DisplayCurrentImageAsync() => _window.DisplayCurrentImageAsync();
+            public void SyncSidebarSelection(ImageEntry entry) => _window._imageViewerController.SyncSidebarSelection(entry);
+            public void UpdateSideBySideButtonState() => _window._imageViewerController.UpdateSideBySideButtonState();
+            public void UpdateNextImageSideButtonState() => _window._imageViewerController.UpdateNextImageSideButtonState();
+            public void UpdateStatusBar(ImageEntry entry, CanvasBitmap bitmap) => _window._imageViewerController.UpdateStatusBar(entry, bitmap);
+            public Task DisplayCurrentImageAsync() => _window._imageViewerController.DisplayCurrentImageAsync();
             public ViewingContext CreateViewingContext() => _window.CreateViewingContext();
             public SharpenParams CreateSharpenParams() => _window.CreateSharpenParams();
             public Task LoadImageResourceAndInvalidateAsync(

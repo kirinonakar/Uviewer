@@ -78,15 +78,15 @@ namespace Uviewer
             public TocService TocService => _window._tocService;
 
             public Task AddToRecentAsync(bool immediate) => _window._bookmarkInteractionController.AddCurrentRecentAsync(immediate);
-            public Task<bool> CloseCurrentArchiveAsync() => _window.CloseCurrentArchiveAsync();
+            public Task<bool> CloseCurrentArchiveAsync() => _window._archiveDocumentController.CloseCurrentArchiveAsync();
             public Task<bool> CloseCurrentPdfAsync() => _window._pdfDocumentController.CloseCurrentPdfAsync();
             public void CancelAndResetGlobalTextCts() => _window.CancelAndResetGlobalTextCts();
             public void LoadTextSettings() => _window.LoadTextSettings();
             public void SaveTextSettings() => _window.SaveTextSettings();
             public void EnsureMinWindowSizeForText() => _window.EnsureMinWindowSizeForText();
-            public void UpdateSideBySideButtonState() => _window.UpdateSideBySideButtonState();
-            public void UpdateNextImageSideButtonState() => _window.UpdateNextImageSideButtonState();
-            public void SyncSidebarSelection(ImageEntry entry) => _window.SyncSidebarSelection(entry);
+            public void UpdateSideBySideButtonState() => _window._imageViewerController.UpdateSideBySideButtonState();
+            public void UpdateNextImageSideButtonState() => _window._imageViewerController.UpdateNextImageSideButtonState();
+            public void SyncSidebarSelection(ImageEntry entry) => _window._imageViewerController.SyncSidebarSelection(entry);
             public void ClearBackwardCache() => _window.ClearBackwardCache();
             public void ClearVerticalDisplayState() => _window.ClearVerticalDisplayState();
             public Task PrepareVerticalTextAsync(int line) => _window.PrepareVerticalTextAsync(line);

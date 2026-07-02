@@ -62,7 +62,7 @@ namespace Uviewer
             }
 
             public void SyncSidebarSelection(ImageEntry entry) =>
-                _window.SyncSidebarSelection(entry);
+                _window._imageViewerController.SyncSidebarSelection(entry);
 
             public void RefreshPointerCursor() =>
                 _window._windowChromeController?.RefreshPointerCursor();
@@ -91,13 +91,13 @@ namespace Uviewer
                     saveCurrentPositionBeforeOpen);
 
             public Task NavigateToPreviousImageAsync() =>
-                _window.NavigateToPreviousAsync();
+                _window._imageViewerController.NavigateToPreviousAsync();
 
             public Task NavigateToNextImageAsync() =>
-                _window.NavigateToNextAsync();
+                _window._imageViewerController.NavigateToNextAsync();
 
             public Task DisplayCurrentImageAsync() =>
-                _window.DisplayCurrentImageAsync();
+                _window._imageViewerController.DisplayCurrentImageAsync();
         }
     }
 }

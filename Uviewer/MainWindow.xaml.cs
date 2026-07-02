@@ -71,12 +71,14 @@ namespace Uviewer
         private Services.WebDavDocumentOpenCoordinator _webDavDocumentOpenCoordinator = null!;
         private Services.DocumentNavigationCoordinator _documentNavigationCoordinator = null!;
         private Services.ImageNavigationCoordinator _imageNavigationCoordinator = null!;
+        private Services.ImageViewerController _imageViewerController = null!;
         private Services.LocalImageDocumentController _localImageDocumentController = null!;
         private Services.PdfDocumentController _pdfDocumentController = null!;
         private Services.ArchiveDocumentController _archiveDocumentController = null!;
         private Services.FileOpenController _fileOpenController = null!;
         private Services.ExternalProgramSettingsController _externalProgramSettingsController = null!;
         private Services.ExplorerItemOperationController _explorerItemOperationController = null!;
+        private Services.ExplorerDocumentReleaseService _explorerDocumentReleaseService = null!;
         private Services.DocumentOpenStateQuery _documentOpenStateQuery = null!;
 
         // ImageResourceService를 _sharpeningService 다음에 생성해야 하므로
@@ -86,6 +88,7 @@ namespace Uviewer
         private static extern int MessageBox(IntPtr hWnd, string text, string caption, uint type);
 
         private Services.SevenZipExtractionCoordinator _sevenZipExtraction = null!;
+        private Services.ArchiveSession _archiveSession = null!;
 
         private void Signal7zJump()
         {
@@ -122,7 +125,7 @@ namespace Uviewer
                 else
                 {
                     // Load Pictures folder by default if no path provided
-                    LoadExplorerFolder(Environment.GetFolderPath(Environment.SpecialFolder.MyPictures));
+                    _explorerSidebarController.LoadFolder(Environment.GetFolderPath(Environment.SpecialFolder.MyPictures));
                 }
             }
             catch (Exception ex)
@@ -180,7 +183,7 @@ namespace Uviewer
         {
             _ = Task.Run(() =>
             {
-                DispatcherQueue.TryEnqueue(() => LoadExplorerFolder(folderPath));
+                DispatcherQueue.TryEnqueue(() => _explorerSidebarController.LoadFolder(folderPath));
             });
         }
 
@@ -246,7 +249,7 @@ namespace Uviewer
             MainToolbar.ApplyLocalization();
 
             // Tooltips
-            UpdateToggleViewButtonTooltip();
+            _explorerSidebarController.UpdateToggleViewButtonTooltip();
             ToolTipService.SetToolTip(ParentFolderButton, Strings.ParentFolderTooltip);
             ToolTipService.SetToolTip(SidebarFavoritesButton, Strings.FavoritesTooltip);
             ToolTipService.SetToolTip(SidebarRecentButton, Strings.RecentTooltip);
@@ -284,7 +287,7 @@ namespace Uviewer
 
             // Menus
             if (SidebarAddToFavoritesButton != null) SidebarAddToFavoritesButton.Content = Strings.AddToFavorites;
-            InitializeExplorerContextMenus();
+            _explorerSidebarController.InitializeContextMenus();
 
             // Favorites Pivot Headers
             if (SidebarFileFavoritesPivotItem != null) SidebarFileFavoritesPivotItem.Header = Strings.FavoritesFiles;
@@ -294,14 +297,14 @@ namespace Uviewer
             _bookmarkInteractionController.UpdateFavoritesMenu(_fileFavoriteItems, _folderFavoriteItems);
 
             // Sort Menu & Tooltip
-            UpdateSortIcon();
+            _explorerSidebarController.UpdateSortIcon();
 
             UpdateLanguageMenuCheckmark();
 
             if (ThumbnailSettingsTitleText != null) ThumbnailSettingsTitleText.Text = Strings.ThumbnailSettingsTitle;
             if (ThumbnailSizeLabel != null) ThumbnailSizeLabel.Text = Strings.ThumbnailSizeLabel;
             if (FolderThumbnailsCheckBox != null) FolderThumbnailsCheckBox.Content = Strings.ShowFolderThumbnailsLabel;
-            ApplyThumbnailSettingsToControls();
+            _explorerSidebarController.ApplyThumbnailSettingsToControls();
 
             UpdateFontSettingsMenu();
 
@@ -357,6 +360,11 @@ namespace Uviewer
                 _isTextMode || _isEpubMode,
                 _windowState.IsSidebarVisible,
                 SidebarColumn);
+        }
+
+        private void Splitter_ResizeCompleted(object? sender, EventArgs e)
+        {
+            _windowChromeController.CaptureSidebarResize();
         }
 
         // [추가] 텍스트를 열 때 창 크기가 작으면 800x600 크기 이상으로 강제로 늘리는 메서드

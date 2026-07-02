@@ -91,16 +91,16 @@ namespace Uviewer
 
             public void ApplyInitialWindowSettingsUiState()
             {
-                _window.UpdateSharpenButtonState();
-                _window.UpdateSideBySideButtonState();
-                _window.UpdateNextImageSideButtonState();
+                _window._imageViewerController.UpdateSharpenButtonState();
+                _window._imageViewerController.UpdateSideBySideButtonState();
+                _window._imageViewerController.UpdateNextImageSideButtonState();
 
                 _window.MainToolbar.SetWindowOptionStates(
                     _window._matchControlDirection,
                     _window._allowMultipleInstances,
                     _window._imageViewerState.AutoDoublePageForArchive,
                     _window._windowState.IsAlwaysOnTop);
-                _window.ApplyThumbnailSettingsToControls();
+                _window._explorerSidebarController.ApplyThumbnailSettingsToControls();
                 _window.MainToolbar.SetExternalProgramPath(_window._externalProgramPath);
 
                 if (_window.AppWindow.Presenter is OverlappedPresenter op)

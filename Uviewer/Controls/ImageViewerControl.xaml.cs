@@ -38,6 +38,18 @@ namespace Uviewer.Controls
         internal CanvasControl LeftCanvasElement => LeftCanvas;
         internal CanvasControl RightCanvasElement => RightCanvas;
 
+        internal void ShowEmptyState()
+        {
+            EmptyStatePanel.Visibility = Visibility.Visible;
+            MainCanvas.Visibility = Visibility.Visible;
+            SideBySideGrid.Visibility = Visibility.Collapsed;
+            FastNavOverlay.Visibility = Visibility.Collapsed;
+
+            MainCanvas.Invalidate();
+            LeftCanvas.Invalidate();
+            RightCanvas.Invalidate();
+        }
+
         private void ImageArea_SizeChanged(object sender, SizeChangedEventArgs e) =>
             ImageAreaSizeChanged?.Invoke(sender, e);
 

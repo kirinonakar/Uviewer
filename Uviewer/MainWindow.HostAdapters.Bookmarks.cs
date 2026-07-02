@@ -42,7 +42,7 @@ namespace Uviewer
                 _window.OpenWebDavArchiveAsync(item);
 
             public void LoadExplorerFolder(string path) =>
-                _window.LoadExplorerFolder(path);
+                _window._explorerSidebarController.LoadFolder(path);
 
             public void SelectExplorerItemByName(string fileName)
             {
@@ -67,13 +67,13 @@ namespace Uviewer
                 _window._pdfDocumentController.LoadImagesFromPdfAsync(path);
 
             public Task LoadImageFromFileAsync(StorageFile file) =>
-                _window.LoadImageFromFileAsync(file);
+                _window._localImageDocumentController.LoadImageFromFileAsync(file);
 
             public Task LoadImagesFromArchiveAsync(string path) =>
-                _window.LoadImagesFromArchiveAsync(path);
+                _window._archiveDocumentController.LoadImagesFromArchiveAsync(path);
 
             public Task DisplayCurrentImageAsync() =>
-                _window.DisplayCurrentImageAsync();
+                _window._imageViewerController.DisplayCurrentImageAsync();
 
             public void SetPendingEpubPosition(
                 int chapterIndex,

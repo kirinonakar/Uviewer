@@ -36,13 +36,13 @@ namespace Uviewer
                             {
                                 window._autoDoublePageForArchive = isChecked;
                                 window._windowSettingsCoordinator.SaveWindowSettings();
-                                _ = window.DisplayCurrentImageAsync();
+                                _ = window._imageViewerController.DisplayCurrentImageAsync();
                             },
                             ShowAboutAsync = () => window.ShowAboutDialog(),
                             ToggleGlobalTheme = () => window._windowChromeController.ToggleGlobalTheme(),
                             TogglePin = window.TogglePin,
                             ToggleAlwaysOnTop = window.ToggleAlwaysOnTop,
-                            ToggleSidebar = window.ToggleSidebar,
+                            ToggleSidebar = window._windowChromeController.ToggleSidebar,
                             AddToFavoritesAsync = () => window._bookmarkInteractionController.AddCurrentFavoriteAsync(),
                             OpenFileAsync = () => window._fileOpenController.OpenFileAsync(),
                             OpenFolderAsync = () => window._fileOpenController.OpenFolderAsync(),
@@ -55,9 +55,9 @@ namespace Uviewer
                             OpenPdfTocItem = item => window._pdfDocumentController.OpenTocItem(item),
                             ShowGoToPage = () => window._documentReaderController.GoToPageButton_Click(window.MainToolbar, new RoutedEventArgs()),
                             SearchRequested = window._searchController.HandleRightTapped,
-                            ZoomOut = window.ZoomOut,
-                            ZoomIn = window.ZoomIn,
-                            ZoomFit = window.FitToWindow,
+                            ZoomOut = window._imageViewerController.ZoomOut,
+                            ZoomIn = window._imageViewerController.ZoomIn,
+                            ZoomFit = window._imageViewerController.FitToWindow,
                             ZoomActual = () => window._imageViewerController.ZoomActual(),
                             ToggleAozora = () => window._documentReaderController.AozoraToggleButton_Click(window.MainToolbar, new RoutedEventArgs()),
                             ToggleVertical = () => window._documentReaderController.VerticalToggleButton_Click(window.MainToolbar, new RoutedEventArgs()),
@@ -74,10 +74,10 @@ namespace Uviewer
                             ToggleNextImageSide = () => window._imageViewerController.ToggleNextImageSide(),
                             ToggleSharpeningAsync = () => window._imageViewerController.ToggleSharpeningAsync(),
                             ResetSharpenParams = window.ImageOptions.Reset,
-                            NavigatePreviousFileAsync = () => window.NavigateToFileAsync(false),
+                            NavigatePreviousFileAsync = () => window._imageViewerController.NavigateToFileAsync(false),
                             NavigatePreviousPageAsync = () => window._documentNavigationCoordinator.NavigatePreviousAsync(),
                             NavigateNextPageAsync = () => window._documentNavigationCoordinator.NavigateNextAsync(),
-                            NavigateNextFileAsync = () => window.NavigateToFileAsync(true),
+                            NavigateNextFileAsync = () => window._imageViewerController.NavigateToFileAsync(true),
                             ToggleFullscreen = window.ToggleFullscreen,
                             CloseWindow = window.RequestWindowClose,
                             ShowNotification = (message, icon, color) => window.ShowNotification(message, icon, color)

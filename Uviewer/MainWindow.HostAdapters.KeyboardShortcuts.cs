@@ -74,14 +74,14 @@ namespace Uviewer
 
             public void DecreaseTextSize() => _window._documentReaderController.DecreaseTextSize();
             public void IncreaseTextSize() => _window._documentReaderController.IncreaseTextSize();
-            public void ToggleSidebar() => _window.ToggleSidebar();
+            public void ToggleSidebar() => _window._windowChromeController.ToggleSidebar();
             public void ToggleTheme() => _window._documentReaderController.ToggleTheme();
             public Task LoadEpubChapterAsync(int index) => _window._epubReaderController.LoadEpubChapterAsync(index);
             public void ToggleSideBySide() => _window._imageViewerController.ToggleSideBySide();
             public Task NavigateDocumentPageAsync(int direction) =>
                 _window._documentNavigationCoordinator.NavigatePageAsync(direction);
-            public Task DisplayCurrentImageAsync() => _window.DisplayCurrentImageAsync();
-            public Task NavigateToFileAsync(bool forward) => _window.NavigateToFileAsync(forward);
+            public Task DisplayCurrentImageAsync() => _window._imageViewerController.DisplayCurrentImageAsync();
+            public Task NavigateToFileAsync(bool forward) => _window._imageViewerController.NavigateToFileAsync(forward);
             public Task AddToFavoritesAsync() => _window._bookmarkInteractionController.AddCurrentFavoriteAsync();
 
             public void ToggleSharpening()
@@ -90,11 +90,11 @@ namespace Uviewer
             }
 
             public Task ShowGoToLineDialog() => _window._documentReaderController.ShowGoToLineDialog();
-            public Task NavigateToParentFolderAsync() => _window.NavigateToParentFolderAsync();
+            public Task NavigateToParentFolderAsync() => _window._explorerSidebarController.NavigateToParentFolderAsync();
             public Task OpenFileAsync() => _window._fileOpenController.OpenFileAsync();
-            public void ZoomIn() => _window.ZoomIn();
-            public void ZoomOut() => _window.ZoomOut();
-            public void FitToWindow() => _window.FitToWindow();
+            public void ZoomIn() => _window._imageViewerController.ZoomIn();
+            public void ZoomOut() => _window._imageViewerController.ZoomOut();
+            public void FitToWindow() => _window._imageViewerController.FitToWindow();
             public void ZoomActual() => _window._imageViewerController.ZoomActual();
             public void ToggleAlwaysOnTop() => _window.ToggleAlwaysOnTop();
             public void ToggleGlobalTheme() => _window.GlobalThemeToggleButton_Click(_window.MainToolbar, new RoutedEventArgs());

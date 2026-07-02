@@ -196,7 +196,7 @@ namespace Uviewer
 
                 CurrentPathText.Text = $"WebDAV: {_webDavService.CurrentServer.ServerName}{remotePath}";
 
-                ClearImageResources();
+                _imageViewerController.ClearImageResources();
                 _explorerState.ReplaceItems(System.Array.Empty<FileItem>());
                 _imageEntries.Clear();
                 _currentIndex = -1;
@@ -221,7 +221,7 @@ namespace Uviewer
 
                 var explorerItems = WebDavExplorerItemFactory.CreateFolderItems(remotePath, items, _explorerSortMode);
                 _explorerState.ReplaceItems(explorerItems);
-                ApplyThumbnailSizeToFileItems();
+                _explorerSidebarController.ApplyThumbnailSizeToFileItems();
             }
             catch (OperationCanceledException) { }
             catch (Exception ex)
@@ -283,7 +283,7 @@ namespace Uviewer
             if (_imageEntries.Count > 0)
             {
                 _currentIndex = 0;
-                await DisplayCurrentImageAsync();
+                await _imageViewerController.DisplayCurrentImageAsync();
                 StartWebDavPreload();
             }
             else
@@ -294,7 +294,7 @@ namespace Uviewer
 
         private void StartWebDavPreload()
         {
-            StartImagePreload(prioritizeNext: true);
+            _imageViewerController.StartImagePreload(prioritizeNext: true);
         }
 
         /// <summary>
