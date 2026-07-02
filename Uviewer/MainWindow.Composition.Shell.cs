@@ -12,15 +12,8 @@ namespace Uviewer
     {
         private static partial class MainWindowComposition
         {
-            private static class ShellComposition
+            private static partial class ShellComposition
             {
-                public static void InitializeToolbar(MainWindow window)
-                {
-                    window.MainToolbar.ImageOptions = window.ImageOptions;
-                    window.HookMainToolbarEvents();
-                    window.HookExtractedControlEvents();
-                }
-
                 public static void InitializeWindowShell(MainWindow window)
                 {
                     window.Title = "Uviewer - Image & Text Viewer";

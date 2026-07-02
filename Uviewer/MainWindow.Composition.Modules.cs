@@ -35,6 +35,7 @@ namespace Uviewer
                         image.InitializeNavigation,
                         shell.InitializeWindowSettings,
                         shell.InitializeExplorerAndBookmarks,
+                        shell.InitializeExtractedControlEvents,
                         shell.ApplyInitialWindowLayout,
                         shell.InitializeRootInput,
                         shell.InitializeExplorerLists,
@@ -89,6 +90,8 @@ namespace Uviewer
                 public void InitializeWindowSettings(MainWindow window) => ShellComposition.InitializeWindowSettings(window);
 
                 public void InitializeExplorerAndBookmarks(MainWindow window) => ShellComposition.InitializeExplorerAndBookmarks(window);
+
+                public void InitializeExtractedControlEvents(MainWindow window) => ShellComposition.InitializeExtractedControlEvents(window);
 
                 public void ApplyInitialWindowLayout(MainWindow window) => ShellComposition.ApplyInitialWindowLayout(window);
 

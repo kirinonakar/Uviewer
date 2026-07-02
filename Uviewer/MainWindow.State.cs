@@ -70,6 +70,8 @@ namespace Uviewer
 
         private FullscreenOverlayManager _overlayManager = null!;
         private WindowChromeController _windowChromeController = null!;
+        private MainToolbarController _mainToolbarController = null!;
+        private MainWindowControlEventBinder _controlEventBinder = null!;
         private DispatcherQueueTimer? _notificationTimer;
 
         private bool _isSideBySideMode
