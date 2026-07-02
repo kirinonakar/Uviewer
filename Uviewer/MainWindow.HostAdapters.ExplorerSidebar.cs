@@ -19,8 +19,8 @@ namespace Uviewer
             }
 
             public ObservableCollection<FileItem> FileItems => _window._fileItems;
-            public IReadOnlyList<ImageEntry> ImageEntries => _window._imageEntries;
-            public int CurrentIndex { get => _window._currentIndex; set => _window._currentIndex = value; }
+            public IReadOnlyList<ImageEntry> ImageEntries => _window._imageViewerState.Entries;
+            public int CurrentIndex { get => _window._imageViewerState.CurrentIndex; set => _window._imageViewerState.CurrentIndex = value; }
             public bool IsNavigatingRecent => _window._isNavigatingRecent;
             public bool IsExplorerGrid => _window._isExplorerGrid;
             public ExplorerSortMode ExplorerSortMode => _window._explorerSortMode;

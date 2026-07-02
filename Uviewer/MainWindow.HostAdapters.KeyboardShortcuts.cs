@@ -42,11 +42,11 @@ namespace Uviewer
 
             public int CurrentImageIndex
             {
-                get => _window._currentIndex;
-                set => _window._currentIndex = value;
+                get => _window._imageViewerState.CurrentIndex;
+                set => _window._imageViewerState.CurrentIndex = value;
             }
 
-            public int ImageEntriesCount => _window._imageEntries.Count;
+            public int ImageEntriesCount => _window._imageViewerState.Entries.Count;
             public bool HasPdfDocument => _window._currentPdfDocument != null;
             public bool IsAboutDialogActive => _window._aboutDialog != null;
             public bool IsSearchOverlayOpen => _window._searchOverlayService?.IsOpen == true;

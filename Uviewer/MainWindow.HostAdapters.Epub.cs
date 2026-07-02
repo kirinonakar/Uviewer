@@ -31,16 +31,16 @@ namespace Uviewer
             public bool IsAozoraMode { get => _window._isAozoraMode; set => _window._isAozoraMode = value; }
             public bool IsMarkdownRenderMode { get => _window._isMarkdownRenderMode; set => _window._isMarkdownRenderMode = value; }
             public bool IsVerticalMode { get => _window._isVerticalMode; set => _window._isVerticalMode = value; }
-            public bool IsSideBySideMode => _window._isSideBySideMode;
-            public bool AutoDoublePageForArchive => _window._autoDoublePageForArchive;
-            public bool NextImageOnRight => _window._nextImageOnRight;
+            public bool IsSideBySideMode => _window._imageViewerState.IsSideBySideMode;
+            public bool AutoDoublePageForArchive => _window._imageViewerState.AutoDoublePageForArchive;
+            public bool NextImageOnRight => _window._imageViewerState.NextImageOnRight;
             public bool IsNavigatingRecent { get => _window._isNavigatingRecent; set => _window._isNavigatingRecent = value; }
-            public int CurrentIndex { get => _window._currentIndex; set => _window._currentIndex = value; }
+            public int CurrentIndex { get => _window._imageViewerState.CurrentIndex; set => _window._imageViewerState.CurrentIndex = value; }
             public int AozoraPendingTargetLine { get => _window._aozoraPendingTargetLine; set => _window._aozoraPendingTargetLine = value; }
             public int TextTotalLineCountInSource { get => _window._textTotalLineCountInSource; set => _window._textTotalLineCountInSource = value; }
             public string CurrentTextContent { get => _window._currentTextContent; set => _window._currentTextContent = value; }
             public string WindowTitle { get => _window.Title; set => _window.Title = value; }
-            public List<ImageEntry> ImageEntries { get => _window._imageEntries; set => _window._imageEntries = value; }
+            public List<ImageEntry> ImageEntries { get => _window._imageViewerState.Entries; set => _window._imageViewerState.Entries = value ?? new List<ImageEntry>(); }
             public List<AozoraBindingModel> AozoraBlocks => _window._aozoraBlocks;
             public string? ActiveSearchQuery => _window._activeSearchQuery;
 

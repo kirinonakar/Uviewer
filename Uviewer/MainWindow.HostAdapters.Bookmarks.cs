@@ -21,12 +21,12 @@ namespace Uviewer
             public bool IsWebDavMode => _window._isWebDavMode;
             public bool IsNavigatingRecent { get => _window._isNavigatingRecent; set => _window._isNavigatingRecent = value; }
             public string? CurrentWebDavServerName => _window._webDavService.CurrentServer?.ServerName;
-            public IReadOnlyList<ImageEntry> ImageEntries => _window._imageEntries;
+            public IReadOnlyList<ImageEntry> ImageEntries => _window._imageViewerState.Entries;
 
             public int CurrentImageIndex
             {
-                get => _window._currentIndex;
-                set => _window._currentIndex = value;
+                get => _window._imageViewerState.CurrentIndex;
+                set => _window._imageViewerState.CurrentIndex = value;
             }
 
             public Task ConnectToWebDavServerAsync(string serverName, bool loadRoot) =>

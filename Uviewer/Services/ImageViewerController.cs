@@ -11,7 +11,7 @@ namespace Uviewer.Services
 {
     internal sealed class ImageViewerController
     {
-        private readonly IImageViewerHost _host;
+        private readonly IImageViewerRuntimeHost _host;
         private readonly ImageBitmapLifetimeCoordinator _bitmapLifetimeCoordinator;
         private readonly ImageDocumentEntryCoordinator _documentEntryCoordinator;
         private readonly ImageExplorerNavigationCoordinator _explorerNavigationCoordinator;

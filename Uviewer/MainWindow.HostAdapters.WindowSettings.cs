@@ -22,20 +22,20 @@ namespace Uviewer
 
             public bool SharpenEnabled
             {
-                get => _window._sharpenEnabled;
-                set => _window._sharpenEnabled = value;
+                get => _window._imageViewerState.IsSharpenEnabled;
+                set => _window._imageViewerState.IsSharpenEnabled = value;
             }
 
             public bool SideBySideMode
             {
-                get => _window._isSideBySideMode;
-                set => _window._isSideBySideMode = value;
+                get => _window._imageViewerState.IsSideBySideMode;
+                set => _window._imageViewerState.IsSideBySideMode = value;
             }
 
             public bool NextImageOnRight
             {
-                get => _window._nextImageOnRight;
-                set => _window._nextImageOnRight = value;
+                get => _window._imageViewerState.NextImageOnRight;
+                set => _window._imageViewerState.NextImageOnRight = value;
             }
 
             public ElementTheme CurrentTheme => _window._windowChromeController.CurrentTheme;
@@ -54,8 +54,8 @@ namespace Uviewer
 
             public bool AutoDoublePageForArchive
             {
-                get => _window._autoDoublePageForArchive;
-                set => _window._autoDoublePageForArchive = value;
+                get => _window._imageViewerState.AutoDoublePageForArchive;
+                set => _window._imageViewerState.AutoDoublePageForArchive = value;
             }
 
             public bool IsRegistered
@@ -98,7 +98,7 @@ namespace Uviewer
                 _window.MainToolbar.SetWindowOptionStates(
                     _window._matchControlDirection,
                     _window._allowMultipleInstances,
-                    _window._autoDoublePageForArchive,
+                    _window._imageViewerState.AutoDoublePageForArchive,
                     _window._windowState.IsAlwaysOnTop);
                 _window.ApplyThumbnailSettingsToControls();
                 _window.MainToolbar.SetExternalProgramPath(_window._externalProgramPath);

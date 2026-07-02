@@ -14,121 +14,362 @@ namespace Uviewer
 {
     public sealed partial class MainWindow
     {
-        private sealed class ImageViewerHostAdapter : IImageViewerHost, IImageBitmapLifetimeHost, IImageDocumentEntryHost, IImageExplorerNavigationHost, IImageFastNavigationHost, IImageInputHost, IImagePdfPageDisplayHost, IImagePresentationHost, IImagePreloadHost, IImageSideBySideDisplayHost, IImageSingleDisplayHost, IImageViewingOptionsHost, IImageZoomHost
+        private abstract class ImageWindowPort
         {
-            private readonly MainWindow _window;
+            protected readonly MainWindow Window;
+            protected ImageViewerState ImageState => Window._imageViewerState;
 
-            public ImageViewerHostAdapter(MainWindow window)
+            protected ImageWindowPort(MainWindow window)
             {
-                _window = window;
+                Window = window;
+            }
+        }
+
+        private sealed class ImageStatePort : ImageWindowPort, IImageViewerRuntimeHost, IImagePreloadHost
+        {
+            public ImageStatePort(MainWindow window)
+                : base(window)
+            {
             }
 
-            public List<ImageEntry> ImageEntries
-            {
-                get => _window._imageEntries;
-                set => _window._imageEntries = value;
-            }
+            public List<ImageEntry> ImageEntries => ImageState.Entries;
+            public int CurrentIndex { get => ImageState.CurrentIndex; set => ImageState.CurrentIndex = value; }
+            public double ZoomLevel { get => Window._zoomLevel; set => Window._zoomLevel = value; }
+            public CanvasBitmap? CurrentBitmap { get => ImageState.CurrentBitmap; set => ImageState.CurrentBitmap = value; }
+            public CanvasBitmap? LeftBitmap => ImageState.LeftBitmap;
+            public CanvasBitmap? RightBitmap => ImageState.RightBitmap;
+            public bool IsCurrentViewSideBySide { get => ImageState.IsCurrentViewSideBySide; set => ImageState.IsCurrentViewSideBySide = value; }
+            public bool IsSideBySideMode => ImageState.IsSideBySideMode;
+            public bool AutoDoublePageForArchive => ImageState.AutoDoublePageForArchive;
+            public bool SharpenEnabled => ImageState.IsSharpenEnabled;
+            public bool IsPdfMode => Window._currentPdfDocument != null;
+            public bool IsWebDavMode => Window._isWebDavMode;
+            public CancellationTokenSource? ImageLoadingCts { get => ImageState.ImageLoadingCts; set => ImageState.ImageLoadingCts = value; }
 
-            public ObservableCollection<FileItem> FileItems => _window._fileItems;
-            public int CurrentIndex { get => _window._currentIndex; set => _window._currentIndex = value; }
-            public double ZoomLevel { get => _window._zoomLevel; set => _window._zoomLevel = value; }
-            public CanvasBitmap? CurrentBitmap { get => _window._currentBitmap; set => _window._currentBitmap = value; }
-            public CanvasBitmap? LeftBitmap { get => _window._leftBitmap; set => _window._leftBitmap = value; }
-            public CanvasBitmap? RightBitmap { get => _window._rightBitmap; set => _window._rightBitmap = value; }
-            public bool IsCurrentViewSideBySide { get => _window._isCurrentViewSideBySide; set => _window._isCurrentViewSideBySide = value; }
-            public bool IsSideBySideMode { get => _window._isSideBySideMode; set => _window._isSideBySideMode = value; }
-            public bool NextImageOnRight { get => _window._nextImageOnRight; set => _window._nextImageOnRight = value; }
-            public bool AutoDoublePageForArchive => _window._autoDoublePageForArchive;
-            public bool IsAnimatedFrameActive { get => _window._isAnimatedFrameActive; set => _window._isAnimatedFrameActive = value; }
-            public bool SharpenEnabled { get => _window._sharpenEnabled; set => _window._sharpenEnabled = value; }
-            public bool IsSeamlessScroll => _window._isSeamlessScroll;
-            public bool IsPdfMode => _window._currentPdfDocument != null;
-            public bool IsWebDavMode => _window._isWebDavMode;
-            public bool IsTextMode => _window._isTextMode;
-            public bool IsEpubMode => _window._isEpubMode;
-            public bool IsVerticalMode => _window._isVerticalMode;
-            public bool IsAozoraMode => _window._isAozoraMode;
-            public bool IsExplorerGrid => _window._isExplorerGrid;
-            public bool ShouldInvertControls => _window.ShouldInvertControls;
-            public string? CurrentTextFilePath => _window._currentTextFilePath;
-            public string? CurrentTextArchiveEntryKey => _window._currentTextArchiveEntryKey;
-            public string? CurrentEpubFilePath => _window._currentEpubFilePath;
-            public string? CurrentWebDavItemPath => _window._currentWebDavItemPath;
-            public int CurrentEpubChapterIndex => _window._currentEpubChapterIndex;
-            public int CurrentEpubPageIndex => _window._currentEpubPageIndex;
-            public int PendingEpubChapterIndex { get => _window.PendingEpubChapterIndex; set => _window.PendingEpubChapterIndex = value; }
-            public int PendingEpubPageIndex { get => _window.PendingEpubPageIndex; set => _window.PendingEpubPageIndex = value; }
-            public int PendingEpubStartBlockIndex { get => _window._pendingEpubStartBlockIndex; set => _window._pendingEpubStartBlockIndex = value; }
-            public int AozoraPendingTargetLine { get => _window._aozoraPendingTargetLine; set => _window._aozoraPendingTargetLine = value; }
-            public int CurrentVerticalStartLine => _window._currentVerticalPageInfo.StartLine;
-            public double LastCanvasWidth { get => _window._lastCanvasWidth; set => _window._lastCanvasWidth = value; }
-            public CancellationTokenSource? ImageLoadingCts { get => _window._imageLoadingCts; set => _window._imageLoadingCts = value; }
+            public CanvasControl MainCanvas => Window.MainCanvas;
 
-            public CanvasControl MainCanvas => _window.MainCanvas;
-            public CanvasControl LeftCanvas => _window.LeftCanvas;
-            public CanvasControl RightCanvas => _window.RightCanvas;
-            public FrameworkElement ImageArea => _window.ImageArea;
-            public FrameworkElement RootGrid => _window.RootGrid;
-            public FrameworkElement EmptyStatePanel => _window.EmptyStatePanel;
-            public FrameworkElement FastNavOverlay => _window.FastNavOverlay;
-            public Grid SideBySideGrid => _window.SideBySideGrid;
-            public TextBlock FastNavText => _window.FastNavText;
-            public TextBlock FileNameText => _window.FileNameText;
-            public TextBlock ImageInfoText => _window.ImageInfoText;
-            public TextBlock ImageIndexText => _window.ImageIndexText;
-            public TextBlock TextProgressText => _window.TextProgressText;
-            public ListViewBase FileListView => _window.FileListView;
-            public ListViewBase FileGridView => _window.FileGridView;
-            public ScrollViewer? TextScrollViewer => _window.TextScrollViewer;
-            public CanvasControl? VerticalTextCanvas => _window.VerticalTextCanvas;
-            public CanvasControl? AozoraTextCanvas => _window.AozoraTextCanvas;
-            public CanvasControl? EpubTextCanvas => _window.EpubTextCanvas;
-            public MainToolbarControl MainToolbar => _window.MainToolbar;
-            public Microsoft.UI.Dispatching.DispatcherQueue DispatcherQueue => _window.DispatcherQueue;
+            public SevenZipExtractionCoordinator SevenZipExtraction => Window._sevenZipExtraction;
+            public ArchiveSession ArchiveSession => Window._archiveSession;
+            public IAnimatedWebpService AnimatedWebpService => Window._animatedWebpService;
+            public ImageCacheManager ImageCache => Window._imageCache;
+            public ImageViewportNavigationService ImageViewportNavigationService => Window._imageViewportNavigationService;
+            public ImageDoublePageDecisionService ImageDoublePageDecisionService => Window._imageDoublePageDecisionService;
+            public PreloadManager PreloadManager => Window._preloadManager;
+            public ImageBitmapLoader ImageBitmapLoader => Window._imageBitmapLoader;
+            public ImageNavigationCoordinator ImageNavigationCoordinator => Window._imageNavigationCoordinator;
+            public WebDavService WebDavService => Window._webDavService;
 
-            public FastNavigationService FastNavigationService => _window._fastNavigationService;
-            public SevenZipExtractionCoordinator SevenZipExtraction => _window._sevenZipExtraction;
-            public ArchiveSession ArchiveSession => _window._archiveSession;
-            public IAnimatedWebpService AnimatedWebpService => _window._animatedWebpService;
-            public ImageCacheManager ImageCache => _window._imageCache;
-            public ImageViewportNavigationService ImageViewportNavigationService => _window._imageViewportNavigationService;
-            public ZoomService ZoomService => _window._zoomService;
-            public ImageDoublePageDecisionService ImageDoublePageDecisionService => _window._imageDoublePageDecisionService;
-            public SideBySideImageLoadService SideBySideImageLoadService => _window._sideBySideImageLoadService;
-            public ImageStatusBarService ImageStatusBarService => _window._imageStatusBarService;
-            public PreloadManager PreloadManager => _window._preloadManager;
-            public ImageBitmapLoader ImageBitmapLoader => _window._imageBitmapLoader;
-            public ImageNavigationCoordinator ImageNavigationCoordinator => _window._imageNavigationCoordinator;
-            public ImageResourceService ImageResourceService => _window._imageResourceService;
-            public WindowSettingsCoordinator WindowSettingsCoordinator => _window._windowSettingsCoordinator;
-            public WebDavService WebDavService => _window._webDavService;
-            public ImageProcessingViewModel ImageOptions => _window.ImageOptions;
-            public EpubWin2DPage? CurrentEpubWin2DPage => _window.CurrentEpubWin2DPage;
-
-            public void Signal7zJump() => _window.Signal7zJump();
-            public void SwitchToImageMode() => _window.SwitchToImageMode();
+            public void Signal7zJump() => Window.Signal7zJump();
+            public void SwitchToImageMode() => Window.SwitchToImageMode();
             public Task<CanvasBitmap?> LoadPdfPageBitmapAsync(uint pageIndex, CanvasControl canvas, CancellationToken token = default, bool isPreload = false) =>
-                _window.LoadPdfPageBitmapAsync(pageIndex, canvas, token, isPreload);
+                Window.LoadPdfPageBitmapAsync(pageIndex, canvas, token, isPreload);
 
-            public Task AddToRecentAsync(bool immediate) => _window.AddToRecentAsync(immediate);
-            public Task LoadTextEntryAsync(ImageEntry entry) => _window.LoadTextEntryAsync(entry);
+            public Task AddToRecentAsync(bool immediate) => Window.AddToRecentAsync(immediate);
+            public SharpenParams CreateSharpenParams() => Window.CreateSharpenParams();
+            public void ShowNotification(string message, string icon = "\uE735", string color = "Gold") =>
+                Window.ShowNotification(message, icon, color);
+
+            public void FocusRoot() => Window.RootGrid.Focus(Microsoft.UI.Xaml.FocusState.Programmatic);
+        }
+
+        private sealed class ImageBitmapLifetimePort : ImageWindowPort, IImageBitmapLifetimeHost
+        {
+            public ImageBitmapLifetimePort(MainWindow window)
+                : base(window)
+            {
+            }
+
+            public CanvasBitmap? CurrentBitmap { get => ImageState.CurrentBitmap; set => ImageState.CurrentBitmap = value; }
+            public CanvasBitmap? LeftBitmap { get => ImageState.LeftBitmap; set => ImageState.LeftBitmap = value; }
+            public CanvasBitmap? RightBitmap { get => ImageState.RightBitmap; set => ImageState.RightBitmap = value; }
+            public bool IsAnimatedFrameActive { get => ImageState.IsAnimatedFrameActive; set => ImageState.IsAnimatedFrameActive = value; }
+            public CancellationTokenSource? ImageLoadingCts => ImageState.ImageLoadingCts;
+
+            public CanvasControl MainCanvas => Window.MainCanvas;
+            public CanvasControl LeftCanvas => Window.LeftCanvas;
+            public CanvasControl RightCanvas => Window.RightCanvas;
+            public TextBlock FileNameText => Window.FileNameText;
+            public TextBlock ImageInfoText => Window.ImageInfoText;
+            public TextBlock ImageIndexText => Window.ImageIndexText;
+
+            public ImageCacheManager ImageCache => Window._imageCache;
+            public IAnimatedWebpService AnimatedWebpService => Window._animatedWebpService;
+            public PreloadManager PreloadManager => Window._preloadManager;
+        }
+
+        private sealed class ImageInputPort : ImageWindowPort, IImageInputHost
+        {
+            public ImageInputPort(MainWindow window)
+                : base(window)
+            {
+            }
+
+            public List<ImageEntry> ImageEntries => ImageState.Entries;
+            public double ZoomLevel => Window._zoomLevel;
+            public CanvasBitmap? CurrentBitmap => ImageState.CurrentBitmap;
+            public bool IsCurrentViewSideBySide => ImageState.IsCurrentViewSideBySide;
+            public bool IsPdfMode => Window._currentPdfDocument != null;
+            public bool ShouldInvertControls => Window.ShouldInvertControls;
+            public double LastCanvasWidth { get => ImageState.LastCanvasWidth; set => ImageState.LastCanvasWidth = value; }
+
+            public CanvasControl MainCanvas => Window.MainCanvas;
+            public FrameworkElement ImageArea => Window.ImageArea;
+            public Grid SideBySideGrid => Window.SideBySideGrid;
+
+            public ImageViewportNavigationService ImageViewportNavigationService => Window._imageViewportNavigationService;
+
+            public Task RerenderPdfCurrentPageAsync() => Window.RerenderPdfCurrentPageAsync();
+            public void ShowNotification(string message, string icon = "\uE735", string color = "Gold") =>
+                Window.ShowNotification(message, icon, color);
+
+            public void FocusRoot() => Window.RootGrid.Focus(Microsoft.UI.Xaml.FocusState.Programmatic);
+        }
+
+        private sealed class ImagePdfPageDisplayPort : ImageWindowPort, IImagePdfPageDisplayHost
+        {
+            public ImagePdfPageDisplayPort(MainWindow window)
+                : base(window)
+            {
+            }
+
+            public int CurrentIndex => ImageState.CurrentIndex;
+            public double ZoomLevel => Window._zoomLevel;
+            public CanvasBitmap? CurrentBitmap { get => ImageState.CurrentBitmap; set => ImageState.CurrentBitmap = value; }
+            public CanvasBitmap? LeftBitmap { get => ImageState.LeftBitmap; set => ImageState.LeftBitmap = value; }
+            public CanvasBitmap? RightBitmap { get => ImageState.RightBitmap; set => ImageState.RightBitmap = value; }
+            public bool IsCurrentViewSideBySide { get => ImageState.IsCurrentViewSideBySide; set => ImageState.IsCurrentViewSideBySide = value; }
+            public bool IsSeamlessScroll => ImageState.IsSeamlessScroll;
+
+            public CanvasControl MainCanvas => Window.MainCanvas;
+
+            public ImageCacheManager ImageCache => Window._imageCache;
+            public ImageViewportNavigationService ImageViewportNavigationService => Window._imageViewportNavigationService;
+
+            public void SwitchToImageMode() => Window.SwitchToImageMode();
+            public Task<CanvasBitmap?> LoadPdfPageBitmapAsync(uint pageIndex, CanvasControl canvas, CancellationToken token = default, bool isPreload = false) =>
+                Window.LoadPdfPageBitmapAsync(pageIndex, canvas, token, isPreload);
+
+            public Task AddToRecentAsync(bool immediate) => Window.AddToRecentAsync(immediate);
+            public Task RerenderPdfCurrentPageAsync() => Window.RerenderPdfCurrentPageAsync();
+            public void FocusRoot() => Window.RootGrid.Focus(Microsoft.UI.Xaml.FocusState.Programmatic);
+        }
+
+        private sealed class ImageSideBySideDisplayPort : ImageWindowPort, IImageSideBySideDisplayHost
+        {
+            public ImageSideBySideDisplayPort(MainWindow window)
+                : base(window)
+            {
+            }
+
+            public List<ImageEntry> ImageEntries => ImageState.Entries;
+            public int CurrentIndex => ImageState.CurrentIndex;
+            public bool NextImageOnRight => ImageState.NextImageOnRight;
+            public double ZoomLevel { get => Window._zoomLevel; set => Window._zoomLevel = value; }
+            public CanvasBitmap? CurrentBitmap { get => ImageState.CurrentBitmap; set => ImageState.CurrentBitmap = value; }
+            public CanvasBitmap? LeftBitmap { get => ImageState.LeftBitmap; set => ImageState.LeftBitmap = value; }
+            public CanvasBitmap? RightBitmap { get => ImageState.RightBitmap; set => ImageState.RightBitmap = value; }
+
+            public CanvasControl LeftCanvas => Window.LeftCanvas;
+            public CanvasControl RightCanvas => Window.RightCanvas;
+            public TextBlock FileNameText => Window.FileNameText;
+
+            public ImageCacheManager ImageCache => Window._imageCache;
+            public SideBySideImageLoadService SideBySideImageLoadService => Window._sideBySideImageLoadService;
+        }
+
+        private sealed class ImageSingleDisplayPort : ImageWindowPort, IImageSingleDisplayHost
+        {
+            public ImageSingleDisplayPort(MainWindow window)
+                : base(window)
+            {
+            }
+
+            public List<ImageEntry> ImageEntries => ImageState.Entries;
+            public int CurrentIndex => ImageState.CurrentIndex;
+            public double ZoomLevel { get => Window._zoomLevel; set => Window._zoomLevel = value; }
+            public CanvasBitmap? CurrentBitmap { get => ImageState.CurrentBitmap; set => ImageState.CurrentBitmap = value; }
+            public bool IsAnimatedFrameActive { get => ImageState.IsAnimatedFrameActive; set => ImageState.IsAnimatedFrameActive = value; }
+            public bool SharpenEnabled => ImageState.IsSharpenEnabled;
+
+            public CanvasControl MainCanvas => Window.MainCanvas;
+            public TextBlock FileNameText => Window.FileNameText;
+            public Microsoft.UI.Dispatching.DispatcherQueue DispatcherQueue => Window.DispatcherQueue;
+
+            public ImageCacheManager ImageCache => Window._imageCache;
+            public ImageViewportNavigationService ImageViewportNavigationService => Window._imageViewportNavigationService;
+            public IAnimatedWebpService AnimatedWebpService => Window._animatedWebpService;
+            public ImageProcessingViewModel ImageOptions => Window.ImageOptions;
+        }
+
+        private sealed class ImageZoomPort : ImageWindowPort, IImageZoomHost
+        {
+            public ImageZoomPort(MainWindow window)
+                : base(window)
+            {
+            }
+
+            public double ZoomLevel => Window._zoomLevel;
+            public CanvasBitmap? CurrentBitmap => ImageState.CurrentBitmap;
+            public bool IsCurrentViewSideBySide => ImageState.IsCurrentViewSideBySide;
+            public bool IsPdfMode => Window._currentPdfDocument != null;
+
+            public CanvasControl MainCanvas => Window.MainCanvas;
+            public CanvasControl LeftCanvas => Window.LeftCanvas;
+            public CanvasControl RightCanvas => Window.RightCanvas;
+            public FrameworkElement ImageArea => Window.ImageArea;
+            public MainToolbarControl MainToolbar => Window.MainToolbar;
+
+            public ZoomService ZoomService => Window._zoomService;
+            public ImageViewportNavigationService ImageViewportNavigationService => Window._imageViewportNavigationService;
+
+            public Task RerenderPdfCurrentPageAsync() => Window.RerenderPdfCurrentPageAsync();
+        }
+
+        private sealed class ImageNavigationPort : ImageWindowPort, IImageExplorerNavigationHost, IImageFastNavigationHost
+        {
+            public ImageNavigationPort(MainWindow window)
+                : base(window)
+            {
+            }
+
+            public List<ImageEntry> ImageEntries => ImageState.Entries;
+            public ObservableCollection<FileItem> FileItems => Window._fileItems;
+            public int CurrentIndex { get => ImageState.CurrentIndex; set => ImageState.CurrentIndex = value; }
+            public bool IsCurrentViewSideBySide => ImageState.IsCurrentViewSideBySide;
+            public bool IsWebDavMode => Window._isWebDavMode;
+            public bool IsExplorerGrid => Window._isExplorerGrid;
+            public bool IsEpubMode => Window._isEpubMode;
+            public bool IsTextMode => Window._isTextMode;
+            public string? CurrentWebDavItemPath => Window._currentWebDavItemPath;
+            public string? CurrentEpubFilePath => Window._currentEpubFilePath;
+            public string? CurrentTextFilePath => Window._currentTextFilePath;
+
+            public CanvasControl MainCanvas => Window.MainCanvas;
+            public FrameworkElement FastNavOverlay => Window.FastNavOverlay;
+            public TextBlock FastNavText => Window.FastNavText;
+            public TextBlock FileNameText => Window.FileNameText;
+            public TextBlock ImageInfoText => Window.ImageInfoText;
+            public TextBlock ImageIndexText => Window.ImageIndexText;
+            public TextBlock TextProgressText => Window.TextProgressText;
+            public ListViewBase FileListView => Window.FileListView;
+            public ListViewBase FileGridView => Window.FileGridView;
+
+            public FastNavigationService FastNavigationService => Window._fastNavigationService;
+            public ArchiveSession ArchiveSession => Window._archiveSession;
+
+            public void Signal7zJump() => Window.Signal7zJump();
+            public Task AddToRecentAsync(bool immediate) => Window.AddToRecentAsync(immediate);
+            public Task HandleFileSelectionAsync(FileItem item) => Window.HandleFileSelectionAsync(item);
+            public void FocusRoot() => Window.RootGrid.Focus(Microsoft.UI.Xaml.FocusState.Programmatic);
+        }
+
+        private sealed class ImageDocumentOpenPort : ImageWindowPort, IImageDocumentEntryHost
+        {
+            public ImageDocumentOpenPort(MainWindow window)
+                : base(window)
+            {
+            }
+
+            public bool IsTextMode => Window._isTextMode;
+            public bool IsEpubMode => Window._isEpubMode;
+            public bool IsVerticalMode => Window._isVerticalMode;
+            public bool IsAozoraMode => Window._isAozoraMode;
+            public string? CurrentTextFilePath => Window._currentTextFilePath;
+            public string? CurrentTextArchiveEntryKey => Window._currentTextArchiveEntryKey;
+            public string? CurrentEpubFilePath => Window._currentEpubFilePath;
+            public int CurrentEpubChapterIndex => Window._currentEpubChapterIndex;
+            public int PendingEpubChapterIndex { get => Window.PendingEpubChapterIndex; set => Window.PendingEpubChapterIndex = value; }
+            public int PendingEpubPageIndex { get => Window.PendingEpubPageIndex; set => Window.PendingEpubPageIndex = value; }
+            public int PendingEpubStartBlockIndex { get => Window._pendingEpubStartBlockIndex; set => Window._pendingEpubStartBlockIndex = value; }
+            public int AozoraPendingTargetLine { get => Window._aozoraPendingTargetLine; set => Window._aozoraPendingTargetLine = value; }
+
+            public ScrollViewer? TextScrollViewer => Window.TextScrollViewer;
+            public EpubWin2DPage? CurrentEpubWin2DPage => Window.CurrentEpubWin2DPage;
+
+            public Task AddToRecentAsync(bool immediate) => Window.AddToRecentAsync(immediate);
+            public Task LoadTextEntryAsync(ImageEntry entry) => Window.LoadTextEntryAsync(entry);
             public Task ReloadTextDisplayFromCacheAsync(string fileName, int targetLine) =>
-                _window.ReloadTextDisplayFromCacheAsync(fileName, targetLine);
-            public Task LoadEpubEntryAsync(ImageEntry entry, CancellationToken token) => _window.LoadEpubEntryAsync(entry, token);
+                Window.ReloadTextDisplayFromCacheAsync(fileName, targetLine);
+
+            public Task LoadEpubEntryAsync(ImageEntry entry, CancellationToken token) => Window.LoadEpubEntryAsync(entry, token);
             public Task LoadEpubChapterAsync(int index, int targetLine = -1, int targetBlockIndex = -1, int targetPage = -1) =>
-                _window.LoadEpubChapterAsync(index, targetLine: targetLine, targetBlockIndex: targetBlockIndex, targetPage: targetPage);
-            public void ShowEpubImagePage(EpubWin2DPage page) => _window.ShowEpubImagePage(page);
-            public void SetEpubPageIndex(int index) => _window.SetEpubPageIndex(index);
-            public Task PrepareVerticalTextAsync(int line) => _window.PrepareVerticalTextAsync(line);
-            public SharpenParams CreateSharpenParams() => _window.CreateSharpenParams();
-            public Task RerenderPdfCurrentPageAsync() => _window.RerenderPdfCurrentPageAsync();
-            public void ShowNotification(string message, string icon = "\uE735", string color = "Gold") => _window.ShowNotification(message, icon, color);
-            public Task HandleFileSelectionAsync(FileItem item) => _window.HandleFileSelectionAsync(item);
-            public void FocusRoot() => _window.RootGrid.Focus(Microsoft.UI.Xaml.FocusState.Programmatic);
-            public void SaveWindowSettings() => _window._windowSettingsCoordinator.SaveWindowSettings();
-            public void InvalidateEpubTextCanvas() => _window.EpubTextCanvas?.Invalidate();
-            public void InvalidateVerticalTextCanvas() => _window.VerticalTextCanvas?.Invalidate();
-            public void InvalidateAozoraTextCanvas() => _window.AozoraTextCanvas?.Invalidate();
+                Window.LoadEpubChapterAsync(index, targetLine: targetLine, targetBlockIndex: targetBlockIndex, targetPage: targetPage);
+
+            public void ShowEpubImagePage(EpubWin2DPage page) => Window.ShowEpubImagePage(page);
+            public void InvalidateEpubTextCanvas() => Window.EpubTextCanvas?.Invalidate();
+            public void InvalidateVerticalTextCanvas() => Window.VerticalTextCanvas?.Invalidate();
+            public void InvalidateAozoraTextCanvas() => Window.AozoraTextCanvas?.Invalidate();
+        }
+
+        private sealed class ImageUiPort : ImageWindowPort, IImagePresentationHost
+        {
+            public ImageUiPort(MainWindow window)
+                : base(window)
+            {
+            }
+
+            public List<ImageEntry> ImageEntries => ImageState.Entries;
+            public bool SharpenEnabled => ImageState.IsSharpenEnabled;
+            public bool IsCurrentViewSideBySide => ImageState.IsCurrentViewSideBySide;
+            public bool IsSideBySideMode => ImageState.IsSideBySideMode;
+            public bool NextImageOnRight => ImageState.NextImageOnRight;
+            public bool IsPdfMode => Window._currentPdfDocument != null;
+            public bool IsWebDavMode => Window._isWebDavMode;
+            public string? CurrentWebDavItemPath => Window._currentWebDavItemPath;
+            public int CurrentIndex => ImageState.CurrentIndex;
+
+            public FrameworkElement EmptyStatePanel => Window.EmptyStatePanel;
+            public CanvasControl MainCanvas => Window.MainCanvas;
+            public Grid SideBySideGrid => Window.SideBySideGrid;
+            public TextBlock FileNameText => Window.FileNameText;
+            public TextBlock ImageInfoText => Window.ImageInfoText;
+            public TextBlock ImageIndexText => Window.ImageIndexText;
+            public TextBlock TextProgressText => Window.TextProgressText;
+            public MainToolbarControl MainToolbar => Window.MainToolbar;
+
+            public ArchiveSession ArchiveSession => Window._archiveSession;
+            public ImageStatusBarService ImageStatusBarService => Window._imageStatusBarService;
+        }
+
+        private sealed class ImageSettingsPort : ImageWindowPort, IImageViewingOptionsHost
+        {
+            public ImageSettingsPort(MainWindow window)
+                : base(window)
+            {
+            }
+
+            public List<ImageEntry> ImageEntries => ImageState.Entries;
+            public CanvasBitmap? CurrentBitmap => ImageState.CurrentBitmap;
+            public CanvasBitmap? LeftBitmap => ImageState.LeftBitmap;
+            public CanvasBitmap? RightBitmap => ImageState.RightBitmap;
+            public bool SharpenEnabled { get => ImageState.IsSharpenEnabled; set => ImageState.IsSharpenEnabled = value; }
+            public bool IsPdfMode => Window._currentPdfDocument != null;
+            public bool IsSideBySideMode { get => ImageState.IsSideBySideMode; set => ImageState.IsSideBySideMode = value; }
+            public bool NextImageOnRight { get => ImageState.NextImageOnRight; set => ImageState.NextImageOnRight = value; }
+            public bool IsVerticalMode => Window._isVerticalMode;
+            public bool IsEpubMode => Window._isEpubMode;
+            public bool IsAozoraMode => Window._isAozoraMode;
+            public int CurrentVerticalStartLine => Window._currentVerticalPageInfo.StartLine;
+            public int CurrentEpubChapterIndex => Window._currentEpubChapterIndex;
+            public int CurrentEpubPageIndex => Window._currentEpubPageIndex;
+            public EpubWin2DPage? CurrentEpubWin2DPage => Window.CurrentEpubWin2DPage;
+
+            public ImageCacheManager ImageCache => Window._imageCache;
+            public IAnimatedWebpService AnimatedWebpService => Window._animatedWebpService;
+            public ImageResourceService ImageResourceService => Window._imageResourceService;
+
+            public Task LoadEpubChapterAsync(int index, int targetLine = -1, int targetBlockIndex = -1, int targetPage = -1) =>
+                Window.LoadEpubChapterAsync(index, targetLine: targetLine, targetBlockIndex: targetBlockIndex, targetPage: targetPage);
+
+            public Task PrepareVerticalTextAsync(int line) => Window.PrepareVerticalTextAsync(line);
+            public void SetEpubPageIndex(int index) => Window.SetEpubPageIndex(index);
+            public void ShowEpubImagePage(EpubWin2DPage page) => Window.ShowEpubImagePage(page);
+            public void InvalidateEpubTextCanvas() => Window.EpubTextCanvas?.Invalidate();
+            public void InvalidateVerticalTextCanvas() => Window.VerticalTextCanvas?.Invalidate();
+            public void InvalidateAozoraTextCanvas() => Window.AozoraTextCanvas?.Invalidate();
+            public void SaveWindowSettings() => Window._windowSettingsCoordinator.SaveWindowSettings();
+            public void ShowNotification(string message, string icon = "\uE735", string color = "Gold") =>
+                Window.ShowNotification(message, icon, color);
         }
     }
 }

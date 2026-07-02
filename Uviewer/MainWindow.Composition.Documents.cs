@@ -50,8 +50,8 @@ namespace Uviewer
                         GetCurrentEpubPath = () => window._currentEpubFilePath,
                         GetCurrentTextPath = () => window._currentTextFilePath,
                         IsWebDavMode = () => window._isWebDavMode,
-                        GetCurrentIndex = () => window._currentIndex,
-                        GetImageEntries = () => window._imageEntries
+                        GetCurrentIndex = () => window._imageViewerState.CurrentIndex,
+                        GetImageEntries = () => window._imageViewerState.Entries
                     });
                 }
 
@@ -102,20 +102,86 @@ namespace Uviewer
                             CloseCurrentEpubAsync = window.CloseCurrentEpubAsync,
                             DisplayCurrentImageAsync = window.DisplayCurrentImageAsync,
                             LoadBitmapForPreloadAsync = window.LoadBitmapForPreloadAsync,
-                            GetCurrentIndex = () => window._currentIndex,
-                            SetCurrentIndex = value => window._currentIndex = value,
-                            GetImageEntries = () => window._imageEntries,
-                            SetImageEntries = value => window._imageEntries = value ?? new List<Uviewer.Models.ImageEntry>(),
+                            GetCurrentIndex = () => window._imageViewerState.CurrentIndex,
+                            SetCurrentIndex = value => window._imageViewerState.CurrentIndex = value,
+                            GetImageEntries = () => window._imageViewerState.Entries,
+                            SetImageEntries = value => window._imageViewerState.Entries = value ?? new List<Uviewer.Models.ImageEntry>(),
                             IsPdfOpen = () => window._currentPdfDocument != null,
                             GetZoomLevel = () => window._zoomLevel,
-                            GetCurrentBitmap = () => window._currentBitmap,
-                            GetLeftBitmap = () => window._leftBitmap,
-                            GetRightBitmap = () => window._rightBitmap,
-                            IsSharpenEnabled = () => window._sharpenEnabled,
-                            CancelImageLoading = () => window._imageLoadingCts?.Cancel(),
+                            GetCurrentBitmap = () => window._imageViewerState.CurrentBitmap,
+                            GetLeftBitmap = () => window._imageViewerState.LeftBitmap,
+                            GetRightBitmap = () => window._imageViewerState.RightBitmap,
+                            IsSharpenEnabled = () => window._imageViewerState.IsSharpenEnabled,
+                            CancelImageLoading = () => window._imageViewerState.ImageLoadingCts?.Cancel(),
                             CancelTextLoading = () => window._globalTextCts?.Cancel(),
                             InvalidateMainCanvas = () => window.MainCanvas?.Invalidate(),
                             SetWindowTitle = value => window.Title = value,
+                            SetStatusText = value => window.FileNameText.Text = value
+                        });
+                }
+
+                public static void InitializeLocalImageController(MainWindow window)
+                {
+                    window._localImageDocumentController = new LocalImageDocumentController(
+                        window._sevenZipExtraction,
+                        window._preloadManager,
+                        window._imageCache,
+                        window._imageViewerState,
+                        window.DispatcherQueue,
+                        new LocalImageDocumentHandlers
+                        {
+                            CloseCurrentArchiveAsync = window.CloseCurrentArchiveAsync,
+                            CloseCurrentPdfAsync = window.CloseCurrentPdfAsync,
+                            CloseCurrentEpubAsync = window.CloseCurrentEpubAsync,
+                            CloseCurrentText = window.CloseCurrentText,
+                            DisplayCurrentImageAsync = window.DisplayCurrentImageAsync,
+                            CancelImageLoading = () => window._imageViewerState.ImageLoadingCts?.Cancel(),
+                            CancelTextLoading = () => window._globalTextCts?.Cancel(),
+                            CancelExplorerThumbnailLoading = window._explorerState.CancelThumbnailLoading,
+                            RefreshCurrentStatusBar = window.RefreshCurrentImageStatusBar,
+                            SetStatusText = value => window.FileNameText.Text = value
+                        });
+                }
+
+                public static void InitializePdfController(MainWindow window)
+                {
+                    window._pdfDocumentController = new PdfDocumentController(
+                        window._documentSessionTracker,
+                        window._documentSearchService,
+                        window._preloadManager,
+                        window._imageCache,
+                        window._imageViewerState,
+                        window._imageViewportNavigationService,
+                        window._fastNavigationService,
+                        window._tocService,
+                        new PdfDocumentHandlers
+                        {
+                            IsWindowClosing = () => window._isWindowClosing,
+                            CloseCurrentArchiveAsync = window.CloseCurrentArchiveAsync,
+                            CloseCurrentEpubAsync = window.CloseCurrentEpubAsync,
+                            DisplayCurrentImageAsync = window.DisplayCurrentImageAsync,
+                            LoadBitmapForPreloadAsync = window.LoadBitmapForPreloadAsync,
+                            GetPendingPdfPageIndex = () => window._pendingPdfPageIndex,
+                            SetPendingPdfPageIndex = value => window._pendingPdfPageIndex = value,
+                            CancelImageLoading = () => window._imageViewerState.ImageLoadingCts?.Cancel(),
+                            SwitchToImageMode = window.SwitchToImageMode,
+                            StartPdfTocLoad = window.StartPdfTocLoad,
+                            SetPdfGoToPageVisible = window.MainToolbar.SetPdfGoToPageVisible,
+                            SetSideBySideToolbarVisible = window.MainToolbar.SetSideBySideToolbarVisible,
+                            SetSharpenControlsVisible = window.MainToolbar.SetSharpenControlsVisible,
+                            SetZoomLevel = value => window._zoomLevel = value,
+                            ResetImageViewportNavigation = direction => window._imageViewportNavigationService.Reset(scrollDirection: direction),
+                            InvalidateMainCanvas = () => window.MainCanvas?.Invalidate(),
+                            ApplyPdfClosedUi = () =>
+                            {
+                                window.DispatcherQueue.TryEnqueue(() =>
+                                {
+                                    window.MainToolbar.SetPdfTocVisible(false);
+                                    window.MainToolbar.SetPdfGoToPageVisible(false);
+                                    window.Title = "Uviewer - Image & Text Viewer";
+                                });
+                            },
+                            SetTitle = value => window.Title = value,
                             SetStatusText = value => window.FileNameText.Text = value
                         });
                 }

@@ -39,6 +39,8 @@ namespace Uviewer
                         shell.InitializeRootInput,
                         shell.InitializeExplorerLists,
                         image.InitializePipeline,
+                        document.InitializeLocalImageController,
+                        document.InitializePdfController,
                         document.InitializeArchiveController
                     });
             }
@@ -106,6 +108,10 @@ namespace Uviewer
                 }
 
                 public void InitializeNavigation(MainWindow window) => DocumentFeatureComposition.InitializeNavigation(window);
+
+                public void InitializeLocalImageController(MainWindow window) => DocumentFeatureComposition.InitializeLocalImageController(window);
+
+                public void InitializePdfController(MainWindow window) => DocumentFeatureComposition.InitializePdfController(window);
 
                 public void InitializeArchiveController(MainWindow window) => DocumentFeatureComposition.InitializeArchiveController(window);
             }

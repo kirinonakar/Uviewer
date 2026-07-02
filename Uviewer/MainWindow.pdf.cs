@@ -33,83 +33,7 @@ namespace Uviewer
         }
 
         private async Task LoadImagesFromPdfAsync(string pdfPath)
-        {
-            if (_isWindowClosing) return;
-
-            _documentSearchService.Clear();
-            _preloadManager.CancelAll();
-            _imageLoadingCts?.Cancel(); // Cancel any ongoing image load
-            
-            SwitchToImageMode(); // Force UI to image mode immediately
-
-            // Close other formats first - outside the lock to avoid double-locking/deadlocks
-            if (!await CloseCurrentArchiveAsync()) return;
-            if (!await CloseCurrentEpubAsync()) return;
-            if (!await CloseCurrentPdfAsync()) return;
-
-            try
-            {
-                var pdfSession = new PdfDocumentSession(pdfPath);
-                _documentSessionTracker.Replace(pdfSession);
-                await pdfSession.LoadFileAsync();
-
-                var newEntries = new List<ImageEntry>();
-                for (uint i = 0; i < pdfSession.PageCount; i++)
-                {
-                    newEntries.Add(new ImageEntry
-                    {
-                        DisplayName = $"{Path.GetFileName(pdfPath)} - Page {i + 1}",
-                        FilePath = pdfPath,
-                        IsPdfEntry = true,
-                        PdfPageIndex = i
-                    });
-                }
-                _imageEntries = newEntries;
-
-                MainToolbar.SetPdfGoToPageVisible(true);
-                StartPdfTocLoad(pdfPath, pdfSession.Generation, pdfSession.DocumentToken);
-
-                MainToolbar.SetSideBySideToolbarVisible(false);
-                MainToolbar.SetSharpenControlsVisible(false);
-
-                // Reset PDF view state for the new document
-                _zoomLevel = 1.0;
-                _imageViewportNavigationService.Reset(scrollDirection: 1); // Start from top
-
-                if (_imageEntries.Count > 0)
-                {
-                    if (_pendingPdfPageIndex >= 0 && _pendingPdfPageIndex < _imageEntries.Count)
-                    {
-                        _currentIndex = _pendingPdfPageIndex;
-                        _pendingPdfPageIndex = -1;
-                    }
-                    else
-                    {
-                        _currentIndex = 0;
-                    }
-                    await DisplayCurrentImageAsync();
-
-                    _ = _preloadManager.StartPreloadAsync(
-                        _currentIndex, _imageEntries, _currentPdfDocument != null, _zoomLevel,
-                        _currentBitmap, _leftBitmap, _rightBitmap,
-                        LoadBitmapForPreloadAsync,
-                        () => MainCanvas?.Invalidate(),
-                        prioritizeNext: true,
-                        requireSharpening: _sharpenEnabled);
-
-                    Title = "Uviewer - Image & Text Viewer";
-                }
-                else
-                {
-                    FileNameText.Text = "이 PDF 파일에 페이지가 없습니다";
-                }
-            }
-            catch (Exception ex)
-            {
-                _documentSessionTracker.Clear(DocumentKind.Pdf);
-                FileNameText.Text = $"PDF 열기 실패: {ex.Message}";
-            }
-        }
+            => await _pdfDocumentController.LoadImagesFromPdfAsync(pdfPath);
 
         private void StartPdfTocLoad(string pdfPath, int pdfGeneration, CancellationToken token)
         {
@@ -141,45 +65,7 @@ namespace Uviewer
         }
 
         private async Task<bool> CloseCurrentPdfAsync() // 동기 메서드 대신 비동기로 변경하여 UI 프리징 방지
-        {
-            CancelPdfOperations();
-            var pdfSession = CurrentPdfSession;
-            if (pdfSession?.HasDocument != true) return true;
-
-            if (!await pdfSession.CloseAsync(TimeSpan.FromSeconds(10)))
-            {
-                return false;
-            }
-
-            CloseCurrentPdfInternal();
-            return true;
-        }
-
-        private void CloseCurrentPdfInternal()
-        {
-            CancelPdfOperations();
-
-            // PDF Document 참조 해제
-            _currentPdfPath = null;
-            _tocService.Clear();
-
-            if (!_isWindowClosing)
-            {
-                // UI 스레드에서 버튼 가리기
-                DispatcherQueue.TryEnqueue(() =>
-                {
-                    MainToolbar.SetPdfTocVisible(false);
-                    MainToolbar.SetPdfGoToPageVisible(false);
-                    Title = "Uviewer - Image & Text Viewer";
-                });
-
-                _imageCache?.ClearAll();
-            }
-
-            _fastNavigationService?.StopTimers();
-
-            _imageViewerState.ClearBitmaps();
-        }
+            => await _pdfDocumentController.CloseCurrentPdfAsync();
 
         private bool IsCurrentPdfPath(string pdfPath)
         {
@@ -191,22 +77,8 @@ namespace Uviewer
             return CurrentPdfSession?.IsCurrentScope(generation, pdfPath) == true;
         }
 
-        private void CancelPdfOperations()
-        {
-            CurrentPdfSession?.CancelOperations();
-            try { _preloadManager?.CancelAll(); } catch { }
-            try { _imageViewportNavigationService?.StopSmoothZoom(); } catch { }
-        }
-
         private void ShutdownPdfResources()
-        {
-            CancelPdfOperations();
-            CurrentPdfSession?.Shutdown();
-            _currentPdfPath = null;
-            _tocService.Clear();
-            _fastNavigationService?.StopTimers();
-            _imageViewerState.ClearBitmaps();
-        }
+            => _pdfDocumentController.ShutdownPdfResources();
 
         private async Task<CanvasBitmap?> LoadPdfPageBitmapAsync(
             uint pageIndex,

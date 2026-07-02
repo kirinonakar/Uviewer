@@ -3,6 +3,7 @@ using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using System.Collections.Generic;
+using System.Threading;
 using Uviewer.Models;
 using Uviewer.Services;
 
@@ -105,12 +106,38 @@ namespace Uviewer
         private bool _matchControlDirection = false;
         private int _pendingPdfPageIndex = -1;
 
-        private bool _sharpenEnabled;
-        private bool _isAnimatedFrameActive;
+        private bool _sharpenEnabled
+        {
+            get => _imageViewerState.IsSharpenEnabled;
+            set => _imageViewerState.IsSharpenEnabled = value;
+        }
+
+        private bool _isAnimatedFrameActive
+        {
+            get => _imageViewerState.IsAnimatedFrameActive;
+            set => _imageViewerState.IsAnimatedFrameActive = value;
+        }
+
         public ImageProcessingViewModel ImageOptions { get; } = new();
 
-        private double _lastCanvasWidth = 0;
-        private bool _isSeamlessScroll = false;
+        private double _lastCanvasWidth
+        {
+            get => _imageViewerState.LastCanvasWidth;
+            set => _imageViewerState.LastCanvasWidth = value;
+        }
+
+        private bool _isSeamlessScroll
+        {
+            get => _imageViewerState.IsSeamlessScroll;
+            set => _imageViewerState.IsSeamlessScroll = value;
+        }
+
+        private CancellationTokenSource? _imageLoadingCts
+        {
+            get => _imageViewerState.ImageLoadingCts;
+            set => _imageViewerState.ImageLoadingCts = value;
+        }
+
         private bool _allowMultipleInstances = true;
         private bool _isRegistered = false;
         private double _explorerThumbnailSize = 80;

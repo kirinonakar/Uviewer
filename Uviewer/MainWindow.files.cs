@@ -62,141 +62,19 @@ namespace Uviewer
         }
 
         private async Task LoadImageFromFileAsync(StorageFile file, bool isInitial = false)
-        {
-            // 이전 작업 즉시 중단
-            _sevenZipExtraction.CancelExtraction();
-            _imageLoadingCts?.Cancel();
-            _preloadManager.CancelAll();
-            _globalTextCts?.Cancel();
-
-            if (!await CloseCurrentArchiveAsync()) return;
-            if (!await CloseCurrentPdfAsync()) return;
-            if (!await CloseCurrentEpubAsync()) return;
-            CloseCurrentText();
-
-            // Cancel any ongoing preloading and clear cache
-            _preloadManager.CancelAll();
-            
-            _imageCache?.ClearAll();
-
-            if (isInitial)
-            {
-                // [Step 1] FAST LOAD: Display only the selected file first
-                _imageEntries = new List<ImageEntry>
-                {
-                    new ImageEntry { DisplayName = file.Name, FilePath = file.Path }
-                };
-                _currentIndex = 0;
-                await DisplayCurrentImageAsync();
-
-                // [Step 2] BACKGROUND: Gather other files in folder
-                _ = Task.Run(async () =>
-                {
-                    try
-                    {
-                        var folder = await file.GetParentAsync();
-                        if (folder == null) return;
-                        
-                        var files = await folder.GetFilesAsync();
-                        var allEntries = files
-                            .Where(f => FileExplorerService.SupportedFileExtensions.Contains(Path.GetExtension(f.Name).ToLowerInvariant()))
-                            .OrderBy(f => f.Name, NaturalSortComparer.Default)
-                            .Select(f => new ImageEntry
-                            {
-                                DisplayName = f.Name,
-                                FilePath = f.Path
-                            })
-                            .ToList();
-
-                        DispatcherQueue.TryEnqueue(() =>
-                        {
-                            // Only update if we are still on the first manual load file
-                            if (_imageEntries != null && _imageEntries.Count == 1 && _imageEntries[0].FilePath == file.Path)
-                            {
-                                var oldIndex = _currentIndex;
-                                _imageEntries = allEntries;
-                                _currentIndex = _imageEntries.FindIndex(e => e.FilePath == file.Path);
-                                // Refresh status bar to show correct "1 / N"
-                                if (_currentBitmap != null && _currentIndex >= 0)
-                                {
-                                    UpdateStatusBar(_imageEntries[_currentIndex], _currentBitmap);
-                                }
-                            }
-                        });
-                    }
-                    catch { }
-                });
-            }
-            else
-            {
-                // Normal sequential load
-                var folder = await file.GetParentAsync();
-                if (folder != null)
-                {
-                    var files = await folder.GetFilesAsync();
-                    _imageEntries = files
-                        .Where(f => FileExplorerService.SupportedFileExtensions.Contains(Path.GetExtension(f.Name).ToLowerInvariant()))
-                        .OrderBy(f => f.Name, NaturalSortComparer.Default)
-                        .Select(f => new ImageEntry
-                        {
-                            DisplayName = f.Name,
-                            FilePath = f.Path
-                        })
-                        .ToList();
-
-                    _currentIndex = _imageEntries.FindIndex(e => e.FilePath == file.Path);
-                }
-                else
-                {
-                    _imageEntries = new List<ImageEntry>
-                    {
-                        new ImageEntry { DisplayName = file.Name, FilePath = file.Path }
-                    };
-                    _currentIndex = 0;
-                }
-
-                await DisplayCurrentImageAsync();
-            }
-        }
+            => await _localImageDocumentController.LoadImageFromFileAsync(file, isInitial);
 
         private async Task LoadImagesFromFolderAsync(StorageFolder folder)
+            => await _localImageDocumentController.LoadImagesFromFolderAsync(folder);
+
+        private void RefreshCurrentImageStatusBar()
         {
-            // 이전 작업 즉시 중단
-            _sevenZipExtraction.CancelExtraction();
-            _imageLoadingCts?.Cancel();
-            _explorerState.CancelThumbnailLoading();
-            _preloadManager.CancelAll();
-            _globalTextCts?.Cancel();
-
-            if (!await CloseCurrentArchiveAsync()) return;
-            if (!await CloseCurrentPdfAsync()) return;
-            if (!await CloseCurrentEpubAsync()) return;
-
-            // Cancel any ongoing preloading and clear cache
-            _preloadManager.CancelAll();
-            
-            _imageCache?.ClearAll();
-
-            var files = await folder.GetFilesAsync();
-            _imageEntries = files
-                .Where(f => FileExplorerService.SupportedFileExtensions.Contains(Path.GetExtension(f.Name).ToLowerInvariant()))
-                .OrderBy(f => f.Name, NaturalSortComparer.Default)
-                .Select(f => new ImageEntry
-                {
-                    DisplayName = f.Name,
-                    FilePath = f.Path
-                })
-                .ToList();
-
-            if (_imageEntries.Count > 0)
+            if (_currentBitmap == null || _currentIndex < 0 || _currentIndex >= _imageEntries.Count)
             {
-                _currentIndex = 0;
-                await DisplayCurrentImageAsync();
+                return;
             }
-            else
-            {
-                FileNameText.Text = "이 폴더에 이미지가 없습니다";
-            }
+
+            UpdateStatusBar(_imageEntries[_currentIndex], _currentBitmap);
         }
 
         private Task LoadImagesFromArchiveAsync(string archivePath)

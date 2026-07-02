@@ -92,13 +92,13 @@ namespace Uviewer
                 _window = window;
             }
 
-            public bool IsSideBySideMode { get => _window._isSideBySideMode; set => _window._isSideBySideMode = value; }
-            public bool AutoDoublePageForArchive => _window._autoDoublePageForArchive;
-            public bool NextImageOnRight => _window._nextImageOnRight;
-            public bool SharpenEnabled => _window._sharpenEnabled;
-            public int CurrentIndex { get => _window._currentIndex; set => _window._currentIndex = value; }
-            public List<ImageEntry> ImageEntries { get => _window._imageEntries; set => _window._imageEntries = value; }
-            public CanvasBitmap? CurrentBitmap => _window._currentBitmap;
+            public bool IsSideBySideMode { get => _window._imageViewerState.IsSideBySideMode; set => _window._imageViewerState.IsSideBySideMode = value; }
+            public bool AutoDoublePageForArchive => _window._imageViewerState.AutoDoublePageForArchive;
+            public bool NextImageOnRight => _window._imageViewerState.NextImageOnRight;
+            public bool SharpenEnabled => _window._imageViewerState.IsSharpenEnabled;
+            public int CurrentIndex { get => _window._imageViewerState.CurrentIndex; set => _window._imageViewerState.CurrentIndex = value; }
+            public List<ImageEntry> ImageEntries { get => _window._imageViewerState.Entries; set => _window._imageViewerState.Entries = value ?? new List<ImageEntry>(); }
+            public CanvasBitmap? CurrentBitmap => _window._imageViewerState.CurrentBitmap;
             public PdfDocument? CurrentPdfDocument => _window._currentPdfDocument;
 
             public Task AddToRecentAsync(bool immediate) => _window.AddToRecentAsync(immediate);

@@ -11,22 +11,33 @@ namespace Uviewer
             {
                 public static void InitializeController(MainWindow window)
                 {
-                    var imageHost = new ImageViewerHostAdapter(window);
+                    var imageStatePort = new ImageStatePort(window);
+                    var imageBitmapLifetimePort = new ImageBitmapLifetimePort(window);
+                    var imageInputPort = new ImageInputPort(window);
+                    var imagePdfPageDisplayPort = new ImagePdfPageDisplayPort(window);
+                    var imageSideBySideDisplayPort = new ImageSideBySideDisplayPort(window);
+                    var imageSingleDisplayPort = new ImageSingleDisplayPort(window);
+                    var imageZoomPort = new ImageZoomPort(window);
+                    var imageNavigationPort = new ImageNavigationPort(window);
+                    var imageDocumentOpenPort = new ImageDocumentOpenPort(window);
+                    var imageUiPort = new ImageUiPort(window);
+                    var imageSettingsPort = new ImageSettingsPort(window);
+
                     window._imageViewerController = new ImageViewerController(
                         new ImageViewerControllerDependencies(
-                            host: imageHost,
-                            bitmapLifetimeHost: imageHost,
-                            documentEntryHost: imageHost,
-                            explorerNavigationHost: imageHost,
-                            fastNavigationHost: imageHost,
-                            inputHost: imageHost,
-                            pdfPageDisplayHost: imageHost,
-                            presentationHost: imageHost,
-                            preloadHost: imageHost,
-                            sideBySideDisplayHost: imageHost,
-                            singleDisplayHost: imageHost,
-                            viewingOptionsHost: imageHost,
-                            zoomHost: imageHost));
+                            host: imageStatePort,
+                            bitmapLifetimeHost: imageBitmapLifetimePort,
+                            documentEntryHost: imageDocumentOpenPort,
+                            explorerNavigationHost: imageNavigationPort,
+                            fastNavigationHost: imageNavigationPort,
+                            inputHost: imageInputPort,
+                            pdfPageDisplayHost: imagePdfPageDisplayPort,
+                            presentationHost: imageUiPort,
+                            preloadHost: imageStatePort,
+                            sideBySideDisplayHost: imageSideBySideDisplayPort,
+                            singleDisplayHost: imageSingleDisplayPort,
+                            viewingOptionsHost: imageSettingsPort,
+                            zoomHost: imageZoomPort));
                     window._imageViewportNavigationService = new ImageViewportNavigationService(
                         window.DispatcherQueue,
                         window.RerenderPdfCurrentPageAsync);
@@ -37,10 +48,10 @@ namespace Uviewer
                     window._fastNavigationService = new FastNavigationService(window.DispatcherQueue);
                     window._imageNavigationCoordinator = new ImageNavigationCoordinator(new ImageNavigationHandlers
                     {
-                        GetImageEntries = () => window._imageEntries,
-                        GetCurrentIndex = () => window._currentIndex,
-                        SetCurrentIndex = value => window._currentIndex = value,
-                        IsCurrentViewSideBySide = () => window._isCurrentViewSideBySide,
+                        GetImageEntries = () => window._imageViewerState.Entries,
+                        GetCurrentIndex = () => window._imageViewerState.CurrentIndex,
+                        SetCurrentIndex = value => window._imageViewerState.CurrentIndex = value,
+                        IsCurrentViewSideBySide = () => window._imageViewerState.IsCurrentViewSideBySide,
                         SetScrollDirection = value => window._imageViewportNavigationService.ScrollDirection = value,
                         FastNavigationService = window._fastNavigationService,
                         ResetFastNavigationAsync = window.ResetFastNavigation,

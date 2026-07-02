@@ -5,7 +5,7 @@ namespace Uviewer.Services
     internal sealed class ImageViewerControllerDependencies
     {
         public ImageViewerControllerDependencies(
-            IImageViewerHost host,
+            IImageViewerRuntimeHost host,
             IImageBitmapLifetimeHost bitmapLifetimeHost,
             IImageDocumentEntryHost documentEntryHost,
             IImageExplorerNavigationHost explorerNavigationHost,
@@ -34,7 +34,7 @@ namespace Uviewer.Services
             ZoomHost = zoomHost ?? throw new ArgumentNullException(nameof(zoomHost));
         }
 
-        public IImageViewerHost Host { get; }
+        public IImageViewerRuntimeHost Host { get; }
         public IImageBitmapLifetimeHost BitmapLifetimeHost { get; }
         public IImageDocumentEntryHost DocumentEntryHost { get; }
         public IImageExplorerNavigationHost ExplorerNavigationHost { get; }

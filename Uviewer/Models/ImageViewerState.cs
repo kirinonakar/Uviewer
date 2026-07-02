@@ -1,5 +1,6 @@
 using Microsoft.Graphics.Canvas;
 using System.Collections.Generic;
+using System.Threading;
 
 namespace Uviewer.Models
 {
@@ -14,6 +15,11 @@ namespace Uviewer.Models
         public bool NextImageOnRight { get; set; } = true;
         public bool AutoDoublePageForArchive { get; set; }
         public bool IsCurrentViewSideBySide { get; set; }
+        public bool IsSharpenEnabled { get; set; }
+        public bool IsAnimatedFrameActive { get; set; }
+        public double LastCanvasWidth { get; set; }
+        public bool IsSeamlessScroll { get; set; }
+        public CancellationTokenSource? ImageLoadingCts { get; set; }
 
         public void ClearBitmaps()
         {

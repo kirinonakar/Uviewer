@@ -70,6 +70,8 @@ namespace Uviewer
         private Services.WebDavDocumentOpenCoordinator _webDavDocumentOpenCoordinator = null!;
         private Services.DocumentNavigationCoordinator _documentNavigationCoordinator = null!;
         private Services.ImageNavigationCoordinator _imageNavigationCoordinator = null!;
+        private Services.LocalImageDocumentController _localImageDocumentController = null!;
+        private Services.PdfDocumentController _pdfDocumentController = null!;
         private Services.ArchiveDocumentController _archiveDocumentController = null!;
         private Services.FileOpenController _fileOpenController = null!;
         private Services.ExternalProgramSettingsController _externalProgramSettingsController = null!;
@@ -78,9 +80,6 @@ namespace Uviewer
 
         // ImageResourceService를 _sharpeningService 다음에 생성해야 하므로
         // 필드 초기화 식 대신 생성자 내부에서 초기화합니다.
-
-        // Loading and navigation state
-        private CancellationTokenSource? _imageLoadingCts;
 
         [System.Runtime.InteropServices.DllImport("user32.dll", CharSet = System.Runtime.InteropServices.CharSet.Unicode)]
         private static extern int MessageBox(IntPtr hWnd, string text, string caption, uint type);
