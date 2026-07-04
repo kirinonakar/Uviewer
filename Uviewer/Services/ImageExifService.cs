@@ -94,6 +94,8 @@ namespace Uviewer.Services
                     AddRow(rows, Strings.ExifDimensions, $"{decoder.PixelWidth} × {decoder.PixelHeight}");
                 }
 
+                AddImageFormatRow(rows, decoder);
+
                 var propertyNames = new[]
                 {
                     "System.Photo.ExposureTime",
@@ -117,6 +119,76 @@ namespace Uviewer.Services
         private static object? GetMetadataValue(BitmapPropertySet properties, string name)
         {
             return properties.TryGetValue(name, out var typedValue) ? typedValue.Value : null;
+        }
+
+        private static void AddImageFormatRow(List<KeyValuePair<string, string>> rows, BitmapDecoder decoder)
+        {
+            if (rows.Any(row => row.Key == Strings.ExifImageFormat))
+            {
+                return;
+            }
+
+            string? format = FormatImageFormat(decoder);
+            if (string.IsNullOrWhiteSpace(format))
+            {
+                return;
+            }
+
+            var row = new KeyValuePair<string, string>(Strings.ExifImageFormat, format);
+            int dimensionsIndex = rows.FindIndex(row => row.Key == Strings.ExifDimensions);
+            if (dimensionsIndex >= 0)
+            {
+                rows.Insert(dimensionsIndex + 1, row);
+                return;
+            }
+
+            rows.Add(row);
+        }
+
+        private static string? FormatImageFormat(BitmapDecoder decoder)
+        {
+            string? container = FormatDecoderContainer(decoder);
+            string? pixelFormat = FormatPixelFormat(decoder.BitmapPixelFormat, decoder.BitmapAlphaMode);
+
+            return (container, pixelFormat) switch
+            {
+                ({ Length: > 0 }, { Length: > 0 }) => $"{container}, {pixelFormat}",
+                ({ Length: > 0 }, _) => container,
+                (_, { Length: > 0 }) => pixelFormat,
+                _ => null
+            };
+        }
+
+        private static string? FormatDecoderContainer(BitmapDecoder decoder)
+        {
+            string? extension = decoder.DecoderInformation.FileExtensions.FirstOrDefault();
+            if (!string.IsNullOrWhiteSpace(extension))
+            {
+                string normalized = extension.Trim().TrimStart('.').ToUpperInvariant();
+                return normalized switch
+                {
+                    "JPG" or "JPE" or "JFIF" => "JPEG",
+                    "TIF" => "TIFF",
+                    _ => normalized
+                };
+            }
+
+            string friendlyName = decoder.DecoderInformation.FriendlyName;
+            return string.IsNullOrWhiteSpace(friendlyName) ? null : friendlyName.Trim();
+        }
+
+        private static string? FormatPixelFormat(BitmapPixelFormat pixelFormat, BitmapAlphaMode alphaMode)
+        {
+            bool hasAlpha = alphaMode is BitmapAlphaMode.Straight or BitmapAlphaMode.Premultiplied;
+
+            return pixelFormat switch
+            {
+                BitmapPixelFormat.Rgba8 or BitmapPixelFormat.Bgra8 => hasAlpha ? "RGBA(8bit)" : "RGB(8bit)",
+                BitmapPixelFormat.Rgba16 => hasAlpha ? "RGBA(16bit)" : "RGB(16bit)",
+                BitmapPixelFormat.Gray8 => "Grayscale(8bit)",
+                BitmapPixelFormat.Gray16 => "Grayscale(16bit)",
+                _ => null
+            };
         }
 
         private static void AddEmbeddedTextMetadataRows(List<KeyValuePair<string, string>> rows, byte[] bytes)

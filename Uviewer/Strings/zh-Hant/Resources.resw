@@ -464,6 +464,9 @@
   <data name="ExifDimensions" xml:space="preserve">
     <value>影像尺寸</value>
   </data>
+  <data name="ExifImageFormat" xml:space="preserve">
+    <value>影像格式</value>
+  </data>
   <data name="ExifDateTaken" xml:space="preserve">
     <value>拍攝日期</value>
   </data>

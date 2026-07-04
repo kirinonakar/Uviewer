@@ -150,6 +150,7 @@ namespace Uviewer
         public static string ExifFileSize => GetString("ExifFileSize");
         public static string ExifModified => GetString("ExifModified");
         public static string ExifDimensions => GetString("ExifDimensions");
+        public static string ExifImageFormat => GetString("ExifImageFormat");
         public static string ExifDateTaken => GetString("ExifDateTaken");
         public static string ExifCameraMaker => GetString("ExifCameraMaker");
         public static string ExifCameraModel => GetString("ExifCameraModel");

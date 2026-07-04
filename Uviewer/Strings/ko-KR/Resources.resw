@@ -464,6 +464,9 @@
   <data name="ExifDimensions" xml:space="preserve">
     <value>이미지 크기</value>
   </data>
+  <data name="ExifImageFormat" xml:space="preserve">
+    <value>이미지 형식</value>
+  </data>
   <data name="ExifDateTaken" xml:space="preserve">
     <value>촬영 날짜</value>
   </data>

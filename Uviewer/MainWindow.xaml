@@ -119,12 +119,26 @@
                 <ColumnDefinition Width="100"/>
             </Grid.ColumnDefinitions>
 
-            <TextBlock x:Name="FileNameText" Grid.Column="0" 
-                       Text="파일을 선택해주세요" 
-                       FontSize="12" 
-                       Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                       VerticalAlignment="Center"
-                       TextTrimming="CharacterEllipsis"/>
+            <Border x:Name="FileNameStatusHoverSurface"
+                    Grid.Column="0"
+                    Height="24"
+                    Margin="-6,0,4,0"
+                    Padding="6,0"
+                    Background="Transparent"
+                    CornerRadius="4"
+                    VerticalAlignment="Center"
+                    PointerEntered="FileNameStatusHoverSurface_PointerEntered"
+                    PointerExited="FileNameStatusHoverSurface_PointerExited"
+                    PointerCanceled="FileNameStatusHoverSurface_PointerExited"
+                    Tapped="FileNameStatusHoverSurface_Tapped">
+                <TextBlock x:Name="FileNameText"
+                           Text="파일을 선택해주세요"
+                           FontSize="12"
+                           Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                           HorizontalAlignment="Stretch"
+                           VerticalAlignment="Center"
+                           TextTrimming="CharacterEllipsis"/>
+            </Border>
 
             <TextBlock x:Name="ImageInfoText" Grid.Column="1" 
                        Text="" 

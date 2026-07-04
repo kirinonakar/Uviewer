@@ -464,6 +464,9 @@
   <data name="ExifDimensions" xml:space="preserve">
     <value>Kích thước ảnh</value>
   </data>
+  <data name="ExifImageFormat" xml:space="preserve">
+    <value>Định dạng ảnh</value>
+  </data>
   <data name="ExifDateTaken" xml:space="preserve">
     <value>Ngày chụp</value>
   </data>

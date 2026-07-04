@@ -244,6 +244,81 @@ namespace Uviewer
             });
         }
 
+        private async void FileNameStatusHoverSurface_Tapped(object sender, TappedRoutedEventArgs e)
+        {
+            await ShowCurrentImageExifAsync();
+            e.Handled = true;
+        }
+
+        private void FileNameStatusHoverSurface_PointerEntered(object sender, PointerRoutedEventArgs e)
+        {
+            UpdateFileNameStatusHover(isPointerOver: true);
+        }
+
+        private void FileNameStatusHoverSurface_PointerExited(object sender, PointerRoutedEventArgs e)
+        {
+            UpdateFileNameStatusHover(isPointerOver: false);
+        }
+
+        private async Task ShowCurrentImageExifAsync()
+        {
+            try
+            {
+                if (!CanShowStatusBarExif(out var entry))
+                {
+                    return;
+                }
+
+                await _imageExifDialogService.ShowAsync(
+                    entry,
+                    _archiveSession,
+                    RootGrid.XamlRoot,
+                    RootGrid.ActualTheme,
+                    _imageViewerState.ImageLoadingCts?.Token ?? default);
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error showing EXIF: {ex.Message}");
+                ShowNotification(Strings.ExifUnavailable, "\uE783", "Red");
+            }
+        }
+
+        private void UpdateFileNameStatusHover(bool isPointerOver)
+        {
+            FileNameStatusHoverSurface.Background = isPointerOver && CanShowStatusBarExif(out _)
+                ? CreateFileNameStatusHoverBrush()
+                : new SolidColorBrush(Colors.Transparent);
+        }
+
+        private bool CanShowStatusBarExif(out ImageEntry entry)
+        {
+            entry = null!;
+
+            if (_imageExifDialogService == null || ImageArea.Visibility != Visibility.Visible)
+            {
+                return false;
+            }
+
+            bool imageCanvasVisible =
+                MainCanvas.Visibility == Visibility.Visible ||
+                SideBySideGrid.Visibility == Visibility.Visible;
+
+            return imageCanvasVisible &&
+                _imageExifDialogService.TryGetInspectableEntry(
+                    _imageViewerState.Entries,
+                    _imageViewerState.CurrentIndex,
+                    out entry);
+        }
+
+        private SolidColorBrush CreateFileNameStatusHoverBrush()
+        {
+            var color = RootGrid.ActualTheme == ElementTheme.Dark
+                ? Windows.UI.Color.FromArgb(0x15, 0xFF, 0xFF, 0xFF)
+                : Windows.UI.Color.FromArgb(0x15, 0x00, 0x00, 0x00);
+
+            return new SolidColorBrush(color);
+        }
+
         private void ApplyLocalization()
         {
             MainToolbar.ApplyLocalization();
@@ -255,7 +330,7 @@ namespace Uviewer
             ToolTipService.SetToolTip(SidebarRecentButton, Strings.RecentTooltip);
             ToolTipService.SetToolTip(BrowseFolderButton, Strings.BrowseFolderTooltip);
             ToolTipService.SetToolTip(WebDavButton, Strings.WebDavTooltip);
-            ToolTipService.SetToolTip(FileNameText, Strings.ExifStatusBarTooltip);
+            ToolTipService.SetToolTip(FileNameStatusHoverSurface, Strings.ExifStatusBarTooltip);
             if (AddWebDavButton != null) AddWebDavButton.Content = Strings.AddWebDavServer;
             UpdateThemeToggleButtonTooltip();
             _searchOverlayService?.ApplyLocalization();

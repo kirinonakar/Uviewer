@@ -464,6 +464,9 @@
   <data name="ExifDimensions" xml:space="preserve">
     <value>Dimensions</value>
   </data>
+  <data name="ExifImageFormat" xml:space="preserve">
+    <value>Image format</value>
+  </data>
   <data name="ExifDateTaken" xml:space="preserve">
     <value>Date taken</value>
   </data>
