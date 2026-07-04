@@ -94,7 +94,7 @@ namespace Uviewer.Services
                     AddRow(rows, Strings.ExifDimensions, $"{decoder.PixelWidth} × {decoder.PixelHeight}");
                 }
 
-                AddImageFormatRow(rows, decoder);
+                await AddImageFormatRowAsync(rows, decoder, stream);
 
                 var propertyNames = new[]
                 {
@@ -121,14 +121,14 @@ namespace Uviewer.Services
             return properties.TryGetValue(name, out var typedValue) ? typedValue.Value : null;
         }
 
-        private static void AddImageFormatRow(List<KeyValuePair<string, string>> rows, BitmapDecoder decoder)
+        private static async Task AddImageFormatRowAsync(List<KeyValuePair<string, string>> rows, BitmapDecoder decoder, IRandomAccessStream stream)
         {
             if (rows.Any(row => row.Key == Strings.ExifImageFormat))
             {
                 return;
             }
 
-            string? format = FormatImageFormat(decoder);
+            string? format = await FormatImageFormatAsync(decoder, stream);
             if (string.IsNullOrWhiteSpace(format))
             {
                 return;
@@ -145,10 +145,11 @@ namespace Uviewer.Services
             rows.Add(row);
         }
 
-        private static string? FormatImageFormat(BitmapDecoder decoder)
+        private static async Task<string?> FormatImageFormatAsync(BitmapDecoder decoder, IRandomAccessStream stream)
         {
             string? container = FormatDecoderContainer(decoder);
-            string? pixelFormat = FormatPixelFormat(decoder.BitmapPixelFormat, decoder.BitmapAlphaMode);
+            var (originalBpp, originalHasAlpha) = await GetOriginalImageInfoAsync(stream);
+            string? pixelFormat = FormatPixelFormat(decoder.BitmapPixelFormat, decoder.BitmapAlphaMode, originalBpp, originalHasAlpha);
 
             return (container, pixelFormat) switch
             {
@@ -177,18 +178,111 @@ namespace Uviewer.Services
             return string.IsNullOrWhiteSpace(friendlyName) ? null : friendlyName.Trim();
         }
 
-        private static string? FormatPixelFormat(BitmapPixelFormat pixelFormat, BitmapAlphaMode alphaMode)
+        private static string? FormatPixelFormat(
+            BitmapPixelFormat pixelFormat,
+            BitmapAlphaMode alphaMode,
+            ushort? originalBpp,
+            bool? originalHasAlpha)
         {
             bool hasAlpha = alphaMode is BitmapAlphaMode.Straight or BitmapAlphaMode.Premultiplied;
+            bool finalHasAlpha = hasAlpha || (originalHasAlpha ?? false);
 
             return pixelFormat switch
             {
-                BitmapPixelFormat.Rgba8 or BitmapPixelFormat.Bgra8 => hasAlpha ? "RGBA(8bit)" : "RGB(8bit)",
-                BitmapPixelFormat.Rgba16 => hasAlpha ? "RGBA(16bit)" : "RGB(16bit)",
+                BitmapPixelFormat.Rgba8 or BitmapPixelFormat.Bgra8 => 
+                    finalHasAlpha ? "RGBA(8bit)" : (originalBpp == 32 ? "RGBX(8bit)" : "RGB(8bit)"),
+                BitmapPixelFormat.Rgba16 => 
+                    finalHasAlpha ? "RGBA(16bit)" : (originalBpp == 64 ? "RGBX(16bit)" : "RGB(16bit)"),
                 BitmapPixelFormat.Gray8 => "Grayscale(8bit)",
                 BitmapPixelFormat.Gray16 => "Grayscale(16bit)",
                 _ => null
             };
+        }
+
+        private static async Task<(ushort? Bpp, bool? HasAlpha)> GetOriginalImageInfoAsync(IRandomAccessStream stream)
+        {
+            if (stream == null)
+            {
+                return (null, null);
+            }
+
+            try
+            {
+                var position = stream.Position;
+                stream.Seek(0);
+                using var clone = stream.CloneStream();
+                stream.Seek(position);
+
+                using var reader = new DataReader(clone);
+                uint bytesLoaded = await reader.LoadAsync(32);
+                if (bytesLoaded < 2)
+                {
+                    return (null, null);
+                }
+
+                byte[] header = new byte[bytesLoaded];
+                reader.ReadBytes(header);
+
+                // Check BMP
+                if (header.Length >= 2 && header[0] == 0x42 && header[1] == 0x4D) // 'B', 'M'
+                {
+                    if (header.Length >= 18)
+                    {
+                        uint headerSize = header[14] | ((uint)header[15] << 8) | ((uint)header[16] << 16) | ((uint)header[17] << 24);
+                        ushort bpp = 0;
+                        if (headerSize == 12 && header.Length >= 26) // BITMAPCOREHEADER
+                        {
+                            bpp = (ushort)(header[24] | (header[25] << 8));
+                        }
+                        else if (headerSize >= 40 && header.Length >= 30) // BITMAPINFOHEADER or later
+                        {
+                            bpp = (ushort)(header[28] | (header[29] << 8));
+                        }
+
+                        if (bpp > 0)
+                        {
+                            return (bpp, bpp == 32 ? (bool?)false : null);
+                        }
+                    }
+                }
+
+                // Check PNG
+                byte[] pngSig = { 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A };
+                if (header.Length >= 26 && header.Take(8).SequenceEqual(pngSig))
+                {
+                    byte bitDepth = header[24];
+                    byte colorType = header[25];
+
+                    ushort bpp = colorType switch
+                    {
+                        0 => bitDepth, // Grayscale
+                        2 => (ushort)(bitDepth * 3), // RGB
+                        3 => 8, // Indexed
+                        4 => (ushort)(bitDepth * 2), // Grayscale + Alpha
+                        6 => (ushort)(bitDepth * 4), // RGBA
+                        _ => 0
+                    };
+
+                    bool hasAlpha = colorType == 4 || colorType == 6;
+
+                    if (bpp > 0)
+                    {
+                        return (bpp, hasAlpha);
+                    }
+                }
+
+                // Check JPEG
+                if (header.Length >= 2 && header[0] == 0xFF && header[1] == 0xD8)
+                {
+                    return (24, false);
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Failed to parse original image info: {ex.Message}");
+            }
+
+            return (null, null);
         }
 
         private static void AddEmbeddedTextMetadataRows(List<KeyValuePair<string, string>> rows, byte[] bytes)
