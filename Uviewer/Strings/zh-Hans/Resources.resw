@@ -334,6 +334,18 @@
   <data name="EncSjis" xml:space="preserve">
     <value>日语(Shift-JIS)</value>
   </data>
+  <data name="EncJis" xml:space="preserve">
+    <value>日语(JIS)</value>
+  </data>
+  <data name="EncGb18030" xml:space="preserve">
+    <value>中文简体(GB18030)</value>
+  </data>
+  <data name="EncGbk" xml:space="preserve">
+    <value>中文简体(GBK)</value>
+  </data>
+  <data name="EncBig5" xml:space="preserve">
+    <value>中文繁体(Big5)</value>
+  </data>
   <data name="EncJohab" xml:space="preserve">
     <value>韩语(Johab)</value>
   </data>

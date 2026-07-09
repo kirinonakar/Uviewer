@@ -337,6 +337,18 @@
   <data name="EncJohab" xml:space="preserve">
     <value>Korean (Johab)</value>
   </data>
+  <data name="EncJis" xml:space="preserve">
+    <value>Japanese (JIS)</value>
+  </data>
+  <data name="EncGb18030" xml:space="preserve">
+    <value>Chinese Simplified (GB18030)</value>
+  </data>
+  <data name="EncGbk" xml:space="preserve">
+    <value>Chinese Simplified (GBK)</value>
+  </data>
+  <data name="EncBig5" xml:space="preserve">
+    <value>Chinese Traditional (Big5)</value>
+  </data>
   <data name="WebDavTooltip" xml:space="preserve">
     <value>WebDAV Connect</value>
   </data>

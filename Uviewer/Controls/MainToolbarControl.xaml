@@ -64,6 +64,10 @@
                                 <ToggleMenuFlyoutItem x:Name="EncEucKrItem" Text="Korean (EUC-KR)" Tag="EUC-KR"/>
                                 <ToggleMenuFlyoutItem x:Name="EncSjisItem" Text="Japanese (Shift-JIS)" Tag="Shift-JIS"/>
                                 <ToggleMenuFlyoutItem x:Name="EncJohabItem" Text="Korean (Johab)" Tag="Johab"/>
+                                <ToggleMenuFlyoutItem x:Name="EncJisItem" Text="Japanese (JIS)" Tag="JIS"/>
+                                <ToggleMenuFlyoutItem x:Name="EncGb18030Item" Text="Chinese Simplified (GB18030)" Tag="GB18030"/>
+                                <ToggleMenuFlyoutItem x:Name="EncGbkItem" Text="Chinese Simplified (GBK)" Tag="GBK"/>
+                                <ToggleMenuFlyoutItem x:Name="EncBig5Item" Text="Chinese Traditional (Big5)" Tag="Big5"/>
                             </MenuFlyoutSubItem>
                             <MenuFlyoutItem x:Name="ChangeColorsMenuItem" Text="배경색/글자색">
                                 <MenuFlyoutItem.Icon>

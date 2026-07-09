@@ -334,6 +334,18 @@
   <data name="EncSjis" xml:space="preserve">
     <value>Tiếng Nhật (Shift-JIS)</value>
   </data>
+  <data name="EncJis" xml:space="preserve">
+    <value>Tiếng Nhật (JIS)</value>
+  </data>
+  <data name="EncGb18030" xml:space="preserve">
+    <value>Tiếng Trung giản thể (GB18030)</value>
+  </data>
+  <data name="EncGbk" xml:space="preserve">
+    <value>Tiếng Trung giản thể (GBK)</value>
+  </data>
+  <data name="EncBig5" xml:space="preserve">
+    <value>Tiếng Trung phồn thể (Big5)</value>
+  </data>
   <data name="EncJohab" xml:space="preserve">
     <value>Tiếng Hàn (Johab)</value>
   </data>

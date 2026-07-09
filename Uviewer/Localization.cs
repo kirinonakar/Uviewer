@@ -112,6 +112,10 @@ namespace Uviewer
         public static string EncEucKr => GetString("EncEucKr");
         public static string EncSjis => GetString("EncSjis");
         public static string EncJohab => GetString("EncJohab");
+        public static string EncJis => GetString("EncJis");
+        public static string EncGb18030 => GetString("EncGb18030");
+        public static string EncGbk => GetString("EncGbk");
+        public static string EncBig5 => GetString("EncBig5");
         public static string WebDavTooltip => GetString("WebDavTooltip");
         public static string AddWebDavServer => GetString("AddWebDavServer");
         public static string WebDavServerName => GetString("WebDavServerName");

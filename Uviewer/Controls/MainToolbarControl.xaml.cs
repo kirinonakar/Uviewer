@@ -108,6 +108,10 @@ namespace Uviewer.Controls
             EncEucKrItem.Click += EncodingItem_Click;
             EncSjisItem.Click += EncodingItem_Click;
             EncJohabItem.Click += EncodingItem_Click;
+            EncJisItem.Click += EncodingItem_Click;
+            EncGb18030Item.Click += EncodingItem_Click;
+            EncGbkItem.Click += EncodingItem_Click;
+            EncBig5Item.Click += EncodingItem_Click;
             ChangeColorsMenuItem.Click += (_, _) => ChangeColorsRequested?.Invoke(this, EventArgs.Empty);
             ChangeUiFontMenuItem.Click += (_, _) => ChangeUiFontRequested?.Invoke(this, EventArgs.Empty);
             SelectExternalProgramMenuItem.Click += (_, _) => SelectExternalProgramRequested?.Invoke(this, EventArgs.Empty);
@@ -245,6 +249,10 @@ namespace Uviewer.Controls
             EncEucKrItem.Text = Strings.EncEucKr;
             EncSjisItem.Text = Strings.EncSjis;
             EncJohabItem.Text = Strings.EncJohab;
+            EncJisItem.Text = Strings.EncJis;
+            EncGb18030Item.Text = Strings.EncGb18030;
+            EncGbkItem.Text = Strings.EncGbk;
+            EncBig5Item.Text = Strings.EncBig5;
             ChangeColorsMenuItem.Text = Strings.ChangeColors;
             SelectExternalProgramMenuItem.Text = string.IsNullOrWhiteSpace(_externalProgramPath)
                 ? Strings.ExternalProgramSettings
@@ -286,6 +294,10 @@ namespace Uviewer.Controls
             EncEucKrItem.IsChecked = encodingName == "EUC-KR";
             EncSjisItem.IsChecked = encodingName == "Shift-JIS";
             EncJohabItem.IsChecked = encodingName == "Johab";
+            EncJisItem.IsChecked = encodingName == "JIS" || encodingName == "ISO-2022-JP";
+            EncGb18030Item.IsChecked = encodingName == "GB18030";
+            EncGbkItem.IsChecked = encodingName == "GBK";
+            EncBig5Item.IsChecked = encodingName == "Big5";
         }
 
         public void SetLanguageSelection(string language)
