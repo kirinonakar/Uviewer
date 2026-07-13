@@ -359,8 +359,13 @@ namespace Uviewer
 
         ClearBackwardCache(); // <-- 파일/챕터 변경 시 캐시 지우기 추가
 
-        // [핵심 추가] 이미 파싱된 블록이 존재한다면 불필요한 재파싱을 생략하여 즉시 렌더링 (폰트 크기가 달라도 블록은 재사용 가능)
-        if (_aozoraBlocks != null && _aozoraBlocks.Count > 0)
+        // Reuse parsed blocks only when they actually contain the requested line.
+        // A document opened in the middle initially contains a partial source window,
+        // so treating any existing blocks as a complete document makes Home/goto 1
+        // render the first block of that middle window instead of source line 1.
+        if (_aozoraBlocks != null &&
+            _aozoraBlocks.Count > 0 &&
+            IsAozoraLineInLoadedWindow(targetLine))
         {
             startIdx = _textBlockDocumentService.FindStartBlockIndex(
                 _aozoraBlocks,
@@ -890,11 +895,14 @@ namespace Uviewer
 
                 int? targetIndex;
                 bool completedParsingWhileExpandingLeadingEdge = false;
-                if (direction < 0 && _aozoraPageState.StartBlockIndex == 0 && _aozoraHasLeadingGap)
+                if (direction < 0 &&
+                    _aozoraPageState.NavigationStartBlockIndex == 0 &&
+                    _aozoraHasLeadingGap)
                 {
-                    // The automatic loader never prepends. Only when the reader asks
-                    // for a page before the loaded boundary do we add an earlier
-                    // window, remap the current first line, and paginate backward.
+                    // The paginator may skip blank lines or a forced page break at the
+                    // loaded boundary. StartBlockIndex then points past zero even though
+                    // navigation started at zero, so use NavigationStartBlockIndex to
+                    // detect that the previous source window must be parsed first.
                     bool wasPartial = _isAozoraParsePartial;
                     int? remappedCurrentStart = await ExpandAozoraLeadingWindowAsync();
                     if (!remappedCurrentStart.HasValue || remappedCurrentStart.Value <= 0)
@@ -964,8 +972,14 @@ namespace Uviewer
             int oldStartLine = _aozoraLoadedWindowStartLine;
             int oldEndLine = Math.Max(oldStartLine, _aozoraLoadedWindowEndLine);
             int newStartLine = Math.Max(1, oldStartLine - _aozoraLeadingExpansionLineCount);
-            int lineCount = CalculateWindowLineCount(newStartLine, oldEndLine);
             var anchor = CaptureCurrentAozoraAnchor();
+            // Do not reparse the entire trailing window just to move one page back.
+            // Keep enough text after the current page to remap its anchor, prioritize
+            // the new leading range, then let the progressive loader resume forward.
+            int priorityEndLine = Math.Min(
+                oldEndLine,
+                AddWithoutOverflow(Math.Max(oldStartLine, anchor.SourceLine), 400));
+            int lineCount = CalculateWindowLineCount(newStartLine, priorityEndLine);
 
             var preview = await Task.Run(
                 () => _textBlockDocumentService.ParseWindow(
@@ -1027,9 +1041,44 @@ namespace Uviewer
                 RecentSavePolicy.Always);
         }
 
+        private bool IsAozoraLineInLoadedWindow(int targetLine)
+        {
+            if (_aozoraBlocks.Count == 0) return false;
+
+            int line = Math.Max(1, targetLine);
+            return line >= _aozoraLoadedWindowStartLine &&
+                   line <= _aozoraLoadedWindowEndLine;
+        }
+
+        internal async Task NavigateToAozoraLineAsync(int targetLine)
+        {
+            if (!_isTextMode || !_isAozoraMode || string.IsNullOrEmpty(_currentTextContent))
+                return;
+
+            targetLine = Math.Max(1, targetLine);
+            if (IsAozoraLineInLoadedWindow(targetLine))
+            {
+                int startIdx = _textBlockDocumentService.FindStartBlockIndex(_aozoraBlocks, targetLine);
+                await RenderAozoraDynamicPage(startIdx);
+                StartAozoraPageCalculationAsync();
+                UpdateAozoraStatusBar();
+                return;
+            }
+
+            // Invalidate the progressive parse for the old window before loading a
+            // new window around the requested source line.
+            _aozoraPendingTargetLine = targetLine;
+            CancelAndResetGlobalTextCts();
+            await PrepareAozoraDisplayAsync(
+                _currentTextContent,
+                targetLine,
+                -1,
+                _globalTextCts!.Token);
+        }
+
         public void JumpToAozoraLine(int targetLine)
         {
-            if (!_isTextMode || !_isAozoraMode || _aozoraBlocks.Count == 0) return;
+            if (!_isTextMode || !_isAozoraMode) return;
 
             if (_isVerticalMode)
             {
@@ -1037,10 +1086,7 @@ namespace Uviewer
                 return;
             }
 
-            int startIdx = _textBlockDocumentService.FindStartBlockIndex(_aozoraBlocks, targetLine);
-
-            _ = RenderAozoraDynamicPage(startIdx);
-            StartAozoraPageCalculationAsync(); 
+            _ = NavigateToAozoraLineAsync(targetLine);
         }
 
 

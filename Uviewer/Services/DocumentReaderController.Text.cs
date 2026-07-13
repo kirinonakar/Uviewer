@@ -1020,8 +1020,7 @@ namespace Uviewer
                 },
                 GoToAozoraStartAsync = async () =>
                 {
-                    await RenderAozoraDynamicPage(0);
-                    UpdateAozoraStatusBar();
+                    await NavigateToAozoraLineAsync(1);
                 },
                 GoToAozoraEndAsync = async () =>
                 {
@@ -1075,7 +1074,8 @@ namespace Uviewer
             }
             else if (_isAozoraMode && _aozoraBlocks.Count > 0)
             {
-                totalLines = _aozoraTotalLineCount;
+                totalLines = _textBlockDocumentService.CountNormalizedLines(_currentTextContent);
+                _textTotalLineCountInSource = totalLines;
                 currentLine = _aozoraBlocks[_currentAozoraStartBlockIndex].SourceLineNumber;
             }
             else if (TextScrollViewer != null)
@@ -1116,10 +1116,7 @@ namespace Uviewer
 
             if (_isAozoraMode && _aozoraBlocks.Count > 0)
             {
-                int targetIdx = _textBlockDocumentService.FindStartBlockIndex(_aozoraBlocks, line);
-
-                await RenderAozoraDynamicPage(targetIdx);
-                UpdateAozoraStatusBar();
+                await NavigateToAozoraLineAsync(line);
             }
             else if (TextScrollViewer != null)
             {
