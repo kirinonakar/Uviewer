@@ -529,7 +529,7 @@ namespace Uviewer.Services
             }
             else if (isText)
             {
-                host.SetPendingTextPosition(target.SavedLine, target.SavedPage);
+                host.SetPendingTextPosition(target.SavedLine, target.SavedPage, target.SavedBlockIndex);
             }
 
             if (isPdf)

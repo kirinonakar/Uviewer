@@ -29,9 +29,11 @@ namespace Uviewer.Services
         int EpubPageCount,
         int TextTotalLineCountInSource,
         int AozoraTotalLineCountInSource,
+        bool IsAozoraParsePartial,
         IReadOnlyList<AozoraBindingModel> AozoraBlocks,
         int CurrentAozoraStartBlockIndex,
         int CurrentVerticalStartLine,
+        int CurrentVerticalStartBlockIndex,
         int TopVisibleLineIndex,
         double? TextScrollOffset);
 }

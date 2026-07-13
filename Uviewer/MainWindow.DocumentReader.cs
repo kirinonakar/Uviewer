@@ -89,12 +89,18 @@ namespace Uviewer
 
         private List<AozoraBindingModel> _aozoraBlocks => _documentReaderController.AozoraBlocks;
         private int _aozoraTotalLineCountInSource => _documentReaderController.AozoraTotalLineCountInSource;
+        private bool _isAozoraParsePartial => _documentReaderController.IsAozoraParsePartial;
         private ReaderPageInfo _currentAozoraPageInfo => _documentReaderController.CurrentAozoraPageInfo;
         private int _currentAozoraStartBlockIndex => _documentReaderController.CurrentAozoraStartBlockIndex;
         private int _aozoraPendingTargetLine
         {
             get => _documentReaderController.AozoraPendingTargetLine;
             set => _documentReaderController.AozoraPendingTargetLine = value;
+        }
+        private int _aozoraPendingTargetBlockIndex
+        {
+            get => _documentReaderController.AozoraPendingTargetBlockIndex;
+            set => _documentReaderController.AozoraPendingTargetBlockIndex = value;
         }
 
         private bool _isVerticalMode

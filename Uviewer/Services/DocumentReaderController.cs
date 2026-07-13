@@ -122,6 +122,8 @@ namespace Uviewer
         internal bool IsMarkdownRenderMode { get => _isMarkdownRenderMode; set => _isMarkdownRenderMode = value; }
         internal bool IsVerticalMode { get => _isVerticalMode; set => _isVerticalMode = value; }
         internal int AozoraPendingTargetLine { get => _aozoraPendingTargetLine; set => _aozoraPendingTargetLine = value; }
+        internal int AozoraPendingTargetBlockIndex { get => _aozoraPendingTargetBlockIndex; set => _aozoraPendingTargetBlockIndex = value; }
+        internal bool IsAozoraParsePartial => _isAozoraParsePartial;
         internal int TextTotalLineCountInSource { get => _textTotalLineCountInSource; set => _textTotalLineCountInSource = value; }
         internal int AozoraTotalLineCountInSource => _aozoraTotalLineCountInSource;
         internal List<AozoraBindingModel> AozoraBlocks => _aozoraBlocks;

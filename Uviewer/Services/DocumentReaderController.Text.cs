@@ -629,7 +629,7 @@ namespace Uviewer
                     if (targetLine > 1)
                     {
                         await Task.Delay(50);
-                        ScrollToLine(targetLine);
+                        await ScrollToLineAsync(targetLine);
                     }
                 }
                 if (TextArea != null) TextArea.Background = _settingsManager.GetThemeBackground();
@@ -645,7 +645,7 @@ namespace Uviewer
 
                         if (targetLine > 1) await Task.Delay(400, token);
 
-                        this.DispatcherQueue.TryEnqueue(() =>
+                        this.DispatcherQueue.TryEnqueue(async () =>
                         {
                             if (token.IsCancellationRequested) return;
                             if (_isAozoraMode) return; 
@@ -659,6 +659,9 @@ namespace Uviewer
 
                             if (TextItemsRepeater != null)
                             {
+                                bool contentWasVisible = TextArea?.Opacity > 0;
+                                if (contentWasVisible && TextArea != null) TextArea.Opacity = 0;
+
                                 var currentSource = _textLines;
                                 TextItemsRepeater.ItemsSource = null;
                                 TextItemsRepeater.ItemsSource = currentSource;
@@ -666,11 +669,17 @@ namespace Uviewer
                                 // [핵심 수정] Source 교체 후 픽셀 복구가 아닌 라인 기반 정확한 1회 이동 수행
                                 if (currentLineToRestore > 1)
                                 {
-                                    ScrollToLine(currentLineToRestore);
+                                    await ScrollToLineAsync(currentLineToRestore);
                                 }
                                 else
                                 {
                                     TextScrollViewer?.ChangeView(null, 0, null, true);
+                                }
+
+                                if (contentWasVisible && !token.IsCancellationRequested && TextArea != null)
+                                {
+                                    await Task.Delay(16);
+                                    if (!token.IsCancellationRequested) TextArea.Opacity = 1;
                                 }
                             }
 
@@ -701,7 +710,7 @@ namespace Uviewer
                     if (targetLine > 1)
                     {
                         await Task.Delay(50);
-                        ScrollToLine(targetLine);
+                        await ScrollToLineAsync(targetLine);
                     }
                 }
                 if (TextArea != null) TextArea.Background = _settingsManager.GetThemeBackground();
@@ -1310,7 +1319,12 @@ namespace Uviewer
                 _settingsManager.FontSize);
         }
 
-        internal async void ScrollToLine(int line)
+        internal void ScrollToLine(int line)
+        {
+            _ = ScrollToLineAsync(line);
+        }
+
+        internal async Task ScrollToLineAsync(int line)
         {
             try
             {

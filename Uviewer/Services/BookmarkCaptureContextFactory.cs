@@ -31,9 +31,11 @@ namespace Uviewer.Services
         int EpubPageCount,
         int TextTotalLineCountInSource,
         int AozoraTotalLineCountInSource,
+        bool IsAozoraParsePartial,
         IReadOnlyList<AozoraBindingModel> AozoraBlocks,
         int CurrentAozoraStartBlockIndex,
         int CurrentVerticalStartLine,
+        int CurrentVerticalStartBlockIndex,
         bool CurrentVerticalHasContent,
         int TopVisibleLineIndex,
         int TextLineCount,
@@ -79,9 +81,11 @@ namespace Uviewer.Services
                 EpubPageCount: snapshot.EpubPageCount,
                 TextTotalLineCountInSource: snapshot.TextTotalLineCountInSource,
                 AozoraTotalLineCountInSource: snapshot.AozoraTotalLineCountInSource,
+                IsAozoraParsePartial: snapshot.IsAozoraParsePartial,
                 AozoraBlocks: snapshot.AozoraBlocks,
                 CurrentAozoraStartBlockIndex: snapshot.CurrentAozoraStartBlockIndex,
                 CurrentVerticalStartLine: snapshot.CurrentVerticalStartLine,
+                CurrentVerticalStartBlockIndex: snapshot.CurrentVerticalStartBlockIndex,
                 TopVisibleLineIndex: snapshot.TopVisibleLineIndex,
                 TextScrollOffset: snapshot.TextScrollOffset);
         }

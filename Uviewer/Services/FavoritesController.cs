@@ -314,7 +314,10 @@ namespace Uviewer.Services
             {
                 if (context.IsVerticalMode)
                 {
-                    savedLine = context.CurrentVerticalStartLine;
+                    savedLine = Math.Max(1, context.CurrentVerticalStartLine);
+                    savedBlockIndex = context.IsAozoraParsePartial
+                        ? -1
+                        : context.CurrentVerticalStartBlockIndex;
                 }
                 else if (context.IsAozoraMode &&
                          context.AozoraBlocks.Count > 0 &&
@@ -322,6 +325,9 @@ namespace Uviewer.Services
                          context.CurrentAozoraStartBlockIndex < context.AozoraBlocks.Count)
                 {
                     savedLine = context.AozoraBlocks[context.CurrentAozoraStartBlockIndex].SourceLineNumber;
+                    savedBlockIndex = context.IsAozoraParsePartial
+                        ? -1
+                        : context.CurrentAozoraStartBlockIndex;
                 }
                 else
                 {
@@ -535,7 +541,7 @@ namespace Uviewer.Services
             }
             else if (isText)
             {
-                host.SetPendingTextPosition(favorite.SavedLine, favorite.SavedPage);
+                host.SetPendingTextPosition(favorite.SavedLine, favorite.SavedPage, favorite.SavedBlockIndex);
             }
 
             if (isPdf)

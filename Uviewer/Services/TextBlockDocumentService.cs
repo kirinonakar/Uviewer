@@ -69,7 +69,14 @@ namespace Uviewer.Services
             if (blocks.Count == 0) return 0;
 
             if (targetBlockIndex >= 0)
-                return Math.Clamp(targetBlockIndex, 0, blocks.Count - 1);
+            {
+                int candidate = Math.Clamp(targetBlockIndex, 0, blocks.Count - 1);
+                // A bookmark can outlive edits to the document. Trust the exact block
+                // only while it still points at the saved source line; otherwise the
+                // source line is the safer stable anchor.
+                if (targetLine < 1 || blocks[candidate].SourceLineNumber == targetLine)
+                    return candidate;
+            }
 
             if (targetLine < 0)
             {

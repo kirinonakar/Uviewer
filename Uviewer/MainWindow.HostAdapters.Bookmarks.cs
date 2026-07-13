@@ -87,9 +87,10 @@ namespace Uviewer
                 _window._aozoraPendingTargetLine = savedLine > 1 ? savedLine : 1;
             }
 
-            public void SetPendingTextPosition(int savedLine, int savedPage)
+            public void SetPendingTextPosition(int savedLine, int savedPage, int blockIndex)
             {
                 _window._aozoraPendingTargetLine = savedLine > 1 ? savedLine : (savedPage > 0 ? -savedPage : 1);
+                _window._aozoraPendingTargetBlockIndex = blockIndex;
             }
 
             public void SetPendingPdfPage(int pageIndex)

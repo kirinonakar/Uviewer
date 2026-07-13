@@ -309,7 +309,7 @@ namespace Uviewer
                     if (targetLine > 1)
                     {
                         await Task.Delay(50);
-                        ScrollToLine(targetLine);
+                        await ScrollToLineAsync(targetLine);
                         UpdateTextStatusBar();
                     }
                 }

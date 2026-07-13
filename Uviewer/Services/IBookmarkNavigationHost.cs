@@ -26,7 +26,7 @@ namespace Uviewer.Services
         Task DisplayCurrentImageAsync();
 
         void SetPendingEpubPosition(int chapterIndex, int pageIndex, int blockIndex, int savedLine);
-        void SetPendingTextPosition(int savedLine, int savedPage);
+        void SetPendingTextPosition(int savedLine, int savedPage, int blockIndex);
         void SetPendingPdfPage(int pageIndex);
         Task RestoreTextScrollOffsetAsync(double scrollOffset);
 
