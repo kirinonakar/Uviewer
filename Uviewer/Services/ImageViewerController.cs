@@ -82,6 +82,12 @@ namespace Uviewer.Services
 
         public Task ResetFastNavigationAsync() => _fastNavigationPresenter.ResetFastNavigationAsync();
 
+        public void PrepareForImageLoad()
+        {
+            _presenter.PrepareForImageLoad();
+            _bitmapLifetimeCoordinator.ClearImageResources();
+        }
+
         public void ZoomActual() => _zoomCoordinator.ZoomActual();
 
         public void ZoomIn() => _zoomCoordinator.ZoomIn();

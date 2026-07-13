@@ -19,6 +19,7 @@ namespace Uviewer.Services
         public Action CancelImageLoading { get; init; } = null!;
         public Action CancelTextLoading { get; init; } = null!;
         public Action CancelExplorerThumbnailLoading { get; init; } = null!;
+        public Action PrepareForImageLoad { get; init; } = null!;
         public Action RefreshCurrentStatusBar { get; init; } = null!;
         public Action<string> SetStatusText { get; init; } = null!;
     }
@@ -27,7 +28,6 @@ namespace Uviewer.Services
     {
         private readonly SevenZipExtractionCoordinator _sevenZipExtraction;
         private readonly PreloadManager _preloadManager;
-        private readonly ImageCacheManager _imageCache;
         private readonly ImageViewerState _imageViewerState;
         private readonly DispatcherQueue _dispatcherQueue;
         private readonly LocalImageDocumentHandlers _handlers;
@@ -35,14 +35,12 @@ namespace Uviewer.Services
         public LocalImageDocumentController(
             SevenZipExtractionCoordinator sevenZipExtraction,
             PreloadManager preloadManager,
-            ImageCacheManager imageCache,
             ImageViewerState imageViewerState,
             DispatcherQueue dispatcherQueue,
             LocalImageDocumentHandlers handlers)
         {
             _sevenZipExtraction = sevenZipExtraction ?? throw new ArgumentNullException(nameof(sevenZipExtraction));
             _preloadManager = preloadManager ?? throw new ArgumentNullException(nameof(preloadManager));
-            _imageCache = imageCache ?? throw new ArgumentNullException(nameof(imageCache));
             _imageViewerState = imageViewerState ?? throw new ArgumentNullException(nameof(imageViewerState));
             _dispatcherQueue = dispatcherQueue ?? throw new ArgumentNullException(nameof(dispatcherQueue));
             _handlers = handlers ?? throw new ArgumentNullException(nameof(handlers));
@@ -144,7 +142,7 @@ namespace Uviewer.Services
         private void ResetImagePipeline()
         {
             _preloadManager.CancelAll();
-            _imageCache.ClearAll();
+            _handlers.PrepareForImageLoad();
         }
 
         private void StartBackgroundFolderEntryRefresh(StorageFile file)

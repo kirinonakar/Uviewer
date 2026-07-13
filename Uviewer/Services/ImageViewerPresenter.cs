@@ -28,6 +28,12 @@ namespace Uviewer.Services
             _host.MainToolbar.SetNextImageSideState(_host.NextImageOnRight);
         }
 
+        public void PrepareForImageLoad()
+        {
+            _host.MainCanvas.Visibility = Visibility.Collapsed;
+            _host.SideBySideGrid.Visibility = Visibility.Collapsed;
+        }
+
         public void ShowImageUI()
         {
             _host.EmptyStatePanel.Visibility = Visibility.Collapsed;

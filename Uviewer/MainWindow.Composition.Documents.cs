@@ -166,7 +166,6 @@ namespace Uviewer
                     window._localImageDocumentController = new LocalImageDocumentController(
                         window._sevenZipExtraction,
                         window._preloadManager,
-                        window._imageCache,
                         window._imageViewerState,
                         window.DispatcherQueue,
                         new LocalImageDocumentHandlers
@@ -179,6 +178,7 @@ namespace Uviewer
                             CancelImageLoading = () => window._imageViewerState.ImageLoadingCts?.Cancel(),
                             CancelTextLoading = () => window._globalTextCts?.Cancel(),
                             CancelExplorerThumbnailLoading = window._explorerState.CancelThumbnailLoading,
+                            PrepareForImageLoad = window._imageViewerController.PrepareForImageLoad,
                             RefreshCurrentStatusBar = () =>
                             {
                                 if (window._imageViewerState.CurrentBitmap == null ||
