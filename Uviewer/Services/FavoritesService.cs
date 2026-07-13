@@ -114,7 +114,13 @@ namespace Uviewer.Services
                 existing.SavedBlockIndex = favorite.SavedBlockIndex;
                 existing.IsVertical = favorite.IsVertical;
                 existing.Progress = favorite.Progress;
-                // IsPinned and CreatedAt remain unchanged
+                if (positionChanged)
+                {
+                    // Refresh the sort timestamp so a re-bookmarked position moves up
+                    // within its pinned or unpinned group.
+                    existing.CreatedAt = favorite.CreatedAt;
+                }
+                // IsPinned remains unchanged.
 
                 await SaveFavoritesAsync();
                 FavoritesUpdated?.Invoke(this, EventArgs.Empty);
