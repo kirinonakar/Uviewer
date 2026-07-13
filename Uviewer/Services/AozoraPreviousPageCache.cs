@@ -19,6 +19,7 @@ namespace Uviewer.Services
         private AozoraPageOrientation _lastOrientation;
         private IReadOnlyList<AozoraBindingModel>? _lastBlocksRef;
         private int _lastTargetIndex = -1;
+        private int _cacheGeneration;
 
         public AozoraPreviousPageCache(
             AozoraBlockMeasurer measurer,
@@ -30,6 +31,7 @@ namespace Uviewer.Services
 
         public void Clear()
         {
+            Interlocked.Increment(ref _cacheGeneration);
             _cachingCts?.Cancel();
             _cachingCts = null;
             lock (_previousPageStarts)
@@ -119,6 +121,7 @@ namespace Uviewer.Services
             _cachingCts?.Cancel();
             _cachingCts = new CancellationTokenSource();
             var token = _cachingCts.Token;
+            int cacheGeneration = Volatile.Read(ref _cacheGeneration);
 
             Task.Run(() =>
             {
@@ -129,10 +132,13 @@ namespace Uviewer.Services
                     if (token.IsCancellationRequested || targetIndex <= 0) break;
 
                     int previousStart = FindPreviousPageStart(targetIndex, blocks, context, orientation);
-                    if (token.IsCancellationRequested) break;
+                    if (token.IsCancellationRequested ||
+                        cacheGeneration != Volatile.Read(ref _cacheGeneration)) break;
 
                     lock (_previousPageStarts)
                     {
+                        if (token.IsCancellationRequested ||
+                            cacheGeneration != Volatile.Read(ref _cacheGeneration)) break;
                         _previousPageStarts[targetIndex] = previousStart;
                     }
 

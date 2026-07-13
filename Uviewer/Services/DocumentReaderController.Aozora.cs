@@ -562,6 +562,13 @@ namespace Uviewer
                         }
 
                         var anchor = CaptureCurrentAozoraAnchor();
+                        int oldBlockCount = _aozoraBlocks.Count;
+                        bool leadingEdgeIsUnchanged = windowStartLine == _aozoraLoadedWindowStartLine;
+                        bool visiblePageTouchesLoadedEnd =
+                            !_aozoraPageState.HasPageBlocks ||
+                            _aozoraPageState.EndBlockIndex >= oldBlockCount - 1;
+                        bool keepCurrentRenderedPage =
+                            leadingEdgeIsUnchanged && !visiblePageTouchesLoadedEnd;
 
                         _aozoraBlocks = preview.Document.Blocks;
                         _aozoraTotalLineCount = preview.Document.Blocks.Count;
@@ -575,7 +582,7 @@ namespace Uviewer
                         ResetAozoraPageCalculationForDocumentChange();
                         ClearBackwardCache();
 
-                        if (_aozoraBlocks.Count > 0)
+                        if (_aozoraBlocks.Count > 0 && !keepCurrentRenderedPage)
                         {
                             int startIndex = FindAozoraAnchorBlockIndex(_aozoraBlocks, anchor);
                             await RenderAozoraDynamicPageCore(startIndex);
@@ -879,15 +886,19 @@ namespace Uviewer
                 if (_aozoraBlocks == null || _aozoraBlocks.Count == 0) return;
 
                 int? targetIndex;
+                bool completedParsingWhileExpandingLeadingEdge = false;
                 if (direction < 0 && _aozoraPageState.StartBlockIndex == 0 && _aozoraHasLeadingGap)
                 {
                     // The automatic loader never prepends. Only when the reader asks
                     // for a page before the loaded boundary do we add an earlier
                     // window, remap the current first line, and paginate backward.
+                    bool wasPartial = _isAozoraParsePartial;
                     int? remappedCurrentStart = await ExpandAozoraLeadingWindowAsync();
                     if (!remappedCurrentStart.HasValue || remappedCurrentStart.Value <= 0)
                         return;
 
+                    completedParsingWhileExpandingLeadingEdge =
+                        wasPartial && !_isAozoraParsePartial;
                     targetIndex = FindPreviousAozoraPageStart(remappedCurrentStart.Value);
                 }
                 else
@@ -903,7 +914,7 @@ namespace Uviewer
                 {
                     await RenderAozoraDynamicPageCore(targetIndex.Value);
                     _readerPageNavigationService.AdvanceCalculatedPage(_aozoraPageState, direction);
-                    if (!_isAozoraParsePartial)
+                    if (completedParsingWhileExpandingLeadingEdge)
                         StartAozoraPageCalculationAsync();
                     UpdateAozoraStatusBar();
                 }
