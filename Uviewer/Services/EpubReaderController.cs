@@ -1066,6 +1066,19 @@ namespace Uviewer.Services
                     break;
                 }
 
+                int targetChapterPageCount = targetChapter == _currentEpubChapterIndex
+                    ? _epubWin2DPages.Count
+                    : (_epubPreloadCache.TryGetValue(targetChapter, out var targetPages) ? targetPages.Count : 0);
+
+                // The second page of the current spread is already the final EPUB page.
+                // Do not clamp the next spread start back to that page and render it alone.
+                if (direction > 0 &&
+                    targetChapter == _epubSpine.Count - 1 &&
+                    targetPage >= targetChapterPageCount)
+                {
+                    return;
+                }
+
                 // 이미지 미리 로드 - 세로 모드 로직 참고 (깜박임 방지)
                 var targetPgObj = GetEpubWin2DPage(targetChapter, targetPage);
                 if (targetPgObj != null && targetPgObj.IsImagePage)

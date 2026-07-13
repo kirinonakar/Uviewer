@@ -43,8 +43,21 @@ namespace Uviewer.Services
 
             var entries = _handlers.GetImageEntries();
             int currentIndex = _handlers.GetCurrentIndex();
+            bool isSideBySide = _handlers.IsCurrentViewSideBySide();
+            bool currentSpreadIncludesLastImage = false;
+
+            if (forward && isSideBySide)
+            {
+                int pairedIndex = FileExplorerService.GetNextImageIndex(entries, currentIndex, 1, true);
+                if (pairedIndex != currentIndex)
+                {
+                    int indexAfterPair = FileExplorerService.GetNextImageIndex(entries, pairedIndex, 1, true);
+                    currentSpreadIncludesLastImage = indexAfterPair == pairedIndex;
+                }
+            }
+
             bool canNavigate = forward
-                ? currentIndex < entries.Count - 1
+                ? currentIndex < entries.Count - 1 && !currentSpreadIncludesLastImage
                 : currentIndex > 0;
 
             if (canNavigate)
@@ -52,7 +65,7 @@ namespace Uviewer.Services
                 bool isFast = !isManualClick &&
                     _handlers.FastNavigationService.DetectFastNavigation(_handlers.ResetFastNavigationAsync);
 
-                int step = _handlers.IsCurrentViewSideBySide() ? 2 : 1;
+                int step = isSideBySide ? 2 : 1;
                 int nextIndex = FileExplorerService.GetNextImageIndex(entries, currentIndex, step, forward);
                 _handlers.SetCurrentIndex(nextIndex);
 
