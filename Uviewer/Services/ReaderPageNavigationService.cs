@@ -20,7 +20,7 @@ namespace Uviewer.Services
 
             if (direction < 0)
             {
-                return pageState.StartBlockIndex > 0
+                return pageState.NavigationStartBlockIndex > 0
                     ? findPreviousStart()
                     : null;
             }

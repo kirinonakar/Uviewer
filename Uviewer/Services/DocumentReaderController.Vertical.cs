@@ -662,7 +662,7 @@ namespace Uviewer
                             var device = VerticalTextCanvas?.Device ?? Microsoft.Graphics.Canvas.CanvasDevice.GetSharedDevice();
 
                             return GetOrFindPreviousPageStart(
-                                _currentVerticalStartBlockIndex,
+                                _verticalPageState.NavigationStartBlockIndex,
                                 blocks,
                                 layout.AvailableWidth,
                                 layout.AvailableHeight,

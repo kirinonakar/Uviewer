@@ -727,11 +727,14 @@ namespace Uviewer
             int visibleStartIndex = pageBlocks.Count > 0 && pageBlocks[0].OriginalBlockIndex >= 0
                 ? pageBlocks[0].OriginalBlockIndex
                 : startIdx;
-            _aozoraPageState.SetPage(pageBlocks, visibleStartIndex, index);
+            // A forced page break can be skipped before the first visible block.
+            // Preserve the paginator input separately so backward navigation targets
+            // the page before the break instead of rendering this page again.
+            _aozoraPageState.SetPage(pageBlocks, visibleStartIndex, index, startIdx);
 
             AozoraTextCanvas?.Invalidate();
             UpdateAozoraStatusBar();
-            StartBackwardPageCaching(_currentAozoraStartBlockIndex, false); // <-- 현재 페이지 렌더링 직후 백그라운드 캐싱 시작
+            StartBackwardPageCaching(_aozoraPageState.NavigationStartBlockIndex, false); // <-- 현재 페이지 렌더링 직후 백그라운드 캐싱 시작
         }
 
         internal async void StartAozoraPageCalculationAsync()
@@ -907,7 +910,7 @@ namespace Uviewer
                         _aozoraPageState,
                         _aozoraBlocks.Count,
                         direction,
-                        () => FindPreviousAozoraPageStart(_currentAozoraStartBlockIndex));
+                        () => FindPreviousAozoraPageStart(_aozoraPageState.NavigationStartBlockIndex));
                 }
 
                 if (targetIndex.HasValue)

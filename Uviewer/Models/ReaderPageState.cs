@@ -7,6 +7,7 @@ namespace Uviewer.Models
     {
         public ReaderPageInfo CurrentPage { get; set; } = ReaderPageInfo.Empty;
         public int StartBlockIndex { get; set; }
+        public int NavigationStartBlockIndex { get; set; }
         public int EndBlockIndex { get; set; }
         public int TotalPages { get; set; }
         public bool IsPageCalculationCompleted { get; set; }
@@ -19,6 +20,7 @@ namespace Uviewer.Models
         {
             CurrentPage = ReaderPageInfo.Empty;
             StartBlockIndex = 0;
+            NavigationStartBlockIndex = 0;
             EndBlockIndex = 0;
             ResetPageCalculation();
             BlockToPageMap.Clear();
@@ -28,12 +30,18 @@ namespace Uviewer.Models
         {
             CurrentPage = ReaderPageInfo.Empty;
             StartBlockIndex = 0;
+            NavigationStartBlockIndex = 0;
             EndBlockIndex = 0;
         }
 
-        public void SetPage(List<AozoraBindingModel> pageBlocks, int startBlockIndex, int nextBlockIndex)
+        public void SetPage(
+            List<AozoraBindingModel> pageBlocks,
+            int startBlockIndex,
+            int nextBlockIndex,
+            int? navigationStartBlockIndex = null)
         {
             StartBlockIndex = Math.Max(0, startBlockIndex);
+            NavigationStartBlockIndex = Math.Max(0, navigationStartBlockIndex ?? startBlockIndex);
             EndBlockIndex = nextBlockIndex > startBlockIndex ? nextBlockIndex - 1 : StartBlockIndex;
             CurrentPage = ReaderPageInfo.FromBlocks(pageBlocks);
         }
