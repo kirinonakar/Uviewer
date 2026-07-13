@@ -34,6 +34,7 @@ namespace Uviewer
         internal bool _isTextMode = false;
         internal bool _isCurrentTextPlainModeLocked = false;
         private int _textContentLoadGeneration;
+        private RangeObservableCollection<TextLine>? _progressiveTextItems;
         private const int PlainTextLockedPrecisePaginationLineLimit = 10000;
         private const int PlainTextLockedPrecisePaginationCharacterLimit = 2_000_000;
         internal int _textTotalLineCountInSource
@@ -625,7 +626,8 @@ namespace Uviewer
                         TextScrollViewer.ChangeView(null, 0, null, true);
                     }
 
-                    TextItemsRepeater.ItemsSource = _textLines;
+                    _progressiveTextItems = new RangeObservableCollection<TextLine>(_textLines);
+                    TextItemsRepeater.ItemsSource = _progressiveTextItems;
                     if (targetLine > 1)
                     {
                         await Task.Delay(50);
@@ -645,42 +647,21 @@ namespace Uviewer
 
                         if (targetLine > 1) await Task.Delay(400, token);
 
-                        this.DispatcherQueue.TryEnqueue(async () =>
+                        this.DispatcherQueue.TryEnqueue(() =>
                         {
                             if (token.IsCancellationRequested) return;
                             if (_isAozoraMode) return; 
 
-                            // [핵심 수정] 픽셀 오프셋 대신 정확한 라인 번호를 기억
-                            int currentLineToRestore = GetTopVisibleLineIndex();
-                            if (currentLineToRestore < targetLine) currentLineToRestore = targetLine;
-
                             _textLines.AddRange(restTextLines);
                             _isTextLinesFullyLoaded = true;
 
-                            if (TextItemsRepeater != null)
+                            if (TextItemsRepeater != null &&
+                                _progressiveTextItems != null &&
+                                ReferenceEquals(TextItemsRepeater.ItemsSource, _progressiveTextItems))
                             {
-                                bool contentWasVisible = TextArea?.Opacity > 0;
-                                if (contentWasVisible && TextArea != null) TextArea.Opacity = 0;
-
-                                var currentSource = _textLines;
-                                TextItemsRepeater.ItemsSource = null;
-                                TextItemsRepeater.ItemsSource = currentSource;
-
-                                // [핵심 수정] Source 교체 후 픽셀 복구가 아닌 라인 기반 정확한 1회 이동 수행
-                                if (currentLineToRestore > 1)
-                                {
-                                    await ScrollToLineAsync(currentLineToRestore);
-                                }
-                                else
-                                {
-                                    TextScrollViewer?.ChangeView(null, 0, null, true);
-                                }
-
-                                if (contentWasVisible && !token.IsCancellationRequested && TextArea != null)
-                                {
-                                    await Task.Delay(16);
-                                    if (!token.IsCancellationRequested) TextArea.Opacity = 1;
-                                }
+                                // Append notification preserves realized elements and
+                                // the ScrollViewer offset; no hide/rebind/restore cycle.
+                                _progressiveTextItems.AddRange(restTextLines);
                             }
 
                             StartPageCalculationAsync();
@@ -696,6 +677,7 @@ namespace Uviewer
             {
                 _textLines = await _textLineLoadService.CreateAllLinesAsync(loadPlan, lineStyle, token);
                 _isTextLinesFullyLoaded = true;
+                _progressiveTextItems = null;
 
                 if (TextItemsRepeater != null)
                 {
