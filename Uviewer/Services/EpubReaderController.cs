@@ -535,7 +535,10 @@ namespace Uviewer.Services
                     await Task.Delay(50, token);
 
                     // If this is the next chapter, refresh to check if we can now show side-by-side.
-                    if (idx == _currentEpubChapterIndex + 1 && _isSideBySideMode)
+                    // Auto double-page mode needs the same refresh when fast navigation reaches a
+                    // chapter boundary before background preloading has completed.
+                    if (idx == _currentEpubChapterIndex + 1 &&
+                        (_isSideBySideMode || _autoDoublePageForArchive))
                     {
                         var _ = DispatcherQueue.TryEnqueue(() => 
                         {
@@ -1070,12 +1073,7 @@ namespace Uviewer.Services
                     await LoadEpubImageForWin2DAsync(targetPgObj.ImagePath);
                     if (_isSideBySideMode || _autoDoublePageForArchive)
                     {
-                        var pg2 = GetEpubWin2DPage(targetChapter, targetPage + 1);
-                        if (pg2 == null && targetChapter < _epubSpine.Count - 1 && targetPage + 1 >= (targetChapter == _currentEpubChapterIndex ? _epubWin2DPages.Count : _epubPreloadCache[targetChapter].Count))
-                        {
-                            // 다음 챕터의 첫 페이지 확인
-                            pg2 = GetEpubWin2DPage(targetChapter + 1, 0);
-                        }
+                        var pg2 = await GetNextEpubWin2DPageAsync(targetChapter, targetPage);
                         if (pg2 != null && pg2.IsImagePage)
                         {
                             await LoadEpubImageForWin2DAsync(pg2.ImagePath);
@@ -1134,6 +1132,23 @@ namespace Uviewer.Services
                 if (pageIndex >= 0 && pageIndex < cachedPages.Count) return cachedPages[pageIndex];
             }
             return null;
+        }
+
+        private async Task<EpubWin2DPage?> GetNextEpubWin2DPageAsync(int chapterIndex, int pageIndex)
+        {
+            var nextPage = GetEpubWin2DPage(chapterIndex, pageIndex + 1);
+            if (nextPage != null) return nextPage;
+
+            int chapterPageCount = chapterIndex == _currentEpubChapterIndex
+                ? _epubWin2DPages.Count
+                : (_epubPreloadCache.TryGetValue(chapterIndex, out var pages) ? pages.Count : 0);
+
+            if (pageIndex + 1 < chapterPageCount || chapterIndex >= _epubSpine.Count - 1)
+                return null;
+
+            int nextChapterIndex = chapterIndex + 1;
+            await ForceLoadChapterPagesAsync(nextChapterIndex);
+            return GetEpubWin2DPage(nextChapterIndex, 0);
         }
 
         internal async Task LoadEpubChapterAsync(int index, bool fromEnd = false, int targetLine = -1, int targetBlockIndex = -1, int targetPage = -1, double? progress = null, CancellationToken token = default)
@@ -1215,11 +1230,7 @@ namespace Uviewer.Services
                         // SideBySide 모드일 경우 우측(다음) 페이지 이미지도 미리 로드
                         if (_isSideBySideMode || _autoDoublePageForArchive)
                         {
-                            int nextChapIndex = index;
-                            int nextPgIndex = finalTargetPage + 1;
-                            if (nextPgIndex >= pages.Count) { nextChapIndex++; nextPgIndex = 0; }
-                            
-                            var pg2 = GetEpubWin2DPage(nextChapIndex, nextPgIndex);
+                            var pg2 = await GetNextEpubWin2DPageAsync(index, finalTargetPage);
                             if (pg2 != null && pg2.IsImagePage)
                             {
                                 await LoadEpubImageForWin2DAsync(pg2.ImagePath);
