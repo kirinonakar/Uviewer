@@ -1,9 +1,12 @@
 using System;
 using System.Collections.Generic;
+using System.Text;
 using Uviewer.Models;
 
 namespace Uviewer.Services
 {
+    public sealed record TextBlockParsePreview(TextBlockDocument Document, bool IsPartial);
+
     public enum NegativeLineTargetBehavior
     {
         EstimateByPage,
@@ -19,6 +22,40 @@ namespace Uviewer.Services
                 : AozoraParserService.ParseAozoraContent(content, baseFontSize);
 
             return new TextBlockDocument(result.Blocks, result.SourceLineCount);
+        }
+
+        public TextBlockParsePreview ParsePreview(
+            string content,
+            bool isMarkdown,
+            double baseFontSize,
+            int targetLine,
+            int lineCount = 400,
+            int contextLines = 40)
+        {
+            int safeTargetLine = Math.Max(1, targetLine);
+            int startLine = Math.Max(1, safeTargetLine - Math.Max(0, contextLines));
+            var window = ExtractLineWindow(content, startLine, Math.Max(1, lineCount));
+
+            (List<AozoraBindingModel> Blocks, int SourceLineCount) result;
+            if (isMarkdown)
+            {
+                result = AozoraParserService.ParseMarkdownContent(window.Text);
+                int sourceOffset = window.StartLine - 1;
+                foreach (var block in result.Blocks)
+                {
+                    block.SourceLineNumber += sourceOffset;
+                }
+            }
+            else
+            {
+                string prepared = AozoraParserService.PreprocessAozoraBold(window.Text);
+                var lines = prepared.Replace("\r\n", "\n").Replace("\r", "\n").Split('\n');
+                result = (AozoraParserService.ParseAozoraLines(lines, window.StartLine, baseFontSize), lines.Length);
+            }
+
+            int visibleSourceLineCount = window.StartLine + Math.Max(0, result.SourceLineCount - 1);
+            var document = new TextBlockDocument(result.Blocks, visibleSourceLineCount);
+            return new TextBlockParsePreview(document, window.StartLine > 1 || !window.ReachedEnd);
         }
 
         public int FindStartBlockIndex(
@@ -85,6 +122,56 @@ namespace Uviewer.Services
             }
 
             return count;
+        }
+
+        private static (string Text, int StartLine, bool ReachedEnd) ExtractLineWindow(
+            string content,
+            int startLine,
+            int lineCount)
+        {
+            if (string.IsNullOrEmpty(content))
+                return (string.Empty, 1, true);
+
+            int currentLine = 1;
+            int index = 0;
+            while (index < content.Length && currentLine < startLine)
+            {
+                char c = content[index++];
+                if (c == '\r')
+                {
+                    if (index < content.Length && content[index] == '\n') index++;
+                    currentLine++;
+                }
+                else if (c == '\n')
+                {
+                    currentLine++;
+                }
+            }
+
+            int actualStartLine = currentLine;
+            int remainingLines = lineCount;
+            var builder = new StringBuilder(Math.Min(content.Length - index, 32 * 1024));
+            while (index < content.Length && remainingLines > 0)
+            {
+                char c = content[index++];
+                if (c == '\r')
+                {
+                    if (index < content.Length && content[index] == '\n') index++;
+                    remainingLines--;
+                    if (remainingLines > 0) builder.Append('\n');
+                }
+                else if (c == '\n')
+                {
+                    remainingLines--;
+                    if (remainingLines > 0) builder.Append('\n');
+                }
+                else
+                {
+                    builder.Append(c);
+                }
+            }
+
+            return (builder.ToString(), actualStartLine, index >= content.Length);
         }
 
         private static int EstimateBlockIndexFromLegacyPage(int blockCount, int targetPage, int estimatedBlocksPerPage)

@@ -234,6 +234,8 @@ namespace Uviewer
             _ = _tocService.LoadTocAsync(token);
 
             _aozoraBlocks.Clear(); // [핵심 수정] 새 파일을 로드할 때 이전 파일의 블록 캐시를 제거합니다.
+            _aozoraParseGeneration++;
+            _isAozoraParsePartial = false;
             _imageResourceService.ClearTextEntries(); // 텍스트 이미지 캐시 및 누락 목록 초기화
 
             // [추가] 이전 파일의 스크롤 추적 기록을 초기화하여 엉뚱한 위치가 자동 저장되는 것을 방지합니다.
@@ -552,6 +554,8 @@ namespace Uviewer
         {
             _textReaderState.ClearDocument();
             _aozoraBlocks.Clear();
+            _aozoraParseGeneration++;
+            _isAozoraParsePartial = false;
         }
 
         /// <summary>

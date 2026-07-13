@@ -27,6 +27,8 @@ namespace Uviewer
         internal List<AozoraBindingModel> _aozoraBlocks = new();
         internal int _aozoraTotalLineCount = 0;
         internal int _aozoraTotalLineCountInSource = 0;
+        private int _aozoraParseGeneration;
+        private bool _isAozoraParsePartial;
 
         // Win2D Rendering State
         internal readonly ReaderPageState _aozoraPageState = new();
@@ -370,61 +372,55 @@ namespace Uviewer
             return; // 재파싱 없이 함수 즉시 종료
         }
 
-        // 2. 전체 데이터 백그라운드 파싱 (UI 프리징 방지)
-        await Task.Run(() =>
+        int parseGeneration = ++_aozoraParseGeneration;
+        bool isMarkdown = _isMarkdownRenderMode;
+        double fontSize = _settingsManager.FontSize;
+        var preview = await Task.Run(
+            () => _textBlockDocumentService.ParsePreview(
+                rawContent,
+                isMarkdown,
+                fontSize,
+                targetLine),
+            token);
+        token.ThrowIfCancellationRequested();
+
+        _aozoraBlocks = preview.Document.Blocks;
+        _aozoraTotalLineCount = _aozoraBlocks.Count;
+        _aozoraTotalLineCountInSource = preview.Document.SourceLineCount;
+        _textTotalLineCountInSource = preview.Document.SourceLineCount;
+        _isAozoraParsePartial = preview.IsPartial;
+
+        // 미리보기 블록 인덱스는 전체 문서의 블록 인덱스와 다르므로 줄 번호로 위치를 찾는다.
+        startIdx = _textBlockDocumentService.FindStartBlockIndex(_aozoraBlocks, targetLine);
+        _currentAozoraStartBlockIndex = startIdx;
+
+        if (AozoraTextCanvas != null)
         {
-            if (token.IsCancellationRequested) return;
-
-            var document = _textBlockDocumentService.Parse(rawContent, _isMarkdownRenderMode, _settingsManager.FontSize);
-
-            if (token.IsCancellationRequested) return;
-
-            // 3. 파싱 완료 후 UI 스레드에서 화면 업데이트
-            DispatcherQueue.TryEnqueue(async () =>
+            AozoraTextCanvas.Visibility = Visibility.Visible;
+            if (AozoraTextCanvas.ActualHeight == 0 || AozoraTextCanvas.ActualWidth == 0)
             {
-                if (token.IsCancellationRequested) return;
+                await Task.Delay(50, token);
+            }
+        }
 
-                _aozoraBlocks = document.Blocks;
-                _aozoraTotalLineCount = _aozoraBlocks.Count;
-                _aozoraTotalLineCountInSource = document.SourceLineCount;
-                _textTotalLineCountInSource = document.SourceLineCount;
+        if (_aozoraBlocks.Count > 0)
+        {
+            await RenderAozoraDynamicPage(_currentAozoraStartBlockIndex);
+        }
 
-                // Update TOC with parsed blocks
-                _tocService.SetProvider(new TextTocProvider(_currentTextContent, _aozoraBlocks));
-                _ = _tocService.LoadTocAsync(token);
+        _aozoraPendingTargetLine = 0;
+        UpdateAozoraStatusBar();
 
-                // 목표 라인(TargetLine) 또는 블록 인덱스 탐색
-                int startIdx = _textBlockDocumentService.FindStartBlockIndex(
-                    _aozoraBlocks,
-                    targetLine,
-                    targetBlockIndex);
-
-                _currentAozoraStartBlockIndex = startIdx;
-
-                if (AozoraTextCanvas != null)
-                {
-                    AozoraTextCanvas.Visibility = Visibility.Visible;
-                    // 캔버스 크기가 아직 잡히지 않았다면 잠시 대기
-                    if (AozoraTextCanvas.ActualHeight == 0 || AozoraTextCanvas.ActualWidth == 0)
-                    {
-                        await Task.Delay(50);
-                    }
-                }
-
-                // 현재 화면에 보이는 만큼만 가상화 렌더링
-                if (_aozoraBlocks.Count > 0)
-                {
-                    await RenderAozoraDynamicPage(_currentAozoraStartBlockIndex);
-                }
-
-                _aozoraPendingTargetLine = 0; // <--- 렌더링이 화면에 반영된 직후인 이 위치에서 초기화해 줍니다!
-
-                // 렌더링 완료 후 남은 전체 페이지 계산 백그라운드 시작
-                StartAozoraPageCalculationAsync();
-                UpdateAozoraStatusBar();
-            });
-
-        }, token);
+        if (_isAozoraParsePartial)
+        {
+            _ = CompleteAozoraParsingAsync(rawContent, isMarkdown, fontSize, parseGeneration, token);
+        }
+        else
+        {
+            _tocService.SetProvider(new TextTocProvider(_currentTextContent, _aozoraBlocks));
+            _ = _tocService.LoadTocAsync(token);
+            StartAozoraPageCalculationAsync();
+        }
     }
     catch (TaskCanceledException)
     {
@@ -435,6 +431,62 @@ namespace Uviewer
         System.Diagnostics.Debug.WriteLine($"Aozora Load Error: {ex.Message}");
     }
 }
+
+        private async Task CompleteAozoraParsingAsync(
+            string rawContent,
+            bool isMarkdown,
+            double fontSize,
+            int parseGeneration,
+            CancellationToken token)
+        {
+            try
+            {
+                var document = await Task.Run(
+                    () => _textBlockDocumentService.Parse(
+                        rawContent,
+                        isMarkdown,
+                        fontSize),
+                    token);
+                token.ThrowIfCancellationRequested();
+
+                DispatcherQueue.TryEnqueue(async () =>
+                {
+                    if (token.IsCancellationRequested || parseGeneration != _aozoraParseGeneration) return;
+
+                    int currentLine = 1;
+                    if (_aozoraBlocks.Count > 0 &&
+                        _currentAozoraStartBlockIndex >= 0 &&
+                        _currentAozoraStartBlockIndex < _aozoraBlocks.Count)
+                    {
+                        currentLine = _aozoraBlocks[_currentAozoraStartBlockIndex].SourceLineNumber;
+                    }
+
+                    _aozoraBlocks = document.Blocks;
+                    _aozoraTotalLineCount = document.Blocks.Count;
+                    _aozoraTotalLineCountInSource = document.SourceLineCount;
+                    _textTotalLineCountInSource = document.SourceLineCount;
+                    _isAozoraParsePartial = false;
+                    ClearBackwardCache();
+
+                    _tocService.SetProvider(new TextTocProvider(_currentTextContent, _aozoraBlocks));
+                    _ = _tocService.LoadTocAsync(token);
+
+                    if (_aozoraBlocks.Count > 0)
+                    {
+                        int fullStartIndex = _textBlockDocumentService.FindStartBlockIndex(_aozoraBlocks, currentLine);
+                        await RenderAozoraDynamicPage(fullStartIndex);
+                    }
+
+                    StartAozoraPageCalculationAsync();
+                    UpdateAozoraStatusBar();
+                });
+            }
+            catch (OperationCanceledException) { }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Aozora background parse error: {ex.Message}");
+            }
+        }
 
         internal void AozoraTextCanvas_SizeChanged(object sender, SizeChangedEventArgs e)
         {
@@ -493,7 +545,7 @@ namespace Uviewer
         {
             try
             {
-                if (!_isAozoraMode || _aozoraBlocks == null || _aozoraBlocks.Count == 0) return;
+                if (!_isAozoraMode || _isAozoraParsePartial || _aozoraBlocks == null || _aozoraBlocks.Count == 0) return;
 
                 _aozoraPageCalcCts?.Cancel();
                 _aozoraPageCalcCts = new System.Threading.CancellationTokenSource();
