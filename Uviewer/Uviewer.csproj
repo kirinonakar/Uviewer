@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk" InitialTargets="ReadManifestVersion">
+<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
     <TargetFramework>net10.0-windows10.0.26100.0</TargetFramework>
@@ -18,23 +18,20 @@
     <WindowsPackageType>MSIX</WindowsPackageType>
     <WindowsAppSDKSelfContained>true</WindowsAppSDKSelfContained>
     <AppxSymbolPackageEnabled>false</AppxSymbolPackageEnabled>
+    <!-- Re-run MSIX packaging targets whenever the source package manifest changes. -->
+    <MSBuildAllProjects>$(MSBuildAllProjects);$(MSBuildProjectDirectory)\Package.appxmanifest</MSBuildAllProjects>
   </PropertyGroup>
 
-  <!-- Use Package.appxmanifest as the source of truth for app and assembly versions. -->
-  <Target Name="ReadManifestVersion">
-    <XmlPeek XmlInputPath="$(MSBuildProjectDirectory)\Package.appxmanifest" Namespaces="&lt;Namespace Prefix='ns' Uri='http://schemas.microsoft.com/appx/manifest/foundation/windows10' /&gt;" Query="/ns:Package/ns:Identity/@Version">
-      <Output TaskParameter="Result" PropertyName="ManifestVersion" />
+  <!-- Dynamically read the version from Package.appxmanifest so there is only one source of truth. -->
+  <Target Name="ReadVersionFromManifest" BeforeTargets="InitializeSourceControlInformation;PrepareForBuild;GetAssemblyVersion;GenerateAssemblyInfo">
+    <XmlPeek XmlInputPath="Package.appxmanifest" Query="/f:Package/f:Identity/@Version" Namespaces="&lt;Namespace Prefix='f' Uri='http://schemas.microsoft.com/appx/manifest/foundation/windows10' /&gt;">
+      <Output TaskParameter="Result" PropertyName="AppxVersion" />
     </XmlPeek>
-    <Error Condition="'$(ManifestVersion)' == ''" Text="Package.appxmanifest Identity Version is missing." />
-    <PropertyGroup>
-      <Version>$(ManifestVersion)</Version>
-      <AssemblyVersion>$(ManifestVersion)</AssemblyVersion>
-      <FileVersion>$(ManifestVersion)</FileVersion>
-      <InformationalVersion>$(ManifestVersion)</InformationalVersion>
-      <ApplicationVersion>$(ManifestVersion)</ApplicationVersion>
-      <AppxPackageVersion>$(ManifestVersion)</AppxPackageVersion>
+    <PropertyGroup Condition="'$(AppxVersion)' != ''">
+      <Version>$(AppxVersion)</Version>
+      <AssemblyVersion>$(AppxVersion)</AssemblyVersion>
+      <FileVersion>$(AppxVersion)</FileVersion>
     </PropertyGroup>
-    <Message Importance="high" Text="Using Package.appxmanifest version $(ManifestVersion)" />
   </Target>
 
   <PropertyGroup Condition="'$(Platform)' != '' and '$(Platform)' != 'AnyCPU' and '$(Platform)' != 'Any CPU'">
@@ -93,7 +90,8 @@
     <AppxPackageSigningEnabled>True</AppxPackageSigningEnabled>
     <AppxPackageSigningTimestampDigestAlgorithm>SHA256</AppxPackageSigningTimestampDigestAlgorithm>
     <AppxAutoIncrementPackageRevision>False</AppxAutoIncrementPackageRevision>
-    <GenerateTestArtifacts>True</GenerateTestArtifacts>
+    <GenerateTestArtifacts>False</GenerateTestArtifacts>
+    <BuildAppxUploadPackageForUap>False</BuildAppxUploadPackageForUap>
     <AppxBundle>Never</AppxBundle>
     <HoursBetweenUpdateChecks>0</HoursBetweenUpdateChecks>
     <SupportedOSPlatformVersion>10.0.19041.0</SupportedOSPlatformVersion>
