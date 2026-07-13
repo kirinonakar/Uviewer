@@ -28,6 +28,7 @@ namespace Uviewer.Services
         public Func<bool> IsSharpenEnabled { get; init; } = null!;
         public Action CancelImageLoading { get; init; } = null!;
         public Action CancelTextLoading { get; init; } = null!;
+        public Action ClearImageResources { get; init; } = null!;
         public Action InvalidateMainCanvas { get; init; } = null!;
         public Action<string> SetWindowTitle { get; init; } = null!;
         public Action<string> SetStatusText { get; init; } = null!;
@@ -74,6 +75,8 @@ namespace Uviewer.Services
             if (!await _handlers.CloseCurrentPdfAsync()) return;
             if (!await _handlers.CloseCurrentEpubAsync()) return;
             if (!await CloseCurrentArchiveAsync()) return;
+
+            _handlers.ClearImageResources();
 
             try
             {

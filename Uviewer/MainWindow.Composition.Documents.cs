@@ -155,6 +155,7 @@ namespace Uviewer
                             IsSharpenEnabled = () => window._imageViewerState.IsSharpenEnabled,
                             CancelImageLoading = () => window._imageViewerState.ImageLoadingCts?.Cancel(),
                             CancelTextLoading = () => window._globalTextCts?.Cancel(),
+                            ClearImageResources = window._imageViewerController.ClearImageResources,
                             InvalidateMainCanvas = () => window.MainCanvas?.Invalidate(),
                             SetWindowTitle = value => window.Title = value,
                             SetStatusText = value => window.FileNameText.Text = value
