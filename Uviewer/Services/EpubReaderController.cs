@@ -151,6 +151,9 @@ namespace Uviewer.Services
         public int PendingEpubChapterIndex { get; set; } = -1;
         public int PendingEpubPageIndex { get; set; } = -1;
         private int _pendingEpubStartBlockIndex = -1;
+        private int _epubChapterLoadGeneration;
+        private bool _isCurrentEpubChapterPartial;
+        private Task? _epubFullPaginationTask;
 
         private readonly EpubReaderState _epubReaderState = new();
         private List<EpubWin2DPage> _epubWin2DPages
@@ -308,6 +311,11 @@ namespace Uviewer.Services
 
                  _currentEpubFilePath = file.Path;
                  _currentEpubDisplayName = entry?.DisplayName ?? file.Name;
+
+                 // Keep the EPUB host in layout while the bookmarked first page is built,
+                 // but do not expose the previous CanvasControl back buffer meanwhile.
+                 // Collapsing it here would make pagination use a zero-sized viewport.
+                 if (EpubArea != null) EpubArea.Opacity = 0;
                  
                  _epubReaderState.ClearPreload();
                  var stream = await file.OpenStreamForReadAsync();
@@ -355,6 +363,12 @@ namespace Uviewer.Services
                  _currentEpubChapterIndex = targetCh;
                  await LoadEpubChapterAsync(targetCh, targetLine: _aozoraPendingTargetLine, targetBlockIndex: _pendingEpubStartBlockIndex, targetPage: PendingEpubPageIndex, token: token);
 
+                 if (token.IsCancellationRequested) return;
+                 // Give CanvasControl one composition frame to paint the selected page
+                 // before revealing it; otherwise its previous back buffer can flash.
+                 await Task.Delay(16, token);
+                 if (EpubArea != null) EpubArea.Opacity = 1;
+
                  // LoadEpubChapterAsync 내부에서 targetBlockIndex 기반으로 이미 최적의 페이지를 설정하므로,
                  // 화면 크기에 종속적인 PendingEpubPageIndex를 여기서 다시 강제로 설정하지 않습니다.
                  
@@ -388,6 +402,7 @@ namespace Uviewer.Services
              }
              finally
              {
+                 if (EpubArea != null) EpubArea.Opacity = 1;
                  _isNavigatingRecent = false;
              }
         }
@@ -396,6 +411,9 @@ namespace Uviewer.Services
         // [안정성 수정] 동기 Wait → 비동기 WaitAsync로 전환하여 UI 프리징 방지
         internal async Task<bool> CloseCurrentEpubAsync()
         {
+            _epubChapterLoadGeneration++;
+            _isCurrentEpubChapterPartial = false;
+            _epubFullPaginationTask = null;
             StopEpubResizeTimer();
             _epubReaderState.ClearPreload();
             _tocService.Clear();
@@ -427,6 +445,9 @@ namespace Uviewer.Services
 
         internal void ShutdownEpubResources()
         {
+            _epubChapterLoadGeneration++;
+            _isCurrentEpubChapterPartial = false;
+            _epubFullPaginationTask = null;
             StopEpubResizeTimer();
             _tocService.Clear();
             _epubReaderState.ClearAll();
@@ -581,24 +602,65 @@ namespace Uviewer.Services
 
             var device = EpubTextCanvas?.Device ?? CanvasDevice.GetSharedDevice();
 
-            var result = await _epubPaginationService.CreatePagesAsync(
-                new EpubPaginationRequest(
+            var request = new EpubPaginationRequest(
+                html,
+                currentPath,
+                _currentEpubChapterIndex,
+                viewport.Width,
+                viewport.Height,
+                _settingsManager.FontSize,
+                _isVerticalMode,
+                pinBlockIndex,
+                device);
+            var result = await Task.Run(() => _epubPaginationService.CreatePagesAsync(
+                request,
+                _epubDocumentService,
+                PaginateVerticalAozoraPage,
+                PaginateHorizontalAozoraPage,
+                FindPreviousPageStart));
+
+            _textTotalLineCountInSource = result.TotalLineCount;
+            return result.Pages;
+        }
+
+        private async Task<EpubPaginationResult> RenderEpubPreviewPagesAsync(
+            string html,
+            string currentPath,
+            int chapterIndex,
+            int targetLine,
+            int targetBlockIndex)
+        {
+            var viewport = _readerLayoutService.CreateEpubViewport(
+                EpubArea?.ActualWidth ?? 0,
+                EpubArea?.ActualHeight ?? 0,
+                RootGrid?.ActualWidth ?? 0,
+                RootGrid?.ActualHeight ?? 0,
+                AppWindow.Size.Width,
+                AppWindow.Size.Height,
+                RootGrid?.XamlRoot?.RasterizationScale ?? 1.0);
+
+            var device = EpubTextCanvas?.Device ?? CanvasDevice.GetSharedDevice();
+            var request = new EpubPaginationRequest(
                     html,
                     currentPath,
-                    _currentEpubChapterIndex,
+                    chapterIndex,
                     viewport.Width,
                     viewport.Height,
                     _settingsManager.FontSize,
                     _isVerticalMode,
-                    pinBlockIndex,
-                    device),
+                    targetBlockIndex,
+                    device,
+                    isPreview: true,
+                    targetLine: targetLine);
+            var result = await Task.Run(() => _epubPaginationService.CreatePagesAsync(
+                request,
                 _epubDocumentService,
                 PaginateVerticalAozoraPage,
                 PaginateHorizontalAozoraPage,
-                FindPreviousPageStart);
+                FindPreviousPageStart));
 
             _textTotalLineCountInSource = result.TotalLineCount;
-            return result.Pages;
+            return result;
         }
 
         // FindPreviousEpubPageStart 제거됨 — aozora.cs의 FindPreviousPageStart(isVertical 파라미터)로 통합
@@ -931,6 +993,12 @@ namespace Uviewer.Services
         {
             if (targetLine < 1) return;
 
+            if (_isCurrentEpubChapterPartial && _epubFullPaginationTask != null)
+            {
+                await _epubFullPaginationTask;
+                if (_isCurrentEpubChapterPartial) return;
+            }
+
             if (_isVerticalMode)
             {
                 await PrepareVerticalTextAsync(targetLine);
@@ -954,6 +1022,16 @@ namespace Uviewer.Services
             try
             {
                 int step = _isEpubShowingTwoPages ? direction * 2 : direction;
+
+                if (direction > 0 &&
+                    _isCurrentEpubChapterPartial &&
+                    _currentEpubPageIndex + step >= _epubWin2DPages.Count &&
+                    _epubFullPaginationTask != null)
+                {
+                    await _epubFullPaginationTask;
+                    if (_isCurrentEpubChapterPartial) return;
+                    step = _isEpubShowingTwoPages ? direction * 2 : direction;
+                }
 
                 int targetChapter = _currentEpubChapterIndex;
                 int targetPage = _currentEpubPageIndex + step;
@@ -1065,12 +1143,16 @@ namespace Uviewer.Services
 
             try
             {
+                int loadGeneration = ++_epubChapterLoadGeneration;
+                int sessionVersion = _epubSession.Version;
                 if (token.IsCancellationRequested) return;
                 FileNameText.Text = (_currentEpubDisplayName ?? Path.GetFileName(_currentEpubFilePath) ?? "") + Strings.Loading;
                 await Task.Delay(1, token);
                 if (token.IsCancellationRequested) return;
 
                 List<EpubWin2DPage> pages;
+                string? htmlForBackgroundPagination = null;
+                bool pagesArePartial = false;
                 // targetBlockIndex가 지정된 경우(북마크/리사이즈 등) 캐시를 무시하고 해당 블록을 기준으로 항상 다시 계산하여 위치 일관성 보장
                 if (targetBlockIndex < 0 && _epubPreloadCache.TryGetValue(index, out var cachedPages))
                 {
@@ -1082,29 +1164,37 @@ namespace Uviewer.Services
                     string? html = await _epubSession.ReadEntryTextAsync(path, _epubDocumentService);
                     if (html == null) return;
 
-                    pages = await RenderEpubPagesAsync(html, path, pinBlockIndex: targetBlockIndex);
-                    _epubPreloadCache[index] = pages;
-                    _epubChapterHasText[index] = pages.Any(p => !p.IsImagePage);
-                }
-
-                _epubWin2DPages = pages;
-                _currentEpubPageIndex = -1;
-                // 가로, 세로 모드 모두에서 SideBySide인 경우 다음 챕터가 연달아 이미지면 미리 렌더링해서 캐시에 넣음
-                // 이렇게 해야 SetEpubPageIndex에서 다음 페이지(이미지)를 즉시 찾아 2페이지 모드를 유지할 수 있음
-                if ((_isSideBySideMode || _autoDoublePageForArchive) && pages.Count > 0 && pages.Any(p => p.IsImagePage))
-                {
-                    int nextIdx = index + 1;
-                    if (nextIdx < _epubSpine.Count && !_epubPreloadCache.ContainsKey(nextIdx))
+                    bool hasStableContentAnchor = targetBlockIndex >= 0 || targetLine > 1;
+                    bool canUsePreview = !fromEnd &&
+                        !progress.HasValue &&
+                        (targetPage <= 0 || hasStableContentAnchor);
+                    if (canUsePreview)
                     {
-                        string? nextHtml = await _epubSession.ReadEntryTextAsync(_epubSpine[nextIdx], _epubDocumentService);
-                        if (nextHtml != null)
-                        {
-                            var nextPages = await RenderEpubPagesAsync(nextHtml, _epubSpine[nextIdx]);
-                            _epubPreloadCache[nextIdx] = nextPages;
-                        }
+                        var preview = await RenderEpubPreviewPagesAsync(
+                            html,
+                            path,
+                            index,
+                            targetLine,
+                            targetBlockIndex);
+                        pages = preview.Pages;
+                        pagesArePartial = preview.IsPartial;
+                        if (pagesArePartial) htmlForBackgroundPagination = html;
+                    }
+                    else
+                    {
+                        pages = await RenderEpubPagesAsync(html, path, pinBlockIndex: targetBlockIndex);
+                    }
+
+                    if (!pagesArePartial)
+                    {
+                        _epubPreloadCache[index] = pages;
+                        _epubChapterHasText[index] = pages.Any(p => !p.IsImagePage);
                     }
                 }
 
+                _epubWin2DPages = pages;
+                _isCurrentEpubChapterPartial = pagesArePartial;
+                _currentEpubPageIndex = -1;
                 int finalTargetPage = _epubPageFlowService.FindTargetPage(
                     pages,
                     targetBlockIndex,
@@ -1141,7 +1231,23 @@ namespace Uviewer.Services
                 if (_isWindowClosing || token.IsCancellationRequested || !_isEpubMode) return;
 
                 SetEpubPageIndex(finalTargetPage);
-                _ = PreloadEpubChaptersAsync(index);
+                if (pagesArePartial && htmlForBackgroundPagination != null)
+                {
+                    int anchorBlockIndex = CurrentEpubWin2DPage?.StartBlockIndex ?? targetBlockIndex;
+                    _epubFullPaginationTask = CompleteEpubChapterPaginationAsync(
+                        htmlForBackgroundPagination,
+                        _epubSpine[index],
+                        index,
+                        anchorBlockIndex,
+                        loadGeneration,
+                        sessionVersion,
+                        token);
+                }
+                else
+                {
+                    _epubFullPaginationTask = null;
+                    _ = PreloadEpubChaptersAsync(index);
+                }
             }
             finally
             {
@@ -1149,6 +1255,54 @@ namespace Uviewer.Services
                 {
                     FileNameText.Text = FileExplorerService.GetFormattedDisplayName(_currentEpubDisplayName ?? Path.GetFileName(_currentEpubFilePath) ?? "", false);
                 }
+            }
+        }
+
+        private async Task CompleteEpubChapterPaginationAsync(
+            string html,
+            string path,
+            int chapterIndex,
+            int anchorBlockIndex,
+            int loadGeneration,
+            int sessionVersion,
+            CancellationToken token)
+        {
+            try
+            {
+                // Keep the preview's first visible block as a hard page boundary. If the
+                // full pass starts from the chapter beginning, that block can land in the
+                // middle of a page and the first line visibly jumps when pages are swapped.
+                var fullPages = await RenderEpubPagesAsync(html, path, anchorBlockIndex);
+                if (token.IsCancellationRequested ||
+                    loadGeneration != _epubChapterLoadGeneration ||
+                    sessionVersion != _epubSession.Version ||
+                    !_isEpubMode ||
+                    chapterIndex != _currentEpubChapterIndex)
+                {
+                    return;
+                }
+
+                int currentLine = CurrentEpubWin2DPage?.StartLine ?? 1;
+                int currentBlockIndex = CurrentEpubWin2DPage?.StartBlockIndex ?? -1;
+                _epubPreloadCache[chapterIndex] = fullPages;
+                _epubChapterHasText[chapterIndex] = fullPages.Any(p => !p.IsImagePage);
+                _epubWin2DPages = fullPages;
+                _isCurrentEpubChapterPartial = false;
+
+                if (fullPages.Count > 0)
+                {
+                    int pageIndex = currentBlockIndex >= 0
+                        ? _epubPageFlowService.FindPageByBlockIndex(fullPages, currentBlockIndex)
+                        : _epubPageFlowService.FindPageByLine(fullPages, currentLine);
+                    SetEpubPageIndex(pageIndex);
+                }
+
+                _ = PreloadEpubChaptersAsync(chapterIndex);
+            }
+            catch (OperationCanceledException) { }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"EPUB background pagination error: {ex.Message}");
             }
         }
 

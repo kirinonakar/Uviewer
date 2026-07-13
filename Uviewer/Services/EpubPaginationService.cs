@@ -32,15 +32,32 @@ namespace Uviewer.Services
             EpubPreviousPageStartFinder previousPageStartFinder)
         {
             var pages = new List<EpubWin2DPage>();
-            var parseResult = documentService.ParseHtmlToAozoraBlocks(
-                request.Html,
-                request.CurrentPath,
-                request.ChapterIndex);
+            EpubHtmlParseResult parseResult;
+            bool parseIsPartial;
+            if (request.IsPreview)
+            {
+                var preview = documentService.ParseHtmlPreview(
+                    request.Html,
+                    request.CurrentPath,
+                    request.ChapterIndex,
+                    request.TargetLine,
+                    request.PinBlockIndex);
+                parseResult = preview.Result;
+                parseIsPartial = preview.IsPartial;
+            }
+            else
+            {
+                parseResult = documentService.ParseHtmlToAozoraBlocks(
+                    request.Html,
+                    request.CurrentPath,
+                    request.ChapterIndex);
+                parseIsPartial = false;
+            }
 
             var allBlocks = parseResult.Blocks;
             if (allBlocks.Count == 0)
             {
-                return new EpubPaginationResult(pages, parseResult.TotalLineCount);
+                return new EpubPaginationResult(pages, parseResult.TotalLineCount, parseIsPartial);
             }
 
             var layout = CalculateLayout(request);
@@ -48,7 +65,28 @@ namespace Uviewer.Services
             int totalBlocks = allBlocks.Count;
             int maxSourceLine = allBlocks[allBlocks.Count - 1].SourceLineNumber;
 
-            if (request.PinBlockIndex >= 0 && request.PinBlockIndex < totalBlocks)
+            if (request.IsPreview)
+            {
+                int index = FindPreviewStartIndex(allBlocks, request.PinBlockIndex, request.TargetLine);
+                while (index < totalBlocks && pages.Count < request.MaxPreviewPages)
+                {
+                    var page = PaginateNextPage(
+                        ref index,
+                        allBlocks,
+                        layout.MaxWidth,
+                        layout.PageHeight,
+                        device,
+                        request.IsVerticalMode,
+                        verticalPaginator,
+                        horizontalPaginator);
+
+                    if (page != null) pages.Add(page);
+                    else index++;
+                }
+
+                parseIsPartial = parseIsPartial || index < totalBlocks;
+            }
+            else if (request.PinBlockIndex >= 0 && request.PinBlockIndex < totalBlocks)
             {
                 int forwardIndex = request.PinBlockIndex;
                 while (forwardIndex < totalBlocks)
@@ -127,7 +165,38 @@ namespace Uviewer.Services
                 page.TotalLinesInChapter = total;
             }
 
-            return new EpubPaginationResult(pages, parseResult.TotalLineCount);
+            return new EpubPaginationResult(pages, parseResult.TotalLineCount, parseIsPartial);
+        }
+
+        private static int FindPreviewStartIndex(
+            IReadOnlyList<AozoraBindingModel> blocks,
+            int targetBlockIndex,
+            int targetLine)
+        {
+            if (targetBlockIndex >= 0)
+                return Math.Clamp(targetBlockIndex, 0, blocks.Count - 1);
+
+            if (targetLine <= 1) return 0;
+
+            int left = 0;
+            int right = blocks.Count - 1;
+            int result = 0;
+            while (left <= right)
+            {
+                int middle = left + (right - left) / 2;
+                if (blocks[middle].SourceLineNumber < targetLine)
+                {
+                    result = middle;
+                    left = middle + 1;
+                }
+                else
+                {
+                    result = middle;
+                    right = middle - 1;
+                }
+            }
+
+            return Math.Clamp(result, 0, blocks.Count - 1);
         }
 
         private static EpubPageLayout CalculateLayout(EpubPaginationRequest request)
@@ -211,7 +280,12 @@ namespace Uviewer.Services
             {
                 Blocks = pageBlocks,
                 IsImagePage = false,
-                StartBlockIndex = pageStart,
+                // The paginator can skip leading blank/page-break blocks. Preserve the
+                // first block that is actually visible so layout changes can anchor to
+                // the same content instead of drifting to a nearby block.
+                StartBlockIndex = pageBlocks[0].OriginalBlockIndex >= 0
+                    ? pageBlocks[0].OriginalBlockIndex
+                    : pageStart,
                 StartLine = pageBlocks[0].SourceLineNumber,
                 LineCount = pageBlocks.Count
             };
@@ -229,7 +303,10 @@ namespace Uviewer.Services
             double fontSize,
             bool isVerticalMode,
             int pinBlockIndex,
-            CanvasDevice? device)
+            CanvasDevice? device,
+            bool isPreview = false,
+            int targetLine = -1,
+            int maxPreviewPages = 3)
         {
             Html = html;
             CurrentPath = currentPath;
@@ -240,6 +317,9 @@ namespace Uviewer.Services
             IsVerticalMode = isVerticalMode;
             PinBlockIndex = pinBlockIndex;
             Device = device;
+            IsPreview = isPreview;
+            TargetLine = targetLine;
+            MaxPreviewPages = Math.Max(1, maxPreviewPages);
         }
 
         public string Html { get; }
@@ -251,18 +331,23 @@ namespace Uviewer.Services
         public bool IsVerticalMode { get; }
         public int PinBlockIndex { get; }
         public CanvasDevice? Device { get; }
+        public bool IsPreview { get; }
+        public int TargetLine { get; }
+        public int MaxPreviewPages { get; }
     }
 
     public sealed class EpubPaginationResult
     {
-        public EpubPaginationResult(List<EpubWin2DPage> pages, int totalLineCount)
+        public EpubPaginationResult(List<EpubWin2DPage> pages, int totalLineCount, bool isPartial = false)
         {
             Pages = pages;
             TotalLineCount = totalLineCount;
+            IsPartial = isPartial;
         }
 
         public List<EpubWin2DPage> Pages { get; }
         public int TotalLineCount { get; }
+        public bool IsPartial { get; }
     }
 
     public readonly struct EpubPageLayout

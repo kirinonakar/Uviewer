@@ -264,6 +264,7 @@ namespace Uviewer
 
         internal async Task ReloadTextDisplayFromCacheAsync(string fileName, int targetLine)
         {
+            int loadGeneration = BeginTextContentLoad();
             try
             {
                 _aozoraPageCalcCts?.Cancel();
@@ -312,9 +313,15 @@ namespace Uviewer
                         UpdateTextStatusBar();
                     }
                 }
+
+                if (!token.IsCancellationRequested)
+                {
+                    await RevealTextContentAsync(loadGeneration, token);
+                }
             }
             catch (Exception ex)
             {
+                RevealTextContentAfterFailure(loadGeneration);
                 System.Diagnostics.Debug.WriteLine($"ReloadTextDisplayFromCacheAsync error: {ex.Message}");
             }
         }

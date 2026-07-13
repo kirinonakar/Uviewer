@@ -136,6 +136,39 @@ namespace Uviewer.Services
             return new EpubHtmlParseResult(splitBlocks, lineNum - 1);
         }
 
+        public (EpubHtmlParseResult Result, bool IsPartial) ParseHtmlPreview(
+            string html,
+            string currentPath,
+            int chapterIndex,
+            int targetLine,
+            int targetBlockIndex,
+            int initialCharacterCount = 64 * 1024)
+        {
+            if (html.Length <= initialCharacterCount)
+                return (ParseHtmlToAozoraBlocks(html, currentPath, chapterIndex), false);
+
+            int characterCount = Math.Max(4096, initialCharacterCount);
+            while (true)
+            {
+                int end = Math.Min(html.Length, characterCount);
+                if (end < html.Length)
+                {
+                    int tagEnd = html.IndexOf('>', end);
+                    if (tagEnd >= 0) end = tagEnd + 1;
+                }
+
+                var result = ParseHtmlToAozoraBlocks(html.Substring(0, end), currentPath, chapterIndex);
+                bool hasTarget = targetBlockIndex >= 0
+                    ? result.Blocks.Count > targetBlockIndex + 32
+                    : targetLine <= 1 || result.TotalLineCount > targetLine + 32;
+
+                if (hasTarget || end >= html.Length)
+                    return (result, end < html.Length);
+
+                characterCount = Math.Min(html.Length, characterCount * 2);
+            }
+        }
+
         public static string ResolveRelativePath(string baseXhtmlPath, string relativePath)
         {
             try

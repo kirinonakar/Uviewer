@@ -33,6 +33,7 @@ namespace Uviewer
         internal TextSettingsManager _settingsManager = null!;
         internal bool _isTextMode = false;
         internal bool _isCurrentTextPlainModeLocked = false;
+        private int _textContentLoadGeneration;
         private const int PlainTextLockedPrecisePaginationLineLimit = 10000;
         private const int PlainTextLockedPrecisePaginationCharacterLimit = 2_000_000;
         internal int _textTotalLineCountInSource
@@ -142,6 +143,7 @@ namespace Uviewer
             // Save position of current file before switching
             await AddToRecentAsync(true);
 
+            int loadGeneration = BeginTextContentLoad();
             _isNavigatingRecent = true; // [추가] 로드 및 위치 복원 완료 전까지 자동 저장 차단
             try
             {
@@ -159,10 +161,12 @@ namespace Uviewer
                 await DisplayLoadedText(content, file.Name, file.Path, token);
 
                 if (token.IsCancellationRequested) return;
+                await RevealTextContentAsync(loadGeneration, token);
                 SyncSidebarSelection(new ImageEntry { FilePath = file.Path, DisplayName = file.Name });
             }
             catch (Exception ex)
             {
+                RevealTextContentAfterFailure(loadGeneration);
                 FileNameText.Text = $"텍스트 로드 실패: {ex.Message}";
             }
             finally
@@ -186,6 +190,7 @@ namespace Uviewer
 
         internal async Task LoadTextFromArchiveEntryAsync(ImageEntry entry)
         {
+            int loadGeneration = BeginTextContentLoad();
             _isNavigatingRecent = true; // [추가] 로드 및 위치 복원 완료 전까지 자동 저장 차단
             try
             {
@@ -203,10 +208,12 @@ namespace Uviewer
                 await DisplayLoadedText(content, entry.DisplayName, null, token);
 
                 if (token.IsCancellationRequested) return;
+                await RevealTextContentAsync(loadGeneration, token);
                 SyncSidebarSelection(entry);
             }
             catch (Exception ex)
             {
+                RevealTextContentAfterFailure(loadGeneration);
                 FileNameText.Text = $"아카이브 텍스트 로드 실패: {ex.Message}";
             }
             finally
@@ -327,6 +334,32 @@ namespace Uviewer
                     // Only auto-restore for Aozora mode if not explicitly set to 1
                     _ = RestoreTextPositionAsync(name);
                 }
+            }
+        }
+
+        private int BeginTextContentLoad()
+        {
+            int generation = ++_textContentLoadGeneration;
+            if (TextArea != null) TextArea.Opacity = 0;
+            return generation;
+        }
+
+        private async Task RevealTextContentAsync(int generation, CancellationToken token)
+        {
+            // Plain text needs one frame after ScrollToLine, while Win2D modes need one
+            // frame after Invalidate, before an old/top-of-document buffer is hidden.
+            await Task.Delay(16, token);
+            if (!token.IsCancellationRequested && generation == _textContentLoadGeneration && TextArea != null)
+            {
+                TextArea.Opacity = 1;
+            }
+        }
+
+        private void RevealTextContentAfterFailure(int generation)
+        {
+            if (generation == _textContentLoadGeneration && TextArea != null)
+            {
+                TextArea.Opacity = 1;
             }
         }
 

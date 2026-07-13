@@ -118,7 +118,7 @@ namespace Uviewer.Services
             return true;
         }
 
-        private static int FindPageByBlockIndex(IReadOnlyList<EpubWin2DPage> pages, int targetBlockIndex)
+        public int FindPageByBlockIndex(IReadOnlyList<EpubWin2DPage> pages, int targetBlockIndex)
         {
             for (int i = 0; i < pages.Count; i++)
             {
