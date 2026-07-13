@@ -5,7 +5,13 @@ using Uviewer.Models;
 
 namespace Uviewer.Services
 {
-    public sealed record TextBlockParsePreview(TextBlockDocument Document, bool IsPartial);
+    public sealed record TextBlockParsePreview(
+        TextBlockDocument Document,
+        bool HasLeadingGap,
+        bool HasTrailingGap)
+    {
+        public bool IsPartial => HasLeadingGap || HasTrailingGap;
+    }
 
     public enum NegativeLineTargetBehavior
     {
@@ -34,7 +40,20 @@ namespace Uviewer.Services
         {
             int safeTargetLine = Math.Max(1, targetLine);
             int startLine = Math.Max(1, safeTargetLine - Math.Max(0, contextLines));
-            var window = ExtractLineWindow(content, startLine, Math.Max(1, lineCount));
+            return ParseWindow(content, isMarkdown, baseFontSize, startLine, lineCount);
+        }
+
+        public TextBlockParsePreview ParseWindow(
+            string content,
+            bool isMarkdown,
+            double baseFontSize,
+            int startLine,
+            int lineCount)
+        {
+            var window = ExtractLineWindow(
+                content,
+                Math.Max(1, startLine),
+                Math.Max(1, lineCount));
 
             (List<AozoraBindingModel> Blocks, int SourceLineCount) result;
             if (isMarkdown)
@@ -55,7 +74,10 @@ namespace Uviewer.Services
 
             int visibleSourceLineCount = window.StartLine + Math.Max(0, result.SourceLineCount - 1);
             var document = new TextBlockDocument(result.Blocks, visibleSourceLineCount);
-            return new TextBlockParsePreview(document, window.StartLine > 1 || !window.ReachedEnd);
+            return new TextBlockParsePreview(
+                document,
+                HasLeadingGap: window.StartLine > 1,
+                HasTrailingGap: !window.ReachedEnd);
         }
 
         public int FindStartBlockIndex(

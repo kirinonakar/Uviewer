@@ -396,9 +396,16 @@ namespace Uviewer
         _aozoraTotalLineCountInSource = preview.Document.SourceLineCount;
         _textTotalLineCountInSource = preview.Document.SourceLineCount;
         _isAozoraParsePartial = preview.IsPartial;
+        ResetAozoraPageCalculationForDocumentChange();
 
         // 미리보기 블록 인덱스는 전체 문서의 블록 인덱스와 다르므로 줄 번호로 위치를 찾는다.
-        startIdx = _textBlockDocumentService.FindStartBlockIndex(_aozoraBlocks, targetLine);
+        // A preview that starts at source line 1 shares global block indices with the
+        // full document, so an exact bookmark block can be honored immediately.
+        int previewTargetBlockIndex = targetLine <= 41 ? targetBlockIndex : -1;
+        startIdx = _textBlockDocumentService.FindStartBlockIndex(
+            _aozoraBlocks,
+            targetLine,
+            previewTargetBlockIndex);
         _currentAozoraStartBlockIndex = startIdx;
 
         if (AozoraTextCanvas != null)
@@ -420,7 +427,7 @@ namespace Uviewer
 
         if (_isAozoraParsePartial)
         {
-            _ = CompleteAozoraParsingAsync(rawContent, isMarkdown, fontSize, parseGeneration, token);
+            _ = CompleteAozoraParsingAsync(rawContent, isMarkdown, fontSize, targetLine, parseGeneration, token);
         }
         else
         {
@@ -443,11 +450,130 @@ namespace Uviewer
             string rawContent,
             bool isMarkdown,
             double fontSize,
+            int targetLine,
             int parseGeneration,
             CancellationToken token)
         {
             try
             {
+                if (targetLine > 41)
+                {
+                    // A bookmark opened in the middle grows alternately: trailing side,
+                    // then leading side. This keeps both previous and next navigation
+                    // becoming available instead of loading only toward EOF.
+                    int leadingLines = 40;
+                    int trailingLines = 359;
+                    bool hasLeadingGap = true;
+                    bool hasTrailingGap = true;
+                    int expansion = 5000;
+
+                    while (hasLeadingGap || hasTrailingGap)
+                    {
+                        if (hasTrailingGap)
+                        {
+                            trailingLines = AddWithoutOverflow(trailingLines, expansion);
+                            int startLine = Math.Max(1, targetLine - leadingLines);
+                            int lineCount = CalculateWindowLineCount(targetLine - startLine, trailingLines);
+                            var trailingPreview = await Task.Run(
+                                () => _textBlockDocumentService.ParseWindow(
+                                    rawContent,
+                                    isMarkdown,
+                                    fontSize,
+                                    startLine,
+                                    lineCount),
+                                token);
+                            token.ThrowIfCancellationRequested();
+
+                            bool isFinal = !trailingPreview.IsPartial;
+                            bool applied = await ApplyAozoraProgressiveDocumentAsync(
+                                trailingPreview.Document,
+                                isFinal,
+                                parseGeneration,
+                                token);
+                            if (!applied || isFinal) return;
+
+                            hasLeadingGap = trailingPreview.HasLeadingGap;
+                            hasTrailingGap = trailingPreview.HasTrailingGap;
+                            await Task.Delay(1, token);
+                        }
+
+                        if (hasLeadingGap)
+                        {
+                            leadingLines = AddWithoutOverflow(leadingLines, expansion);
+                            int startLine = Math.Max(1, targetLine - leadingLines);
+                            int lineCount = CalculateWindowLineCount(targetLine - startLine, trailingLines);
+                            var leadingPreview = await Task.Run(
+                                () => _textBlockDocumentService.ParseWindow(
+                                    rawContent,
+                                    isMarkdown,
+                                    fontSize,
+                                    startLine,
+                                    lineCount),
+                                token);
+                            token.ThrowIfCancellationRequested();
+
+                            bool isFinal = !leadingPreview.IsPartial;
+                            bool applied = await ApplyAozoraProgressiveDocumentAsync(
+                                leadingPreview.Document,
+                                isFinal,
+                                parseGeneration,
+                                token);
+                            if (!applied || isFinal) return;
+
+                            hasLeadingGap = leadingPreview.HasLeadingGap;
+                            hasTrailingGap = leadingPreview.HasTrailingGap;
+                            await Task.Delay(1, token);
+                        }
+
+                        expansion = 30000;
+                    }
+                }
+                else
+                {
+                    // A document opened at the beginning only needs forward expansion:
+                    // 5,000, 30,000, 60,000, then +30,000 until EOF.
+                    int lineCount = 0;
+                    for (int stage = 0; ; stage++)
+                    {
+                        if (stage == 0)
+                        {
+                            lineCount = 5000;
+                        }
+                        else if (stage == 1)
+                        {
+                            lineCount = 30000;
+                        }
+                        else if (lineCount <= int.MaxValue - 30000)
+                        {
+                            lineCount += 30000;
+                        }
+                        else
+                        {
+                            break;
+                        }
+
+                        var preview = await Task.Run(
+                            () => _textBlockDocumentService.ParsePreview(
+                                rawContent,
+                                isMarkdown,
+                                fontSize,
+                                targetLine,
+                                lineCount),
+                            token);
+                        token.ThrowIfCancellationRequested();
+
+                        bool previewIsFinal = !preview.IsPartial;
+                        bool applied = await ApplyAozoraProgressiveDocumentAsync(
+                            preview.Document,
+                            previewIsFinal,
+                            parseGeneration,
+                            token);
+                        if (!applied || previewIsFinal) return;
+
+                        await Task.Delay(1, token);
+                    }
+                }
+
                 var document = await Task.Run(
                     () => _textBlockDocumentService.Parse(
                         rawContent,
@@ -456,43 +582,131 @@ namespace Uviewer
                     token);
                 token.ThrowIfCancellationRequested();
 
-                DispatcherQueue.TryEnqueue(async () =>
-                {
-                    if (token.IsCancellationRequested || parseGeneration != _aozoraParseGeneration) return;
-
-                    int currentLine = 1;
-                    if (_aozoraBlocks.Count > 0 &&
-                        _currentAozoraStartBlockIndex >= 0 &&
-                        _currentAozoraStartBlockIndex < _aozoraBlocks.Count)
-                    {
-                        currentLine = _aozoraBlocks[_currentAozoraStartBlockIndex].SourceLineNumber;
-                    }
-
-                    _aozoraBlocks = document.Blocks;
-                    _aozoraTotalLineCount = document.Blocks.Count;
-                    _aozoraTotalLineCountInSource = document.SourceLineCount;
-                    _textTotalLineCountInSource = document.SourceLineCount;
-                    _isAozoraParsePartial = false;
-                    ClearBackwardCache();
-
-                    _tocService.SetProvider(new TextTocProvider(_currentTextContent, _aozoraBlocks));
-                    _ = _tocService.LoadTocAsync(token);
-
-                    if (_aozoraBlocks.Count > 0)
-                    {
-                        int fullStartIndex = _textBlockDocumentService.FindStartBlockIndex(_aozoraBlocks, currentLine);
-                        await RenderAozoraDynamicPage(fullStartIndex);
-                    }
-
-                    StartAozoraPageCalculationAsync();
-                    UpdateAozoraStatusBar();
-                });
+                await ApplyAozoraProgressiveDocumentAsync(
+                    document,
+                    isFinal: true,
+                    parseGeneration,
+                    token);
             }
             catch (OperationCanceledException) { }
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"Aozora background parse error: {ex.Message}");
             }
+        }
+
+        private static int AddWithoutOverflow(int value, int increment)
+            => value > int.MaxValue - increment ? int.MaxValue : value + increment;
+
+        private static int CalculateWindowLineCount(int leadingLines, int trailingLines)
+        {
+            long count = (long)leadingLines + trailingLines + 1;
+            return count >= int.MaxValue ? int.MaxValue : (int)count;
+        }
+
+        private Task<bool> ApplyAozoraProgressiveDocumentAsync(
+            TextBlockDocument document,
+            bool isFinal,
+            int parseGeneration,
+            CancellationToken token)
+        {
+            var completion = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+            bool enqueued = DispatcherQueue.TryEnqueue(async () =>
+            {
+                try
+                {
+                    if (token.IsCancellationRequested || parseGeneration != _aozoraParseGeneration)
+                    {
+                        completion.TrySetResult(false);
+                        return;
+                    }
+
+                    var anchor = CaptureCurrentAozoraAnchor();
+
+                    _aozoraBlocks = document.Blocks;
+                    _aozoraTotalLineCount = document.Blocks.Count;
+                    _aozoraTotalLineCountInSource = document.SourceLineCount;
+                    _textTotalLineCountInSource = document.SourceLineCount;
+                    _isAozoraParsePartial = !isFinal;
+                    ResetAozoraPageCalculationForDocumentChange();
+                    ClearBackwardCache();
+
+                    if (_aozoraBlocks.Count > 0)
+                    {
+                        int startIndex = FindAozoraAnchorBlockIndex(_aozoraBlocks, anchor);
+                        await RenderAozoraDynamicPage(startIndex);
+                    }
+
+                    if (isFinal)
+                    {
+                        _tocService.SetProvider(new TextTocProvider(_currentTextContent, _aozoraBlocks));
+                        _ = _tocService.LoadTocAsync(token);
+                        StartAozoraPageCalculationAsync();
+                    }
+
+                    UpdateAozoraStatusBar();
+                    completion.TrySetResult(true);
+                }
+                catch (Exception ex)
+                {
+                    completion.TrySetException(ex);
+                }
+            });
+
+            if (!enqueued) completion.TrySetResult(false);
+            return completion.Task;
+        }
+
+        private void ResetAozoraPageCalculationForDocumentChange()
+        {
+            _aozoraPageCalcCts?.Cancel();
+            _aozoraPageState.ResetPageCalculation();
+            _aozoraPageState.BlockToPageMap.Clear();
+        }
+
+        private readonly record struct AozoraPositionAnchor(int SourceLine, int OrdinalWithinLine);
+
+        private AozoraPositionAnchor CaptureCurrentAozoraAnchor()
+        {
+            if (_aozoraBlocks.Count == 0)
+                return new AozoraPositionAnchor(1, 0);
+
+            int index = Math.Clamp(_currentAozoraStartBlockIndex, 0, _aozoraBlocks.Count - 1);
+            int sourceLine = _aozoraBlocks[index].SourceLineNumber;
+            int ordinal = 0;
+            for (int i = index - 1; i >= 0 && _aozoraBlocks[i].SourceLineNumber == sourceLine; i--)
+            {
+                ordinal++;
+            }
+
+            return new AozoraPositionAnchor(sourceLine, ordinal);
+        }
+
+        private int FindAozoraAnchorBlockIndex(
+            IReadOnlyList<AozoraBindingModel> blocks,
+            AozoraPositionAnchor anchor)
+        {
+            if (blocks.Count == 0) return 0;
+
+            int first = _textBlockDocumentService.FindFirstBlockAtOrBeforeLine(blocks, anchor.SourceLine);
+            while (first > 0 && blocks[first - 1].SourceLineNumber == anchor.SourceLine)
+            {
+                first--;
+            }
+
+            if (blocks[first].SourceLineNumber != anchor.SourceLine) return first;
+
+            int result = first;
+            for (int ordinal = 0;
+                 ordinal < anchor.OrdinalWithinLine &&
+                 result + 1 < blocks.Count &&
+                 blocks[result + 1].SourceLineNumber == anchor.SourceLine;
+                 ordinal++)
+            {
+                result++;
+            }
+
+            return result;
         }
 
         internal void AozoraTextCanvas_SizeChanged(object sender, SizeChangedEventArgs e)
@@ -541,7 +755,10 @@ namespace Uviewer
                 await _imageResourceService.PreloadTextImagesAsync(pageBlocks, preloadDevice, ctx, _sharpenEnabled, sp);
             }
 
-            _aozoraPageState.SetPage(pageBlocks, startIdx, index);
+            int visibleStartIndex = pageBlocks.Count > 0 && pageBlocks[0].OriginalBlockIndex >= 0
+                ? pageBlocks[0].OriginalBlockIndex
+                : startIdx;
+            _aozoraPageState.SetPage(pageBlocks, visibleStartIndex, index);
 
             AozoraTextCanvas?.Invalidate();
             UpdateAozoraStatusBar();
