@@ -126,6 +126,7 @@
                     Padding="6,0"
                     Background="Transparent"
                     CornerRadius="4"
+                    HorizontalAlignment="Left"
                     VerticalAlignment="Center"
                     PointerEntered="FileNameStatusHoverSurface_PointerEntered"
                     PointerExited="FileNameStatusHoverSurface_PointerExited"
