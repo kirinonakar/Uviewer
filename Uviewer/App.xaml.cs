@@ -46,13 +46,13 @@ namespace Uviewer
         private static int _comExitRequested;
         private static int _comExitCompleted;
         private static int _comActiveCallCount;
-        private static int _comServerLockCount;
         private static int _comInvokeCompleted;
+        private static int _normalShutdownStarted;
         private static long _comStartedTicks;
-        private const int ComIdleExitTimeoutMs = 60000;
-        private const int ComMaxLifetimeMs = 300000;
-        private const int ComExitFallbackDelayMs = 1500;
-        private const int ComPostInvokeExitDelayMs = 3000;
+        private const int ComIdleExitTimeoutMs = 10000;
+        private const int ComMaxLifetimeMs = 30000;
+        private const int ComExitFallbackDelayMs = 1000;
+        private const int ComPostInvokeExitDelayMs = 1000;
 
         // 추가 1: GC(가비지 컬렉터) 수집을 방지하기 위한 정적 변수
         private static UviewerExplorerCommandFactory? _commandFactory;
@@ -107,6 +107,7 @@ namespace Uviewer
                     {
                         RequestComExit(0);
                     }, null, ComIdleExitTimeoutMs, Timeout.Infinite);
+                    StartComHardWatchdog();
                 }
                 catch (Exception ex)
                 {
@@ -227,11 +228,9 @@ namespace Uviewer
                 return true;
             }
 
-            // After the command has launched the viewer process, Explorer may keep the
-            // class factory locked longer than the command actually needs. Do not let
-            // that stale lock keep the COM-only process alive.
-            return Volatile.Read(ref _comInvokeCompleted) == 0 &&
-                Volatile.Read(ref _comServerLockCount) > 0;
+            // Explorer can leave LockServer(true) behind after the menu is gone. Active
+            // calls are the only safe reason to delay shutdown; the lock itself is not.
+            return false;
         }
 
         private static bool IsComMaxLifetimeExceeded()
@@ -280,16 +279,7 @@ namespace Uviewer
         public static void SetComServerLock(bool locked)
         {
             if (!_isComActivation) return;
-
-            if (locked)
-            {
-                Interlocked.Increment(ref _comServerLockCount);
-            }
-            else if (Interlocked.Decrement(ref _comServerLockCount) < 0)
-            {
-                Interlocked.Exchange(ref _comServerLockCount, 0);
-            }
-
+            _ = locked;
             MarkActivity();
         }
 
@@ -330,12 +320,35 @@ namespace Uviewer
 
         public static void RequestExit()
         {
+            Interlocked.Exchange(ref _normalShutdownStarted, 1);
             CancellationTokenSource? pipeCts = Interlocked.Exchange(ref _pipeCts, null);
             try { pipeCts?.Cancel(); }
             catch (ObjectDisposedException) { }
             finally { pipeCts?.Dispose(); }
 
             Application.Current?.Exit();
+        }
+
+        public static void NotifyWindowClosing()
+        {
+            Interlocked.Exchange(ref _normalShutdownStarted, 1);
+        }
+
+        private void StartComHardWatchdog()
+        {
+            var watchdog = new Thread(() =>
+            {
+                Thread.Sleep(ComMaxLifetimeMs);
+                if (Volatile.Read(ref _comExitCompleted) == 0)
+                {
+                    CompleteComExit(0);
+                }
+            })
+            {
+                IsBackground = true,
+                Name = "Uviewer COM server watchdog"
+            };
+            watchdog.Start();
         }
 
         private void LoadSettings()
@@ -418,6 +431,13 @@ namespace Uviewer
 
         private void App_UnhandledException(object sender, Microsoft.UI.Xaml.UnhandledExceptionEventArgs e)
         {
+            if (Volatile.Read(ref _normalShutdownStarted) != 0)
+            {
+                e.Handled = true;
+                TerminateCurrentProcess(1);
+                return;
+            }
+
             MessageBox(IntPtr.Zero, $"Unhandled Error:\n{e.Message}\n\n{e.Exception.StackTrace}", "Uviewer Fatal Error", 0x10);
             e.Handled = true; // Prevent immediate termination to show message
         }

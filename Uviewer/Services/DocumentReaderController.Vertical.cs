@@ -499,7 +499,7 @@ namespace Uviewer
             }
         }
 
-        internal List<AozoraBindingModel> PaginateAozoraPage(ref int index, List<AozoraBindingModel> blocks, float availableWidth, float availableHeight, Microsoft.Graphics.Canvas.CanvasDevice? device = null)
+        internal List<AozoraBindingModel> PaginateAozoraPage(ref int index, List<AozoraBindingModel> blocks, float availableWidth, float availableHeight, Microsoft.Graphics.Canvas.CanvasDevice? device = null, CancellationToken token = default)
         {
             return _aozoraBlockPaginator.PaginateVerticalPage(
                 ref index,
@@ -513,7 +513,8 @@ namespace Uviewer
                     GetFontWeightForFamily,
                     DoesVerticalImageExist,
                     _isSideBySideMode || _autoDoublePageForArchive,
-                    ShouldPairTextImage));
+                    ShouldPairTextImage,
+                    token));
         }
 
         internal bool ShouldPairTextImage(string source)

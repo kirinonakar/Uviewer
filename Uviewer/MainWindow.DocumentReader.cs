@@ -155,8 +155,8 @@ namespace Uviewer
             _documentReaderController.PrepareAozoraDisplayAsync(rawContent, targetLine, targetBlockIndex, token);
         private Task RenderAozoraDynamicPage(int startIdx) => _documentReaderController.RenderAozoraDynamicPage(startIdx);
         private void StartAozoraPageCalculationAsync() => _documentReaderController.StartAozoraPageCalculationAsync();
-        private List<AozoraBindingModel> PaginateHorizontalAozoraPage(ref int index, List<AozoraBindingModel> blocks, float availableWidth, float availableHeight, CanvasDevice? device = null) =>
-            _documentReaderController.PaginateHorizontalAozoraPage(ref index, blocks, availableWidth, availableHeight, device);
+        private List<AozoraBindingModel> PaginateHorizontalAozoraPage(ref int index, List<AozoraBindingModel> blocks, float availableWidth, float availableHeight, CanvasDevice? device = null, CancellationToken token = default) =>
+            _documentReaderController.PaginateHorizontalAozoraPage(ref index, blocks, availableWidth, availableHeight, device, token);
         private void NavigateAozoraPage(int direction) => _documentReaderController.NavigateAozoraPage(direction);
         private void UpdateAozoraStatusBar() => _documentReaderController.UpdateAozoraStatusBar();
         public void JumpToAozoraLine(int targetLine) => _documentReaderController.JumpToAozoraLine(targetLine);
@@ -167,15 +167,15 @@ namespace Uviewer
         private Task RenderVerticalDynamicPageAsync(int startIdx, CancellationToken token = default) =>
             _documentReaderController.RenderVerticalDynamicPageAsync(startIdx, token);
         private void StartVerticalPageCalculationAsync() => _documentReaderController.StartVerticalPageCalculationAsync();
-        private List<AozoraBindingModel> PaginateAozoraPage(ref int index, List<AozoraBindingModel> blocks, float availableWidth, float availableHeight, CanvasDevice? device = null) =>
-            _documentReaderController.PaginateAozoraPage(ref index, blocks, availableWidth, availableHeight, device);
+        private List<AozoraBindingModel> PaginateAozoraPage(ref int index, List<AozoraBindingModel> blocks, float availableWidth, float availableHeight, CanvasDevice? device = null, CancellationToken token = default) =>
+            _documentReaderController.PaginateAozoraPage(ref index, blocks, availableWidth, availableHeight, device, token);
         private Color GetVerticalTextColor() => _documentReaderController.GetVerticalTextColor();
         private Color GetVerticalBackgroundColor() => _documentReaderController.GetVerticalBackgroundColor();
         private void NavigateVerticalPage(int direction) => _documentReaderController.NavigateVerticalPage(direction);
         private void UpdateVerticalStatusBar() => _documentReaderController.UpdateVerticalStatusBar();
         private void ClearBackwardCache() => _documentReaderController.ClearBackwardCache();
-        private int FindPreviousPageStart(int targetIdx, List<AozoraBindingModel> blocks, float maxWidth, float availHeight, ICanvasResourceCreator device, bool isVertical) =>
-            _documentReaderController.FindPreviousPageStart(targetIdx, blocks, maxWidth, availHeight, device, isVertical);
+        private int FindPreviousPageStart(int targetIdx, List<AozoraBindingModel> blocks, float maxWidth, float availHeight, ICanvasResourceCreator device, bool isVertical, CancellationToken token = default) =>
+            _documentReaderController.FindPreviousPageStart(targetIdx, blocks, maxWidth, availHeight, device, isVertical, token);
         private FontWeight GetFontWeightForFamily(string fontFamily) =>
             _documentReaderController.GetFontWeightForFamily(fontFamily);
 

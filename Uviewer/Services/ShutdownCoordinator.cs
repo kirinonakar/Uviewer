@@ -83,6 +83,7 @@ namespace Uviewer.Services
         private int _closeRequested;
         private int _shutdownStarted;
         private int _shutdownCompleted;
+        private int _hardWatchdogStarted;
         private int _postCleanupFallbackScheduled;
 
         public ShutdownCoordinator()
@@ -110,7 +111,7 @@ namespace Uviewer.Services
         {
             if (Interlocked.Exchange(ref _closeRequested, 1) != 0) return;
 
-            _ = ScheduleCloseFallbackAsync();
+            ArmHardTerminationWatchdog();
 
             try
             {
@@ -128,6 +129,7 @@ namespace Uviewer.Services
             ArgumentNullException.ThrowIfNull(context);
 
             if (Interlocked.Exchange(ref _shutdownStarted, 1) != 0) return;
+            ArmHardTerminationWatchdog();
 
             await RunStepAsync("save current document position", context.SaveCurrentPositionAsync);
 
@@ -177,25 +179,37 @@ namespace Uviewer.Services
             RunStep("dispose document search state", () => context.DocumentSearchState?.Dispose());
             RunStep("dispose animated WebP service", () => context.AnimatedWebpService?.Dispose());
 
-            SchedulePostCleanupFallback();
-            RunStep("request normal application exit", context.RequestApplicationExit);
             Interlocked.Exchange(ref _shutdownCompleted, 1);
+            RunStep("request normal application exit", context.RequestApplicationExit);
+
+            // All durable state has been saved at this point. WinUI/Win2D can still keep
+            // native threads alive after Application.Exit(), so finish the process here
+            // instead of relying on native component teardown.
+            _processTerminator.Terminate();
         }
 
-        private async Task ScheduleCloseFallbackAsync()
+        private void ArmHardTerminationWatchdog()
         {
-            try
-            {
-                await Task.Delay(_closeFallbackDelay);
-                if (Volatile.Read(ref _shutdownCompleted) != 0) return;
+            if (Interlocked.Exchange(ref _hardWatchdogStarted, 1) != 0) return;
 
-                Debug.WriteLine("Window shutdown did not complete; terminating process as last resort.");
-                _processTerminator.Terminate();
-            }
-            catch (Exception ex)
+            var watchdog = new Thread(() =>
             {
-                Debug.WriteLine($"Shutdown close fallback failed: {ex}");
-            }
+                try
+                {
+                    Thread.Sleep(_closeFallbackDelay);
+                    Debug.WriteLine("Hard shutdown deadline elapsed; terminating the remaining process.");
+                    _processTerminator.Terminate();
+                }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine($"Hard shutdown watchdog failed: {ex}");
+                }
+            })
+            {
+                IsBackground = true,
+                Name = "Uviewer shutdown watchdog"
+            };
+            watchdog.Start();
         }
 
         private void SchedulePostCleanupFallback()

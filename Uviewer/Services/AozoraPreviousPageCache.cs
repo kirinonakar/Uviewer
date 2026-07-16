@@ -86,6 +86,7 @@ namespace Uviewer.Services
 
             for (int i = scanStart; i >= 0 && safetyLimit > 0; i--, safetyLimit--)
             {
+                context.CancellationToken.ThrowIfCancellationRequested();
                 int tempIndex = i;
                 var pageBlocks = orientation == AozoraPageOrientation.Vertical
                     ? _paginator.PaginateVerticalPage(ref tempIndex, blockList, context)
@@ -121,6 +122,7 @@ namespace Uviewer.Services
             _cachingCts?.Cancel();
             _cachingCts = new CancellationTokenSource();
             var token = _cachingCts.Token;
+            var cachingContext = context.WithCancellation(token);
             int cacheGeneration = Volatile.Read(ref _cacheGeneration);
 
             Task.Run(() =>
@@ -131,7 +133,7 @@ namespace Uviewer.Services
                 {
                     if (token.IsCancellationRequested || targetIndex <= 0) break;
 
-                    int previousStart = FindPreviousPageStart(targetIndex, blocks, context, orientation);
+                    int previousStart = FindPreviousPageStart(targetIndex, blocks, cachingContext, orientation);
                     if (token.IsCancellationRequested ||
                         cacheGeneration != Volatile.Read(ref _cacheGeneration)) break;
 

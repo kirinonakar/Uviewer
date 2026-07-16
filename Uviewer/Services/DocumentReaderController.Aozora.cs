@@ -66,7 +66,8 @@ namespace Uviewer
             Microsoft.Graphics.Canvas.ICanvasResourceCreator? device,
             float maxWidth,
             float availHeight,
-            bool isVertical)
+            bool isVertical,
+            CancellationToken token = default)
         {
             return new AozoraBlockPaginationContext(
                 device as CanvasDevice,
@@ -77,12 +78,13 @@ namespace Uviewer
                 GetFontWeightForFamily,
                 isVertical ? DoesVerticalImageExist : DoesAozoraImageExist,
                 isVertical && (_isSideBySideMode || _autoDoublePageForArchive),
-                isVertical ? new Func<string, bool>(ShouldPairTextImage) : null);
+                isVertical ? new Func<string, bool>(ShouldPairTextImage) : null,
+                token);
         }
 
-        internal int FindPreviousPageStart(int targetIdx, List<AozoraBindingModel> blocks, float maxWidth, float availHeight, Microsoft.Graphics.Canvas.ICanvasResourceCreator device, bool isVertical)
+        internal int FindPreviousPageStart(int targetIdx, List<AozoraBindingModel> blocks, float maxWidth, float availHeight, Microsoft.Graphics.Canvas.ICanvasResourceCreator device, bool isVertical, CancellationToken token = default)
         {
-            var context = CreatePreviousPageContext(device as CanvasDevice, maxWidth, availHeight, isVertical);
+            var context = CreatePreviousPageContext(device as CanvasDevice, maxWidth, availHeight, isVertical, token);
             return _aozoraPreviousPageCache.FindPreviousPageStart(
                 targetIdx,
                 blocks,
@@ -795,7 +797,7 @@ namespace Uviewer
             }
         }
 
-        internal List<AozoraBindingModel> PaginateHorizontalAozoraPage(ref int index, List<AozoraBindingModel> blocks, float availableWidth, float availableHeight, CanvasDevice? device = null)
+        internal List<AozoraBindingModel> PaginateHorizontalAozoraPage(ref int index, List<AozoraBindingModel> blocks, float availableWidth, float availableHeight, CanvasDevice? device = null, CancellationToken token = default)
         {
             return _aozoraBlockPaginator.PaginateHorizontalPage(
                 ref index,
@@ -807,7 +809,8 @@ namespace Uviewer
                     _settingsManager.FontSize,
                     _settingsManager.FontFamily,
                     GetFontWeightForFamily,
-                    DoesAozoraImageExist));
+                    DoesAozoraImageExist,
+                    cancellationToken: token));
         }
 
         internal void AozoraTextCanvas_CreateResources(CanvasControl sender, Microsoft.Graphics.Canvas.UI.CanvasCreateResourcesEventArgs args)

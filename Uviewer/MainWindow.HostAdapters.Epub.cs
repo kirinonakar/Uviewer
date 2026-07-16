@@ -101,23 +101,26 @@ namespace Uviewer
                 List<AozoraBindingModel> blocks,
                 float availableWidth,
                 float availableHeight,
-                CanvasDevice? device = null) =>
-                _window.PaginateAozoraPage(ref index, blocks, availableWidth, availableHeight, device);
+                CanvasDevice? device,
+                CancellationToken token) =>
+                _window.PaginateAozoraPage(ref index, blocks, availableWidth, availableHeight, device, token);
             public List<AozoraBindingModel> PaginateHorizontalAozoraPage(
                 ref int index,
                 List<AozoraBindingModel> blocks,
                 float availableWidth,
                 float availableHeight,
-                CanvasDevice? device = null) =>
-                _window.PaginateHorizontalAozoraPage(ref index, blocks, availableWidth, availableHeight, device);
+                CanvasDevice? device,
+                CancellationToken token) =>
+                _window.PaginateHorizontalAozoraPage(ref index, blocks, availableWidth, availableHeight, device, token);
             public int FindPreviousPageStart(
                 int targetIdx,
                 List<AozoraBindingModel> blocks,
                 float maxWidth,
                 float availHeight,
                 ICanvasResourceCreator device,
-                bool isVertical) =>
-                _window.FindPreviousPageStart(targetIdx, blocks, maxWidth, availHeight, device, isVertical);
+                bool isVertical,
+                CancellationToken token) =>
+                _window.FindPreviousPageStart(targetIdx, blocks, maxWidth, availHeight, device, isVertical, token);
             public Task LoadImageResourceAndInvalidateAsync(
                 string resourcePath,
                 string cacheKey,

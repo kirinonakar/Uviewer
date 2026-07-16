@@ -2,6 +2,7 @@ using Microsoft.Graphics.Canvas;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
 using Uviewer.Models;
 
 namespace Uviewer.Services
@@ -28,6 +29,7 @@ namespace Uviewer.Services
 
             while (index < blocks.Count)
             {
+                context.CancellationToken.ThrowIfCancellationRequested();
                 var block = blocks[index];
 
                 if (pageBlocks.Count == 0 && block.IsBlankLine && !block.HasImage && !block.IsPageBreak)
@@ -148,6 +150,7 @@ namespace Uviewer.Services
 
             while (index < blocks.Count)
             {
+                context.CancellationToken.ThrowIfCancellationRequested();
                 var block = blocks[index];
 
                 if (pageBlocks.Count == 0 && block.IsBlankLine && !block.HasImage && !block.IsPageBreak)
@@ -181,6 +184,7 @@ namespace Uviewer.Services
                     {
                         while (index < blocks.Count)
                         {
+                            context.CancellationToken.ThrowIfCancellationRequested();
                             var nextBlock = blocks[index];
                             if (nextBlock.HasImage)
                             {
@@ -388,7 +392,8 @@ namespace Uviewer.Services
             Func<string, Windows.UI.Text.FontWeight> getFontWeight,
             Func<string, bool> imageExists,
             bool imagePairingEnabled = false,
-            Func<string, bool>? shouldPairImage = null)
+            Func<string, bool>? shouldPairImage = null,
+            CancellationToken cancellationToken = default)
         {
             Device = device;
             AvailableWidth = availableWidth;
@@ -399,6 +404,7 @@ namespace Uviewer.Services
             ImageExists = imageExists;
             ImagePairingEnabled = imagePairingEnabled;
             ShouldPairImage = shouldPairImage ?? (_ => false);
+            CancellationToken = cancellationToken;
         }
 
         public CanvasDevice? Device { get; }
@@ -410,5 +416,18 @@ namespace Uviewer.Services
         public Func<string, bool> ImageExists { get; }
         public bool ImagePairingEnabled { get; }
         public Func<string, bool> ShouldPairImage { get; }
+        public CancellationToken CancellationToken { get; }
+
+        public AozoraBlockPaginationContext WithCancellation(CancellationToken token) => new(
+            Device,
+            AvailableWidth,
+            AvailableHeight,
+            FontSize,
+            DefaultFontFamily,
+            GetFontWeight,
+            ImageExists,
+            ImagePairingEnabled,
+            ShouldPairImage,
+            token);
     }
 }

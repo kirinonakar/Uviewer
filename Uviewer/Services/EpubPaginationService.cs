@@ -13,7 +13,8 @@ namespace Uviewer.Services
         List<AozoraBindingModel> blocks,
         float maxWidth,
         float pageHeight,
-        CanvasDevice? device);
+        CanvasDevice? device,
+        CancellationToken token);
 
     public delegate int EpubPreviousPageStartFinder(
         int targetIndex,
@@ -21,7 +22,8 @@ namespace Uviewer.Services
         float maxWidth,
         float pageHeight,
         ICanvasResourceCreator device,
-        bool isVertical);
+        bool isVertical,
+        CancellationToken token);
 
     public sealed class EpubPaginationService
     {
@@ -87,7 +89,8 @@ namespace Uviewer.Services
                         device,
                         request.IsVerticalMode,
                         verticalPaginator,
-                        horizontalPaginator);
+                        horizontalPaginator,
+                        token);
 
                     if (page != null) pages.Add(page);
                     else index++;
@@ -109,7 +112,8 @@ namespace Uviewer.Services
                         device,
                         request.IsVerticalMode,
                         verticalPaginator,
-                        horizontalPaginator);
+                        horizontalPaginator,
+                        token);
 
                     if (page != null) pages.Add(page);
                     else forwardIndex++;
@@ -127,7 +131,8 @@ namespace Uviewer.Services
                         layout.MaxWidth,
                         layout.PageHeight,
                         device,
-                        request.IsVerticalMode);
+                        request.IsVerticalMode,
+                        token);
 
                     if (previousStart >= backwardIndex) break;
 
@@ -140,7 +145,8 @@ namespace Uviewer.Services
                         device,
                         request.IsVerticalMode,
                         verticalPaginator,
-                        horizontalPaginator);
+                        horizontalPaginator,
+                        token);
 
                     if (page != null) pages.Insert(0, page);
 
@@ -162,7 +168,8 @@ namespace Uviewer.Services
                         device,
                         request.IsVerticalMode,
                         verticalPaginator,
-                        horizontalPaginator);
+                        horizontalPaginator,
+                        token);
 
                     if (page != null) pages.Add(page);
                     else index++;
@@ -240,7 +247,8 @@ namespace Uviewer.Services
             CanvasDevice? device,
             bool isVerticalMode,
             EpubBlockPaginator verticalPaginator,
-            EpubBlockPaginator horizontalPaginator)
+            EpubBlockPaginator horizontalPaginator,
+            CancellationToken token)
         {
             if (index >= allBlocks.Count) return null;
 
@@ -274,13 +282,14 @@ namespace Uviewer.Services
                     device,
                     isVerticalMode,
                     verticalPaginator,
-                    horizontalPaginator);
+                    horizontalPaginator,
+                    token);
             }
 
             int pageStart = index;
             var pageBlocks = isVerticalMode
-                ? verticalPaginator(ref index, allBlocks, maxWidth, pageHeight, device)
-                : horizontalPaginator(ref index, allBlocks, maxWidth, pageHeight, device);
+                ? verticalPaginator(ref index, allBlocks, maxWidth, pageHeight, device, token)
+                : horizontalPaginator(ref index, allBlocks, maxWidth, pageHeight, device, token);
 
             if (pageBlocks.Count == 0)
             {

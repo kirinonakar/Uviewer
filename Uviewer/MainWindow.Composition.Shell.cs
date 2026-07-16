@@ -194,6 +194,7 @@ namespace Uviewer
 
                     window.Closed += async (s, e) =>
                     {
+                        App.NotifyWindowClosing();
                         window._isWindowClosing = true;
                         bool wasPdfOpen = window._pdfDocumentController.HasOpenDocument;
                         await window._shutdownCoordinator.ShutdownAsync(window.CreateShutdownContext(wasPdfOpen));

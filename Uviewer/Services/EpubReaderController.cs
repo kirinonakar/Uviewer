@@ -122,12 +122,12 @@ namespace Uviewer.Services
         private Color GetVerticalBackgroundColor() => _host.GetVerticalBackgroundColor();
         private Color GetVerticalTextColor() => _host.GetVerticalTextColor();
         private DocumentSearchMatch? GetActiveSearchMatchFor(DocumentSearchKind kind) => _host.GetActiveSearchMatchFor(kind);
-        private List<AozoraBindingModel> PaginateVerticalAozoraPage(ref int index, List<AozoraBindingModel> blocks, float availableWidth, float availableHeight, CanvasDevice? device = null) =>
-            _host.PaginateVerticalAozoraPage(ref index, blocks, availableWidth, availableHeight, device);
-        private List<AozoraBindingModel> PaginateHorizontalAozoraPage(ref int index, List<AozoraBindingModel> blocks, float availableWidth, float availableHeight, CanvasDevice? device = null) =>
-            _host.PaginateHorizontalAozoraPage(ref index, blocks, availableWidth, availableHeight, device);
-        private int FindPreviousPageStart(int targetIdx, List<AozoraBindingModel> blocks, float maxWidth, float availHeight, ICanvasResourceCreator device, bool isVertical) =>
-            _host.FindPreviousPageStart(targetIdx, blocks, maxWidth, availHeight, device, isVertical);
+        private List<AozoraBindingModel> PaginateVerticalAozoraPage(ref int index, List<AozoraBindingModel> blocks, float availableWidth, float availableHeight, CanvasDevice? device, CancellationToken token) =>
+            _host.PaginateVerticalAozoraPage(ref index, blocks, availableWidth, availableHeight, device, token);
+        private List<AozoraBindingModel> PaginateHorizontalAozoraPage(ref int index, List<AozoraBindingModel> blocks, float availableWidth, float availableHeight, CanvasDevice? device, CancellationToken token) =>
+            _host.PaginateHorizontalAozoraPage(ref index, blocks, availableWidth, availableHeight, device, token);
+        private int FindPreviousPageStart(int targetIdx, List<AozoraBindingModel> blocks, float maxWidth, float availHeight, ICanvasResourceCreator device, bool isVertical, CancellationToken token) =>
+            _host.FindPreviousPageStart(targetIdx, blocks, maxWidth, availHeight, device, isVertical, token);
         private Task LoadImageResourceAndInvalidateAsync(string resourcePath, string cacheKey, CanvasDevice device, Action invalidate, Action? onMissing = null, Func<bool>? shouldKeepLoadedBitmap = null) =>
             _host.LoadImageResourceAndInvalidateAsync(resourcePath, cacheKey, device, invalidate, onMissing, shouldKeepLoadedBitmap);
 
@@ -423,6 +423,7 @@ namespace Uviewer.Services
             StopEpubResizeTimer();
             _epubReaderState.ClearPreload();
             _tocService.Clear();
+            ClearBackwardCache();
 
             CancelEpubLifetime();
             await AwaitEpubBackgroundTasksAsync(TimeSpan.FromSeconds(3));
@@ -502,6 +503,7 @@ namespace Uviewer.Services
             _isCurrentEpubChapterPartial = false;
             StopEpubResizeTimer();
             _tocService.Clear();
+            ClearBackwardCache();
             CancelEpubLifetime();
             _epubReaderState.ClearAll();
             await AwaitEpubBackgroundTasksAsync(TimeSpan.FromSeconds(3));
