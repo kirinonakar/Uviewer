@@ -21,14 +21,18 @@ namespace Uviewer.Services
 
         public bool HasDocument => Archive != null && Spine.Count > 0;
 
-        public async Task<EpubPackageInfo> OpenAsync(Stream stream, EpubDocumentService documentService)
+        public async Task<EpubPackageInfo> OpenAsync(
+            Stream stream,
+            EpubDocumentService documentService,
+            CancellationToken token = default)
         {
+            token.ThrowIfCancellationRequested();
             CloseOpenArchive();
 
             Archive = new ZipArchive(stream, ZipArchiveMode.Read);
             Version++;
 
-            var packageInfo = await documentService.LoadPackageInfoAsync(Archive, _archiveLock);
+            var packageInfo = await documentService.LoadPackageInfoAsync(Archive, _archiveLock, token);
             ReplacePackageInfo(packageInfo);
             return packageInfo;
         }
@@ -44,11 +48,14 @@ namespace Uviewer.Services
             TocPath = packageInfo.TocPath;
         }
 
-        public async Task<string?> ReadEntryTextAsync(string path, EpubDocumentService documentService)
+        public async Task<string?> ReadEntryTextAsync(
+            string path,
+            EpubDocumentService documentService,
+            CancellationToken token = default)
         {
             return Archive == null
                 ? null
-                : await documentService.ReadEntryTextAsync(Archive, path, _archiveLock);
+                : await documentService.ReadEntryTextAsync(Archive, path, _archiveLock, token);
         }
 
         public bool ContainsEntryLoose(string path)
@@ -70,11 +77,11 @@ namespace Uviewer.Services
             }
         }
 
-        public async Task<byte[]?> ReadEntryBytesLooseAsync(string path)
+        public async Task<byte[]?> ReadEntryBytesLooseAsync(string path, CancellationToken token = default)
         {
             if (Archive == null) return null;
 
-            await _archiveLock.WaitAsync();
+            await _archiveLock.WaitAsync(token);
             try
             {
                 var entry = FindEntryLoose(path);
@@ -82,7 +89,7 @@ namespace Uviewer.Services
 
                 using var stream = entry.Open();
                 using var memoryStream = new MemoryStream();
-                await stream.CopyToAsync(memoryStream);
+                await stream.CopyToAsync(memoryStream, token);
                 return memoryStream.ToArray();
             }
             finally
@@ -135,8 +142,12 @@ namespace Uviewer.Services
 
         public void Dispose()
         {
-            CloseOpenArchive();
-            _archiveLock.Dispose();
+            // Never dispose the semaphore/archive while an EPUB read is still holding it.
+            // A failed bounded close is left for process teardown rather than racing a reader.
+            if (Close(TimeSpan.FromSeconds(2)))
+            {
+                _archiveLock.Dispose();
+            }
         }
 
         private void CloseOpenArchive()

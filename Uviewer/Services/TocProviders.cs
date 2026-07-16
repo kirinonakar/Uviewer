@@ -119,6 +119,7 @@ namespace Uviewer.Services
     public class EpubTocProvider : ITocProvider
     {
         private readonly ZipArchive _archive;
+        private readonly SemaphoreSlim? _archiveLock;
         private readonly string _tocPath;
         private readonly List<string> _spine;
 
@@ -129,18 +130,30 @@ namespace Uviewer.Services
         private static readonly Regex RxEpubNavAnchor = new Regex("<a[^>]*href=[\"']([^\"']+)[\"'][^>]*>([\\s\\S]*?)</a>", RegexOptions.IgnoreCase | RegexOptions.Compiled);
         private static readonly Regex RxEpubAnyTag = new Regex("<[^>]+>", RegexOptions.Compiled);
 
-        public EpubTocProvider(ZipArchive archive, string tocPath, List<string> spine)
+        public EpubTocProvider(
+            ZipArchive archive,
+            string tocPath,
+            List<string> spine,
+            SemaphoreSlim? archiveLock = null)
         {
             _archive = archive;
             _tocPath = tocPath;
             _spine = spine;
+            _archiveLock = archiveLock;
         }
 
         public async Task<List<TocItem>> GetTocAsync(CancellationToken token = default)
         {
             var toc = new List<TocItem>();
+            bool lockTaken = false;
             try
             {
+                if (_archiveLock != null)
+                {
+                    await _archiveLock.WaitAsync(token);
+                    lockTaken = true;
+                }
+
                 var entry = _archive.GetEntry(_tocPath);
                 if (entry != null)
                 {
@@ -148,29 +161,38 @@ namespace Uviewer.Services
                     using (var stream = entry.Open())
                     using (var reader = new StreamReader(stream))
                     {
-                        content = await reader.ReadToEndAsync();
+                        content = await reader.ReadToEndAsync(token);
                     }
 
                     string ext = Path.GetExtension(_tocPath).ToLower();
                     if (ext == ".ncx")
                     {
-                        ParseNcxToc(content, toc);
+                        ParseNcxToc(content, toc, token);
                     }
                     else if (ext == ".html" || ext == ".xhtml" || ext == ".htm")
                     {
-                        ParseNavToc(content, toc);
+                        ParseNavToc(content, toc, token);
                     }
                 }
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
             }
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"EpubTocProvider Error: {ex.Message}");
+            }
+            finally
+            {
+                if (lockTaken) _archiveLock!.Release();
             }
 
             if (toc.Count == 0 && _spine.Count > 0)
             {
                 for (int i = 0; i < _spine.Count; i++)
                 {
+                    token.ThrowIfCancellationRequested();
                     toc.Add(new TocItem
                     {
                         HeadingText = $"Chapter {i + 1}",
@@ -183,12 +205,13 @@ namespace Uviewer.Services
             return toc;
         }
 
-        private void ParseNcxToc(string xml, List<TocItem> toc)
+        private void ParseNcxToc(string xml, List<TocItem> toc, CancellationToken token)
         {
             xml = RxEpubXmlns.Replace(xml, "");
             var matches = RxEpubNcxNav.Matches(xml);
             foreach (Match m in matches)
             {
+                token.ThrowIfCancellationRequested();
                 string inner = m.Groups[1].Value;
                 string title = "";
                 var tm = RxEpubNcxText.Match(inner);
@@ -206,11 +229,12 @@ namespace Uviewer.Services
             }
         }
 
-        private void ParseNavToc(string html, List<TocItem> toc)
+        private void ParseNavToc(string html, List<TocItem> toc, CancellationToken token)
         {
             var matches = RxEpubNavAnchor.Matches(html);
             foreach (Match m in matches)
             {
+                token.ThrowIfCancellationRequested();
                 string src = m.Groups[1].Value;
                 string title = RxEpubAnyTag.Replace(m.Groups[2].Value, "").Trim();
 

@@ -206,7 +206,7 @@ namespace Uviewer
             TextReaderState = _textReaderState,
             DocumentSearchState = _documentSearchState,
             ShutdownPdfResources = _pdfDocumentController.ShutdownPdfResources,
-            ShutdownEpubResources = _epubReaderController.ShutdownEpubResources,
+            ShutdownEpubResourcesAsync = _epubReaderController.ShutdownEpubResourcesAsync,
             FastNavigationService = _fastNavigationService,
             ImageViewportNavigationService = _imageViewportNavigationService,
             ArchiveSession = _archiveSession,
@@ -221,7 +221,7 @@ namespace Uviewer
             WebDavService = _webDavService,
             WebDavState = _webDavState,
             AnimatedWebpService = _animatedWebpService,
-            RequestApplicationExit = () => Application.Current?.Exit()
+            RequestApplicationExit = App.RequestExit
         };
 
         public void ShowNotification(string message, string icon = "\uE735", string color = "Gold")

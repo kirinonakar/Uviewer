@@ -22,7 +22,7 @@ namespace Uviewer.Services
         public TextReaderState? TextReaderState { get; init; }
         public DocumentSearchState? DocumentSearchState { get; init; }
         public Action? ShutdownPdfResources { get; init; }
-        public Action? ShutdownEpubResources { get; init; }
+        public Func<Task>? ShutdownEpubResourcesAsync { get; init; }
         public FastNavigationService? FastNavigationService { get; init; }
         public ImageViewportNavigationService? ImageViewportNavigationService { get; init; }
         public ArchiveSession? ArchiveSession { get; init; }
@@ -82,6 +82,7 @@ namespace Uviewer.Services
         private readonly TimeSpan _naturalExitGracePeriod;
         private int _closeRequested;
         private int _shutdownStarted;
+        private int _shutdownCompleted;
         private int _postCleanupFallbackScheduled;
 
         public ShutdownCoordinator()
@@ -141,7 +142,7 @@ namespace Uviewer.Services
             RunStep("cancel text load", () => context.TextReaderState?.CancelGlobalLoad());
             RunStep("cancel text page calculation", () => context.TextReaderState?.CancelPageCalculation());
             RunStep("shutdown PDF resources", context.ShutdownPdfResources);
-            RunStep("shutdown EPUB resources", context.ShutdownEpubResources);
+            await RunStepAsync("shutdown EPUB resources", context.ShutdownEpubResourcesAsync);
             RunStep("dispose fast navigation", () => context.FastNavigationService?.Dispose());
             RunStep("dispose viewport navigation", () => context.ImageViewportNavigationService?.Dispose());
 
@@ -178,6 +179,7 @@ namespace Uviewer.Services
 
             SchedulePostCleanupFallback();
             RunStep("request normal application exit", context.RequestApplicationExit);
+            Interlocked.Exchange(ref _shutdownCompleted, 1);
         }
 
         private async Task ScheduleCloseFallbackAsync()
@@ -185,9 +187,9 @@ namespace Uviewer.Services
             try
             {
                 await Task.Delay(_closeFallbackDelay);
-                if (Volatile.Read(ref _shutdownStarted) != 0) return;
+                if (Volatile.Read(ref _shutdownCompleted) != 0) return;
 
-                Debug.WriteLine("Window close did not reach shutdown; terminating process as last resort.");
+                Debug.WriteLine("Window shutdown did not complete; terminating process as last resort.");
                 _processTerminator.Terminate();
             }
             catch (Exception ex)

@@ -169,12 +169,14 @@ namespace Uviewer
                             array.GetItemAt(0, out item);
                             item.GetDisplayName(0x80058000, out string path); // SIGDN_FILESYSPATH
 
-                            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+                            var startInfo = new System.Diagnostics.ProcessStartInfo
                             {
                                 FileName = Path.Combine(AppContext.BaseDirectory, "Uviewer.exe"),
-                                Arguments = $"\"{path}\"",
-                                UseShellExecute = true
-                            });
+                                UseShellExecute = false,
+                                CreateNoWindow = true
+                            };
+                            startInfo.ArgumentList.Add(path);
+                            System.Diagnostics.Process.Start(startInfo);
                         }
                     }
                     finally

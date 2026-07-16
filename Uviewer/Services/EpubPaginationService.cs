@@ -2,6 +2,7 @@ using Microsoft.Graphics.Canvas;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using Uviewer.Models;
 
@@ -31,6 +32,9 @@ namespace Uviewer.Services
             EpubBlockPaginator horizontalPaginator,
             EpubPreviousPageStartFinder previousPageStartFinder)
         {
+            CancellationToken token = request.CancellationToken;
+            token.ThrowIfCancellationRequested();
+
             var pages = new List<EpubWin2DPage>();
             EpubHtmlParseResult parseResult;
             bool parseIsPartial;
@@ -41,7 +45,8 @@ namespace Uviewer.Services
                     request.CurrentPath,
                     request.ChapterIndex,
                     request.TargetLine,
-                    request.PinBlockIndex);
+                    request.PinBlockIndex,
+                    token: token);
                 parseResult = preview.Result;
                 parseIsPartial = preview.IsPartial;
             }
@@ -50,9 +55,12 @@ namespace Uviewer.Services
                 parseResult = documentService.ParseHtmlToAozoraBlocks(
                     request.Html,
                     request.CurrentPath,
-                    request.ChapterIndex);
+                    request.ChapterIndex,
+                    token);
                 parseIsPartial = false;
             }
+
+            token.ThrowIfCancellationRequested();
 
             var allBlocks = parseResult.Blocks;
             if (allBlocks.Count == 0)
@@ -70,6 +78,7 @@ namespace Uviewer.Services
                 int index = FindPreviewStartIndex(allBlocks, request.PinBlockIndex, request.TargetLine);
                 while (index < totalBlocks && pages.Count < request.MaxPreviewPages)
                 {
+                    token.ThrowIfCancellationRequested();
                     var page = PaginateNextPage(
                         ref index,
                         allBlocks,
@@ -91,6 +100,7 @@ namespace Uviewer.Services
                 int forwardIndex = request.PinBlockIndex;
                 while (forwardIndex < totalBlocks)
                 {
+                    token.ThrowIfCancellationRequested();
                     var page = PaginateNextPage(
                         ref forwardIndex,
                         allBlocks,
@@ -104,12 +114,13 @@ namespace Uviewer.Services
                     if (page != null) pages.Add(page);
                     else forwardIndex++;
 
-                    if (forwardIndex % 100 == 0) await Task.Delay(1);
+                    if (forwardIndex % 100 == 0) await Task.Delay(1, token);
                 }
 
                 int backwardIndex = request.PinBlockIndex;
                 while (backwardIndex > 0)
                 {
+                    token.ThrowIfCancellationRequested();
                     int previousStart = previousPageStartFinder(
                         backwardIndex,
                         allBlocks,
@@ -134,7 +145,7 @@ namespace Uviewer.Services
                     if (page != null) pages.Insert(0, page);
 
                     backwardIndex = previousStart;
-                    if (backwardIndex % 100 == 0) await Task.Delay(1);
+                    if (backwardIndex % 100 == 0) await Task.Delay(1, token);
                 }
             }
             else
@@ -142,6 +153,7 @@ namespace Uviewer.Services
                 int index = 0;
                 while (index < totalBlocks)
                 {
+                    token.ThrowIfCancellationRequested();
                     var page = PaginateNextPage(
                         ref index,
                         allBlocks,
@@ -155,7 +167,7 @@ namespace Uviewer.Services
                     if (page != null) pages.Add(page);
                     else index++;
 
-                    if (index % 100 == 0) await Task.Delay(1);
+                    if (index % 100 == 0) await Task.Delay(1, token);
                 }
             }
 
@@ -306,7 +318,8 @@ namespace Uviewer.Services
             CanvasDevice? device,
             bool isPreview = false,
             int targetLine = -1,
-            int maxPreviewPages = 3)
+            int maxPreviewPages = 3,
+            CancellationToken cancellationToken = default)
         {
             Html = html;
             CurrentPath = currentPath;
@@ -320,6 +333,7 @@ namespace Uviewer.Services
             IsPreview = isPreview;
             TargetLine = targetLine;
             MaxPreviewPages = Math.Max(1, maxPreviewPages);
+            CancellationToken = cancellationToken;
         }
 
         public string Html { get; }
@@ -334,6 +348,7 @@ namespace Uviewer.Services
         public bool IsPreview { get; }
         public int TargetLine { get; }
         public int MaxPreviewPages { get; }
+        public CancellationToken CancellationToken { get; }
     }
 
     public sealed class EpubPaginationResult

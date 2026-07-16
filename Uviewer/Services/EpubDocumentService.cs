@@ -35,37 +35,37 @@ namespace Uviewer.Services
         private static readonly Regex RxRubySplit = new(@"(\{\{RUBY\|.*?\}\})", RegexOptions.Compiled);
         private static readonly Regex RxHeading = new(@"<(h[1-6])[^>]*>(.*?)</\1>", RegexOptions.IgnoreCase | RegexOptions.Singleline | RegexOptions.Compiled);
 
-        public async Task<EpubPackageInfo> LoadPackageInfoAsync(ZipArchive archive, SemaphoreSlim archiveLock)
+        public async Task<EpubPackageInfo> LoadPackageInfoAsync(ZipArchive archive, SemaphoreSlim archiveLock, CancellationToken token = default)
         {
-            string rootPath = await ParseContainerPathAsync(archive, archiveLock);
+            string rootPath = await ParseContainerPathAsync(archive, archiveLock, token);
             if (string.IsNullOrEmpty(rootPath))
             {
                 return new EpubPackageInfo(string.Empty, new List<string>(), null);
             }
 
-            return await ParseOpfAsync(archive, archiveLock, rootPath);
+            return await ParseOpfAsync(archive, archiveLock, rootPath, token);
         }
 
-        public async Task<string> ParseContainerPathAsync(ZipArchive archive, SemaphoreSlim archiveLock)
+        public async Task<string> ParseContainerPathAsync(ZipArchive archive, SemaphoreSlim archiveLock, CancellationToken token = default)
         {
-            string? content = await ReadEntryTextAsync(archive, "META-INF/container.xml", archiveLock);
+            string? content = await ReadEntryTextAsync(archive, "META-INF/container.xml", archiveLock, token);
             if (string.IsNullOrEmpty(content)) return string.Empty;
 
             var match = RxFullPath.Match(content);
             return match.Success ? match.Groups[1].Value : string.Empty;
         }
 
-        public async Task<string?> ReadEntryTextAsync(ZipArchive archive, string path, SemaphoreSlim archiveLock)
+        public async Task<string?> ReadEntryTextAsync(ZipArchive archive, string path, SemaphoreSlim archiveLock, CancellationToken token = default)
         {
             var entry = archive.GetEntry(path);
             if (entry == null) return null;
 
-            await archiveLock.WaitAsync();
+            await archiveLock.WaitAsync(token);
             try
             {
                 using var stream = entry.Open();
                 using var reader = new StreamReader(stream);
-                return await reader.ReadToEndAsync();
+                return await reader.ReadToEndAsync(token);
             }
             finally
             {
@@ -73,8 +73,13 @@ namespace Uviewer.Services
             }
         }
 
-        public EpubHtmlParseResult ParseHtmlToAozoraBlocks(string html, string currentPath, int chapterIndex)
+        public EpubHtmlParseResult ParseHtmlToAozoraBlocks(
+            string html,
+            string currentPath,
+            int chapterIndex,
+            CancellationToken token = default)
         {
+            token.ThrowIfCancellationRequested();
             var blocks = new List<AozoraBindingModel>();
 
             html = RxScript.Replace(html, string.Empty);
@@ -88,6 +93,7 @@ namespace Uviewer.Services
 
             foreach (var segment in segments)
             {
+                token.ThrowIfCancellationRequested();
                 if (string.IsNullOrWhiteSpace(segment)) continue;
 
                 if (RxIsImg.IsMatch(segment))
@@ -130,6 +136,7 @@ namespace Uviewer.Services
             var splitBlocks = new List<AozoraBindingModel>();
             foreach (var block in blocks)
             {
+                token.ThrowIfCancellationRequested();
                 splitBlocks.AddRange(AozoraParserService.SplitBlockBySentences(block));
             }
 
@@ -142,14 +149,17 @@ namespace Uviewer.Services
             int chapterIndex,
             int targetLine,
             int targetBlockIndex,
-            int initialCharacterCount = 64 * 1024)
+            int initialCharacterCount = 64 * 1024,
+            CancellationToken token = default)
         {
+            token.ThrowIfCancellationRequested();
             if (html.Length <= initialCharacterCount)
-                return (ParseHtmlToAozoraBlocks(html, currentPath, chapterIndex), false);
+                return (ParseHtmlToAozoraBlocks(html, currentPath, chapterIndex, token), false);
 
             int characterCount = Math.Max(4096, initialCharacterCount);
             while (true)
             {
+                token.ThrowIfCancellationRequested();
                 int end = Math.Min(html.Length, characterCount);
                 if (end < html.Length)
                 {
@@ -157,7 +167,7 @@ namespace Uviewer.Services
                     if (tagEnd >= 0) end = tagEnd + 1;
                 }
 
-                var result = ParseHtmlToAozoraBlocks(html.Substring(0, end), currentPath, chapterIndex);
+                var result = ParseHtmlToAozoraBlocks(html.Substring(0, end), currentPath, chapterIndex, token);
                 bool hasTarget = targetBlockIndex >= 0
                     ? result.Blocks.Count > targetBlockIndex + 32
                     : targetLine <= 1 || result.TotalLineCount > targetLine + 32;
@@ -211,9 +221,13 @@ namespace Uviewer.Services
             }
         }
 
-        private async Task<EpubPackageInfo> ParseOpfAsync(ZipArchive archive, SemaphoreSlim archiveLock, string opfPath)
+        private async Task<EpubPackageInfo> ParseOpfAsync(
+            ZipArchive archive,
+            SemaphoreSlim archiveLock,
+            string opfPath,
+            CancellationToken token)
         {
-            string? content = await ReadEntryTextAsync(archive, opfPath, archiveLock);
+            string? content = await ReadEntryTextAsync(archive, opfPath, archiveLock, token);
             if (string.IsNullOrEmpty(content))
             {
                 return new EpubPackageInfo(opfPath, new List<string>(), null);
@@ -226,6 +240,7 @@ namespace Uviewer.Services
             var itemMatches = RxItem.Matches(content);
             foreach (Match m in itemMatches)
             {
+                token.ThrowIfCancellationRequested();
                 string tagContent = m.Value;
                 var idMatch = RxId.Match(tagContent);
                 var hrefMatch = RxHref.Match(tagContent);
@@ -247,6 +262,7 @@ namespace Uviewer.Services
             var itemRefMatches = RxItemRef.Matches(content);
             foreach (Match m in itemRefMatches)
             {
+                token.ThrowIfCancellationRequested();
                 string id = m.Groups[1].Value;
                 if (manifest.TryGetValue(id, out string? href))
                 {

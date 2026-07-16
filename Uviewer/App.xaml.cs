@@ -80,9 +80,9 @@ namespace Uviewer
 
             _dispatcherQueue = Microsoft.UI.Dispatching.DispatcherQueue.GetForCurrentThread();
 
-            // args.Any() 대신 CommandLine 전체 문자열 검사가 더 안정적입니다.
-            string cmdLine = Environment.CommandLine;
-            if (cmdLine.Contains("-Embedding", StringComparison.OrdinalIgnoreCase))
+            // 파일 경로에 "-Embedding" 문자열이 포함된 경우를 COM 활성화로 오인하지 않도록 정확히 비교합니다.
+            string[] processArgs = Environment.GetCommandLineArgs();
+            if (processArgs.Any(arg => string.Equals(arg, "-Embedding", StringComparison.OrdinalIgnoreCase)))
             {
                 _isComActivation = true;
                 _comStartedTicks = DateTime.UtcNow.Ticks;
@@ -250,7 +250,10 @@ namespace Uviewer
 
             try
             {
-                _exitTimer?.Change(ComIdleExitTimeoutMs, Timeout.Infinite);
+                int delay = Volatile.Read(ref _comInvokeCompleted) != 0
+                    ? ComPostInvokeExitDelayMs
+                    : ComIdleExitTimeoutMs;
+                _exitTimer?.Change(delay, Timeout.Infinite);
             }
             catch { }
         }
@@ -317,9 +320,22 @@ namespace Uviewer
             
             try
             {
-                _exitTimer?.Change(ComIdleExitTimeoutMs, Timeout.Infinite);
+                int delay = Volatile.Read(ref _comInvokeCompleted) != 0
+                    ? ComPostInvokeExitDelayMs
+                    : ComIdleExitTimeoutMs;
+                _exitTimer?.Change(delay, Timeout.Infinite);
             }
             catch { }
+        }
+
+        public static void RequestExit()
+        {
+            CancellationTokenSource? pipeCts = Interlocked.Exchange(ref _pipeCts, null);
+            try { pipeCts?.Cancel(); }
+            catch (ObjectDisposedException) { }
+            finally { pipeCts?.Dispose(); }
+
+            Application.Current?.Exit();
         }
 
         private void LoadSettings()

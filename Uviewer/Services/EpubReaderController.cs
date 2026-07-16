@@ -154,6 +154,9 @@ namespace Uviewer.Services
         private int _epubChapterLoadGeneration;
         private bool _isCurrentEpubChapterPartial;
         private Task? _epubFullPaginationTask;
+        private Task? _epubPreloadTask;
+        private Task? _epubTocTask;
+        private CancellationTokenSource _epubLifetimeCts = new();
 
         private readonly EpubReaderState _epubReaderState = new();
         private List<EpubWin2DPage> _epubWin2DPages
@@ -309,6 +312,9 @@ namespace Uviewer.Services
                  if (!await CloseCurrentPdfAsync()) return;
                  if (!await CloseCurrentEpubAsync()) return;
 
+                 CancellationToken epubToken = RestartEpubLifetime(token);
+                 epubToken.ThrowIfCancellationRequested();
+
                  _currentEpubFilePath = file.Path;
                  _currentEpubDisplayName = entry?.DisplayName ?? file.Name;
 
@@ -319,7 +325,7 @@ namespace Uviewer.Services
                  
                  _epubReaderState.ClearPreload();
                  var stream = await file.OpenStreamForReadAsync();
-                 var packageInfo = await _epubSession.OpenAsync(stream, _epubDocumentService);
+                 var packageInfo = await _epubSession.OpenAsync(stream, _epubDocumentService, epubToken);
                  if (string.IsNullOrEmpty(packageInfo.RootPath)) throw new Exception("Invalid container.xml");
                  
                  if (_epubSpine.Count == 0) throw new Exception("No content found in EPUB");
@@ -361,12 +367,12 @@ namespace Uviewer.Services
                  // 3. Load Chapter (Updated to handle pending positions)
                  int targetCh = (PendingEpubChapterIndex >= 0) ? PendingEpubChapterIndex : 0;
                  _currentEpubChapterIndex = targetCh;
-                 await LoadEpubChapterAsync(targetCh, targetLine: _aozoraPendingTargetLine, targetBlockIndex: _pendingEpubStartBlockIndex, targetPage: PendingEpubPageIndex, token: token);
+                 await LoadEpubChapterAsync(targetCh, targetLine: _aozoraPendingTargetLine, targetBlockIndex: _pendingEpubStartBlockIndex, targetPage: PendingEpubPageIndex, token: epubToken);
 
-                 if (token.IsCancellationRequested) return;
+                 if (epubToken.IsCancellationRequested) return;
                  // Give CanvasControl one composition frame to paint the selected page
                  // before revealing it; otherwise its previous back buffer can flash.
-                 await Task.Delay(16, token);
+                 await Task.Delay(16, epubToken);
                  if (EpubArea != null) EpubArea.Opacity = 1;
 
                  // LoadEpubChapterAsync 내부에서 targetBlockIndex 기반으로 이미 최적의 페이지를 설정하므로,
@@ -384,18 +390,19 @@ namespace Uviewer.Services
                 var tocArchive = _epubSession.Archive;
                 var tocPath = _epubSession.TocPath;
                 var tocSpine = _epubSpine.ToList();
-                _ = Task.Run(async () => {
-                    if (_isWindowClosing || tocSessionVersion != _epubSession.Version) return;
+                _epubTocTask = Task.Run(async () => {
+                    if (_isWindowClosing || epubToken.IsCancellationRequested || tocSessionVersion != _epubSession.Version) return;
                     if (tocArchive != null && !string.IsNullOrEmpty(tocPath))
                     {
-                        _tocService.SetProvider(new EpubTocProvider(tocArchive, tocPath, tocSpine));
-                        await _tocService.LoadTocAsync();
+                        _tocService.SetProvider(new EpubTocProvider(tocArchive, tocPath, tocSpine, _epubSession.ArchiveLock));
+                        await _tocService.LoadTocAsync(epubToken);
                     }
-                });
+                }, epubToken);
 
                  FileNameText.Text = FileExplorerService.GetFormattedDisplayName(entry?.DisplayName ?? file.Name, false);
                  SyncSidebarSelection(entry ?? new ImageEntry { FilePath = file.Path, DisplayName = file.Name });
              }
+             catch (OperationCanceledException) { }
              catch (Exception ex)
              {
                  FileNameText.Text = Strings.EpubParseError(ex.Message);
@@ -413,10 +420,12 @@ namespace Uviewer.Services
         {
             _epubChapterLoadGeneration++;
             _isCurrentEpubChapterPartial = false;
-            _epubFullPaginationTask = null;
             StopEpubResizeTimer();
             _epubReaderState.ClearPreload();
             _tocService.Clear();
+
+            CancelEpubLifetime();
+            await AwaitEpubBackgroundTasksAsync(TimeSpan.FromSeconds(3));
 
             if (!await _epubSession.CloseAsync(TimeSpan.FromSeconds(10)))
             {
@@ -434,6 +443,50 @@ namespace Uviewer.Services
             return true;
         }
 
+        private CancellationToken RestartEpubLifetime(CancellationToken externalToken)
+        {
+            CancelEpubLifetime();
+            _epubLifetimeCts.Dispose();
+            _epubLifetimeCts = externalToken.CanBeCanceled
+                ? CancellationTokenSource.CreateLinkedTokenSource(externalToken)
+                : new CancellationTokenSource();
+            return _epubLifetimeCts.Token;
+        }
+
+        private void CancelEpubLifetime()
+        {
+            try { _epubLifetimeCts.Cancel(); }
+            catch (ObjectDisposedException) { }
+        }
+
+        private async Task AwaitEpubBackgroundTasksAsync(TimeSpan timeout)
+        {
+            Task[] tasks = new[] { _epubFullPaginationTask, _epubPreloadTask, _epubTocTask }
+                .Where(task => task != null)
+                .Cast<Task>()
+                .ToArray();
+
+            if (tasks.Length > 0)
+            {
+                Task allTasks = Task.WhenAll(tasks);
+                Task completed = await Task.WhenAny(allTasks, Task.Delay(timeout));
+                if (completed == allTasks)
+                {
+                    try { await allTasks; }
+                    catch (OperationCanceledException) { }
+                    catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"EPUB background cleanup error: {ex.Message}"); }
+                }
+                else
+                {
+                    System.Diagnostics.Debug.WriteLine("EPUB background cleanup timed out");
+                }
+            }
+
+            _epubFullPaginationTask = null;
+            _epubPreloadTask = null;
+            _epubTocTask = null;
+        }
+
         internal void StopEpubResizeTimer()
         {
             try
@@ -443,14 +496,15 @@ namespace Uviewer.Services
             catch { }
         }
 
-        internal void ShutdownEpubResources()
+        internal async Task ShutdownEpubResourcesAsync()
         {
             _epubChapterLoadGeneration++;
             _isCurrentEpubChapterPartial = false;
-            _epubFullPaginationTask = null;
             StopEpubResizeTimer();
             _tocService.Clear();
+            CancelEpubLifetime();
             _epubReaderState.ClearAll();
+            await AwaitEpubBackgroundTasksAsync(TimeSpan.FromSeconds(3));
             _imageResourceService.ClearEpubEntries();
             _aozoraBlocks.Clear();
             _isEpubMode = false;
@@ -510,7 +564,7 @@ namespace Uviewer.Services
         {
             if (_isWindowClosing || !_isEpubMode) return;
 
-            var token = _epubReaderState.RestartPreload();
+            var token = _epubReaderState.RestartPreload(_epubLifetimeCts.Token);
 
             try
             {
@@ -521,12 +575,12 @@ namespace Uviewer.Services
                     if (token.IsCancellationRequested) return;
                     if (_epubPreloadCache.ContainsKey(idx)) continue;
                     string path = _epubSpine[idx];
-                    string? html = await _epubSession.ReadEntryTextAsync(path, _epubDocumentService);
+                    string? html = await _epubSession.ReadEntryTextAsync(path, _epubDocumentService, token);
                     if (html == null) continue;
 
                     if (token.IsCancellationRequested) return;
 
-                    var pages = await RenderEpubPagesAsync(html, path);
+                    var pages = await RenderEpubPagesAsync(html, path, token: token);
                     if (_isWindowClosing || token.IsCancellationRequested || !_isEpubMode) return;
 
                     _epubPreloadCache[idx] = pages;
@@ -592,8 +646,13 @@ namespace Uviewer.Services
 
         // --- Core Rendering Logic ---
 
-        internal async Task<List<EpubWin2DPage>> RenderEpubPagesAsync(string html, string currentPath, int pinBlockIndex = -1)
+        internal async Task<List<EpubWin2DPage>> RenderEpubPagesAsync(
+            string html,
+            string currentPath,
+            int pinBlockIndex = -1,
+            CancellationToken token = default)
         {
+            token.ThrowIfCancellationRequested();
             var viewport = _readerLayoutService.CreateEpubViewport(
                 EpubArea?.ActualWidth ?? 0,
                 EpubArea?.ActualHeight ?? 0,
@@ -614,13 +673,14 @@ namespace Uviewer.Services
                 _settingsManager.FontSize,
                 _isVerticalMode,
                 pinBlockIndex,
-                device);
+                device,
+                cancellationToken: token);
             var result = await Task.Run(() => _epubPaginationService.CreatePagesAsync(
                 request,
                 _epubDocumentService,
                 PaginateVerticalAozoraPage,
                 PaginateHorizontalAozoraPage,
-                FindPreviousPageStart));
+                FindPreviousPageStart), token);
 
             _textTotalLineCountInSource = result.TotalLineCount;
             return result.Pages;
@@ -631,8 +691,10 @@ namespace Uviewer.Services
             string currentPath,
             int chapterIndex,
             int targetLine,
-            int targetBlockIndex)
+            int targetBlockIndex,
+            CancellationToken token)
         {
+            token.ThrowIfCancellationRequested();
             var viewport = _readerLayoutService.CreateEpubViewport(
                 EpubArea?.ActualWidth ?? 0,
                 EpubArea?.ActualHeight ?? 0,
@@ -654,13 +716,14 @@ namespace Uviewer.Services
                     targetBlockIndex,
                     device,
                     isPreview: true,
-                    targetLine: targetLine);
+                    targetLine: targetLine,
+                    cancellationToken: token);
             var result = await Task.Run(() => _epubPaginationService.CreatePagesAsync(
                 request,
                 _epubDocumentService,
                 PaginateVerticalAozoraPage,
                 PaginateHorizontalAozoraPage,
-                FindPreviousPageStart));
+                FindPreviousPageStart), token);
 
             _textTotalLineCountInSource = result.TotalLineCount;
             return result;
@@ -1113,6 +1176,8 @@ namespace Uviewer.Services
 
         private async Task ForceLoadChapterPagesAsync(int chapterIndex)
         {
+            CancellationToken token = _epubLifetimeCts.Token;
+            token.ThrowIfCancellationRequested();
             if (chapterIndex == _currentEpubChapterIndex) return;
             
             if (_epubPreloadCache.TryGetValue(chapterIndex, out var cached))
@@ -1125,10 +1190,10 @@ namespace Uviewer.Services
             {
                 // Not cached, must load now
                 string path = _epubSpine[chapterIndex];
-                string? html = await _epubSession.ReadEntryTextAsync(path, _epubDocumentService);
+                string? html = await _epubSession.ReadEntryTextAsync(path, _epubDocumentService, token);
                 if (html != null)
                 {
-                    var pages = await RenderEpubPagesAsync(html, path);
+                    var pages = await RenderEpubPagesAsync(html, path, token: token);
                     _epubPreloadCache[chapterIndex] = pages;
                 }
             }
@@ -1169,6 +1234,9 @@ namespace Uviewer.Services
             if (_isWindowClosing || !_isEpubMode) return;
             if (index < 0 || index >= _epubSpine.Count) return;
 
+            using var chapterCts = CancellationTokenSource.CreateLinkedTokenSource(token, _epubLifetimeCts.Token);
+            token = chapterCts.Token;
+
             try
             {
                 int loadGeneration = ++_epubChapterLoadGeneration;
@@ -1189,7 +1257,7 @@ namespace Uviewer.Services
                 else
                 {
                     string path = _epubSpine[index];
-                    string? html = await _epubSession.ReadEntryTextAsync(path, _epubDocumentService);
+                    string? html = await _epubSession.ReadEntryTextAsync(path, _epubDocumentService, token);
                     if (html == null) return;
 
                     bool hasStableContentAnchor = targetBlockIndex >= 0 || targetLine > 1;
@@ -1203,14 +1271,15 @@ namespace Uviewer.Services
                             path,
                             index,
                             targetLine,
-                            targetBlockIndex);
+                            targetBlockIndex,
+                            token);
                         pages = preview.Pages;
                         pagesArePartial = preview.IsPartial;
                         if (pagesArePartial) htmlForBackgroundPagination = html;
                     }
                     else
                     {
-                        pages = await RenderEpubPagesAsync(html, path, pinBlockIndex: targetBlockIndex);
+                        pages = await RenderEpubPagesAsync(html, path, pinBlockIndex: targetBlockIndex, token: token);
                     }
 
                     if (!pagesArePartial)
@@ -1265,12 +1334,12 @@ namespace Uviewer.Services
                         anchorBlockIndex,
                         loadGeneration,
                         sessionVersion,
-                        token);
+                        _epubLifetimeCts.Token);
                 }
                 else
                 {
                     _epubFullPaginationTask = null;
-                    _ = PreloadEpubChaptersAsync(index);
+                    _epubPreloadTask = PreloadEpubChaptersAsync(index);
                 }
             }
             finally
@@ -1296,7 +1365,7 @@ namespace Uviewer.Services
                 // Keep the preview's first visible block as a hard page boundary. If the
                 // full pass starts from the chapter beginning, that block can land in the
                 // middle of a page and the first line visibly jumps when pages are swapped.
-                var fullPages = await RenderEpubPagesAsync(html, path, anchorBlockIndex);
+                var fullPages = await RenderEpubPagesAsync(html, path, anchorBlockIndex, token);
                 if (token.IsCancellationRequested ||
                     loadGeneration != _epubChapterLoadGeneration ||
                     sessionVersion != _epubSession.Version ||
@@ -1321,7 +1390,7 @@ namespace Uviewer.Services
                     SetEpubPageIndex(pageIndex);
                 }
 
-                _ = PreloadEpubChaptersAsync(chapterIndex);
+                _epubPreloadTask = PreloadEpubChaptersAsync(chapterIndex);
             }
             catch (OperationCanceledException) { }
             catch (Exception ex)

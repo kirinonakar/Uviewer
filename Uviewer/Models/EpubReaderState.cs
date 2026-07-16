@@ -19,11 +19,13 @@ namespace Uviewer.Models
                 ? Pages[CurrentPageIndex]
                 : null;
 
-        public CancellationToken RestartPreload()
+        public CancellationToken RestartPreload(CancellationToken documentToken = default)
         {
             PreloadCts?.Cancel();
             PreloadCts?.Dispose();
-            PreloadCts = new CancellationTokenSource();
+            PreloadCts = documentToken.CanBeCanceled
+                ? CancellationTokenSource.CreateLinkedTokenSource(documentToken)
+                : new CancellationTokenSource();
             return PreloadCts.Token;
         }
 
