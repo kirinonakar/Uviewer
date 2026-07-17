@@ -178,6 +178,16 @@ namespace Uviewer
         public static string ExternalProgramPathPlaceholder => GetString("ExternalProgramPathPlaceholder");
         public static string ExternalProgramBrowseButton => GetString("ExternalProgramBrowseButton");
         public static string ExternalProgramSaveButton => GetString("ExternalProgramSaveButton");
+        public static string ToolbarCustomization => GetString("ToolbarCustomization");
+        public static string ToolbarCustomizationDescription => GetString("ToolbarCustomizationDescription");
+        public static string ToolbarApply => GetString("ToolbarApply");
+        public static string ToolbarLeft => GetString("ToolbarLeft");
+        public static string ToolbarRight => GetString("ToolbarRight");
+        public static string ToolbarVisible => GetString("ToolbarVisible");
+        public static string ToolbarMoveUp => GetString("ToolbarMoveUp");
+        public static string ToolbarMoveDown => GetString("ToolbarMoveDown");
+        public static string ToolbarMoveLeft => GetString("ToolbarMoveLeft");
+        public static string ToolbarMoveRight => GetString("ToolbarMoveRight");
         public static string ExplorerOpenExternal => GetString("ExplorerOpenExternal");
         public static string ExplorerOpenDefault => GetString("ExplorerOpenDefault");
         public static string ExplorerOpenInWindowsExplorer => GetString("ExplorerOpenInWindowsExplorer");

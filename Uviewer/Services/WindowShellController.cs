@@ -399,6 +399,8 @@ namespace Uviewer.Services
             {
                 ToggleFullscreen();
             }
+
+            _saveWindowSettings();
         }
 
         internal void SetTheme(ElementTheme theme)

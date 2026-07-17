@@ -82,6 +82,12 @@ namespace Uviewer
                 set => _window._externalProgramPath = value ?? string.Empty;
             }
 
+            public AppToolbarSettings ToolbarSettings
+            {
+                get => _window.MainToolbar.GetToolbarSettings();
+                set => _window.MainToolbar.ApplyToolbarSettings(value);
+            }
+
             public void SetTheme(ElementTheme theme) => _window.SetTheme(theme);
 
             public void RestoreMaximizedWhenActivated()

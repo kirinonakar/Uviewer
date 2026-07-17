@@ -21,6 +21,7 @@ namespace Uviewer.Services
         double ExplorerThumbnailSize { get; set; }
         bool ShowFolderThumbnails { get; set; }
         string ExternalProgramPath { get; set; }
+        AppToolbarSettings ToolbarSettings { get; set; }
 
         void SetTheme(ElementTheme theme);
         void RestoreMaximizedWhenActivated();

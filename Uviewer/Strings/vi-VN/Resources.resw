@@ -638,4 +638,14 @@
   <data name="DeleteFailed" xml:space="preserve">
     <value>Xóa thất bại: {0}</value>
   </data>
+  <data name="ToolbarCustomization" xml:space="preserve"><value>Tùy chỉnh thanh công cụ</value></data>
+  <data name="ToolbarCustomizationDescription" xml:space="preserve"><value>Chọn các nút được hiển thị và thay đổi vị trí trái, phải cùng thứ tự. Nút Cài đặt luôn được hiển thị.</value></data>
+  <data name="ToolbarApply" xml:space="preserve"><value>Áp dụng</value></data>
+  <data name="ToolbarLeft" xml:space="preserve"><value>Thanh công cụ trái</value></data>
+  <data name="ToolbarRight" xml:space="preserve"><value>Thanh công cụ phải</value></data>
+  <data name="ToolbarVisible" xml:space="preserve"><value>Hiển thị</value></data>
+  <data name="ToolbarMoveUp" xml:space="preserve"><value>Di chuyển lên</value></data>
+  <data name="ToolbarMoveDown" xml:space="preserve"><value>Di chuyển xuống</value></data>
+  <data name="ToolbarMoveLeft" xml:space="preserve"><value>Di chuyển sang trái</value></data>
+  <data name="ToolbarMoveRight" xml:space="preserve"><value>Di chuyển sang phải</value></data>
 </root>

@@ -241,7 +241,8 @@ namespace Uviewer.Services
                     UnsharpAmount = settings.UnsharpAmount,
                     UnsharpRadius = settings.UnsharpRadius
                 },
-                ExternalProgramPath = settings.ExternalProgramPath ?? AppSettings.DefaultExternalProgramPath
+                ExternalProgramPath = settings.ExternalProgramPath ?? AppSettings.DefaultExternalProgramPath,
+                Toolbar = settings.Toolbar?.Clone() ?? AppToolbarSettings.CreateDefault()
             };
         }
 
@@ -275,7 +276,8 @@ namespace Uviewer.Services
                 UnsharpRadius = imageProcessing.UnsharpRadius,
                 ExplorerThumbnailSize = explorer.ThumbnailSize,
                 ShowFolderThumbnails = explorer.ShowFolderThumbnails,
-                ExternalProgramPath = document.ExternalProgramPath ?? defaults.ExternalProgramPath
+                ExternalProgramPath = document.ExternalProgramPath ?? defaults.ExternalProgramPath,
+                Toolbar = document.Toolbar?.Clone() ?? AppToolbarSettings.CreateDefault()
             };
         }
 

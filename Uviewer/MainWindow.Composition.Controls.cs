@@ -21,6 +21,7 @@ namespace Uviewer
                             ChangeColors = () => window._documentReaderController.ColorsMenu_Click(window.MainToolbar, new RoutedEventArgs()),
                             ChangeUiFont = () => window._documentReaderController.UiFontMenu_Click(window.MainToolbar, new RoutedEventArgs()),
                             SelectExternalProgramAsync = () => window._externalProgramSettingsController.SelectExternalProgramAsync(),
+                            SaveToolbarCustomization = () => window._windowSettingsCoordinator.SaveWindowSettings(),
                             ApplyLanguageAsync = language => window._documentReaderController.ApplyLanguageSelectionAsync(language),
                             SetMatchControlDirection = isChecked =>
                             {

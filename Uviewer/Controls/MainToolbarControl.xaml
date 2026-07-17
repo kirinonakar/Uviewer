@@ -45,7 +45,7 @@
                 <ColumnDefinition Width="Auto"/>
             </Grid.ColumnDefinitions>
 
-            <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="0" VerticalAlignment="Center">
+            <StackPanel x:Name="LeftToolbarPanel" Grid.Column="0" Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
                 <Button x:Name="SettingsButton" Style="{StaticResource ToolbarButtonStyle}" Margin="0,0,0,0" ToolTipService.ToolTip="설정">
                     <FontIcon Glyph="&#xE713;" FontSize="14"/>
                     <Button.Flyout>
@@ -82,6 +82,11 @@
                             <MenuFlyoutItem x:Name="SelectExternalProgramMenuItem" Text="{x:Bind app:Strings.ExternalProgramSettings}">
                                 <MenuFlyoutItem.Icon>
                                     <FontIcon Glyph="&#xE8E5;"/>
+                                </MenuFlyoutItem.Icon>
+                            </MenuFlyoutItem>
+                            <MenuFlyoutItem x:Name="CustomizeToolbarMenuItem" Text="{x:Bind app:Strings.ToolbarCustomization}">
+                                <MenuFlyoutItem.Icon>
+                                    <FontIcon Glyph="&#xE771;"/>
                                 </MenuFlyoutItem.Icon>
                             </MenuFlyoutItem>
                             <MenuFlyoutSubItem x:Name="LanguageMenuItem" Text="언어 (Language)">
@@ -135,7 +140,7 @@
             </StackPanel>
 
             <!-- Toolbar -->
-            <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="4">
+            <StackPanel x:Name="RightToolbarPanel" Grid.Column="2" Orientation="Horizontal" Spacing="4">
                 <Button x:Name="ToggleSidebarButton" ToolTipService.ToolTip="사이드바 토글(Ctrl+B)">
                     <FontIcon Glyph="&#xE8A0;" FontSize="14"/>
                 </Button>

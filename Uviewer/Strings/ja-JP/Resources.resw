@@ -638,4 +638,14 @@
   <data name="DeleteFailed" xml:space="preserve">
     <value>削除に失敗しました: {0}</value>
   </data>
+  <data name="ToolbarCustomization" xml:space="preserve"><value>ツールバーのカスタマイズ</value></data>
+  <data name="ToolbarCustomizationDescription" xml:space="preserve"><value>表示するボタン、左右の位置、順序を変更できます。設定ボタンは常に表示されます。</value></data>
+  <data name="ToolbarApply" xml:space="preserve"><value>変更</value></data>
+  <data name="ToolbarLeft" xml:space="preserve"><value>左ツールバー</value></data>
+  <data name="ToolbarRight" xml:space="preserve"><value>右ツールバー</value></data>
+  <data name="ToolbarVisible" xml:space="preserve"><value>表示</value></data>
+  <data name="ToolbarMoveUp" xml:space="preserve"><value>上へ移動</value></data>
+  <data name="ToolbarMoveDown" xml:space="preserve"><value>下へ移動</value></data>
+  <data name="ToolbarMoveLeft" xml:space="preserve"><value>左へ移動</value></data>
+  <data name="ToolbarMoveRight" xml:space="preserve"><value>右へ移動</value></data>
 </root>

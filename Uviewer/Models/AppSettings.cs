@@ -1,4 +1,5 @@
 using Microsoft.UI.Xaml;
+using System.Collections.Generic;
 using System.Text.Json.Serialization;
 using Windows.Graphics;
 
@@ -29,11 +30,12 @@ namespace Uviewer.Models
         public double ExplorerThumbnailSize { get; set; } = 80;
         public bool ShowFolderThumbnails { get; set; } = false;
         public string ExternalProgramPath { get; set; } = DefaultExternalProgramPath;
+        public AppToolbarSettings Toolbar { get; set; } = AppToolbarSettings.CreateDefault();
     }
 
     public class AppSettingsDocument
     {
-        public const int CurrentVersion = 3;
+        public const int CurrentVersion = 4;
 
         public int Version { get; set; } = CurrentVersion;
         public AppWindowSettings Window { get; set; } = new();
@@ -42,6 +44,91 @@ namespace Uviewer.Models
         public AppBehaviorSettings App { get; set; } = new();
         public AppImageProcessingSettings ImageProcessing { get; set; } = new();
         public string ExternalProgramPath { get; set; } = AppSettings.DefaultExternalProgramPath;
+        public AppToolbarSettings Toolbar { get; set; } = AppToolbarSettings.CreateDefault();
+    }
+
+    public sealed class AppToolbarSettings
+    {
+        public List<string> LeftItems { get; set; } = new();
+        public List<string> RightItems { get; set; } = new();
+        public List<string> HiddenItems { get; set; } = new();
+
+        public static AppToolbarSettings CreateDefault() => new()
+        {
+            LeftItems = new List<string>
+            {
+                ToolbarItemIds.Settings,
+                ToolbarItemIds.GlobalTheme,
+                ToolbarItemIds.Pin,
+                ToolbarItemIds.AlwaysOnTop
+            },
+            RightItems = new List<string>(ToolbarItemIds.DefaultRightItems),
+            HiddenItems = new List<string>()
+        };
+
+        public AppToolbarSettings Clone() => new()
+        {
+            LeftItems = new List<string>(LeftItems ?? new List<string>()),
+            RightItems = new List<string>(RightItems ?? new List<string>()),
+            HiddenItems = new List<string>(HiddenItems ?? new List<string>())
+        };
+    }
+
+    public static class ToolbarItemIds
+    {
+        public const string Settings = "settings";
+        public const string GlobalTheme = "globalTheme";
+        public const string Pin = "pin";
+        public const string AlwaysOnTop = "alwaysOnTop";
+        public const string ToggleSidebar = "toggleSidebar";
+        public const string Favorites = "favorites";
+        public const string Recent = "recent";
+        public const string OpenFile = "openFile";
+        public const string OpenFolder = "openFolder";
+        public const string PdfToc = "pdfToc";
+        public const string PdfGoToPage = "pdfGoToPage";
+        public const string ZoomOut = "zoomOut";
+        public const string ZoomIn = "zoomIn";
+        public const string ZoomFit = "zoomFit";
+        public const string ZoomActual = "zoomActual";
+        public const string Aozora = "aozora";
+        public const string Vertical = "vertical";
+        public const string Font = "font";
+        public const string TextToc = "textToc";
+        public const string GoToPage = "goToPage";
+        public const string TextSizeDown = "textSizeDown";
+        public const string TextSizeUp = "textSizeUp";
+        public const string TextTheme = "textTheme";
+        public const string SideBySide = "sideBySide";
+        public const string NextImageSide = "nextImageSide";
+        public const string Sharpen = "sharpen";
+        public const string PreviousFile = "previousFile";
+        public const string PreviousPage = "previousPage";
+        public const string NextPage = "nextPage";
+        public const string NextFile = "nextFile";
+        public const string Fullscreen = "fullscreen";
+        public const string CloseWindow = "closeWindow";
+
+        public static readonly string[] DefaultRightItems =
+        {
+            ToggleSidebar, Favorites, Recent, OpenFile, OpenFolder,
+            PdfToc, PdfGoToPage,
+            ZoomOut, ZoomIn, ZoomFit, ZoomActual,
+            Aozora, Vertical, Font, TextToc, GoToPage, TextSizeDown, TextSizeUp, TextTheme,
+            SideBySide, NextImageSide, Sharpen,
+            PreviousFile, PreviousPage, NextPage, NextFile, Fullscreen, CloseWindow
+        };
+
+        public static readonly string[] All =
+        {
+            Settings, GlobalTheme, Pin, AlwaysOnTop,
+            ToggleSidebar, Favorites, Recent, OpenFile, OpenFolder,
+            PdfToc, PdfGoToPage,
+            ZoomOut, ZoomIn, ZoomFit, ZoomActual,
+            Aozora, Vertical, Font, TextToc, GoToPage, TextSizeDown, TextSizeUp, TextTheme,
+            SideBySide, NextImageSide, Sharpen,
+            PreviousFile, PreviousPage, NextPage, NextFile, Fullscreen, CloseWindow
+        };
     }
 
     public class AppWindowSettings

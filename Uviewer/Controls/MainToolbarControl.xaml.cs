@@ -17,6 +17,7 @@ namespace Uviewer.Controls
         public event EventHandler? ChangeColorsRequested;
         public event EventHandler? ChangeUiFontRequested;
         public event EventHandler? SelectExternalProgramRequested;
+        public event EventHandler? ToolbarCustomizationChanged;
         public event EventHandler<string>? LanguageSelected;
         public event EventHandler<bool>? MatchControlDirectionChanged;
         public event EventHandler<bool>? AllowMultipleInstancesChanged;
@@ -85,6 +86,7 @@ namespace Uviewer.Controls
             InitializeComponent();
             ApplyImageOptionsDataContext();
             HookEvents();
+            InitializeToolbarCustomization();
         }
 
         private static void OnImageOptionsChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
@@ -115,6 +117,7 @@ namespace Uviewer.Controls
             ChangeColorsMenuItem.Click += (_, _) => ChangeColorsRequested?.Invoke(this, EventArgs.Empty);
             ChangeUiFontMenuItem.Click += (_, _) => ChangeUiFontRequested?.Invoke(this, EventArgs.Empty);
             SelectExternalProgramMenuItem.Click += (_, _) => SelectExternalProgramRequested?.Invoke(this, EventArgs.Empty);
+            CustomizeToolbarMenuItem.Click += async (_, _) => await ShowToolbarCustomizationDialogAsync();
             LangAutoItem.Click += LanguageItem_Click;
             LangKoItem.Click += LanguageItem_Click;
             LangEnItem.Click += LanguageItem_Click;
@@ -257,6 +260,7 @@ namespace Uviewer.Controls
             SelectExternalProgramMenuItem.Text = string.IsNullOrWhiteSpace(_externalProgramPath)
                 ? Strings.ExternalProgramSettings
                 : Strings.ExternalProgramMenuWithName(System.IO.Path.GetFileName(_externalProgramPath));
+            CustomizeToolbarMenuItem.Text = Strings.ToolbarCustomization;
             MatchControlDirectionMenuItem.Text = Strings.MatchControlDirection;
             ToolTipService.SetToolTip(MatchControlDirectionMenuItem, Strings.MatchControlDirectionTooltip);
             AllowMultipleInstancesMenuItem.Text = Strings.AllowMultipleInstances;
@@ -362,30 +366,40 @@ namespace Uviewer.Controls
 
         public void SetZoomLevel(double zoomLevel) => ZoomLevelText.Text = $"{(int)(zoomLevel * 100)}%";
 
-        public void SetImageToolbarVisible(bool isVisible) =>
-            ImageToolbarPanel.Visibility = ToVisibility(isVisible);
+        public void SetImageToolbarVisible(bool isVisible)
+        {
+            _isImageToolbarAvailable = isVisible;
+            UpdateToolbarItemVisibility();
+        }
 
-        public void SetTextToolbarVisible(bool isVisible) =>
-            TextToolbarPanel.Visibility = ToVisibility(isVisible);
+        public void SetTextToolbarVisible(bool isVisible)
+        {
+            _isTextToolbarAvailable = isVisible;
+            UpdateToolbarItemVisibility();
+        }
 
-        public void SetSideBySideToolbarVisible(bool isVisible) =>
-            SideBySideToolbarPanel.Visibility = ToVisibility(isVisible);
+        public void SetSideBySideToolbarVisible(bool isVisible)
+        {
+            _isSideBySideToolbarAvailable = isVisible;
+            UpdateToolbarItemVisibility();
+        }
 
         public void SetSharpenControlsVisible(bool isVisible)
         {
-            var visibility = ToVisibility(isVisible);
-            SharpenButton.Visibility = visibility;
-            SharpenSeparator.Visibility = visibility;
+            _isSharpenAvailable = isVisible;
+            UpdateToolbarItemVisibility();
         }
 
-        public void SetPdfTocVisible(bool isVisible) =>
-            PdfTocButton.Visibility = ToVisibility(isVisible);
+        public void SetPdfTocVisible(bool isVisible)
+        {
+            _isPdfTocAvailable = isVisible;
+            UpdateToolbarItemVisibility();
+        }
 
         public void SetPdfGoToPageVisible(bool isVisible)
         {
-            var visibility = ToVisibility(isVisible);
-            PdfGoToPageButton.Visibility = visibility;
-            PdfSeparator.Visibility = visibility;
+            _isPdfGoToPageAvailable = isVisible;
+            UpdateToolbarItemVisibility();
         }
 
         public void SetSharpenState(bool isEnabled) =>
@@ -474,7 +488,7 @@ namespace Uviewer.Controls
                 isPdfMode,
                 requestedAnchor,
                 PdfGoToPageButton,
-                ImageToolbarPanel,
+                ZoomFitButton,
                 fallback,
                 GoToPageButton);
 

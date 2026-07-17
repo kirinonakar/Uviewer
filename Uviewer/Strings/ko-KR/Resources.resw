@@ -638,4 +638,14 @@
   <data name="DeleteFailed" xml:space="preserve">
     <value>삭제 실패: {0}</value>
   </data>
+  <data name="ToolbarCustomization" xml:space="preserve"><value>툴바 사용자 지정</value></data>
+  <data name="ToolbarCustomizationDescription" xml:space="preserve"><value>표시할 버튼과 좌우 위치 및 순서를 변경할 수 있습니다. 설정 버튼은 항상 표시됩니다.</value></data>
+  <data name="ToolbarApply" xml:space="preserve"><value>변경</value></data>
+  <data name="ToolbarLeft" xml:space="preserve"><value>좌측 툴바</value></data>
+  <data name="ToolbarRight" xml:space="preserve"><value>우측 툴바</value></data>
+  <data name="ToolbarVisible" xml:space="preserve"><value>표시</value></data>
+  <data name="ToolbarMoveUp" xml:space="preserve"><value>위로 이동</value></data>
+  <data name="ToolbarMoveDown" xml:space="preserve"><value>아래로 이동</value></data>
+  <data name="ToolbarMoveLeft" xml:space="preserve"><value>왼쪽으로 이동</value></data>
+  <data name="ToolbarMoveRight" xml:space="preserve"><value>오른쪽으로 이동</value></data>
 </root>
