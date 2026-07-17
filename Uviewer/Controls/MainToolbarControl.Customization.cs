@@ -229,11 +229,9 @@ namespace Uviewer.Controls
         {
             if (_toolbarCustomizationDialog != null || XamlRoot == null) return;
 
+            const double dialogWidth = 900;
+            const double customizationWidth = 840;
             var working = _toolbarSettings.Clone();
-            double customizationWidth = Math.Clamp(
-                XamlRoot.Size.Width - 80,
-                380,
-                560);
             double listHeight = Math.Clamp(XamlRoot.Size.Height - 330, 240, 460);
             const double transferColumnWidth = 44;
             double paneWidth = (customizationWidth - transferColumnWidth) / 2;
@@ -336,6 +334,8 @@ namespace Uviewer.Controls
                 CloseButtonText = Strings.DialogClose,
                 DefaultButton = ContentDialogButton.Primary
             };
+            dialog.Resources["ContentDialogMinWidth"] = dialogWidth;
+            dialog.Resources["ContentDialogMaxWidth"] = dialogWidth;
 
             _toolbarCustomizationDialog = dialog;
             try
