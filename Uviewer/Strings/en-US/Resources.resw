@@ -648,4 +648,5 @@
   <data name="ToolbarMoveDown" xml:space="preserve"><value>Move down</value></data>
   <data name="ToolbarMoveLeft" xml:space="preserve"><value>Move left</value></data>
   <data name="ToolbarMoveRight" xml:space="preserve"><value>Move right</value></data>
+  <data name="LastPageReached" xml:space="preserve"><value>This is the last page.</value></data>
 </root>

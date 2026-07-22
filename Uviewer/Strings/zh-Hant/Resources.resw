@@ -648,4 +648,5 @@
   <data name="ToolbarMoveDown" xml:space="preserve"><value>下移</value></data>
   <data name="ToolbarMoveLeft" xml:space="preserve"><value>移到左側</value></data>
   <data name="ToolbarMoveRight" xml:space="preserve"><value>移到右側</value></data>
+  <data name="LastPageReached" xml:space="preserve"><value>這是最後一頁。</value></data>
 </root>

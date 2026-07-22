@@ -648,4 +648,5 @@
   <data name="ToolbarMoveDown" xml:space="preserve"><value>下へ移動</value></data>
   <data name="ToolbarMoveLeft" xml:space="preserve"><value>左へ移動</value></data>
   <data name="ToolbarMoveRight" xml:space="preserve"><value>右へ移動</value></data>
+  <data name="LastPageReached" xml:space="preserve"><value>最後のページです。</value></data>
 </root>

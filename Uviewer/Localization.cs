@@ -95,6 +95,7 @@ namespace Uviewer
         public static string EmptyStateButton => GetString("EmptyStateButton");
         public static string FastNavText => GetString("FastNavText");
         public static string TextFastNavText => GetString("TextFastNavText");
+        public static string LastPageReached => GetString("LastPageReached");
         public static string CalculatingPages => GetString("CalculatingPages");
         public static string Paginating => GetString("Paginating");
         public static string FileSelectPlaceholder => GetString("FileSelectPlaceholder");

@@ -648,4 +648,5 @@
   <data name="ToolbarMoveDown" xml:space="preserve"><value>Di chuyển xuống</value></data>
   <data name="ToolbarMoveLeft" xml:space="preserve"><value>Di chuyển sang trái</value></data>
   <data name="ToolbarMoveRight" xml:space="preserve"><value>Di chuyển sang phải</value></data>
+  <data name="LastPageReached" xml:space="preserve"><value>Đây là trang cuối cùng.</value></data>
 </root>

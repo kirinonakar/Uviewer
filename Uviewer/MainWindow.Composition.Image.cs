@@ -60,6 +60,8 @@ namespace Uviewer
                         SaveCurrentPositionAsync = () => window._bookmarkInteractionController.AddCurrentRecentAsync(true),
                         ShouldPreloadAfterNavigate = () => window._archiveSession.CurrentArchive != null || window._pdfDocumentController.HasOpenDocument,
                         StartPreload = window._imageViewerController.StartImagePreload,
+                        IsArchiveOpen = () => window._archiveSession.HasArchive,
+                        ShowLastPageOverlay = () => window.ShowNotification(Strings.LastPageReached, "\uE8A7", "Gold"),
                         FocusViewer = () => window.RootGrid.Focus(FocusState.Programmatic)
                     });
 

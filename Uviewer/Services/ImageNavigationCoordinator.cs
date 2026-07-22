@@ -19,6 +19,8 @@ namespace Uviewer.Services
         public Func<Task> SaveCurrentPositionAsync { get; init; } = null!;
         public Func<bool> ShouldPreloadAfterNavigate { get; init; } = null!;
         public Action<bool> StartPreload { get; init; } = null!;
+        public Func<bool> IsArchiveOpen { get; init; } = null!;
+        public Action ShowLastPageOverlay { get; init; } = null!;
         public Action FocusViewer { get; init; } = null!;
     }
 
@@ -82,6 +84,10 @@ namespace Uviewer.Services
                 {
                     _handlers.StartPreload(forward);
                 }
+            }
+            else if (forward && entries.Count > 0 && _handlers.IsArchiveOpen())
+            {
+                _handlers.ShowLastPageOverlay();
             }
 
             _handlers.FocusViewer();
