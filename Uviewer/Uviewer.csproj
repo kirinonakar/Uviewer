@@ -62,13 +62,13 @@
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Microsoft.Windows.SDK.BuildTools" Version="10.0.28000.2270" />
-    <PackageReference Include="Microsoft.WindowsAppSDK" Version="2.2.0" />
+    <PackageReference Include="Microsoft.WindowsAppSDK" Version="2.3.1" />
     <PackageReference Include="PdfPig" Version="0.1.15" />
     <PackageReference Include="SevenZipExtractor" Version="1.0.19" />
     <PackageReference Include="SharpCompress" Version="0.50.0" />
     <PackageReference Include="Microsoft.Graphics.Win2D" Version="1.4.0" />
-    <PackageReference Include="System.Management" Version="10.0.9" />
-    <PackageReference Include="System.Security.Cryptography.ProtectedData" Version="10.0.9" />
+    <PackageReference Include="System.Management" Version="10.0.10" />
+    <PackageReference Include="System.Security.Cryptography.ProtectedData" Version="10.0.10" />
     <PackageReference Include="WebDav.Client" Version="2.9.0" />
   </ItemGroup>
 
