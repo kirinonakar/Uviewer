@@ -479,7 +479,8 @@ namespace Uviewer
                         GetFontWeightForFamily,
                         DoesVerticalImageExist,
                         _isSideBySideMode || _autoDoublePageForArchive,
-                        ShouldPairTextImage),
+                        ShouldPairTextImage,
+                        cancellationToken: token),
                     AozoraPageOrientation.Vertical,
                     token);
 

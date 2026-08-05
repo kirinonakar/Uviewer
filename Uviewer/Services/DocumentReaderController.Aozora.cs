@@ -136,6 +136,12 @@ namespace Uviewer
             set => _aozoraPageState.IsPageCalculationCompleted = value;
         }
         internal System.Threading.CancellationTokenSource? _aozoraPageCalcCts;
+        private IReadOnlyList<AozoraBindingModel>? _aozoraCalculatedPageMapBlocks;
+        private float _aozoraCalculatedPageMapWidth;
+        private float _aozoraCalculatedPageMapHeight;
+        private bool _aozoraCalculatedPageMapIsMarkdown;
+        private double _aozoraCalculatedPageMapFontSize;
+        private string? _aozoraCalculatedPageMapFontFamily;
         internal int _aozoraCalculatedCurrentPage
         {
             get => _aozoraPageState.CalculatedCurrentPage;
@@ -473,58 +479,27 @@ namespace Uviewer
         {
             try
             {
-                // Keep the leading edge fixed while loading. Replacing the document
-                // with a window that grows in both directions changes every block
-                // index before the visible page and can move the page during input.
-                int requestedLineCount = 400;
-                for (int stage = 0; ; stage++)
-                {
-                    if (stage == 0)
-                    {
-                        requestedLineCount = 5000;
-                    }
-                    else if (stage == 1)
-                    {
-                        requestedLineCount = 30000;
-                    }
-                    else if (requestedLineCount <= int.MaxValue - 30000)
-                    {
-                        requestedLineCount += 30000;
-                    }
-                    else
-                    {
-                        return;
-                    }
+                // The initial preview may start in the middle of the source. Growing
+                // only the trailing window leaves HasLeadingGap=true forever, which
+                // prevents page calculation from ever starting. Parse the source once
+                // in the background and apply a complete document with stable block
+                // indices. This also avoids repeatedly rescanning and reparsing the
+                // same prefix for every progressive window size.
+                var document = await Task.Run(
+                    () => _textBlockDocumentService.Parse(rawContent, isMarkdown, fontSize),
+                    token);
+                token.ThrowIfCancellationRequested();
 
-                    if (parseGeneration != _aozoraParseGeneration || !_aozoraHasTrailingGap)
-                        return;
+                var completePreview = new TextBlockParsePreview(
+                    document,
+                    HasLeadingGap: false,
+                    HasTrailingGap: false);
 
-                    int startLine = _aozoraLoadedWindowStartLine;
-                    int currentEndLine = _aozoraLoadedWindowEndLine;
-                    int desiredEndLine = AddWithoutOverflow(startLine, requestedLineCount - 1);
-                    if (desiredEndLine <= currentEndLine)
-                        continue;
-
-                    int lineCount = CalculateWindowLineCount(startLine, desiredEndLine);
-                    var preview = await Task.Run(
-                        () => _textBlockDocumentService.ParseWindow(
-                            rawContent,
-                            isMarkdown,
-                            fontSize,
-                            startLine,
-                            lineCount),
-                        token);
-                    token.ThrowIfCancellationRequested();
-
-                    bool applied = await ApplyAozoraProgressiveDocumentAsync(
-                        preview,
-                        startLine,
-                        parseGeneration,
-                        token);
-                    if (!applied || !preview.HasTrailingGap) return;
-
-                    await Task.Delay(1, token);
-                }
+                await ApplyAozoraProgressiveDocumentAsync(
+                    completePreview,
+                    windowStartLine: 1,
+                    parseGeneration,
+                    token);
             }
             catch (OperationCanceledException) { }
             catch (Exception ex)
@@ -625,6 +600,7 @@ namespace Uviewer
             _aozoraPageCalcCts?.Cancel();
             _aozoraPageState.ResetPageCalculation();
             _aozoraPageState.BlockToPageMap.Clear();
+            _aozoraCalculatedPageMapBlocks = null;
         }
 
         private readonly record struct AozoraPositionAnchor(int SourceLine, int OrdinalWithinLine);
@@ -746,30 +722,67 @@ namespace Uviewer
 
         internal async void StartAozoraPageCalculationAsync()
         {
+            CancellationTokenSource? calculationCts = null;
+            IReadOnlyList<AozoraBindingModel>? blocks = null;
             try
             {
                 if (!_isAozoraMode || _isAozoraParsePartial || _aozoraBlocks == null || _aozoraBlocks.Count == 0) return;
 
+                blocks = _aozoraBlocks;
+                if (AozoraTextCanvas == null) return;
+
+                float currentCanvasWidth = (float)AozoraTextCanvas.ActualWidth;
+                float currentCanvasHeight = (float)AozoraTextCanvas.ActualHeight;
+                if (currentCanvasWidth > 0 && currentCanvasHeight > 0 &&
+                    IsAozoraPageMapCurrent(blocks, currentCanvasWidth, currentCanvasHeight))
+                {
+                    UpdateAozoraStatusBar();
+                    return;
+                }
+
                 _aozoraPageCalcCts?.Cancel();
-                _aozoraPageCalcCts = new System.Threading.CancellationTokenSource();
-                var token = _aozoraPageCalcCts.Token;
+                calculationCts = new System.Threading.CancellationTokenSource();
+                _aozoraPageCalcCts = calculationCts;
+                var token = calculationCts.Token;
 
                 _aozoraPageState.ResetPageCalculation();
+                _aozoraCalculatedPageMapBlocks = null;
                 UpdateAozoraStatusBar();
 
-                if (AozoraTextCanvas == null || AozoraTextCanvas.ActualHeight <= 0 || AozoraTextCanvas.ActualWidth <= 0) return;
+                // SizeChanged can arrive before WinUI has produced a usable canvas
+                // size. Wait briefly instead of leaving the state permanently in
+                // "calculating" with no calculation ever scheduled.
+                for (int attempt = 0;
+                     attempt < 20 &&
+                     (AozoraTextCanvas.ActualHeight <= 0 || AozoraTextCanvas.ActualWidth <= 0);
+                     attempt++)
+                {
+                    await Task.Delay(25, token);
+                }
+
+                float canvasWidth = (float)AozoraTextCanvas.ActualWidth;
+                float canvasHeight = (float)AozoraTextCanvas.ActualHeight;
+                if (canvasHeight <= 0 || canvasWidth <= 0)
+                {
+                    CompleteAozoraPageCalculationFallback(
+                        blocks,
+                        canvasWidth,
+                        canvasHeight,
+                        calculationCts);
+                    return;
+                }
 
                 var layout = _readerLayoutService.CreateHorizontalPageMapLayout(
-                    AozoraTextCanvas.ActualWidth,
-                    AozoraTextCanvas.ActualHeight,
+                    canvasWidth,
+                    canvasHeight,
                     _isMarkdownRenderMode,
                     GetUrlMaxWidth());
-                var device = AozoraTextCanvas.Device;
+                var device = AozoraTextCanvas.Device ?? Microsoft.Graphics.Canvas.CanvasDevice.GetSharedDevice();
 
                 bool calculated = await _readerPageMapCalculationService.CalculateAsync(
                     _aozoraPageState,
                     _aozoraPageMapCalculator,
-                    _aozoraBlocks,
+                    blocks,
                     new AozoraBlockPaginationContext(
                         device,
                         layout.MaxWidth,
@@ -777,15 +790,26 @@ namespace Uviewer
                         _settingsManager.FontSize,
                         _settingsManager.FontFamily,
                         GetFontWeightForFamily,
-                        DoesAozoraImageExist),
+                        DoesAozoraImageExist,
+                        cancellationToken: token),
                     AozoraPageOrientation.Horizontal,
                     token);
 
-                if (!calculated || token.IsCancellationRequested) return;
+                if (!calculated || token.IsCancellationRequested ||
+                    !ReferenceEquals(_aozoraPageCalcCts, calculationCts) ||
+                    !ReferenceEquals(_aozoraBlocks, blocks)) return;
+
+                _aozoraCalculatedPageMapBlocks = blocks;
+                _aozoraCalculatedPageMapWidth = canvasWidth;
+                _aozoraCalculatedPageMapHeight = canvasHeight;
+                _aozoraCalculatedPageMapIsMarkdown = _isMarkdownRenderMode;
+                _aozoraCalculatedPageMapFontSize = _settingsManager.FontSize;
+                _aozoraCalculatedPageMapFontFamily = _settingsManager.FontFamily;
 
                 DispatcherQueue.TryEnqueue(() =>
                 {
-                    if (token.IsCancellationRequested) return;
+                    if (token.IsCancellationRequested ||
+                        !ReferenceEquals(_aozoraPageCalcCts, calculationCts)) return;
 
                     UpdateAozoraStatusBar();
                 });
@@ -794,7 +818,69 @@ namespace Uviewer
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"Error in StartAozoraPageCalculationAsync: {ex.Message}");
+                if (calculationCts != null && blocks != null &&
+                    !calculationCts.IsCancellationRequested &&
+                    ReferenceEquals(_aozoraPageCalcCts, calculationCts))
+                {
+                    CompleteAozoraPageCalculationFallback(
+                        blocks,
+                        (float)(AozoraTextCanvas?.ActualWidth ?? 0),
+                        (float)(AozoraTextCanvas?.ActualHeight ?? 0),
+                        calculationCts);
+                }
             }
+        }
+
+        private bool IsAozoraPageMapCurrent(
+            IReadOnlyList<AozoraBindingModel> blocks,
+            float canvasWidth,
+            float canvasHeight)
+        {
+            return _aozoraPageState.IsPageCalculationCompleted &&
+                   ReferenceEquals(_aozoraCalculatedPageMapBlocks, blocks) &&
+                   Math.Abs(_aozoraCalculatedPageMapWidth - canvasWidth) < 1f &&
+                   Math.Abs(_aozoraCalculatedPageMapHeight - canvasHeight) < 1f &&
+                   _aozoraCalculatedPageMapIsMarkdown == _isMarkdownRenderMode &&
+                   Math.Abs(_aozoraCalculatedPageMapFontSize - _settingsManager.FontSize) < 0.01 &&
+                   string.Equals(
+                       _aozoraCalculatedPageMapFontFamily,
+                       _settingsManager.FontFamily,
+                       StringComparison.Ordinal);
+        }
+
+        private void CompleteAozoraPageCalculationFallback(
+            IReadOnlyList<AozoraBindingModel> blocks,
+            float canvasWidth,
+            float canvasHeight,
+            CancellationTokenSource calculationCts)
+        {
+            if (calculationCts.IsCancellationRequested ||
+                !ReferenceEquals(_aozoraPageCalcCts, calculationCts) ||
+                !ReferenceEquals(_aozoraBlocks, blocks) ||
+                blocks.Count == 0)
+            {
+                return;
+            }
+
+            float lineHeight = Math.Max(1f, (float)_settingsManager.FontSize * 2.1f);
+            int estimatedBlocksPerPage = canvasHeight > 0
+                ? Math.Max(1, (int)(canvasHeight / lineHeight))
+                : 30;
+            int totalPages = Math.Max(
+                1,
+                (blocks.Count + estimatedBlocksPerPage - 1) / estimatedBlocksPerPage);
+            var fallbackMap = new Dictionary<int, int>(blocks.Count);
+            for (int i = 0; i < blocks.Count; i++)
+                fallbackMap[i] = (i / estimatedBlocksPerPage) + 1;
+
+            _aozoraPageState.SetPageMap(fallbackMap, totalPages);
+            _aozoraCalculatedPageMapBlocks = blocks;
+            _aozoraCalculatedPageMapWidth = canvasWidth;
+            _aozoraCalculatedPageMapHeight = canvasHeight;
+            _aozoraCalculatedPageMapIsMarkdown = _isMarkdownRenderMode;
+            _aozoraCalculatedPageMapFontSize = _settingsManager.FontSize;
+            _aozoraCalculatedPageMapFontFamily = _settingsManager.FontFamily;
+            DispatcherQueue.TryEnqueue(UpdateAozoraStatusBar);
         }
 
         internal List<AozoraBindingModel> PaginateHorizontalAozoraPage(ref int index, List<AozoraBindingModel> blocks, float availableWidth, float availableHeight, CanvasDevice? device = null, CancellationToken token = default)

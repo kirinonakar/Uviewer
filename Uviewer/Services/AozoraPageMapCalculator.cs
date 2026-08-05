@@ -1,4 +1,5 @@
 using Microsoft.Graphics.Canvas;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
@@ -28,17 +29,30 @@ namespace Uviewer.Services
             AozoraPageOrientation orientation,
             CancellationToken token)
         {
-            return Task.Run(async () =>
+            return Task.Run<AozoraPageMapResult?>(() =>
             {
                 int pageCount = 1;
                 float currentPageExtent = 0;
-                var blockToPageMap = new Dictionary<int, int>();
+                var blockToPageMap = new Dictionary<int, int>(blocks.Count);
+                var imageExistenceCache = new Dictionary<string, bool>(StringComparer.Ordinal);
                 AozoraBindingModel? currentMergedBlock = null;
                 float currentMergedBlockExtent = 0;
+                float pageLimit = GetPageLimit(context, orientation);
+
+                bool ImageExists(string source)
+                {
+                    if (imageExistenceCache.TryGetValue(source, out bool exists))
+                        return exists;
+
+                    exists = context.ImageExists(source);
+                    imageExistenceCache[source] = exists;
+                    return exists;
+                }
 
                 for (int i = 0; i < blocks.Count; i++)
                 {
-                    if (token.IsCancellationRequested) return null;
+                    if ((i & 127) == 0)
+                        token.ThrowIfCancellationRequested();
 
                     var block = blocks[i];
 
@@ -67,7 +81,7 @@ namespace Uviewer.Services
                         }
 
                         var aozoraImg = block.Inlines.OfType<AozoraImage>().FirstOrDefault();
-                        if (aozoraImg != null && !context.ImageExists(aozoraImg.Source))
+                        if (aozoraImg != null && !ImageExists(aozoraImg.Source))
                         {
                             continue;
                         }
@@ -78,7 +92,13 @@ namespace Uviewer.Services
                             context.ShouldPairImage(aozoraImg.Source) &&
                             i < blocks.Count - 1)
                         {
-                            i = MapPairedVerticalImagePage(blocks, i, pageCount, blockToPageMap, context);
+                            i = MapPairedVerticalImagePage(
+                                blocks,
+                                i,
+                                pageCount,
+                                blockToPageMap,
+                                context,
+                                ImageExists);
                         }
 
                         if (i < blocks.Count - 1) pageCount++;
@@ -99,7 +119,7 @@ namespace Uviewer.Services
                             ? fontSize * 0.8f
                             : fontSize * 1.2f;
 
-                        if (currentPageExtent + extentDiff > GetPageLimit(context, orientation) + tolerance && currentPageExtent > 0)
+                        if (currentPageExtent + extentDiff > pageLimit + tolerance && currentPageExtent > 0)
                         {
                             pageCount++;
                             currentPageExtent = 0;
@@ -122,7 +142,7 @@ namespace Uviewer.Services
                         ? fontSizeBase * 0.8f
                         : fontSizeBase * 1.2f;
 
-                    if (currentPageExtent > 0 && currentPageExtent + blockExtent > GetPageLimit(context, orientation) + blockTolerance)
+                    if (currentPageExtent > 0 && currentPageExtent + blockExtent > pageLimit + blockTolerance)
                     {
                         pageCount++;
                         currentPageExtent = 0;
@@ -141,10 +161,9 @@ namespace Uviewer.Services
                         currentMergedBlock = null;
                     }
 
-                    if (i % 50 == 0) await Task.Delay(1, token);
                 }
 
-                if (token.IsCancellationRequested) return null;
+                token.ThrowIfCancellationRequested();
                 return new AozoraPageMapResult(blockToPageMap, pageCount);
             }, token);
         }
@@ -154,16 +173,18 @@ namespace Uviewer.Services
             int currentIndex,
             int pageCount,
             Dictionary<int, int> blockToPageMap,
-            AozoraBlockPaginationContext context)
+            AozoraBlockPaginationContext context,
+            Func<string, bool> imageExists)
         {
             int nextIndex = currentIndex + 1;
             while (nextIndex < blocks.Count)
             {
+                context.CancellationToken.ThrowIfCancellationRequested();
                 var nextBlock = blocks[nextIndex];
                 if (nextBlock.HasImage)
                 {
                     var nextImg = nextBlock.Inlines.OfType<AozoraImage>().FirstOrDefault();
-                    if (nextImg != null && context.ImageExists(nextImg.Source) && context.ShouldPairImage(nextImg.Source))
+                    if (nextImg != null && imageExists(nextImg.Source) && context.ShouldPairImage(nextImg.Source))
                     {
                         blockToPageMap[nextIndex] = pageCount;
                         return nextIndex;
