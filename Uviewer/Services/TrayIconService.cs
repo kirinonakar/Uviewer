@@ -19,6 +19,7 @@ namespace Uviewer.Services
         private const uint NifMessage = 0x00000001;
         private const uint NifIcon = 0x00000002;
         private const uint NifTip = 0x00000004;
+        private const uint NifShowTip = 0x00000080;
         private const uint NotifyIconVersion4 = 4;
         private const uint ImageIcon = 1;
         private const uint LrLoadFromFile = 0x00000010;
@@ -162,7 +163,7 @@ namespace Uviewer.Services
             cbSize = (uint)Marshal.SizeOf<NotifyIconData>(),
             hWnd = _windowHandle,
             uID = TrayIconId,
-            uFlags = NifMessage | NifIcon | NifTip,
+            uFlags = NifMessage | NifIcon | NifTip | NifShowTip,
             uCallbackMessage = TrayCallbackMessage,
             hIcon = _iconHandle,
             szTip = "Uviewer"
