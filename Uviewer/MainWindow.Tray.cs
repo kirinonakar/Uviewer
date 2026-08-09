@@ -71,6 +71,9 @@ namespace Uviewer
         {
             if (_trayExitRequested || _isWindowClosing) return;
 
+            // Capture visible window bounds before Close() starts changing AppWindow state.
+            // When already hidden, this keeps the bounds saved immediately before hiding.
+            SaveWindowSettingsForShutdown();
             _trayExitRequested = true;
             _trayIconService?.Dispose();
             _trayIconService = null;

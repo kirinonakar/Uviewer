@@ -413,9 +413,9 @@ namespace Uviewer
 
         private void SaveWindowSettingsForShutdown()
         {
-            // AppWindow reports unreliable bounds while hidden. The valid visible bounds
-            // were already saved immediately before the window was hidden to the tray.
-            if (_isHiddenToTray) return;
+            // AppWindow reports unreliable bounds while hidden or after Closed. Valid
+            // visible bounds are captured before hiding and in AppWindow_Closing.
+            if (_isHiddenToTray || _isWindowClosing) return;
 
             try
             {
