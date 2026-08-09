@@ -42,6 +42,7 @@ namespace Uviewer
 
                 SaveWindowSettingsForShutdown();
                 AppWindow.Hide();
+                _isHiddenToTray = true;
                 return true;
             }
             catch (Exception ex)
@@ -56,6 +57,7 @@ namespace Uviewer
             if (_trayExitRequested || _isWindowClosing) return;
 
             AppWindow.Show();
+            _isHiddenToTray = false;
             if (AppWindow.Presenter is OverlappedPresenter overlapped &&
                 overlapped.State == OverlappedPresenterState.Minimized)
             {

@@ -142,19 +142,7 @@ namespace Uviewer
         {
             try
             {
-                // Bring window to front
-                var appWindow = this.AppWindow;
-                appWindow.Show();
-                if (appWindow.Presenter is OverlappedPresenter overlapped)
-                {
-                    if (overlapped.State == OverlappedPresenterState.Minimized)
-                    {
-                        overlapped.Restore();
-                    }
-                }
-
-                // Re-activate window
-                this.Activate();
+                RestoreFromTray();
 
                 if (!string.IsNullOrEmpty(filePath))
                 {
@@ -425,6 +413,10 @@ namespace Uviewer
 
         private void SaveWindowSettingsForShutdown()
         {
+            // AppWindow reports unreliable bounds while hidden. The valid visible bounds
+            // were already saved immediately before the window was hidden to the tray.
+            if (_isHiddenToTray) return;
+
             try
             {
                 _windowSettingsCoordinator?.SaveWindowSettings();
