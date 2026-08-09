@@ -16,6 +16,7 @@ namespace Uviewer.Services
         ElementTheme CurrentTheme { get; }
         bool MatchControlDirection { get; set; }
         bool AllowMultipleInstances { get; set; }
+        bool KeepInTray { get; set; }
         bool AutoDoublePageForArchive { get; set; }
         bool IsRegistered { get; set; }
         double ExplorerThumbnailSize { get; set; }

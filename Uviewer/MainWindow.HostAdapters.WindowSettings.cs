@@ -52,6 +52,12 @@ namespace Uviewer
                 set => _window._allowMultipleInstances = value;
             }
 
+            public bool KeepInTray
+            {
+                get => _window._keepInTray;
+                set => _window._keepInTray = value;
+            }
+
             public bool AutoDoublePageForArchive
             {
                 get => _window._imageViewerState.AutoDoublePageForArchive;
@@ -104,6 +110,7 @@ namespace Uviewer
                 _window.MainToolbar.SetWindowOptionStates(
                     _window._matchControlDirection,
                     _window._allowMultipleInstances,
+                    _window._keepInTray,
                     _window._imageViewerState.AutoDoublePageForArchive,
                     _window._windowState.IsAlwaysOnTop);
                 _window._explorerSidebarController.ApplyThumbnailSettingsToControls();

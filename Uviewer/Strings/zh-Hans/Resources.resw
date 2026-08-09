@@ -649,4 +649,8 @@
   <data name="ToolbarMoveLeft" xml:space="preserve"><value>移到左侧</value></data>
   <data name="ToolbarMoveRight" xml:space="preserve"><value>移到右侧</value></data>
   <data name="LastPageReached" xml:space="preserve"><value>这是最后一页。</value></data>
+  <data name="KeepInTray" xml:space="preserve"><value>驻留系统托盘</value></data>
+  <data name="KeepInTrayTooltip" xml:space="preserve"><value>启用后，关闭窗口时不会退出，而是最小化到系统托盘。</value></data>
+  <data name="TrayOpen" xml:space="preserve"><value>打开</value></data>
+  <data name="TrayExit" xml:space="preserve"><value>关闭</value></data>
 </root>

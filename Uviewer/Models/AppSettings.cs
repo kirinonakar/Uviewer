@@ -17,6 +17,7 @@ namespace Uviewer.Models
         public ElementTheme Theme { get; set; } = ElementTheme.Default;
         public bool MatchControlDirection { get; set; } = false;
         public bool AllowMultipleInstances { get; set; } = true;
+        public bool KeepInTray { get; set; } = false;
         public bool IsSidebarVisible { get; set; } = true;
         public bool IsPinned { get; set; } = true;
         public bool IsAlwaysOnTop { get; set; } = false;
@@ -35,7 +36,7 @@ namespace Uviewer.Models
 
     public class AppSettingsDocument
     {
-        public const int CurrentVersion = 4;
+        public const int CurrentVersion = 5;
 
         public int Version { get; set; } = CurrentVersion;
         public AppWindowSettings Window { get; set; } = new();
@@ -161,6 +162,7 @@ namespace Uviewer.Models
     {
         public int Theme { get; set; } = (int)ElementTheme.Default;
         public bool AllowMultipleInstances { get; set; } = true;
+        public bool KeepInTray { get; set; }
         public bool AlwaysOnTop { get; set; }
         public bool Registered { get; set; }
     }

@@ -41,6 +41,7 @@ namespace Uviewer.Services
             _host.SetTheme(settings.Theme);
             _host.MatchControlDirection = settings.MatchControlDirection;
             _host.AllowMultipleInstances = settings.AllowMultipleInstances;
+            _host.KeepInTray = settings.KeepInTray;
             windowState.IsSidebarVisible = settings.IsSidebarVisible;
             windowState.IsPinned = settings.IsPinned;
             windowState.IsAlwaysOnTop = settings.IsAlwaysOnTop;
@@ -89,6 +90,7 @@ namespace Uviewer.Services
                 Theme = _host.CurrentTheme,
                 MatchControlDirection = _host.MatchControlDirection,
                 AllowMultipleInstances = _host.AllowMultipleInstances,
+                KeepInTray = _host.KeepInTray,
                 IsSidebarVisible = windowState.IsSidebarVisible,
                 IsPinned = windowState.IsPinned,
                 IsAlwaysOnTop = windowState.IsAlwaysOnTop,

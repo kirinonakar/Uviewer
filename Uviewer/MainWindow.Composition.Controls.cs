@@ -33,6 +33,12 @@ namespace Uviewer
                                 window._allowMultipleInstances = isChecked;
                                 window._windowSettingsCoordinator.SaveWindowSettings();
                             },
+                            SetKeepInTray = isChecked =>
+                            {
+                                window._keepInTray = isChecked;
+                                window.UpdateTrayIconVisibility();
+                                window._windowSettingsCoordinator.SaveWindowSettings();
+                            },
                             SetAutoDoublePageForArchive = isChecked =>
                             {
                                 window._autoDoublePageForArchive = isChecked;

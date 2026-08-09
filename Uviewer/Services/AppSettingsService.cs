@@ -230,6 +230,7 @@ namespace Uviewer.Services
                 {
                     Theme = (int)settings.Theme,
                     AllowMultipleInstances = settings.AllowMultipleInstances,
+                    KeepInTray = settings.KeepInTray,
                     AlwaysOnTop = settings.IsAlwaysOnTop,
                     Registered = settings.IsRegistered
                 },
@@ -264,6 +265,7 @@ namespace Uviewer.Services
                 Theme = (ElementTheme)app.Theme,
                 MatchControlDirection = viewer.MatchControlDirection,
                 AllowMultipleInstances = app.AllowMultipleInstances,
+                KeepInTray = app.KeepInTray,
                 IsSidebarVisible = explorer.SidebarVisible,
                 IsPinned = explorer.Pinned,
                 IsAlwaysOnTop = app.AlwaysOnTop,

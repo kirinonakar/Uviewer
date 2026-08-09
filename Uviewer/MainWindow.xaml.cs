@@ -413,6 +413,13 @@ namespace Uviewer
 
         private void AppWindow_Closing(AppWindow sender, AppWindowClosingEventArgs args)
         {
+            if (_keepInTray && !_trayExitRequested && !_isWindowClosing)
+            {
+                args.Cancel = true;
+                if (TryHideToTray()) return;
+                args.Cancel = false;
+            }
+
             SaveWindowSettingsForShutdown();
         }
 
@@ -529,6 +536,8 @@ namespace Uviewer
 
         private void RequestWindowClose()
         {
+            if (TryHideToTray()) return;
+
             _shutdownCoordinator.RequestClose(Close);
         }
 

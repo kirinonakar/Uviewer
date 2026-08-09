@@ -53,6 +53,10 @@
 #### ⚙️ Multiple Instances
 - **Allow Multiple Instances**: When enabled, each file opens in a new window instance. When disabled, files open in the already running instance using inter-process communication (NamedPipe).
 
+#### 🔔 Keep in System Tray
+- **Keep in System Tray**: Enable this option in the Settings menu to keep Uviewer running when the window is closed. The window is hidden in the system tray instead of terminating the process.
+- **Tray Menu**: Right-click the Uviewer tray icon and select **Open** to restore the window or **Close** to exit Uviewer completely.
+
 #### 🖼️ Image Viewing Options
 - **Auto Side-by-Side in Archive**: When enabled, the viewer automatically applies side-by-side (2-page) view for portrait-oriented images (height = width * 1.2~3) when browsing archives and EPUB.
 

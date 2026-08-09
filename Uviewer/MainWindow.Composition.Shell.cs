@@ -71,6 +71,7 @@ namespace Uviewer
                 {
                     var appWindow = window.AppWindow;
                     window._windowSettingsCoordinator = new WindowSettingsCoordinator(new WindowSettingsHostAdapter(window), window._appSettingsService);
+                    window.InitializeTrayIcon();
                     appWindow.Closing += window.AppWindow_Closing;
                 }
 
@@ -150,6 +151,7 @@ namespace Uviewer
                     window._imageViewerController.UpdateNextImageSideButtonState();
                     window._imageViewerController.UpdateSharpenButtonState();
                     window._windowShellController.ApplyInitialShellState();
+                    window.UpdateTrayIconVisibility();
                 }
 
                 public static void InitializeRootInput(MainWindow window)
@@ -194,6 +196,7 @@ namespace Uviewer
 
                     window.Closed += async (s, e) =>
                     {
+                        window.DisposeTrayIcon();
                         App.NotifyWindowClosing();
                         window._isWindowClosing = true;
                         bool wasPdfOpen = window._pdfDocumentController.HasOpenDocument;

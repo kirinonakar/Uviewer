@@ -649,4 +649,8 @@
   <data name="ToolbarMoveLeft" xml:space="preserve"><value>Di chuyển sang trái</value></data>
   <data name="ToolbarMoveRight" xml:space="preserve"><value>Di chuyển sang phải</value></data>
   <data name="LastPageReached" xml:space="preserve"><value>Đây là trang cuối cùng.</value></data>
+  <data name="KeepInTray" xml:space="preserve"><value>Giữ trong khay hệ thống</value></data>
+  <data name="KeepInTrayTooltip" xml:space="preserve"><value>Khi bật, đóng cửa sổ sẽ giữ Uviewer chạy trong khay hệ thống.</value></data>
+  <data name="TrayOpen" xml:space="preserve"><value>Mở</value></data>
+  <data name="TrayExit" xml:space="preserve"><value>Đóng</value></data>
 </root>

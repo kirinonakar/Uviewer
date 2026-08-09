@@ -21,6 +21,7 @@ namespace Uviewer.Controls
         public event EventHandler<string>? LanguageSelected;
         public event EventHandler<bool>? MatchControlDirectionChanged;
         public event EventHandler<bool>? AllowMultipleInstancesChanged;
+        public event EventHandler<bool>? KeepInTrayChanged;
         public event EventHandler<bool>? AutoDoublePageForArchiveChanged;
         public event EventHandler? AboutRequested;
         public event EventHandler? GlobalThemeToggleRequested;
@@ -127,6 +128,7 @@ namespace Uviewer.Controls
             LangViItem.Click += LanguageItem_Click;
             MatchControlDirectionMenuItem.Click += (_, _) => MatchControlDirectionChanged?.Invoke(this, MatchControlDirectionMenuItem.IsChecked);
             AllowMultipleInstancesMenuItem.Click += (_, _) => AllowMultipleInstancesChanged?.Invoke(this, AllowMultipleInstancesMenuItem.IsChecked);
+            KeepInTrayMenuItem.Click += (_, _) => KeepInTrayChanged?.Invoke(this, KeepInTrayMenuItem.IsChecked);
             AutoDoublePageForArchiveMenuItem.Click += (_, _) => AutoDoublePageForArchiveChanged?.Invoke(this, AutoDoublePageForArchiveMenuItem.IsChecked);
             AboutMenuItem.Click += (_, _) => AboutRequested?.Invoke(this, EventArgs.Empty);
 
@@ -265,6 +267,8 @@ namespace Uviewer.Controls
             ToolTipService.SetToolTip(MatchControlDirectionMenuItem, Strings.MatchControlDirectionTooltip);
             AllowMultipleInstancesMenuItem.Text = Strings.AllowMultipleInstances;
             ToolTipService.SetToolTip(AllowMultipleInstancesMenuItem, Strings.AllowMultipleInstancesTooltip);
+            KeepInTrayMenuItem.Text = Strings.KeepInTray;
+            ToolTipService.SetToolTip(KeepInTrayMenuItem, Strings.KeepInTrayTooltip);
             AutoDoublePageForArchiveMenuItem.Text = Strings.AutoDoublePageForArchive;
             AboutMenuItem.Text = Strings.About;
 
@@ -319,17 +323,20 @@ namespace Uviewer.Controls
         public void SetWindowOptionStates(
             bool matchControlDirection,
             bool allowMultipleInstances,
+            bool keepInTray,
             bool autoDoublePageForArchive,
             bool alwaysOnTop)
         {
             MatchControlDirectionMenuItem.IsChecked = matchControlDirection;
             AllowMultipleInstancesMenuItem.IsChecked = allowMultipleInstances;
+            KeepInTrayMenuItem.IsChecked = keepInTray;
             AutoDoublePageForArchiveMenuItem.IsChecked = autoDoublePageForArchive;
             AlwaysOnTopButton.IsChecked = alwaysOnTop;
         }
 
         public void SetMatchControlDirection(bool value) => MatchControlDirectionMenuItem.IsChecked = value;
         public void SetAllowMultipleInstances(bool value) => AllowMultipleInstancesMenuItem.IsChecked = value;
+        public void SetKeepInTray(bool value) => KeepInTrayMenuItem.IsChecked = value;
         public void SetAutoDoublePageForArchive(bool value) => AutoDoublePageForArchiveMenuItem.IsChecked = value;
         public void SetAlwaysOnTopState(bool value) => AlwaysOnTopButton.IsChecked = value;
 

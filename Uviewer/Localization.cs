@@ -89,6 +89,10 @@ namespace Uviewer
         public static string MatchControlDirectionTooltip => GetString("MatchControlDirectionTooltip");
         public static string AllowMultipleInstances => GetString("AllowMultipleInstances");
         public static string AllowMultipleInstancesTooltip => GetString("AllowMultipleInstancesTooltip");
+        public static string KeepInTray => GetString("KeepInTray");
+        public static string KeepInTrayTooltip => GetString("KeepInTrayTooltip");
+        public static string TrayOpen => GetString("TrayOpen");
+        public static string TrayExit => GetString("TrayExit");
         public static string CurrentPathPlaceholder => GetString("CurrentPathPlaceholder");
         public static string EmptyStateDrag => GetString("EmptyStateDrag");
         public static string EmptyStateClick => GetString("EmptyStateClick");

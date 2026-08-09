@@ -207,6 +207,9 @@ namespace Uviewer
         }
 
         private bool _allowMultipleInstances = true;
+        private bool _keepInTray;
+        private bool _trayExitRequested;
+        private Services.TrayIconService? _trayIconService;
         private bool _isRegistered = false;
         private double _explorerThumbnailSize = 80;
         private bool _showFolderThumbnails = false;
