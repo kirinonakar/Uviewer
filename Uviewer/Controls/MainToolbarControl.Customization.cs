@@ -266,16 +266,22 @@ namespace Uviewer.Controls
                 return;
             }
 
-            MainToolbarOverflowButton.Visibility = Visibility.Visible;
             var candidates = RightToolbarPanel.Children
                 .OfType<FrameworkElement>()
-                .Where(element => element.Visibility == Visibility.Visible)
+                .Where(element => element.Visibility == Visibility.Visible && !IsPinnedRightToolbarItem(element))
                 .Reverse()
                 .Concat(LeftToolbarPanel.Children
                     .OfType<FrameworkElement>()
-                    .Where(element => element.Visibility == Visibility.Visible)
+                    .Where(element => element.Visibility == Visibility.Visible && !IsPinnedRightToolbarItem(element))
                     .Reverse())
                 .ToList();
+
+            if (candidates.Count == 0)
+            {
+                return;
+            }
+
+            MainToolbarOverflowButton.Visibility = Visibility.Visible;
 
             foreach (FrameworkElement element in candidates)
             {
@@ -291,6 +297,9 @@ namespace Uviewer.Controls
                 displayOrder,
                 _toolbarOverflowPresentations);
         }
+
+        private bool IsPinnedRightToolbarItem(FrameworkElement element) =>
+            element == FullscreenButton || element == CloseWindowButton;
 
         private double MeasureToolbarWidth(bool includeOverflowButton)
         {
