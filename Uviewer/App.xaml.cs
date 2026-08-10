@@ -356,7 +356,7 @@ namespace Uviewer
             try
             {
                 var settings = _appSettingsService.LoadSettings();
-                _allowMultipleInstances = settings.AllowMultipleInstances;
+                _allowMultipleInstances = settings.KeepInTray ? false : settings.AllowMultipleInstances;
                 _isRegistered = settings.IsRegistered;
             }
             catch { }

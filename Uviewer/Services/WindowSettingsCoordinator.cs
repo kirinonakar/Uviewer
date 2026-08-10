@@ -40,8 +40,8 @@ namespace Uviewer.Services
             _host.NextImageOnRight = settings.NextImageOnRight;
             _host.SetTheme(settings.Theme);
             _host.MatchControlDirection = settings.MatchControlDirection;
-            _host.AllowMultipleInstances = settings.AllowMultipleInstances;
             _host.KeepInTray = settings.KeepInTray;
+            _host.AllowMultipleInstances = settings.KeepInTray ? false : settings.AllowMultipleInstances;
             windowState.IsSidebarVisible = settings.IsSidebarVisible;
             windowState.IsPinned = settings.IsPinned;
             windowState.IsAlwaysOnTop = settings.IsAlwaysOnTop;
@@ -89,7 +89,7 @@ namespace Uviewer.Services
                 NextImageOnRight = _host.NextImageOnRight,
                 Theme = _host.CurrentTheme,
                 MatchControlDirection = _host.MatchControlDirection,
-                AllowMultipleInstances = _host.AllowMultipleInstances,
+                AllowMultipleInstances = _host.KeepInTray ? false : _host.AllowMultipleInstances,
                 KeepInTray = _host.KeepInTray,
                 IsSidebarVisible = windowState.IsSidebarVisible,
                 IsPinned = windowState.IsPinned,

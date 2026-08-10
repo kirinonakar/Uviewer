@@ -52,6 +52,7 @@
 
 #### ⚙️ Multiple Instances
 - **Allow Multiple Instances**: When enabled, each file opens in a new window instance. When disabled, files open in the already running instance using inter-process communication (NamedPipe).
+- **Keep in System Tray Compatibility**: Multiple instances are disabled automatically while **Keep in System Tray** is enabled, so new files are opened by the running tray instance.
 
 #### 🔔 Keep in System Tray
 - **Keep in System Tray**: Enable this option in the Settings menu to keep Uviewer running when the window is closed. The window is hidden in the system tray instead of terminating the process.

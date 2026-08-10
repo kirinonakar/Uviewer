@@ -88,6 +88,7 @@ namespace Uviewer.Controls
             ApplyImageOptionsDataContext();
             HookEvents();
             InitializeToolbarCustomization();
+            UpdateInstanceOptionState();
         }
 
         private static void OnImageOptionsChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
@@ -330,17 +331,38 @@ namespace Uviewer.Controls
             bool alwaysOnTop)
         {
             MatchControlDirectionMenuItem.IsChecked = matchControlDirection;
-            AllowMultipleInstancesMenuItem.IsChecked = allowMultipleInstances;
             KeepInTrayMenuItem.IsChecked = keepInTray;
+            AllowMultipleInstancesMenuItem.IsChecked = keepInTray ? false : allowMultipleInstances;
             AutoDoublePageForArchiveMenuItem.IsChecked = autoDoublePageForArchive;
             AlwaysOnTopButton.IsChecked = alwaysOnTop;
+            UpdateInstanceOptionState();
         }
 
         public void SetMatchControlDirection(bool value) => MatchControlDirectionMenuItem.IsChecked = value;
-        public void SetAllowMultipleInstances(bool value) => AllowMultipleInstancesMenuItem.IsChecked = value;
-        public void SetKeepInTray(bool value) => KeepInTrayMenuItem.IsChecked = value;
+        public void SetAllowMultipleInstances(bool value)
+        {
+            AllowMultipleInstancesMenuItem.IsChecked = KeepInTrayMenuItem.IsChecked == true ? false : value;
+        }
+
+        public void SetKeepInTray(bool value)
+        {
+            KeepInTrayMenuItem.IsChecked = value;
+            UpdateInstanceOptionState();
+        }
+
         public void SetAutoDoublePageForArchive(bool value) => AutoDoublePageForArchiveMenuItem.IsChecked = value;
         public void SetAlwaysOnTopState(bool value) => AlwaysOnTopButton.IsChecked = value;
+
+        private void UpdateInstanceOptionState()
+        {
+            bool keepInTray = KeepInTrayMenuItem.IsChecked == true;
+            AllowMultipleInstancesMenuItem.IsEnabled = !keepInTray;
+
+            if (keepInTray)
+            {
+                AllowMultipleInstancesMenuItem.IsChecked = false;
+            }
+        }
 
         private string _externalProgramPath = "";
 

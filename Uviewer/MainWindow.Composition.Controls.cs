@@ -30,12 +30,20 @@ namespace Uviewer
                             },
                             SetAllowMultipleInstances = isChecked =>
                             {
-                                window._allowMultipleInstances = isChecked;
+                                window._allowMultipleInstances = window._keepInTray ? false : isChecked;
+                                window.MainToolbar.SetAllowMultipleInstances(window._allowMultipleInstances);
                                 window._windowSettingsCoordinator.SaveWindowSettings();
                             },
                             SetKeepInTray = isChecked =>
                             {
                                 window._keepInTray = isChecked;
+                                if (isChecked)
+                                {
+                                    window._allowMultipleInstances = false;
+                                }
+
+                                window.MainToolbar.SetKeepInTray(isChecked);
+                                window.MainToolbar.SetAllowMultipleInstances(window._allowMultipleInstances);
                                 window.UpdateTrayIconVisibility();
                                 window._windowSettingsCoordinator.SaveWindowSettings();
                             },

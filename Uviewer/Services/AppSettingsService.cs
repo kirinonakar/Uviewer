@@ -169,6 +169,11 @@ namespace Uviewer.Services
                 settings.ExternalProgramPath = AppSettings.DefaultExternalProgramPath;
             }
 
+            if (settings.KeepInTray)
+            {
+                settings.AllowMultipleInstances = false;
+            }
+
             return settings;
         }
 
@@ -229,7 +234,7 @@ namespace Uviewer.Services
                 App = new AppBehaviorSettings
                 {
                     Theme = (int)settings.Theme,
-                    AllowMultipleInstances = settings.AllowMultipleInstances,
+                    AllowMultipleInstances = settings.KeepInTray ? false : settings.AllowMultipleInstances,
                     KeepInTray = settings.KeepInTray,
                     AlwaysOnTop = settings.IsAlwaysOnTop,
                     Registered = settings.IsRegistered
