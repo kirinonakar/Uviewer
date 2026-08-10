@@ -310,6 +310,9 @@
   <data name="AddToFavorites" xml:space="preserve">
     <value>➕ Thêm vào Yêu thích (Ctrl+S)</value>
   </data>
+  <data name="AddToFavoritesContext" xml:space="preserve">
+    <value>Thêm vào Yêu thích</value>
+  </data>
   <data name="DialogTitle" xml:space="preserve">
     <value>Đến dòng</value>
   </data>

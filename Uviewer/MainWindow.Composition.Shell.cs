@@ -78,16 +78,17 @@ namespace Uviewer
                 public static void InitializeExplorerAndBookmarks(MainWindow window)
                 {
                     window._explorerController = new ExplorerController(window._explorerState, window._thumbnailService, window.DispatcherQueue);
+                    window._bookmarkPanelController = new BookmarkPanelController(window._bookmarkPanelState, window._favoritesService, window._recentService);
+                    window._favoritesController = new FavoritesController(window._favoritesService, window._bookmarkPanelController);
+                    window._recentController = new RecentController(window._recentService, window._bookmarkPanelController);
                     var hwnd = WinRT.Interop.WindowNative.GetWindowHandle(window);
                     window._explorerSidebarController = new ExplorerSidebarController(
                         window._explorerController,
                         window._explorerItemOperationController,
                         new ExplorerSidebarHostAdapter(window),
+                        window._favoritesController,
                         hwnd);
                     window._explorerSidebarController.InitializeContextMenus();
-                    window._bookmarkPanelController = new BookmarkPanelController(window._bookmarkPanelState, window._favoritesService, window._recentService);
-                    window._favoritesController = new FavoritesController(window._favoritesService, window._bookmarkPanelController);
-                    window._recentController = new RecentController(window._recentService, window._bookmarkPanelController);
                     window._bookmarkNavigationHost = new BookmarkNavigationHostAdapter(window);
                     var bookmarkCaptureContextFactory = CreateBookmarkCaptureContextFactory(window);
                     window._bookmarkInteractionController = new BookmarkInteractionController(

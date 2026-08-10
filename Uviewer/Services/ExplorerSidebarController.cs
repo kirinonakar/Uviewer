@@ -24,6 +24,7 @@ namespace Uviewer.Services
         string? CurrentExplorerPath { get; }
         bool IsWebDavMode { get; }
         string? CurrentWebDavPath { get; }
+        string? WebDavServerName { get; }
         double ExplorerThumbnailSize { get; set; }
         bool ShowFolderThumbnails { get; set; }
         FileItem? ExplorerContextItem { get; set; }
@@ -57,6 +58,7 @@ namespace Uviewer.Services
     {
         private readonly ExplorerController _explorerController;
         private readonly ExplorerItemOperationController _itemOperationController;
+        private readonly FavoritesController _favoritesController;
         private readonly IExplorerSidebarHost _host;
         private readonly IntPtr _windowHandle;
 
@@ -64,10 +66,12 @@ namespace Uviewer.Services
             ExplorerController explorerController,
             ExplorerItemOperationController itemOperationController,
             IExplorerSidebarHost host,
+            FavoritesController favoritesController,
             IntPtr windowHandle)
         {
             _explorerController = explorerController ?? throw new ArgumentNullException(nameof(explorerController));
             _itemOperationController = itemOperationController ?? throw new ArgumentNullException(nameof(itemOperationController));
+            _favoritesController = favoritesController ?? throw new ArgumentNullException(nameof(favoritesController));
             _host = host ?? throw new ArgumentNullException(nameof(host));
             _windowHandle = windowHandle;
         }
@@ -178,6 +182,7 @@ namespace Uviewer.Services
             var openExternalItem = new MenuFlyoutItem { Text = Strings.ExplorerOpenExternal, Icon = new FontIcon { Glyph = "\uE8E5" } };
             var openDefaultItem = new MenuFlyoutItem { Text = Strings.ExplorerOpenDefault, Icon = new FontIcon { Glyph = "\uE8E5" } };
             var openExplorerItem = new MenuFlyoutItem { Text = Strings.ExplorerOpenInWindowsExplorer, Icon = new FontIcon { Glyph = "\uED25" } };
+            var addToFavoritesItem = new MenuFlyoutItem { Text = Strings.AddToFavoritesContext, Icon = new FontIcon { Glyph = "\uE734" } };
             var refreshItem = new MenuFlyoutItem { Text = Strings.ExplorerRefresh, Icon = new FontIcon { Glyph = "\uE72C" } };
             var renameItem = new MenuFlyoutItem { Text = Strings.ExplorerRename, Icon = new FontIcon { Glyph = "\uE8AC" } };
             var deleteItem = new MenuFlyoutItem { Text = Strings.ExplorerDelete, Icon = new FontIcon { Glyph = "\uE74D" } };
@@ -185,6 +190,7 @@ namespace Uviewer.Services
             openExternalItem.Click += async (_, _) => await _itemOperationController.OpenWithExternalProgramAsync(GetContextItem());
             openDefaultItem.Click += (_, _) => _itemOperationController.OpenWithDefaultProgram(GetContextItem());
             openExplorerItem.Click += (_, _) => _itemOperationController.OpenInWindowsExplorer(GetContextItem());
+            addToFavoritesItem.Click += async (_, _) => await AddToFavoritesAsync();
             refreshItem.Click += (_, _) => Refresh();
             renameItem.Click += async (_, _) => await _itemOperationController.RenameAsync(GetContextItem());
             deleteItem.Click += async (_, _) => await _itemOperationController.DeleteAsync(GetContextItem());
@@ -199,6 +205,7 @@ namespace Uviewer.Services
                 openExternalItem.IsEnabled = canOpen;
                 openDefaultItem.IsEnabled = canOpen;
                 openExplorerItem.IsEnabled = hasLocalItem;
+                addToFavoritesItem.IsEnabled = item != null && !item.IsParentDirectory;
                 renameItem.IsEnabled = canModify;
                 deleteItem.IsEnabled = canModify;
             };
@@ -206,6 +213,7 @@ namespace Uviewer.Services
             flyout.Items.Add(openExternalItem);
             flyout.Items.Add(openDefaultItem);
             flyout.Items.Add(openExplorerItem);
+            flyout.Items.Add(addToFavoritesItem);
             flyout.Items.Add(new MenuFlyoutSeparator());
             flyout.Items.Add(refreshItem);
             flyout.Items.Add(new MenuFlyoutSeparator());
@@ -231,6 +239,27 @@ namespace Uviewer.Services
             return _host.FileGridView.Visibility == Visibility.Visible
                 ? _host.FileGridView.SelectedItem as FileItem
                 : _host.FileListView.SelectedItem as FileItem;
+        }
+
+        private async Task AddToFavoritesAsync()
+        {
+            try
+            {
+                var item = GetContextItem();
+                if (item == null || item.IsParentDirectory) return;
+
+                var result = await _favoritesController.AddItemAsync(item, _host.WebDavServerName);
+                if (result == FavoriteSaveResult.Added)
+                {
+                    _host.ShowNotification(Strings.AddedToFavoritesNotification, "\uE735", "Gold");
+                }
+            }
+            catch (OperationCanceledException) { }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error adding sidebar item to favorites: {ex.Message}");
+                _host.ShowNotification($"{ex.Message}", "\uE783", "Red");
+            }
         }
 
         public void HandleThumbnailSizeChanged(double newValue)

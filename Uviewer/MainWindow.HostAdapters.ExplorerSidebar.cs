@@ -27,6 +27,7 @@ namespace Uviewer
             public string? CurrentExplorerPath => _window._currentExplorerPath;
             public bool IsWebDavMode => _window._isWebDavMode;
             public string? CurrentWebDavPath => _window._currentWebDavPath;
+            public string? WebDavServerName => _window._webDavService.CurrentServer?.ServerName;
             public double ExplorerThumbnailSize
             {
                 get => _window._explorerThumbnailSize;

@@ -53,6 +53,35 @@ namespace Uviewer.Services
             return saveResult;
         }
 
+        public async Task<FavoriteSaveResult?> AddItemAsync(FileItem item, string? webDavServerName)
+        {
+            if (item == null || item.IsParentDirectory) return null;
+
+            string path = item.IsWebDav && !string.IsNullOrEmpty(item.WebDavPath)
+                ? item.WebDavPath
+                : item.FullPath;
+            if (string.IsNullOrEmpty(path)) return null;
+
+            if (!item.IsWebDav)
+            {
+                bool exists = item.IsDirectory ? Directory.Exists(path) : File.Exists(path);
+                if (!exists) return null;
+            }
+
+            var favorite = new FavoriteItem
+            {
+                Name = item.Name,
+                Path = path,
+                Type = item.IsDirectory ? "Folder" : "File",
+                IsWebDav = item.IsWebDav,
+                WebDavServerName = item.IsWebDav ? webDavServerName : null
+            };
+
+            FavoriteSaveResult saveResult = await _favoritesService.AddOrUpdateFavoriteAsync(favorite, true);
+            RefreshFavorites();
+            return saveResult;
+        }
+
         public async Task RemoveAsync(FavoriteItem favorite)
         {
             Debug.WriteLine($"Removing favorite: {favorite.Name}");

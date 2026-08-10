@@ -310,6 +310,9 @@
   <data name="AddToFavorites" xml:space="preserve">
     <value>➕ Add to Favorites (Ctrl+S)</value>
   </data>
+  <data name="AddToFavoritesContext" xml:space="preserve">
+    <value>Add to Favorites</value>
+  </data>
   <data name="DialogTitle" xml:space="preserve">
     <value>Go to Line</value>
   </data>

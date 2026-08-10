@@ -108,6 +108,7 @@ namespace Uviewer
         public static string FavoritePositionUpdatedNotification => GetString("FavoritePositionUpdatedNotification");
         public static string Loading => GetString("Loading");
         public static string AddToFavorites => GetString("AddToFavorites");
+        public static string AddToFavoritesContext => GetString("AddToFavoritesContext");
         public static string DialogTitle => GetString("DialogTitle");
         public static string DialogPrimary => GetString("DialogPrimary");
         public static string DialogClose => GetString("DialogClose");

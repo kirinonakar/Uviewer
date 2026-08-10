@@ -310,6 +310,9 @@
   <data name="AddToFavorites" xml:space="preserve">
     <value>➕ お気に入りに追加(Ctrl+S)</value>
   </data>
+  <data name="AddToFavoritesContext" xml:space="preserve">
+    <value>お気に入りに追加</value>
+  </data>
   <data name="DialogTitle" xml:space="preserve">
     <value>行移動</value>
   </data>

@@ -310,6 +310,9 @@
   <data name="AddToFavorites" xml:space="preserve">
     <value>➕ 즐겨찾기 추가(Ctrl+S)</value>
   </data>
+  <data name="AddToFavoritesContext" xml:space="preserve">
+    <value>즐겨찾기 추가</value>
+  </data>
   <data name="DialogTitle" xml:space="preserve">
     <value>줄 이동</value>
   </data>
