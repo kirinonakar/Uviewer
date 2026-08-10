@@ -4,6 +4,7 @@ using Microsoft.Graphics.Canvas.UI.Xaml;
 using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml;
 using System;
+using System.Buffers.Binary;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
@@ -29,7 +30,10 @@ namespace Uviewer.Services
         private int _animatedWebpHeight;
         private const int DefaultWebpFrameDelayMs = 30;
         private volatile bool _isDecodingAnimatedImage = false;
+        private int _animationGeneration;
 
+        private readonly object _animatedWebpBitmapCacheLock = new();
+        private readonly Dictionary<int, CanvasBitmap> _animatedWebpFrameCache = new();
         private readonly Dictionary<int, CanvasBitmap> _animatedWebpSharpenedCache = new();
         private CanvasControl? _currentCanvas;
         
@@ -66,6 +70,7 @@ namespace Uviewer.Services
 
         public void Stop()
         {
+            Interlocked.Increment(ref _animationGeneration);
             _isDecodingAnimatedImage = false; // 진행 중인 백그라운드 디코딩 중지
             
             _animatedWebpTimer?.Stop();
@@ -88,9 +93,13 @@ namespace Uviewer.Services
             RaiseAnimationStopped();
 
             List<CanvasBitmap> bitmapsToDispose;
-            lock (_animatedWebpSharpenedCache)
+            lock (_animatedWebpBitmapCacheLock)
             {
-                bitmapsToDispose = _animatedWebpSharpenedCache.Values.Distinct().ToList();
+                bitmapsToDispose = _animatedWebpFrameCache.Values
+                    .Concat(_animatedWebpSharpenedCache.Values)
+                    .Distinct()
+                    .ToList();
+                _animatedWebpFrameCache.Clear();
                 _animatedWebpSharpenedCache.Clear();
             }
 
@@ -145,6 +154,7 @@ namespace Uviewer.Services
             float upscaleFactor, float sharpenAmount, float sharpenThreshold, float unsharpAmount, float unsharpRadius, bool sharpenEnabled)
         {
             Stop();
+            int animationGeneration = Volatile.Read(ref _animationGeneration);
             _currentCanvas = canvas;
             _upscaleFactor = upscaleFactor;
             _sharpenAmountParam = sharpenAmount;
@@ -163,8 +173,15 @@ namespace Uviewer.Services
 
                 if (imageBytes == null || token.IsCancellationRequested) return;
 
-                var (framePixels, delaysMs, w, h) = await TryLoadAnimatedImageFramesNativeAsync(imageBytes);
-                if (framePixels != null && !token.IsCancellationRequested)
+                var webpFrameDelaysMs = TryReadWebpFrameDelays(imageBytes);
+                var (framePixels, delaysMs, w, h) = await TryLoadAnimatedImageFramesNativeAsync(
+                    imageBytes,
+                    webpFrameDelaysMs,
+                    canvas,
+                    animationGeneration);
+                if (framePixels != null
+                    && !token.IsCancellationRequested
+                    && animationGeneration == Volatile.Read(ref _animationGeneration))
                 {
                     _animatedWebpFramePixels = framePixels;
                     _animatedWebpDelaysMs = delaysMs;
@@ -173,7 +190,8 @@ namespace Uviewer.Services
 
                     _dispatcherQueue.TryEnqueue(() =>
                     {
-                        if (!token.IsCancellationRequested)
+                        if (!token.IsCancellationRequested
+                            && animationGeneration == Volatile.Read(ref _animationGeneration))
                         {
                             StartAnimatedWebpTimer();
                         }
@@ -189,11 +207,24 @@ namespace Uviewer.Services
 
         private void StartAnimatedWebpTimer()
         {
-            if (_animatedWebpFramePixels == null || _animatedWebpDelaysMs == null || _animatedWebpFramePixels.Count == 0)
+            var framePixels = _animatedWebpFramePixels;
+            var delaysMs = _animatedWebpDelaysMs;
+            var canvas = _currentCanvas;
+            if (framePixels == null || delaysMs == null || canvas == null || framePixels.Count == 0)
                 return;
 
+            PrimeFrameBitmapCache();
+
+            if (_animatedWebpFramePixels != framePixels
+                || _animatedWebpDelaysMs != delaysMs
+                || _currentCanvas != canvas
+                || _animatedWebpFrameIndex >= delaysMs.Count)
+            {
+                return;
+            }
+
             _animatedWebpTimer = _dispatcherQueue.CreateTimer();
-            _animatedWebpTimer.Interval = TimeSpan.FromMilliseconds(_animatedWebpDelaysMs[_animatedWebpFrameIndex]);
+            _animatedWebpTimer.Interval = TimeSpan.FromMilliseconds(delaysMs[_animatedWebpFrameIndex]);
             _animatedWebpTimer.Tick += AnimatedWebpTimer_Tick;
             _animatedWebpTimer.Start();
         }
@@ -242,7 +273,7 @@ namespace Uviewer.Services
 
                 if (_sharpenEnabled)
                 {
-                    lock (_animatedWebpSharpenedCache)
+                    lock (_animatedWebpBitmapCacheLock)
                     {
                         if (_animatedWebpSharpenedCache.TryGetValue(_animatedWebpFrameIndex, out var cached))
                         {
@@ -252,26 +283,37 @@ namespace Uviewer.Services
 
                     if (newBitmap == null)
                     {
-                        using var originalBitmap = CanvasBitmap.CreateFromBytes(
-                            canvas,
-                            framePixels[_animatedWebpFrameIndex],
-                            _animatedWebpWidth,
-                            _animatedWebpHeight,
-                            DirectXPixelFormat.B8G8R8A8UIntNormalized);
+                        var originalBitmap = GetOrCreateFrameBitmap(canvas, framePixels, _animatedWebpFrameIndex);
+                        if (originalBitmap == null) return;
 
                         newBitmap = await _sharpeningService.ApplySharpenToBitmapAsync(originalBitmap, _upscaleFactor, _sharpenAmountParam, _sharpenThresholdParam, _unsharpAmount, _unsharpRadius, skipUpscale: false);
 
-                        if (_animatedWebpFramePixels == null || _currentCanvas == null)
+                        if (_animatedWebpFramePixels != framePixels || _currentCanvas != canvas)
                         {
-                            newBitmap?.Dispose();
+                            if (newBitmap != null && !ReferenceEquals(newBitmap, originalBitmap))
+                            {
+                                newBitmap.Dispose();
+                            }
                             return;
                         }
 
                         if (newBitmap != null)
                         {
-                            lock (_animatedWebpSharpenedCache)
+                            lock (_animatedWebpBitmapCacheLock)
                             {
-                                _animatedWebpSharpenedCache[_animatedWebpFrameIndex] = newBitmap;
+                                if (_animatedWebpFramePixels == framePixels && _currentCanvas == canvas)
+                                {
+                                    _animatedWebpSharpenedCache[_animatedWebpFrameIndex] = newBitmap;
+                                }
+                                else if (!ReferenceEquals(newBitmap, originalBitmap))
+                                {
+                                    newBitmap.Dispose();
+                                    return;
+                                }
+                                else
+                                {
+                                    return;
+                                }
                             }
                         }
                     }
@@ -279,15 +321,13 @@ namespace Uviewer.Services
 
                 if (newBitmap == null)
                 {
-                    newBitmap = CanvasBitmap.CreateFromBytes(
-                        canvas,
-                        framePixels[_animatedWebpFrameIndex],
-                        _animatedWebpWidth,
-                        _animatedWebpHeight,
-                        DirectXPixelFormat.B8G8R8A8UIntNormalized);
+                    newBitmap = GetOrCreateFrameBitmap(canvas, framePixels, _animatedWebpFrameIndex);
                 }
 
-                FrameUpdated?.Invoke(this, newBitmap);
+                if (newBitmap != null)
+                {
+                    FrameUpdated?.Invoke(this, newBitmap);
+                }
             }
             catch (Exception ex)
             {
@@ -310,13 +350,74 @@ namespace Uviewer.Services
         public bool IsBitmapInCache(CanvasBitmap bitmap)
         {
             if (bitmap == null) return false;
-            lock (_animatedWebpSharpenedCache)
+            lock (_animatedWebpBitmapCacheLock)
             {
-                return _animatedWebpSharpenedCache.ContainsValue(bitmap);
+                return _animatedWebpFrameCache.ContainsValue(bitmap)
+                    || _animatedWebpSharpenedCache.ContainsValue(bitmap);
             }
         }
 
-        private async Task<(List<byte[]>? framePixels, List<int>? delaysMs, int width, int height)> TryLoadAnimatedImageFramesNativeAsync(byte[] imageBytes)
+        private CanvasBitmap? GetOrCreateFrameBitmap(CanvasControl canvas, List<byte[]> framePixels, int frameIndex)
+        {
+            lock (_animatedWebpBitmapCacheLock)
+            {
+                if (_animatedWebpFramePixels != framePixels || _currentCanvas != canvas)
+                {
+                    return null;
+                }
+
+                if (_animatedWebpFrameCache.TryGetValue(frameIndex, out var cached))
+                {
+                    return cached;
+                }
+            }
+
+            var created = CanvasBitmap.CreateFromBytes(
+                canvas,
+                framePixels[frameIndex],
+                _animatedWebpWidth,
+                _animatedWebpHeight,
+                DirectXPixelFormat.B8G8R8A8UIntNormalized);
+
+            lock (_animatedWebpBitmapCacheLock)
+            {
+                if (_animatedWebpFramePixels != framePixels || _currentCanvas != canvas)
+                {
+                    created.Dispose();
+                    return null;
+                }
+
+                if (_animatedWebpFrameCache.TryGetValue(frameIndex, out var cached))
+                {
+                    created.Dispose();
+                    return cached;
+                }
+
+                _animatedWebpFrameCache[frameIndex] = created;
+                return created;
+            }
+        }
+
+        private void PrimeFrameBitmapCache()
+        {
+            var framePixels = _animatedWebpFramePixels;
+            var canvas = _currentCanvas;
+            if (framePixels == null || canvas == null) return;
+
+            for (int i = 0; i < framePixels.Count; i++)
+            {
+                if (GetOrCreateFrameBitmap(canvas, framePixels, i) == null)
+                {
+                    return;
+                }
+            }
+        }
+
+        private async Task<(List<byte[]>? framePixels, List<int>? delaysMs, int width, int height)> TryLoadAnimatedImageFramesNativeAsync(
+            byte[] imageBytes,
+            IReadOnlyList<int>? webpFrameDelaysMs,
+            CanvasControl canvas,
+            int animationGeneration)
         {
             try
             {
@@ -344,12 +445,21 @@ namespace Uviewer.Services
                     {
                         ds.Clear(Windows.UI.Color.FromArgb(0, 0, 0, 0));
                     }
-                    var (delay0, disposal0, rect0) = await DecodeAndDrawSingleFrameAsync(decoder, 0, renderTarget);
+                    var (delay0, disposal0, rect0) = await DecodeAndDrawSingleFrameAsync(
+                        decoder,
+                        0,
+                        renderTarget,
+                        GetFrameDelay(webpFrameDelaysMs, 0));
                     delaysMs.Add(delay0);
                     framePixels.Add(renderTarget.GetPixelBytes());
 
                     initialDisposal = disposal0;
                     initialRect = rect0;
+                }
+
+                if (animationGeneration != Volatile.Read(ref _animationGeneration))
+                {
+                    return (null, null, 0, 0);
                 }
 
                 _isDecodingAnimatedImage = true;
@@ -377,7 +487,7 @@ namespace Uviewer.Services
 
                         for (uint i = 1; i < decoder.FrameCount; i++)
                         {
-                            if (!_isDecodingAnimatedImage) break;
+                            if (animationGeneration != Volatile.Read(ref _animationGeneration)) break;
 
                             if (previousDisposal == 2)
                             {
@@ -402,7 +512,11 @@ namespace Uviewer.Services
                                 ds.DrawImage(bgRenderTarget);
                             }
 
-                            var (delay, disposal, rect) = await DecodeAndDrawSingleFrameAsync(decoder, i, bgRenderTarget);
+                            var (delay, disposal, rect) = await DecodeAndDrawSingleFrameAsync(
+                                decoder,
+                                i,
+                                bgRenderTarget,
+                                GetFrameDelay(webpFrameDelaysMs, i));
                             var pixels = bgRenderTarget.GetPixelBytes();
 
                             previousDisposal = disposal;
@@ -410,16 +524,27 @@ namespace Uviewer.Services
 
                             _dispatcherQueue.TryEnqueue(() =>
                             {
-                                if (_isDecodingAnimatedImage)
+                                if (animationGeneration == Volatile.Read(ref _animationGeneration))
                                 {
                                     delaysMs.Add(delay);
                                     framePixels.Add(pixels);
+
+                                    if (_animatedWebpFramePixels == framePixels && _currentCanvas == canvas)
+                                    {
+                                        GetOrCreateFrameBitmap(canvas, framePixels, framePixels.Count - 1);
+                                    }
                                 }
                             });
                         }
                     }
                     catch (Exception ex) { Debug.WriteLine($"Bg Decode Error: {ex.Message}"); }
-                    finally { _isDecodingAnimatedImage = false; }
+                    finally
+                    {
+                        if (animationGeneration == Volatile.Read(ref _animationGeneration))
+                        {
+                            _isDecodingAnimatedImage = false;
+                        }
+                    }
                 });
 
                 return (framePixels, delaysMs, w, h);
@@ -434,10 +559,11 @@ namespace Uviewer.Services
         private async Task<(int delayMs, int disposal, Windows.Foundation.Rect frameRect)> DecodeAndDrawSingleFrameAsync(
             BitmapDecoder decoder, 
             uint frameIndex, 
-            CanvasRenderTarget renderTarget)
+            CanvasRenderTarget renderTarget,
+            int? encodedWebpDelayMs)
         {
             var frame = await decoder.GetFrameAsync(frameIndex);
-            int delayMs = DefaultWebpFrameDelayMs;
+            int delayMs = encodedWebpDelayMs ?? DefaultWebpFrameDelayMs;
             int disposal = 0; 
             double offsetX = 0, offsetY = 0;
 
@@ -452,8 +578,11 @@ namespace Uviewer.Services
                     {
                         if (propName == "/grctlext/Delay")
                         {
-                            int delay10ms = Convert.ToInt32(p.Value);
-                            if (delay10ms > 1) delayMs = delay10ms * 10;
+                            if (!encodedWebpDelayMs.HasValue)
+                            {
+                                int delay10ms = Convert.ToInt32(p.Value);
+                                if (delay10ms > 1) delayMs = delay10ms * 10;
+                            }
                         }
                         else if (propName == "/imgdesc/Left") offsetX = Convert.ToDouble(p.Value);
                         else if (propName == "/imgdesc/Top") offsetY = Convert.ToDouble(p.Value);
@@ -476,6 +605,66 @@ namespace Uviewer.Services
             }
 
             return (delayMs, disposal, frameRect);
+        }
+
+        private static int? GetFrameDelay(IReadOnlyList<int>? frameDelaysMs, uint frameIndex)
+        {
+            if (frameDelaysMs == null || frameIndex >= frameDelaysMs.Count)
+            {
+                return null;
+            }
+
+            return frameDelaysMs[(int)frameIndex];
+        }
+
+        private static IReadOnlyList<int>? TryReadWebpFrameDelays(byte[] imageBytes)
+        {
+            if (imageBytes.Length < 12
+                || !MatchesFourCc(imageBytes, 0, "RIFF")
+                || !MatchesFourCc(imageBytes, 8, "WEBP"))
+            {
+                return null;
+            }
+
+            var delaysMs = new List<int>();
+            int chunkOffset = 12;
+
+            while (chunkOffset <= imageBytes.Length - 8)
+            {
+                uint chunkSize = BinaryPrimitives.ReadUInt32LittleEndian(imageBytes.AsSpan(chunkOffset + 4, 4));
+                long chunkDataOffset = chunkOffset + 8L;
+                long nextChunkOffset = chunkDataOffset + chunkSize + (chunkSize & 1u);
+
+                if (chunkDataOffset + chunkSize > imageBytes.Length || nextChunkOffset > int.MaxValue)
+                {
+                    return null;
+                }
+
+                if (MatchesFourCc(imageBytes, chunkOffset, "ANMF") && chunkSize >= 16)
+                {
+                    int durationOffset = (int)chunkDataOffset + 12;
+                    int durationMs = imageBytes[durationOffset]
+                        | (imageBytes[durationOffset + 1] << 8)
+                        | (imageBytes[durationOffset + 2] << 16);
+
+                    delaysMs.Add(durationMs > 0 ? durationMs : DefaultWebpFrameDelayMs);
+                }
+
+                chunkOffset = (int)nextChunkOffset;
+            }
+
+            return delaysMs.Count > 0 ? delaysMs : null;
+        }
+
+        private static bool MatchesFourCc(byte[] bytes, int offset, string fourCc)
+        {
+            return offset >= 0
+                && offset <= bytes.Length - 4
+                && fourCc.Length == 4
+                && bytes[offset] == fourCc[0]
+                && bytes[offset + 1] == fourCc[1]
+                && bytes[offset + 2] == fourCc[2]
+                && bytes[offset + 3] == fourCc[3];
         }
 
         public void Dispose()
