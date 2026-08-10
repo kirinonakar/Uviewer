@@ -291,6 +291,8 @@ namespace Uviewer.Services
         bool SharpenEnabled { get; }
         bool IsPdfMode { get; }
         bool IsWebDavMode { get; }
+        double WindowWidth { get; }
+        double WindowHeight { get; }
         CancellationTokenSource? ImageLoadingCts { get; set; }
 
         CanvasControl MainCanvas { get; }

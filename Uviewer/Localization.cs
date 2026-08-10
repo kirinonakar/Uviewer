@@ -184,6 +184,7 @@ namespace Uviewer
         public static string ExternalProgramBrowseButton => GetString("ExternalProgramBrowseButton");
         public static string ExternalProgramSaveButton => GetString("ExternalProgramSaveButton");
         public static string ToolbarCustomization => GetString("ToolbarCustomization");
+        public static string MoreCommandsTooltip => GetString("MoreCommandsTooltip");
         public static string ToolbarCustomizationDescription => GetString("ToolbarCustomizationDescription");
         public static string ToolbarApply => GetString("ToolbarApply");
         public static string ToolbarLeft => GetString("ToolbarLeft");

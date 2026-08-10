@@ -238,6 +238,7 @@ namespace Uviewer.Controls
             ToolTipService.SetToolTip(PdfTocButton, Strings.TocTooltip);
             ToolTipService.SetToolTip(PdfGoToPageButton, Strings.PdfGoToPageTooltip);
             ToolTipService.SetToolTip(SettingsButton, Strings.SettingsTooltip);
+            ToolTipService.SetToolTip(MainToolbarOverflowButton, Strings.MoreCommandsTooltip);
             ToolTipService.SetToolTip(PinButton, Strings.PinTooltip);
             ToolTipService.SetToolTip(AlwaysOnTopButton, Strings.AlwaysOnTopTooltip);
             ToolTipService.SetToolTip(PrevFileButton, Strings.PrevFileTooltip);
@@ -293,6 +294,7 @@ namespace Uviewer.Controls
             SharpenParamsResetButton.Content = Strings.ResetButton;
 
             Bindings.Update();
+            QueueToolbarOverflowUpdate();
         }
 
         public void SetEncodingSelection(string encodingName)

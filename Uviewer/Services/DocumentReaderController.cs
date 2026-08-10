@@ -154,6 +154,11 @@ namespace Uviewer
         internal bool _isWebDavMode => _appStateHost.IsWebDavMode;
         internal bool _isSideBySideMode { get => _imageNavigationHost.IsSideBySideMode; set => _imageNavigationHost.IsSideBySideMode = value; }
         internal bool _autoDoublePageForArchive => _imageNavigationHost.AutoDoublePageForArchive;
+        internal bool CanUseAutoDoublePageForCurrentWindow =>
+            _autoDoublePageForArchive &&
+            ImageDoublePageDecisionService.IsWindowWideEnoughForAutoDoublePage(
+                AppWindow.Size.Width,
+                AppWindow.Size.Height);
         internal bool _nextImageOnRight => _imageNavigationHost.NextImageOnRight;
         internal bool _isNavigatingRecent { get => _appStateHost.IsNavigatingRecent; set => _appStateHost.IsNavigatingRecent = value; }
         internal bool _sharpenEnabled => _imageNavigationHost.SharpenEnabled;

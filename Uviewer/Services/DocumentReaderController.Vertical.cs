@@ -478,7 +478,7 @@ namespace Uviewer
                         _settingsManager.FontFamily,
                         GetFontWeightForFamily,
                         DoesVerticalImageExist,
-                        _isSideBySideMode || _autoDoublePageForArchive,
+                        _isSideBySideMode || CanUseAutoDoublePageForCurrentWindow,
                         ShouldPairTextImage,
                         cancellationToken: token),
                     AozoraPageOrientation.Vertical,
@@ -513,7 +513,7 @@ namespace Uviewer
                     _settingsManager.FontFamily,
                     GetFontWeightForFamily,
                     DoesVerticalImageExist,
-                    _isSideBySideMode || _autoDoublePageForArchive,
+                    _isSideBySideMode || CanUseAutoDoublePageForCurrentWindow,
                     ShouldPairTextImage,
                     token));
         }

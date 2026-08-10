@@ -44,6 +44,8 @@ namespace Uviewer
             public bool SharpenEnabled => ImageState.IsSharpenEnabled;
             public bool IsPdfMode => Window._currentPdfDocument != null;
             public bool IsWebDavMode => Window._isWebDavMode;
+            public double WindowWidth => Window.AppWindow.Size.Width;
+            public double WindowHeight => Window.AppWindow.Size.Height;
             public CancellationTokenSource? ImageLoadingCts { get => ImageState.ImageLoadingCts; set => ImageState.ImageLoadingCts = value; }
 
             public CanvasControl MainCanvas => Window.MainCanvas;

@@ -21,6 +21,9 @@ namespace Uviewer.Controls
         private bool _isSharpenAvailable = true;
         private bool _isPdfTocAvailable;
         private bool _isPdfGoToPageAvailable;
+        private readonly Dictionary<FrameworkElement, ToolbarOverflowItemPresentation> _toolbarOverflowPresentations = new();
+        private bool _isArrangingToolbarOverflow;
+        private bool _toolbarOverflowUpdateQueued;
 
         private static readonly HashSet<string> ImageToolbarItemIds = new(StringComparer.Ordinal)
         {
@@ -85,6 +88,7 @@ namespace Uviewer.Controls
 
             _toolbarSettings = NormalizeToolbarSettings(AppToolbarSettings.CreateDefault());
             Loaded += MainToolbarControl_Loaded;
+            ToolbarRoot.SizeChanged += (_, _) => QueueToolbarOverflowUpdate();
         }
 
         public AppToolbarSettings GetToolbarSettings() => _toolbarSettings.Clone();
@@ -151,19 +155,31 @@ namespace Uviewer.Controls
 
         private void RebuildToolbarPanels()
         {
-            foreach (var element in _toolbarItems.Values)
+            if (_isArrangingToolbarOverflow) return;
+
+            _isArrangingToolbarOverflow = true;
+            try
             {
-                DetachFromParent(element);
+                RestoreToolbarOverflowItems();
+                foreach (var element in _toolbarItems.Values)
+                {
+                    DetachFromParent(element);
+                }
+                DetachFromParent(ZoomLevelText);
+                DetachFromParent(TextSizeLevelText);
+
+                LeftToolbarPanel.Children.Clear();
+                RightToolbarPanel.Children.Clear();
+
+                AddToolbarItems(LeftToolbarPanel, _toolbarSettings.LeftItems);
+                AddToolbarItems(RightToolbarPanel, _toolbarSettings.RightItems);
+                UpdateToolbarItemVisibility();
+                ArrangeToolbarOverflow();
             }
-            DetachFromParent(ZoomLevelText);
-            DetachFromParent(TextSizeLevelText);
-
-            LeftToolbarPanel.Children.Clear();
-            RightToolbarPanel.Children.Clear();
-
-            AddToolbarItems(LeftToolbarPanel, _toolbarSettings.LeftItems);
-            AddToolbarItems(RightToolbarPanel, _toolbarSettings.RightItems);
-            UpdateToolbarItemVisibility();
+            finally
+            {
+                _isArrangingToolbarOverflow = false;
+            }
         }
 
         private void AddToolbarItems(Panel panel, IEnumerable<string> ids)
@@ -192,6 +208,160 @@ namespace Uviewer.Controls
             }
         }
 
+        private void QueueToolbarOverflowUpdate()
+        {
+            if (!_isToolbarLayoutInitialized || _isArrangingToolbarOverflow || _toolbarOverflowUpdateQueued)
+            {
+                return;
+            }
+
+            _toolbarOverflowUpdateQueued = true;
+            if (!DispatcherQueue.TryEnqueue(() =>
+            {
+                _toolbarOverflowUpdateQueued = false;
+                RefreshToolbarOverflow();
+            }))
+            {
+                _toolbarOverflowUpdateQueued = false;
+            }
+        }
+
+        private void RefreshToolbarOverflow()
+        {
+            if (_isArrangingToolbarOverflow)
+            {
+                return;
+            }
+
+            _isArrangingToolbarOverflow = true;
+            try
+            {
+                RestoreToolbarOverflowItems();
+                UpdateToolbarItemVisibility();
+                ArrangeToolbarOverflow();
+            }
+            finally
+            {
+                _isArrangingToolbarOverflow = false;
+            }
+        }
+
+        private void ArrangeToolbarOverflow()
+        {
+            MainToolbarOverflowButton.Visibility = Visibility.Collapsed;
+            double availableWidth = ToolbarRoot.ActualWidth - ToolbarRoot.Padding.Left - ToolbarRoot.Padding.Right;
+            if (availableWidth <= 0)
+            {
+                return;
+            }
+
+            var displayOrder = LeftToolbarPanel.Children
+                .Concat(RightToolbarPanel.Children)
+                .OfType<FrameworkElement>()
+                .Where(element => element.Visibility == Visibility.Visible)
+                .ToList();
+
+            if (MeasureToolbarWidth(includeOverflowButton: false) <= availableWidth)
+            {
+                return;
+            }
+
+            MainToolbarOverflowButton.Visibility = Visibility.Visible;
+            var candidates = RightToolbarPanel.Children
+                .OfType<FrameworkElement>()
+                .Where(element => element.Visibility == Visibility.Visible)
+                .Reverse()
+                .Concat(LeftToolbarPanel.Children
+                    .OfType<FrameworkElement>()
+                    .Where(element => element.Visibility == Visibility.Visible)
+                    .Reverse())
+                .ToList();
+
+            foreach (FrameworkElement element in candidates)
+            {
+                MoveToolbarItemToOverflow(element);
+                if (MeasureToolbarWidth(includeOverflowButton: true) <= availableWidth)
+                {
+                    break;
+                }
+            }
+
+            ToolbarOverflowLayout.OrderOverflowItems(
+                MainToolbarOverflowPanel,
+                displayOrder,
+                _toolbarOverflowPresentations);
+        }
+
+        private double MeasureToolbarWidth(bool includeOverflowButton)
+        {
+            double width = ToolbarOverflowLayout.MeasurePanel(LeftToolbarPanel)
+                + ToolbarOverflowLayout.MeasurePanel(RightToolbarPanel);
+
+            if (includeOverflowButton)
+            {
+                width += RightToolbarHost.Spacing
+                    + ToolbarOverflowLayout.MeasureElement(MainToolbarOverflowButton);
+            }
+
+            return width;
+        }
+
+        private void MoveToolbarItemToOverflow(FrameworkElement element)
+        {
+            var presentation = new ToolbarOverflowItemPresentation(element, InvokeToolbarOverflowItem);
+            presentation.Apply();
+            _toolbarOverflowPresentations[element] = presentation;
+        }
+
+        private void InvokeToolbarOverflowItem(FrameworkElement element, FrameworkElement placementTarget)
+        {
+            if (element == SettingsButton)
+            {
+                SettingsButton.Flyout?.ShowAt(placementTarget);
+                return;
+            }
+
+            if (element == FavoritesButton)
+            {
+                FavoritesFlyout.ShowAt(placementTarget);
+                return;
+            }
+
+            if (element == RecentButton)
+            {
+                RecentFlyout.ShowAt(placementTarget);
+                return;
+            }
+
+            if (element == PdfTocButton)
+            {
+                PdfTocRequested?.Invoke(this, EventArgs.Empty);
+                PdfTocFlyout.ShowAt(placementTarget);
+                return;
+            }
+
+            if (element == TocButton)
+            {
+                TocRequested?.Invoke(this, EventArgs.Empty);
+                TocFlyout.ShowAt(placementTarget);
+                return;
+            }
+
+            ToolbarOverflowLayout.InvokeButton(element);
+        }
+
+        private void RestoreToolbarOverflowItems()
+        {
+            foreach (ToolbarOverflowItemPresentation presentation in _toolbarOverflowPresentations.Values)
+            {
+                presentation.Restore();
+            }
+
+            _toolbarOverflowPresentations.Clear();
+            MainToolbarOverflowPanel.Children.Clear();
+            MainToolbarOverflowButton.Visibility = Visibility.Collapsed;
+        }
+
         private void UpdateToolbarItemVisibility()
         {
             if (_toolbarItems.Count == 0) return;
@@ -212,6 +382,7 @@ namespace Uviewer.Controls
             bool textSizeLevelVisible = _isTextToolbarAvailable &&
                 (!hidden.Contains(ToolbarItemIds.TextSizeDown) || !hidden.Contains(ToolbarItemIds.TextSizeUp));
             TextSizeLevelText.Visibility = textSizeLevelVisible ? Visibility.Visible : Visibility.Collapsed;
+            QueueToolbarOverflowUpdate();
         }
 
         private bool IsToolbarItemAvailable(string id)

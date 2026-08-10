@@ -58,7 +58,7 @@
 - **Tray Menu**: Right-click the Uviewer tray icon and select **Open** to restore the window or **Close** to exit Uviewer completely.
 
 #### 🖼️ Image Viewing Options
-- **Auto Side-by-Side in Archive**: When enabled, the viewer automatically applies side-by-side (2-page) view for portrait-oriented images (height = width * 1.2~3) when browsing archives and EPUB.
+- **Auto Side-by-Side in Archive**: When enabled, the viewer automatically applies side-by-side (2-page) view for portrait-oriented images (height = width * 1.2~3) when browsing archives and EPUB, provided the window width is at least 1.2 times its height.
 
 #### 🗂️ Explorer Thumbnail Settings
 - **Thumbnail Button Settings**: Right-click the sidebar thumbnail/list toggle button to open thumbnail settings.

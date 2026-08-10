@@ -24,11 +24,15 @@ namespace Uviewer.Services
         private readonly ImageSingleDisplayCoordinator _singleDisplayCoordinator;
         private readonly ImageViewingOptionsCoordinator _viewingOptionsCoordinator;
         private readonly ImageZoomCoordinator _zoomCoordinator;
+        private bool _wasAutoDoublePageWindowWideEnough;
 
         public ImageViewerController(ImageViewerControllerDependencies dependencies)
         {
             ArgumentNullException.ThrowIfNull(dependencies);
             _host = dependencies.Host;
+            _wasAutoDoublePageWindowWideEnough = ImageDoublePageDecisionService.IsWindowWideEnoughForAutoDoublePage(
+                _host.WindowWidth,
+                _host.WindowHeight);
             _bitmapLifetimeCoordinator = new ImageBitmapLifetimeCoordinator(dependencies.BitmapLifetimeHost);
             _documentEntryCoordinator = new ImageDocumentEntryCoordinator(dependencies.DocumentEntryHost);
             _explorerNavigationCoordinator = new ImageExplorerNavigationCoordinator(
@@ -189,6 +193,8 @@ namespace Uviewer.Services
                 _host.AutoDoublePageForArchive,
                 _host.ArchiveSession.HasArchive,
                 _host.IsPdfMode,
+                _host.WindowWidth,
+                _host.WindowHeight,
                 _host.ZoomLevel,
                 _host.CurrentBitmap,
                 LoadBitmapForPreloadAsync,
@@ -329,8 +335,28 @@ namespace Uviewer.Services
             _presenter.UpdateStatusBar(entry, bitmap);
         }
 
-        public void ImageAreaSizeChanged(SizeChangedEventArgs e) =>
+        public void ImageAreaSizeChanged(SizeChangedEventArgs e)
+        {
             _inputCoordinator.ImageAreaSizeChanged(e);
+        }
+
+        public void WindowSizeChanged()
+        {
+            bool isWideEnough = ImageDoublePageDecisionService.IsWindowWideEnoughForAutoDoublePage(
+                _host.WindowWidth,
+                _host.WindowHeight);
+            bool crossedAspectRatioThreshold = _wasAutoDoublePageWindowWideEnough != isWideEnough;
+            _wasAutoDoublePageWindowWideEnough = isWideEnough;
+
+            if (crossedAspectRatioThreshold &&
+                _host.AutoDoublePageForArchive &&
+                _host.ArchiveSession.HasArchive &&
+                !_host.IsPdfMode &&
+                _host.ImageEntries.Count > 0)
+            {
+                _ = DisplayCurrentImageAsync();
+            }
+        }
 
         public Task HandlePointerWheelAsync(PointerRoutedEventArgs e) =>
             _inputCoordinator.HandlePointerWheelAsync(e);

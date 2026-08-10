@@ -639,6 +639,7 @@
     <value>Delete failed: {0}</value>
   </data>
   <data name="ToolbarCustomization" xml:space="preserve"><value>Customize toolbar</value></data>
+  <data name="MoreCommandsTooltip" xml:space="preserve"><value>More</value></data>
   <data name="ToolbarCustomizationDescription" xml:space="preserve"><value>Choose which buttons are shown and change their side and order. The Settings button is always shown.</value></data>
   <data name="ToolbarApply" xml:space="preserve"><value>Apply</value></data>
   <data name="ToolbarLeft" xml:space="preserve"><value>Left toolbar</value></data>

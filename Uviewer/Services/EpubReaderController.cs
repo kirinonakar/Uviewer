@@ -1429,6 +1429,8 @@ namespace Uviewer.Services
                     nextPage,
                     _isSideBySideMode,
                     _autoDoublePageForArchive,
+                    AppWindow.Size.Width,
+                    AppWindow.Size.Height,
                     GetCachedEpubImageSize,
                     ImageDoublePageDecisionService.IsTallCandidate);
                 

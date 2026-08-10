@@ -9,6 +9,8 @@ namespace Uviewer.Services
 {
     public sealed class ImageDoublePageDecisionService
     {
+        public const double MinimumAutoDoublePageWindowAspectRatio = 1.2;
+
         private readonly ImageCacheManager _imageCache;
 
         public ImageDoublePageDecisionService(ImageCacheManager imageCache)
@@ -23,6 +25,8 @@ namespace Uviewer.Services
             bool autoDoublePageForArchive,
             bool hasArchive,
             bool isPdfMode,
+            double windowWidth,
+            double windowHeight,
             double zoomLevel,
             CanvasBitmap? currentBitmap,
             Func<ImageEntry, CancellationToken, Task<CanvasBitmap?>> loadBitmapAsync,
@@ -31,6 +35,11 @@ namespace Uviewer.Services
             bool canSideBySide = isSideBySideMode && !isPdfMode && entries.Count > 1;
 
             if (!autoDoublePageForArchive || !hasArchive || isPdfMode || entries.Count <= 1)
+            {
+                return canSideBySide;
+            }
+
+            if (!IsWindowWideEnoughForAutoDoublePage(windowWidth, windowHeight))
             {
                 return canSideBySide;
             }
@@ -69,6 +78,12 @@ namespace Uviewer.Services
         {
             if (width <= 0 || height <= 0) return false;
             return height >= width * 1.2 && height <= width * 3.0;
+        }
+
+        public static bool IsWindowWideEnoughForAutoDoublePage(double width, double height)
+        {
+            if (width <= 0 || height <= 0) return false;
+            return width >= height * MinimumAutoDoublePageWindowAspectRatio;
         }
 
         private async Task<CanvasBitmap?> GetOrLoadBitmapAsync(

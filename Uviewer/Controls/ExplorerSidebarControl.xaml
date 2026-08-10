@@ -37,24 +37,20 @@
                     <RowDefinition Height="*"/>
                 </Grid.RowDefinitions>
 
-                <Grid Grid.Row="0" Padding="12,8" Background="{ThemeResource CardBackgroundFillColorSecondaryBrush}">
+                <Grid x:Name="SidebarToolbarRoot" Grid.Row="0" Padding="12,8" Background="{ThemeResource CardBackgroundFillColorSecondaryBrush}">
                     <Grid.Resources>
                         <Style TargetType="Button" BasedOn="{StaticResource ToolbarButtonStyle}" />
                         <Style TargetType="ToggleButton" BasedOn="{StaticResource ToolbarToggleButtonStyle}" />
                     </Grid.Resources>
                     <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="Auto"/>
-                        <ColumnDefinition Width="Auto"/>
-                        <ColumnDefinition Width="Auto"/>
-                        <ColumnDefinition Width="Auto"/>
-                        <ColumnDefinition Width="Auto"/>
-                        <ColumnDefinition Width="Auto"/>
                         <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
                         <ColumnDefinition Width="Auto"/>
                     </Grid.ColumnDefinitions>
 
+                    <StackPanel x:Name="SidebarToolbarPanel" Grid.Column="0" Orientation="Horizontal">
                     <Button x:Name="ToggleViewButton"
-                            ToolTipService.ToolTip="썸네일 보기" Padding="6" Margin="0,0,8,0">
+                            ToolTipService.ToolTip="{x:Bind app:Strings.ToggleViewTooltip}" Padding="6" Margin="0,0,8,0">
                         <Button.ContextFlyout>
                             <Flyout>
                                 <StackPanel Width="260" Spacing="10" Padding="10">
@@ -71,13 +67,13 @@
                         <FontIcon Glyph="&#xE80A;" FontSize="14"/>
                     </Button>
 
-                    <Button Grid.Column="1" x:Name="ParentFolderButton"
-                            ToolTipService.ToolTip="상위 폴더로 가기(Backspace)" Padding="6" Margin="0,0,8,0">
+                    <Button x:Name="ParentFolderButton"
+                            ToolTipService.ToolTip="{x:Bind app:Strings.ParentFolderTooltip}" Padding="6" Margin="0,0,8,0">
                         <FontIcon Glyph="&#xE72B;" FontSize="14"/>
                     </Button>
 
-                    <Button Grid.Column="2" x:Name="SidebarFavoritesButton" 
-                            ToolTipService.ToolTip="즐겨찾기" Padding="6" Margin="0,0,8,0">
+                    <Button x:Name="SidebarFavoritesButton"
+                            ToolTipService.ToolTip="{x:Bind app:Strings.FavoritesTooltip}" Padding="6" Margin="0,0,8,0">
                         <FontIcon Glyph="&#xE734;" FontSize="14"/>
                         <Button.Flyout>
                             <Flyout x:Name="SidebarFavoritesFlyout" Placement="Bottom">
@@ -145,8 +141,8 @@
                         </Button.Flyout>
                     </Button>
                     
-                    <Button Grid.Column="3" x:Name="SidebarRecentButton" 
-                            ToolTipService.ToolTip="최근 이미지" Padding="6" Margin="0,0,8,0">
+                    <Button x:Name="SidebarRecentButton"
+                            ToolTipService.ToolTip="{x:Bind app:Strings.RecentTooltip}" Padding="6" Margin="0,0,8,0">
                         <FontIcon Glyph="&#xE823;" FontSize="14"/>
                         <Button.Flyout>
                             <Flyout x:Name="SidebarRecentFlyout" Placement="Bottom">
@@ -159,17 +155,20 @@
                         </Button.Flyout>
                     </Button>
 
-                    <Button Grid.Column="4" x:Name="BrowseFolderButton" 
-                            ToolTipService.ToolTip="폴더 열기" Padding="6" Margin="0,0,8,0">
+                    <Button x:Name="BrowseFolderButton"
+                            ToolTipService.ToolTip="{x:Bind app:Strings.BrowseFolderTooltip}" Padding="6" Margin="0,0,8,0">
                         <FontIcon Glyph="&#xED25;" FontSize="14"/>
                     </Button>
 
-                    <Button Grid.Column="5" x:Name="SortByDateButton" Padding="6">
+                    <Button x:Name="SortByDateButton" Padding="6"
+                            ToolTipService.ToolTip="{x:Bind app:Strings.SortByNameTooltip}">
                         <FontIcon x:Name="SortIcon" Glyph="&#xE174;" FontSize="14"/>
                     </Button>
+                    </StackPanel>
 
-                    <Button Grid.Column="7" x:Name="WebDavButton"
-                            ToolTipService.ToolTip="webdav 연결" Padding="6"
+                    <StackPanel x:Name="SidebarTrailingToolbarPanel" Grid.Column="1" Orientation="Horizontal">
+                    <Button x:Name="WebDavButton"
+                            ToolTipService.ToolTip="{x:Bind app:Strings.WebDavTooltip}" Padding="6"
                             HorizontalAlignment="Right">
                         <FontIcon Glyph="&#xE774;" FontSize="14"/>
                         <Button.Flyout>
@@ -217,6 +216,22 @@
                                         <Border Height="1" Background="{ThemeResource DividerStrokeColorDefaultBrush}" Margin="0,4"/>
                                         <!-- Saved WebDAV servers will be added dynamically -->
                                     </StackPanel>
+                                </ScrollViewer>
+                            </Flyout>
+                        </Button.Flyout>
+                    </Button>
+                    </StackPanel>
+
+                    <Button x:Name="SidebarToolbarOverflowButton" Grid.Column="2"
+                            Visibility="Collapsed" Margin="4,0,0,0"
+                            ToolTipService.ToolTip="{x:Bind app:Strings.MoreCommandsTooltip}">
+                        <FontIcon Glyph="&#xE712;" FontSize="14"/>
+                        <Button.Flyout>
+                            <Flyout x:Name="SidebarToolbarOverflowFlyout" Placement="BottomEdgeAlignedRight">
+                                <ScrollViewer MaxHeight="480"
+                                              HorizontalScrollBarVisibility="Disabled"
+                                              VerticalScrollBarVisibility="Auto">
+                                    <StackPanel x:Name="SidebarToolbarOverflowPanel" MinWidth="220" Spacing="2"/>
                                 </ScrollViewer>
                             </Flyout>
                         </Button.Flyout>

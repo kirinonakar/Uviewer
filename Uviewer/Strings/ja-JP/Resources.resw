@@ -639,6 +639,7 @@
     <value>削除に失敗しました: {0}</value>
   </data>
   <data name="ToolbarCustomization" xml:space="preserve"><value>ツールバーのカスタマイズ</value></data>
+  <data name="MoreCommandsTooltip" xml:space="preserve"><value>その他</value></data>
   <data name="ToolbarCustomizationDescription" xml:space="preserve"><value>表示するボタン、左右の位置、順序を変更できます。設定ボタンは常に表示されます。</value></data>
   <data name="ToolbarApply" xml:space="preserve"><value>変更</value></data>
   <data name="ToolbarLeft" xml:space="preserve"><value>左ツールバー</value></data>

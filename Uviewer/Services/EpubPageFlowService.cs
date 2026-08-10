@@ -77,6 +77,8 @@ namespace Uviewer.Services
             EpubWin2DPage? nextPage,
             bool sideBySideMode,
             bool autoDoublePageForArchive,
+            double windowWidth,
+            double windowHeight,
             Func<string, EpubImageSize?> getImageSize,
             Func<double, double, bool> isTallCandidate)
         {
@@ -85,7 +87,10 @@ namespace Uviewer.Services
 
             bool canSideBySide = sideBySideMode;
 
-            if (autoDoublePageForArchive)
+            bool canUseAutoDoublePage = autoDoublePageForArchive &&
+                ImageDoublePageDecisionService.IsWindowWideEnoughForAutoDoublePage(windowWidth, windowHeight);
+
+            if (canUseAutoDoublePage)
             {
                 var currentSize = getImageSize(currentPage.ImagePath);
                 if (currentSize.HasValue)
@@ -108,7 +113,7 @@ namespace Uviewer.Services
 
             if (!canSideBySide) return false;
 
-            if (autoDoublePageForArchive)
+            if (canUseAutoDoublePage)
             {
                 var nextSize = getImageSize(nextPage.ImagePath);
                 if (nextSize.HasValue && !isTallCandidate(nextSize.Value.Width, nextSize.Value.Height))

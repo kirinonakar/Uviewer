@@ -639,6 +639,7 @@
     <value>Xóa thất bại: {0}</value>
   </data>
   <data name="ToolbarCustomization" xml:space="preserve"><value>Tùy chỉnh thanh công cụ</value></data>
+  <data name="MoreCommandsTooltip" xml:space="preserve"><value>Xem thêm</value></data>
   <data name="ToolbarCustomizationDescription" xml:space="preserve"><value>Chọn các nút được hiển thị và thay đổi vị trí trái, phải cùng thứ tự. Nút Cài đặt luôn được hiển thị.</value></data>
   <data name="ToolbarApply" xml:space="preserve"><value>Áp dụng</value></data>
   <data name="ToolbarLeft" xml:space="preserve"><value>Thanh công cụ trái</value></data>

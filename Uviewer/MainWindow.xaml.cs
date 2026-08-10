@@ -370,6 +370,7 @@ namespace Uviewer
             _explorerSidebarController.ApplyThumbnailSettingsToControls();
 
             UpdateFontSettingsMenu();
+            ExplorerSidebar.RefreshOverflowLabels();
 
             // Trigger x:Bind Refresh
             this.Bindings.Update();
@@ -389,6 +390,7 @@ namespace Uviewer
             {
                 if (args.DidSizeChange)
                 {
+                    _imageViewerController.WindowSizeChanged();
                     _epubReaderController.TriggerEpubResize();
                     TextWindowLayoutService.EnforceMinWindowSize(sender, _windowState, _isTextMode || _isEpubMode);
                 }

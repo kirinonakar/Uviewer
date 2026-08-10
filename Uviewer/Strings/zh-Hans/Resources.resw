@@ -639,6 +639,7 @@
     <value>删除失败: {0}</value>
   </data>
   <data name="ToolbarCustomization" xml:space="preserve"><value>自定义工具栏</value></data>
+  <data name="MoreCommandsTooltip" xml:space="preserve"><value>更多</value></data>
   <data name="ToolbarCustomizationDescription" xml:space="preserve"><value>可选择显示的按钮并更改左右位置和顺序。设置按钮始终显示。</value></data>
   <data name="ToolbarApply" xml:space="preserve"><value>应用</value></data>
   <data name="ToolbarLeft" xml:space="preserve"><value>左侧工具栏</value></data>
