@@ -266,7 +266,7 @@
     <value>Allow Multiple Instances</value>
   </data>
   <data name="AllowMultipleInstancesTooltip" xml:space="preserve">
-    <value>Allows multiple instances of the app. If disabled, images will open in the already running instance.</value>
+    <value>Allows multiple instances of the app. Cannot be used together with 'Keep in system tray'.</value>
   </data>
   <data name="CurrentPathPlaceholder" xml:space="preserve">
     <value>Select a folder</value>
@@ -654,7 +654,7 @@
   <data name="ToolbarMoveRight" xml:space="preserve"><value>Move right</value></data>
   <data name="LastPageReached" xml:space="preserve"><value>This is the last page.</value></data>
   <data name="KeepInTray" xml:space="preserve"><value>Keep in system tray</value></data>
-  <data name="KeepInTrayTooltip" xml:space="preserve"><value>When enabled, closing the window keeps Uviewer running in the system tray.</value></data>
+  <data name="KeepInTrayTooltip" xml:space="preserve"><value>When enabled, closing the window keeps Uviewer running in the system tray. Cannot be used together with 'Allow Multiple Instances'.</value></data>
   <data name="KeepInTrayRestartTitle" xml:space="preserve"><value>Restart Required</value></data>
   <data name="KeepInTrayRestartMessage" xml:space="preserve"><value>To apply 'Keep in system tray', Uviewer must be restarted. Restart now?</value></data>
   <data name="KeepInTrayRestartNow" xml:space="preserve"><value>Restart</value></data>

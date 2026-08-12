@@ -266,7 +266,7 @@
     <value>允许多个实例</value>
   </data>
   <data name="AllowMultipleInstancesTooltip" xml:space="preserve">
-    <value>允许同时运行多个应用实例。关闭后，图像会在已运行的实例中打开。</value>
+    <value>允许同时运行多个应用实例。不能与“驻留系统托盘”同时使用。</value>
   </data>
   <data name="CurrentPathPlaceholder" xml:space="preserve">
     <value>选择文件夹</value>
@@ -654,7 +654,7 @@
   <data name="ToolbarMoveRight" xml:space="preserve"><value>移到右侧</value></data>
   <data name="LastPageReached" xml:space="preserve"><value>这是最后一页。</value></data>
   <data name="KeepInTray" xml:space="preserve"><value>驻留系统托盘</value></data>
-  <data name="KeepInTrayTooltip" xml:space="preserve"><value>启用后，关闭窗口时不会退出，而是最小化到系统托盘。</value></data>
+  <data name="KeepInTrayTooltip" xml:space="preserve"><value>启用后，关闭窗口时不会退出，而是最小化到系统托盘。不能与“允许多个实例”同时使用。</value></data>
   <data name="KeepInTrayRestartTitle" xml:space="preserve"><value>需要重新启动</value></data>
   <data name="KeepInTrayRestartMessage" xml:space="preserve"><value>要应用“驻留系统托盘”，需要重新启动 Uviewer。立即重启吗？</value></data>
   <data name="KeepInTrayRestartNow" xml:space="preserve"><value>重启</value></data>

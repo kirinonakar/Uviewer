@@ -266,7 +266,7 @@
     <value>允許多個執行個體</value>
   </data>
   <data name="AllowMultipleInstancesTooltip" xml:space="preserve">
-    <value>允許同時執行多個應用程式執行個體。關閉後，影像會在已執行的執行個體中開啟。</value>
+    <value>允許同時執行多個應用程式執行個體。無法與「常駐系統匣」同時使用。</value>
   </data>
   <data name="CurrentPathPlaceholder" xml:space="preserve">
     <value>選擇資料夾</value>
@@ -654,7 +654,7 @@
   <data name="ToolbarMoveRight" xml:space="preserve"><value>移到右側</value></data>
   <data name="LastPageReached" xml:space="preserve"><value>這是最後一頁。</value></data>
   <data name="KeepInTray" xml:space="preserve"><value>常駐系統匣</value></data>
-  <data name="KeepInTrayTooltip" xml:space="preserve"><value>啟用後，關閉視窗時不會結束，而是最小化至系統匣。</value></data>
+  <data name="KeepInTrayTooltip" xml:space="preserve"><value>啟用後，關閉視窗時不會結束，而是最小化至系統匣。無法與「允許多個執行個體」同時使用。</value></data>
   <data name="KeepInTrayRestartTitle" xml:space="preserve"><value>需要重新啟動</value></data>
   <data name="KeepInTrayRestartMessage" xml:space="preserve"><value>要套用「常駐系統匣」，需要重新啟動 Uviewer。立即重新啟動嗎？</value></data>
   <data name="KeepInTrayRestartNow" xml:space="preserve"><value>重新啟動</value></data>

@@ -266,7 +266,7 @@
     <value>Cho phép nhiều phiên bản</value>
   </data>
   <data name="AllowMultipleInstancesTooltip" xml:space="preserve">
-    <value>Cho phép chạy nhiều phiên bản ứng dụng. Nếu tắt, ảnh sẽ mở trong phiên bản đang chạy.</value>
+    <value>Cho phép chạy nhiều phiên bản ứng dụng. Không thể sử dụng cùng với 'Giữ trong khay hệ thống'.</value>
   </data>
   <data name="CurrentPathPlaceholder" xml:space="preserve">
     <value>Chọn thư mục</value>
@@ -654,7 +654,7 @@
   <data name="ToolbarMoveRight" xml:space="preserve"><value>Di chuyển sang phải</value></data>
   <data name="LastPageReached" xml:space="preserve"><value>Đây là trang cuối cùng.</value></data>
   <data name="KeepInTray" xml:space="preserve"><value>Giữ trong khay hệ thống</value></data>
-  <data name="KeepInTrayTooltip" xml:space="preserve"><value>Khi bật, đóng cửa sổ sẽ giữ Uviewer chạy trong khay hệ thống.</value></data>
+  <data name="KeepInTrayTooltip" xml:space="preserve"><value>Khi bật, đóng cửa sổ sẽ giữ Uviewer chạy trong khay hệ thống. Không thể sử dụng cùng với 'Cho phép nhiều phiên bản'.</value></data>
   <data name="KeepInTrayRestartTitle" xml:space="preserve"><value>Cần khởi động lại</value></data>
   <data name="KeepInTrayRestartMessage" xml:space="preserve"><value>Để áp dụng chức năng 'Giữ trong khay hệ thống', cần khởi động lại Uviewer. Khởi động lại ngay bây giờ?</value></data>
   <data name="KeepInTrayRestartNow" xml:space="preserve"><value>Khởi động lại</value></data>

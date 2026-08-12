@@ -65,7 +65,6 @@
 - **Thumbnail Button Settings**: Right-click the sidebar thumbnail/list toggle button to open thumbnail settings.
   - **Thumbnail Size**: Adjust the thumbnail grid size with a slider and preview the result immediately.
   - **Folder Thumbnails**: When enabled, folders show the first image inside the folder as their thumbnail.
-  - Settings are saved automatically and restored on the next launch.
 
 #### 🎨 Image Sharpening & Upscaling
 - **Advanced Sharpening Control**: Right-click the **Sharpening (S)** button to open the settings flyout.

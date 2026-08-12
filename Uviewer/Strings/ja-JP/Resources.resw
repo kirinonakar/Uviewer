@@ -266,7 +266,7 @@
     <value>多重起動を許可する</value>
   </data>
   <data name="AllowMultipleInstancesTooltip" xml:space="preserve">
-    <value>アプリの多重起動を許可します。オフの場合、起動中のウィンドウでファイルを開きます。</value>
+    <value>アプリの多重起動を許可します。「システムトレイに常駐」とは併用できません。</value>
   </data>
   <data name="CurrentPathPlaceholder" xml:space="preserve">
     <value>フォルダを選択してください</value>
@@ -654,7 +654,7 @@
   <data name="ToolbarMoveRight" xml:space="preserve"><value>右へ移動</value></data>
   <data name="LastPageReached" xml:space="preserve"><value>最後のページです。</value></data>
   <data name="KeepInTray" xml:space="preserve"><value>システムトレイに常駐</value></data>
-  <data name="KeepInTrayTooltip" xml:space="preserve"><value>有効にすると、ウィンドウを閉じても終了せずシステムトレイに最小化します。</value></data>
+  <data name="KeepInTrayTooltip" xml:space="preserve"><value>有効にすると、ウィンドウを閉じても終了せずシステムトレイに最小化します。「多重起動を許可する」とは併用できません。</value></data>
   <data name="KeepInTrayRestartTitle" xml:space="preserve"><value>再起動が必要</value></data>
   <data name="KeepInTrayRestartMessage" xml:space="preserve"><value>「システムトレイに常駐」を適用するには Uviewer の再起動が必要です。今すぐ再起動しますか？</value></data>
   <data name="KeepInTrayRestartNow" xml:space="preserve"><value>再起動</value></data>
