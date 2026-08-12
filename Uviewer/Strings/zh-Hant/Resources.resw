@@ -655,6 +655,10 @@
   <data name="LastPageReached" xml:space="preserve"><value>這是最後一頁。</value></data>
   <data name="KeepInTray" xml:space="preserve"><value>常駐系統匣</value></data>
   <data name="KeepInTrayTooltip" xml:space="preserve"><value>啟用後，關閉視窗時不會結束，而是最小化至系統匣。</value></data>
+  <data name="KeepInTrayRestartTitle" xml:space="preserve"><value>需要重新啟動</value></data>
+  <data name="KeepInTrayRestartMessage" xml:space="preserve"><value>要套用「常駐系統匣」，需要重新啟動 Uviewer。立即重新啟動嗎？</value></data>
+  <data name="KeepInTrayRestartNow" xml:space="preserve"><value>重新啟動</value></data>
+  <data name="KeepInTrayRestartCancel" xml:space="preserve"><value>取消</value></data>
   <data name="TrayOpen" xml:space="preserve"><value>開啟</value></data>
   <data name="TrayExit" xml:space="preserve"><value>關閉</value></data>
 </root>

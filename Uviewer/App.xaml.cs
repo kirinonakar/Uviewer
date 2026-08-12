@@ -128,6 +128,13 @@ namespace Uviewer
                         LaunchFilePath = args[1];
                     }
 
+                    // 트레이에 유지 재시작: 이전 인스턴스들이 완전히 종료될 때까지 대기합니다.
+                    if (string.Equals(Environment.GetEnvironmentVariable("UVIEWER_RESTARTING"), "1", StringComparison.OrdinalIgnoreCase))
+                    {
+                        Environment.SetEnvironmentVariable("UVIEWER_RESTARTING", null);
+                        WaitForOtherInstancesToExit();
+                    }
+
                     if (!_allowMultipleInstances)
                     {
                         if (TrySendToExistingInstance(LaunchFilePath))
@@ -386,6 +393,28 @@ namespace Uviewer
             catch
             {
                 return false;
+            }
+        }
+
+        private static void WaitForOtherInstancesToExit()
+        {
+            string processName = System.Diagnostics.Process.GetCurrentProcess().ProcessName;
+            for (int i = 0; i < 100; i++)
+            {
+                bool othersExist = false;
+                try
+                {
+                    foreach (var process in System.Diagnostics.Process.GetProcessesByName(processName))
+                    {
+                        if (process.Id == Environment.ProcessId) continue;
+                        othersExist = true;
+                        process.Dispose();
+                    }
+                }
+                catch { }
+
+                if (!othersExist) return;
+                Thread.Sleep(50);
             }
         }
 

@@ -655,6 +655,10 @@
   <data name="LastPageReached" xml:space="preserve"><value>This is the last page.</value></data>
   <data name="KeepInTray" xml:space="preserve"><value>Keep in system tray</value></data>
   <data name="KeepInTrayTooltip" xml:space="preserve"><value>When enabled, closing the window keeps Uviewer running in the system tray.</value></data>
+  <data name="KeepInTrayRestartTitle" xml:space="preserve"><value>Restart Required</value></data>
+  <data name="KeepInTrayRestartMessage" xml:space="preserve"><value>To apply 'Keep in system tray', Uviewer must be restarted. Restart now?</value></data>
+  <data name="KeepInTrayRestartNow" xml:space="preserve"><value>Restart</value></data>
+  <data name="KeepInTrayRestartCancel" xml:space="preserve"><value>Cancel</value></data>
   <data name="TrayOpen" xml:space="preserve"><value>Open</value></data>
   <data name="TrayExit" xml:space="preserve"><value>Close</value></data>
 </root>

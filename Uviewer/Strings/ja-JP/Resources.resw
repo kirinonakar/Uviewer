@@ -655,6 +655,10 @@
   <data name="LastPageReached" xml:space="preserve"><value>最後のページです。</value></data>
   <data name="KeepInTray" xml:space="preserve"><value>システムトレイに常駐</value></data>
   <data name="KeepInTrayTooltip" xml:space="preserve"><value>有効にすると、ウィンドウを閉じても終了せずシステムトレイに最小化します。</value></data>
+  <data name="KeepInTrayRestartTitle" xml:space="preserve"><value>再起動が必要</value></data>
+  <data name="KeepInTrayRestartMessage" xml:space="preserve"><value>「システムトレイに常駐」を適用するには Uviewer の再起動が必要です。今すぐ再起動しますか？</value></data>
+  <data name="KeepInTrayRestartNow" xml:space="preserve"><value>再起動</value></data>
+  <data name="KeepInTrayRestartCancel" xml:space="preserve"><value>キャンセル</value></data>
   <data name="TrayOpen" xml:space="preserve"><value>開く</value></data>
   <data name="TrayExit" xml:space="preserve"><value>閉じる</value></data>
 </root>

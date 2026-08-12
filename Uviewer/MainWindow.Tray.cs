@@ -1,5 +1,10 @@
 using Microsoft.UI.Windowing;
+using Microsoft.UI.Xaml.Controls;
 using System;
+using System.Diagnostics;
+using System.IO;
+using System.Linq;
+using System.Threading.Tasks;
 using Uviewer.Services;
 
 namespace Uviewer
@@ -84,6 +89,79 @@ namespace Uviewer
         {
             _trayIconService?.Dispose();
             _trayIconService = null;
+        }
+
+        private async Task ShowKeepInTrayRestartDialogAsync()
+        {
+            try
+            {
+                var dialog = new ContentDialog
+                {
+                    XamlRoot = RootGrid.XamlRoot,
+                    RequestedTheme = RootGrid.ActualTheme,
+                    Title = Strings.KeepInTrayRestartTitle,
+                    Content = Strings.KeepInTrayRestartMessage,
+                    PrimaryButtonText = Strings.KeepInTrayRestartNow,
+                    CloseButtonText = Strings.KeepInTrayRestartCancel,
+                    DefaultButton = ContentDialogButton.Primary
+                };
+
+                var result = await dialog.ShowAsync();
+                if (result == ContentDialogResult.Primary)
+                {
+                    RestartApplication();
+                }
+                else
+                {
+                    // 취소/닫기: 트레이에 유지를 해제하고 이전 다중실행 상태를 복원합니다.
+                    _keepInTray = false;
+                    _allowMultipleInstances = _previousAllowMultipleInstances;
+                    MainToolbar.SetKeepInTray(false);
+                    MainToolbar.SetAllowMultipleInstances(_allowMultipleInstances);
+                    UpdateTrayIconVisibility();
+                    _windowSettingsCoordinator.SaveWindowSettings();
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error showing keep-in-tray restart dialog: {ex.Message}");
+            }
+        }
+
+        private static void RestartApplication()
+        {
+            try
+            {
+                string? exePath = Environment.ProcessPath;
+                if (string.IsNullOrEmpty(exePath)) return;
+
+                // 다른 실행 중인 인스턴스를 먼저 모두 종료합니다.
+                string processName = Process.GetCurrentProcess().ProcessName;
+                foreach (var process in Process.GetProcessesByName(processName))
+                {
+                    if (process.Id == Environment.ProcessId) continue;
+                    try { process.Kill(); } catch { }
+                    process.Dispose();
+                }
+
+                // 새 인스턴스를 재시작 마커와 함께 실행합니다.
+                var psi = new ProcessStartInfo
+                {
+                    FileName = exePath,
+                    UseShellExecute = false,
+                    WorkingDirectory = Path.GetDirectoryName(exePath) ?? AppContext.BaseDirectory,
+                    Arguments = string.Join(" ", Environment.GetCommandLineArgs().Skip(1).Select(a => $"\"{a}\""))
+                };
+                psi.Environment["UVIEWER_RESTARTING"] = "1";
+                Process.Start(psi);
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error restarting application: {ex.Message}");
+                return;
+            }
+
+            Environment.Exit(0);
         }
     }
 }

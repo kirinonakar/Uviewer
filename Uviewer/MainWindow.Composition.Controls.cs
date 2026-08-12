@@ -43,16 +43,22 @@ namespace Uviewer
                             },
                             SetKeepInTray = isChecked =>
                             {
-                                window._keepInTray = isChecked;
                                 if (isChecked)
                                 {
+                                    // 취소 시 복구할 수 있도록 이전 다중실행 상태를 기억해 둡니다.
+                                    window._previousAllowMultipleInstances = window._allowMultipleInstances;
                                     window._allowMultipleInstances = false;
                                 }
 
+                                window._keepInTray = isChecked;
                                 window.MainToolbar.SetKeepInTray(isChecked);
                                 window.MainToolbar.SetAllowMultipleInstances(window._allowMultipleInstances);
                                 window.UpdateTrayIconVisibility();
                                 window._windowSettingsCoordinator.SaveWindowSettings();
+                                if (isChecked && window._previousAllowMultipleInstances)
+                                {
+                                    _ = window.ShowKeepInTrayRestartDialogAsync();
+                                }
                             },
                             SetAutoDoublePageForArchive = isChecked =>
                             {

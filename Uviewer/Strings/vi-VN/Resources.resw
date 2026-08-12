@@ -655,6 +655,10 @@
   <data name="LastPageReached" xml:space="preserve"><value>Đây là trang cuối cùng.</value></data>
   <data name="KeepInTray" xml:space="preserve"><value>Giữ trong khay hệ thống</value></data>
   <data name="KeepInTrayTooltip" xml:space="preserve"><value>Khi bật, đóng cửa sổ sẽ giữ Uviewer chạy trong khay hệ thống.</value></data>
+  <data name="KeepInTrayRestartTitle" xml:space="preserve"><value>Cần khởi động lại</value></data>
+  <data name="KeepInTrayRestartMessage" xml:space="preserve"><value>Để áp dụng chức năng 'Giữ trong khay hệ thống', cần khởi động lại Uviewer. Khởi động lại ngay bây giờ?</value></data>
+  <data name="KeepInTrayRestartNow" xml:space="preserve"><value>Khởi động lại</value></data>
+  <data name="KeepInTrayRestartCancel" xml:space="preserve"><value>Hủy</value></data>
   <data name="TrayOpen" xml:space="preserve"><value>Mở</value></data>
   <data name="TrayExit" xml:space="preserve"><value>Đóng</value></data>
 </root>

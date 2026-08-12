@@ -91,6 +91,10 @@ namespace Uviewer
         public static string AllowMultipleInstancesTooltip => GetString("AllowMultipleInstancesTooltip");
         public static string KeepInTray => GetString("KeepInTray");
         public static string KeepInTrayTooltip => GetString("KeepInTrayTooltip");
+        public static string KeepInTrayRestartTitle => GetString("KeepInTrayRestartTitle");
+        public static string KeepInTrayRestartMessage => GetString("KeepInTrayRestartMessage");
+        public static string KeepInTrayRestartNow => GetString("KeepInTrayRestartNow");
+        public static string KeepInTrayRestartCancel => GetString("KeepInTrayRestartCancel");
         public static string TrayOpen => GetString("TrayOpen");
         public static string TrayExit => GetString("TrayExit");
         public static string CurrentPathPlaceholder => GetString("CurrentPathPlaceholder");
