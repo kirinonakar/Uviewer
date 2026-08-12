@@ -312,6 +312,7 @@ namespace Uviewer
 
             public List<ImageEntry> ImageEntries => ImageState.Entries;
             public bool SharpenEnabled => ImageState.IsSharpenEnabled;
+            public float UpscaleFactor => (float)Window.ImageOptions.UpscaleFactor;
             public bool IsCurrentViewSideBySide => ImageState.IsCurrentViewSideBySide;
             public bool IsSideBySideMode => ImageState.IsSideBySideMode;
             public bool NextImageOnRight => ImageState.NextImageOnRight;

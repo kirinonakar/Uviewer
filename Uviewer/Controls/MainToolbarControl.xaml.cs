@@ -341,7 +341,7 @@ namespace Uviewer.Controls
         public void SetMatchControlDirection(bool value) => MatchControlDirectionMenuItem.IsChecked = value;
         public void SetAllowMultipleInstances(bool value)
         {
-            AllowMultipleInstancesMenuItem.IsChecked = KeepInTrayMenuItem.IsChecked == true ? false : value;
+            AllowMultipleInstancesMenuItem.IsChecked = value;
         }
 
         public void SetKeepInTray(bool value)
@@ -355,10 +355,7 @@ namespace Uviewer.Controls
 
         private void UpdateInstanceOptionState()
         {
-            bool keepInTray = KeepInTrayMenuItem.IsChecked == true;
-            AllowMultipleInstancesMenuItem.IsEnabled = !keepInTray;
-
-            if (keepInTray)
+            if (KeepInTrayMenuItem.IsChecked == true)
             {
                 AllowMultipleInstancesMenuItem.IsChecked = false;
             }

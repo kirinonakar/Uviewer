@@ -64,6 +64,8 @@ namespace Uviewer.Services
                 _host.IsWebDavMode ? _host.CurrentWebDavItemPath : null,
                 _host.IsCurrentViewSideBySide,
                 _host.IsPdfMode,
+                _host.SharpenEnabled,
+                _host.UpscaleFactor,
                 _host.CurrentIndex,
                 _host.ImageEntries.Count);
 

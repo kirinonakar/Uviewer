@@ -75,6 +75,7 @@ namespace Uviewer.Services
     {
         List<ImageEntry> ImageEntries { get; }
         bool SharpenEnabled { get; }
+        float UpscaleFactor { get; }
         bool IsCurrentViewSideBySide { get; }
         bool IsSideBySideMode { get; }
         bool NextImageOnRight { get; }

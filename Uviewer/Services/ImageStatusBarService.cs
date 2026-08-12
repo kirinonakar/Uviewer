@@ -19,6 +19,8 @@ namespace Uviewer.Services
             string? webDavPath,
             bool isSideBySide,
             bool isPdfMode,
+            bool isSharpenEnabled,
+            float upscaleFactor,
             int currentIndex,
             int totalCount)
         {
@@ -28,8 +30,11 @@ namespace Uviewer.Services
                 archivePath,
                 webDavPath);
 
+            // 샤프닝 업스케일이 적용된 비트맵이 표시 중이면 "원래 크기 (업스케일 크기)" 형식으로 표시
+            bool isUpscaled = isSharpenEnabled && !isPdfMode && upscaleFactor > 1.0f;
+
             string imageInfo = TryGetBitmapSize(bitmap, out var width, out var height)
-                ? $"{(int)width} × {(int)height}"
+                ? FormatImageSize(width, height, isUpscaled, upscaleFactor)
                 : string.Empty;
 
             string imageIndex = isSideBySide && !isPdfMode
@@ -37,6 +42,18 @@ namespace Uviewer.Services
                 : $"{currentIndex + 1} / {totalCount}";
 
             return new ImageStatusBarContent(fileName, imageInfo, imageIndex, string.Empty);
+        }
+
+        private static string FormatImageSize(double width, double height, bool isUpscaled, float upscaleFactor)
+        {
+            if (isUpscaled)
+            {
+                int originalWidth = (int)Math.Round(width / upscaleFactor);
+                int originalHeight = (int)Math.Round(height / upscaleFactor);
+                return $"{originalWidth} × {originalHeight} ({(int)width} × {(int)height})";
+            }
+
+            return $"{(int)width} × {(int)height}";
         }
 
         private static bool TryGetBitmapSize(CanvasBitmap? bitmap, out double width, out double height)
