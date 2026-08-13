@@ -59,6 +59,12 @@ namespace Uviewer.Services
             if (Directory.Exists(path))
             {
                 _handlers.LoadExplorerFolder(path);
+
+                // Opening a folder from Windows Explorer should behave like opening
+                // a folder through the in-app folder picker: display its first image
+                // when one is available.
+                var folder = await StorageFolder.GetFolderFromPathAsync(path);
+                await _handlers.OpenFolderAsync(folder);
             }
         }
 
