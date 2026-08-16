@@ -180,6 +180,10 @@ namespace Uviewer
                             CancelTextLoading = () => window._globalTextCts?.Cancel(),
                             CancelExplorerThumbnailLoading = window._explorerState.CancelThumbnailLoading,
                             PrepareForImageLoad = window._imageViewerController.PrepareForImageLoad,
+                            ClearImageCacheForEntryListChange = () => window._imageCache.ClearAllExcept(
+                                window._imageViewerState.CurrentBitmap,
+                                window._imageViewerState.LeftBitmap,
+                                window._imageViewerState.RightBitmap),
                             RefreshCurrentStatusBar = () =>
                             {
                                 if (window._imageViewerState.CurrentBitmap == null ||

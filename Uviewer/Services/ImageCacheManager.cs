@@ -247,23 +247,36 @@ namespace Uviewer.Services
 
         public void ClearAll()
         {
+            ClearAllExcept();
+        }
+
+        public void ClearAllExcept(params CanvasBitmap?[] activeBitmaps)
+        {
             lock (_lockObject)
             {
+                var activeBitmapSet = new HashSet<CanvasBitmap>(
+                    (activeBitmaps ?? Array.Empty<CanvasBitmap?>())
+                        .Where(bitmap => bitmap != null)
+                        .Select(bitmap => bitmap!));
+
                 // [수정] 중복된 참조가 양쪽 캐시에 있을 경우 두 번 Dispose 되는 것을 막기 위해 Distinct 처리
                 var allBitmaps = _preloadedImages.Values
                     .Concat(_sharpenedImageCache.Values)
                     .Where(b => b != null)
                     .Distinct()
                     .ToList();
-                
+
                 _preloadedImages.Clear();
                 _pdfPreloadZoomLevels.Clear();
                 _loadingIndices.Clear();
                 _sharpenedImageCache.Clear();
 
-                foreach (var img in allBitmaps) 
+                foreach (var img in allBitmaps)
                 {
-                    SafeDisposeBitmap(img);
+                    if (!activeBitmapSet.Contains(img))
+                    {
+                        SafeDisposeBitmap(img);
+                    }
                 }
             }
         }

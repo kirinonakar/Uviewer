@@ -20,6 +20,7 @@ namespace Uviewer.Services
         public Action CancelTextLoading { get; init; } = null!;
         public Action CancelExplorerThumbnailLoading { get; init; } = null!;
         public Action PrepareForImageLoad { get; init; } = null!;
+        public Action ClearImageCacheForEntryListChange { get; init; } = null!;
         public Action RefreshCurrentStatusBar { get; init; } = null!;
         public Action<string> SetStatusText { get; init; } = null!;
     }
@@ -164,6 +165,11 @@ namespace Uviewer.Services
                             return;
                         }
 
+                        // The initial launch uses a one-item list, so index-based
+                        // image caches must not be reused after the list becomes the
+                        // full folder. Keep active bitmaps alive while dropping
+                        // stale index mappings.
+                        _handlers.ClearImageCacheForEntryListChange();
                         _imageViewerState.Entries = allEntries;
                         _imageViewerState.CurrentIndex = _imageViewerState.Entries.FindIndex(e => e.FilePath == file.Path);
                         _handlers.RefreshCurrentStatusBar();
