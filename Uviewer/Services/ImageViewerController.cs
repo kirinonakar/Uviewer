@@ -136,7 +136,11 @@ namespace Uviewer.Services
 
                 _host.AnimatedWebpService.Stop();
 
-                var entry = _host.ImageEntries[_host.CurrentIndex];
+                // Keep the entry/index that this request is responsible for. The
+                // current index can change while an image is being decoded (for
+                // example, when the mouse wheel navigates to the previous image).
+                // Display coordinators use this snapshot to reject stale loads.
+                var entry = _host.ImageEntries[capturedIndexAtStart];
 
                 if (entry.IsPdfEntry && _host.IsPdfMode)
                 {
@@ -154,7 +158,7 @@ namespace Uviewer.Services
                 }
                 else
                 {
-                    await DisplayImageEntryAsync(token);
+                    await DisplayImageEntryAsync(entry, capturedIndexAtStart, token);
                 }
 
                 _host.FocusRoot();
@@ -182,13 +186,16 @@ namespace Uviewer.Services
             await _documentEntryCoordinator.DisplayEpubEntryAsync(entry, token);
         }
 
-        private async Task DisplayImageEntryAsync(CancellationToken token)
+        private async Task DisplayImageEntryAsync(
+            ImageEntry entry,
+            int expectedIndex,
+            CancellationToken token)
         {
             _host.SwitchToImageMode();
 
             bool canSideBySide = await _host.ImageDoublePageDecisionService.ShouldUseSideBySideAsync(
                 _host.ImageEntries,
-                _host.CurrentIndex,
+                expectedIndex,
                 _host.IsSideBySideMode,
                 _host.AutoDoublePageForArchive,
                 _host.ArchiveSession.HasArchive,
@@ -200,15 +207,24 @@ namespace Uviewer.Services
                 LoadBitmapForPreloadAsync,
                 token);
 
+            if (token.IsCancellationRequested ||
+                _host.CurrentIndex != expectedIndex ||
+                expectedIndex < 0 ||
+                expectedIndex >= _host.ImageEntries.Count ||
+                !ReferenceEquals(_host.ImageEntries[expectedIndex], entry))
+            {
+                return;
+            }
+
             _host.IsCurrentViewSideBySide = canSideBySide;
 
             if (canSideBySide)
             {
-                await DisplaySideBySideImagesAsync(token);
+                await DisplaySideBySideImagesAsync(expectedIndex, token);
             }
             else
             {
-                await DisplaySingleImageAsync(token);
+                await DisplaySingleImageAsync(expectedIndex, token);
             }
 
             await _host.AddToRecentAsync(false);
@@ -219,9 +235,9 @@ namespace Uviewer.Services
             _explorerNavigationCoordinator.SyncSidebarSelection(entry);
         }
 
-        private async Task DisplaySingleImageAsync(CancellationToken token)
+        private async Task DisplaySingleImageAsync(int expectedIndex, CancellationToken token)
         {
-            await _singleDisplayCoordinator.DisplaySingleImageAsync(token);
+            await _singleDisplayCoordinator.DisplaySingleImageAsync(expectedIndex, token);
         }
 
         public bool IsBitmapInCache(CanvasBitmap bitmap)
@@ -239,9 +255,9 @@ namespace Uviewer.Services
             _bitmapLifetimeCoordinator.OnAnimatedWebpAnimationStopped(sender, e);
         }
 
-        private async Task DisplaySideBySideImagesAsync(CancellationToken token)
+        private async Task DisplaySideBySideImagesAsync(int expectedIndex, CancellationToken token)
         {
-            await _sideBySideDisplayCoordinator.DisplaySideBySideImagesAsync(token);
+            await _sideBySideDisplayCoordinator.DisplaySideBySideImagesAsync(expectedIndex, token);
         }
 
         private void ReleaseBitmapIfUnused(CanvasBitmap? bitmap)

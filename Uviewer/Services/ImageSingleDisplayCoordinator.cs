@@ -38,11 +38,10 @@ namespace Uviewer.Services
             _syncSidebarSelection = syncSidebarSelection;
         }
 
-        public async Task DisplaySingleImageAsync(CancellationToken token)
+        public async Task DisplaySingleImageAsync(int expectedIndex, CancellationToken token)
         {
-            if (_host.CurrentIndex < 0 || _host.CurrentIndex >= _host.ImageEntries.Count) return;
+            if (!IsCurrentEntry(expectedIndex, out var entry)) return;
 
-            var entry = _host.ImageEntries[_host.CurrentIndex];
             _host.IsAnimatedFrameActive = false;
             _host.AnimatedWebpService.Stop();
 
@@ -52,7 +51,7 @@ namespace Uviewer.Services
 
                 var bitmap = await _loadImageBitmapAsync(entry, _host.MainCanvas, token);
 
-                if (token.IsCancellationRequested)
+                if (token.IsCancellationRequested || !IsCurrentEntry(expectedIndex, entry))
                 {
                     if (bitmap != null && !_isBitmapInCache(bitmap))
                     {
@@ -79,6 +78,27 @@ namespace Uviewer.Services
                 if (!token.IsCancellationRequested)
                     _host.FileNameText.Text = $"이미지 로드 오류: {ex.Message}";
             }
+        }
+
+        private bool IsCurrentEntry(int expectedIndex, out ImageEntry entry)
+        {
+            entry = null!;
+
+            if (expectedIndex < 0 || expectedIndex >= _host.ImageEntries.Count)
+            {
+                return false;
+            }
+
+            entry = _host.ImageEntries[expectedIndex];
+            return _host.CurrentIndex == expectedIndex;
+        }
+
+        private bool IsCurrentEntry(int expectedIndex, ImageEntry expectedEntry)
+        {
+            return expectedIndex >= 0 &&
+                expectedIndex < _host.ImageEntries.Count &&
+                _host.CurrentIndex == expectedIndex &&
+                ReferenceEquals(_host.ImageEntries[expectedIndex], expectedEntry);
         }
 
         private void DisplayLoadedBitmap(ImageEntry entry, CanvasBitmap bitmap)

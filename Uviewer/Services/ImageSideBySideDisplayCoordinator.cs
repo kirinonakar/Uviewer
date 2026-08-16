@@ -38,13 +38,13 @@ namespace Uviewer.Services
             _syncSidebarSelection = syncSidebarSelection;
         }
 
-        public async Task DisplaySideBySideImagesAsync(CancellationToken token)
+        public async Task DisplaySideBySideImagesAsync(int expectedIndex, CancellationToken token)
         {
             try
             {
                 var pair = await _host.SideBySideImageLoadService.LoadAsync(
                     _host.ImageEntries,
-                    _host.CurrentIndex,
+                    expectedIndex,
                     _host.NextImageOnRight,
                     _host.LeftCanvas,
                     _host.RightCanvas,
@@ -52,7 +52,7 @@ namespace Uviewer.Services
                     _releaseBitmapIfUnused,
                     token);
 
-                if (pair == null || token.IsCancellationRequested)
+                if (pair == null || token.IsCancellationRequested || _host.CurrentIndex != expectedIndex)
                 {
                     return;
                 }
@@ -68,7 +68,7 @@ namespace Uviewer.Services
                 _fitToWindow();
                 _showImageUi();
 
-                var primaryEntry = _host.ImageEntries[_host.CurrentIndex];
+                var primaryEntry = _host.ImageEntries[expectedIndex];
                 CanvasBitmap? primaryBitmap = pair.PrimaryBitmap ?? _host.CurrentBitmap;
 
                 if (primaryBitmap != null)
