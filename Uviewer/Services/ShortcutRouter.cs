@@ -18,6 +18,11 @@ namespace Uviewer.Services
                 return Set(out route, AppCommand.ShowSearchOverlay);
             }
 
+            if (input.Key == VirtualKey.Delete)
+            {
+                return Set(out route, AppCommand.DeleteSelectedFile);
+            }
+
             if (input.Key == VirtualKey.Escape)
             {
                 if (context.IsSearchOverlayOpen) return Set(out route, AppCommand.HideSearchOverlay);

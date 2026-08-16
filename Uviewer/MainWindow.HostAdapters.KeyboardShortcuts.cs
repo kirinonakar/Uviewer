@@ -1,4 +1,5 @@
 using Microsoft.UI.Xaml;
+using System.IO;
 using System.Threading.Tasks;
 using Uviewer.Services;
 
@@ -6,6 +7,117 @@ namespace Uviewer
 {
     public sealed partial class MainWindow
     {
+        private string? GetNextImagePathAfterDelete(string deletedPath)
+        {
+            if (_isWebDavMode ||
+                !PathsEqual(_imageViewerController.GetCurrentNavigatingPath(), deletedPath))
+            {
+                return null;
+            }
+
+            var entries = _imageViewerState.Entries;
+            var currentIndex = _imageViewerState.CurrentIndex;
+
+            if (currentIndex >= 0 && currentIndex < entries.Count)
+            {
+                var currentEntry = entries[currentIndex];
+                if (currentEntry.IsArchiveEntry ||
+                    currentEntry.IsWebDavEntry ||
+                    !FileExplorerService.IsImageEntry(currentEntry) ||
+                    !PathsEqual(currentEntry.FilePath, deletedPath))
+                {
+                    return null;
+                }
+
+                for (int index = currentIndex + 1; index < entries.Count; index++)
+                {
+                    var candidate = entries[index];
+                    if (candidate.IsArchiveEntry ||
+                        candidate.IsWebDavEntry ||
+                        !FileExplorerService.IsImageEntry(candidate) ||
+                        string.IsNullOrEmpty(candidate.FilePath))
+                    {
+                        continue;
+                    }
+
+                    if (File.Exists(candidate.FilePath)) return candidate.FilePath;
+                }
+
+                for (int index = currentIndex - 1; index >= 0; index--)
+                {
+                    var candidate = entries[index];
+                    if (candidate.IsArchiveEntry ||
+                        candidate.IsWebDavEntry ||
+                        !FileExplorerService.IsImageEntry(candidate) ||
+                        string.IsNullOrEmpty(candidate.FilePath))
+                    {
+                        continue;
+                    }
+
+                    if (File.Exists(candidate.FilePath)) return candidate.FilePath;
+                }
+            }
+
+            for (int index = 0; index < _fileItems.Count; index++)
+            {
+                var item = _fileItems[index];
+                if (item.IsWebDav ||
+                    item.IsDirectory ||
+                    !item.IsImage ||
+                    !PathsEqual(item.FullPath, deletedPath))
+                {
+                    continue;
+                }
+
+                for (int nextIndex = index + 1; nextIndex < _fileItems.Count; nextIndex++)
+                {
+                    var candidate = _fileItems[nextIndex];
+                    if (!candidate.IsWebDav &&
+                        !candidate.IsDirectory &&
+                        candidate.IsImage &&
+                        File.Exists(candidate.FullPath))
+                    {
+                        return candidate.FullPath;
+                    }
+                }
+
+                for (int previousIndex = index - 1; previousIndex >= 0; previousIndex--)
+                {
+                    var candidate = _fileItems[previousIndex];
+                    if (!candidate.IsWebDav &&
+                        !candidate.IsDirectory &&
+                        candidate.IsImage &&
+                        File.Exists(candidate.FullPath))
+                    {
+                        return candidate.FullPath;
+                    }
+                }
+
+                break;
+            }
+
+            return null;
+        }
+
+        private static bool PathsEqual(string? first, string? second)
+        {
+            if (string.IsNullOrWhiteSpace(first) || string.IsNullOrWhiteSpace(second))
+            {
+                return false;
+            }
+
+            try
+            {
+                return Path.GetFullPath(first).Equals(
+                    Path.GetFullPath(second),
+                    System.StringComparison.OrdinalIgnoreCase);
+            }
+            catch
+            {
+                return first.Equals(second, System.StringComparison.OrdinalIgnoreCase);
+            }
+        }
+
         private sealed class KeyboardShortcutActionsAdapter : IKeyboardShortcutActions
         {
             private readonly MainWindow _window;
@@ -82,6 +194,9 @@ namespace Uviewer
                 _window._documentNavigationCoordinator.NavigatePageAsync(direction);
             public Task DisplayCurrentImageAsync() => _window._imageViewerController.DisplayCurrentImageAsync();
             public Task NavigateToFileAsync(bool forward) => _window._imageViewerController.NavigateToFileAsync(forward);
+            public Task DeleteSelectedFileAsync() =>
+                _window._explorerSidebarController.DeleteSelectedAsync(
+                    _window._imageViewerController.GetCurrentNavigatingPath());
             public Task AddToFavoritesAsync() => _window._bookmarkInteractionController.AddCurrentFavoriteAsync();
 
             public void ToggleSharpening()

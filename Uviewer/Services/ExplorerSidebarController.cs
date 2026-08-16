@@ -6,6 +6,7 @@ using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.IO;
+using System.Linq;
 using System.Threading.Tasks;
 using Uviewer.Models;
 using Windows.Storage.Pickers;
@@ -284,6 +285,32 @@ namespace Uviewer.Services
             _ = HandleSelectionChangedAsync(item);
         }
 
+        public Task DeleteSelectedAsync(string? currentPath = null)
+        {
+            var item = GetSelectedItem();
+
+            if (item == null && !_host.IsWebDavMode && !string.IsNullOrEmpty(currentPath))
+            {
+                item = _host.FileItems.FirstOrDefault(file =>
+                    !file.IsWebDav &&
+                    file.FullPath.Equals(currentPath, StringComparison.OrdinalIgnoreCase));
+
+                if (item == null && File.Exists(currentPath))
+                {
+                    item = new FileItem
+                    {
+                        Name = Path.GetFileName(currentPath),
+                        FullPath = currentPath
+                    };
+                    FileExplorerService.ApplyFileKind(
+                        item,
+                        FileExplorerService.GetSupportedFileKind(currentPath));
+                }
+            }
+
+            return _itemOperationController.DeleteAsync(item);
+        }
+
         public void HandleGridPreviewKeyDown(KeyRoutedEventArgs e)
         {
             _ = HandleGridPreviewKeyDownAsync(e);
@@ -310,6 +337,14 @@ namespace Uviewer.Services
         }
 
         private bool IsCurrentFile(string path) => _host.IsCurrentFile(path);
+
+        private FileItem? GetSelectedItem()
+        {
+            ListViewBase list = _host.IsExplorerGrid
+                ? _host.FileGridView
+                : _host.FileListView;
+            return list.SelectedItem as FileItem;
+        }
 
         public async Task HandleFileSelectionAsync(FileItem item)
         {

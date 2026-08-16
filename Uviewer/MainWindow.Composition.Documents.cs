@@ -86,6 +86,7 @@ namespace Uviewer
                                 window._localDocumentOpenCoordinator.OpenExistingFilePathAsync(
                                     path,
                                     saveCurrentPositionBeforeOpen: false),
+                            GetNextImagePathAfterDelete = window.GetNextImagePathAfterDelete,
                             ClearViewer = () => window._explorerDocumentReleaseService.ResetViewerAfterExplorerOperation(),
                             ShowNotification = window.ShowNotification
                         });

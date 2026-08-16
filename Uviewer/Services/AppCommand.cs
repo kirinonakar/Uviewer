@@ -22,6 +22,7 @@ namespace Uviewer.Services
         NavigateToFirstImage,
         NavigateToLastImage,
         NavigateToFile,
+        DeleteSelectedFile,
         AddToFavorites,
         ToggleSharpening,
         ShowGoToLineDialog,

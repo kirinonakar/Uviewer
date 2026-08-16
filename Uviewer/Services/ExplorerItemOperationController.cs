@@ -17,6 +17,7 @@ namespace Uviewer.Services
         public Func<string, bool, bool> IsTargetOpen { get; init; } = null!;
         public Func<string, bool, Task> ReleaseCurrentDocumentAsync { get; init; } = null!;
         public Func<string, Task> OpenLocalFilePathAsync { get; init; } = null!;
+        public Func<string, string?> GetNextImagePathAfterDelete { get; init; } = null!;
         public Action ClearViewer { get; init; } = null!;
         public Action<string, string, string> ShowNotification { get; init; } = null!;
     }
@@ -169,6 +170,9 @@ namespace Uviewer.Services
             if (result != ContentDialogResult.Primary) return;
 
             var shouldClearViewer = _handlers.IsTargetOpen(path, item.IsDirectory);
+            var nextImagePath = shouldClearViewer && !item.IsDirectory
+                ? _handlers.GetNextImagePathAfterDelete(path)
+                : null;
             await _handlers.ReleaseCurrentDocumentAsync(path, item.IsDirectory);
 
             try
@@ -191,7 +195,14 @@ namespace Uviewer.Services
                 _handlers.RefreshExplorer();
                 if (shouldClearViewer)
                 {
-                    _handlers.ClearViewer();
+                    if (string.IsNullOrEmpty(nextImagePath))
+                    {
+                        _handlers.ClearViewer();
+                    }
+                    else
+                    {
+                        await _handlers.OpenLocalFilePathAsync(nextImagePath);
+                    }
                 }
 
                 _handlers.ShowNotification(Strings.MovedToRecycleBin, "\uE735", "Gold");

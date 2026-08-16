@@ -87,6 +87,10 @@ namespace Uviewer.Services
                     await actions.NavigateToFileAsync(route.Direction > 0);
                     return;
 
+                case AppCommand.DeleteSelectedFile:
+                    await actions.DeleteSelectedFileAsync();
+                    return;
+
                 case AppCommand.AddToFavorites:
                     await actions.AddToFavoritesAsync();
                     return;

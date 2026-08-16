@@ -35,6 +35,7 @@ namespace Uviewer.Services
         Task NavigateDocumentPageAsync(int direction);
         Task DisplayCurrentImageAsync();
         Task NavigateToFileAsync(bool forward);
+        Task DeleteSelectedFileAsync();
         Task AddToFavoritesAsync();
         void ToggleSharpening();
         Task ShowGoToLineDialog();
