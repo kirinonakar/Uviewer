@@ -509,19 +509,17 @@ namespace Uviewer
             }
 
             string executablePath = GetExecutablePath();
-            if (_isRegistered && IsOpenWithApplicationMetadataCurrent(executablePath)) return;
+            string[] extensions = Uviewer.Services.FileExplorerService.SupportedFileExtensions
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToArray();
+            if (_isRegistered && IsFileAssociationMetadataCurrent(executablePath, extensions)) return;
 
             try
             {
-                string[] extensions = { 
-                    ".jpg", ".jpeg", ".png", ".bmp", ".gif", ".webp", ".avif", ".jxl", ".ico", ".tiff", ".tif", 
-                    ".txt", ".log", ".json", ".toml", ".csv", ".html", ".htm", ".md", ".xml", 
-                    ".zip", ".rar", ".7z", ".tar", ".gz", ".cbz", ".cbr", 
-                    ".epub", ".pdf" 
-                };
                 string? logoPath = GetAssociationLogoPath();
                 ActivationRegistrationManager.RegisterForFileTypeActivation(extensions, logoPath, "Uviewer", null, executablePath);
                 RegisterOpenWithApplicationMetadata(executablePath);
+                RegisterDefaultApplicationMetadata(executablePath, extensions);
                 SHChangeNotify(0x08000000, 0x0000, IntPtr.Zero, IntPtr.Zero); // SHCNE_ASSOCCHANGED
                 
                 _isRegistered = true;
@@ -569,19 +567,81 @@ namespace Uviewer
             return $"\"{executablePath}\",0";
         }
 
-        private static bool IsOpenWithApplicationMetadataCurrent(string executablePath)
+        private static bool IsFileAssociationMetadataCurrent(string executablePath, IEnumerable<string> extensions)
         {
             try
             {
                 string applicationKeyPath = GetOpenWithApplicationKeyPath(executablePath);
                 using RegistryKey? applicationKey = Registry.CurrentUser.OpenSubKey(applicationKeyPath);
                 string? applicationIcon = applicationKey?.GetValue("ApplicationIcon") as string;
-                return string.Equals(applicationIcon, GetExecutableIconReference(executablePath), StringComparison.OrdinalIgnoreCase);
+                if (!string.Equals(applicationIcon, GetExecutableIconReference(executablePath), StringComparison.OrdinalIgnoreCase))
+                {
+                    return false;
+                }
+
+                using RegistryKey? registeredApplicationsKey = Registry.CurrentUser.OpenSubKey(DefaultApplicationsRegistryPath);
+                string? capabilitiesPath = registeredApplicationsKey?.GetValue(DefaultApplicationName) as string;
+                if (!string.Equals(capabilitiesPath, DefaultApplicationCapabilitiesPath, StringComparison.OrdinalIgnoreCase))
+                {
+                    return false;
+                }
+
+                using RegistryKey? capabilitiesKey = Registry.CurrentUser.OpenSubKey(DefaultApplicationCapabilitiesPath + @"\FileAssociations");
+                return extensions.All(extension =>
+                {
+                    string progId = GetProgId(extension);
+                    using RegistryKey? progIdKey = Registry.CurrentUser.OpenSubKey($@"Software\Classes\{progId}");
+                    return string.Equals(capabilitiesKey?.GetValue(extension) as string, progId, StringComparison.OrdinalIgnoreCase) &&
+                           progIdKey != null;
+                });
             }
             catch
             {
                 return false;
             }
+        }
+
+        private static void RegisterDefaultApplicationMetadata(string executablePath, IEnumerable<string> extensions)
+        {
+            string iconReference = GetExecutableIconReference(executablePath);
+            using RegistryKey? capabilitiesKey = Registry.CurrentUser.CreateSubKey(DefaultApplicationCapabilitiesPath);
+            capabilitiesKey?.SetValue("ApplicationName", DefaultApplicationName, RegistryValueKind.String);
+            capabilitiesKey?.SetValue("ApplicationDescription", "Uviewer에서 이미지, 문서, 압축 파일, EPUB 및 PDF를 열 수 있습니다.", RegistryValueKind.String);
+
+            using RegistryKey? fileAssociationsKey = capabilitiesKey?.CreateSubKey("FileAssociations");
+            using RegistryKey? classesKey = Registry.CurrentUser.CreateSubKey(@"Software\Classes");
+            if (fileAssociationsKey == null || classesKey == null)
+            {
+                return;
+            }
+
+            foreach (string extension in extensions)
+            {
+                string progId = GetProgId(extension);
+                fileAssociationsKey.SetValue(extension, progId, RegistryValueKind.String);
+
+                using (RegistryKey? progIdKey = classesKey.CreateSubKey(progId))
+                {
+                    progIdKey?.SetValue("", $"Uviewer {extension.TrimStart('.').ToUpperInvariant()} 파일", RegistryValueKind.String);
+                    using RegistryKey? defaultIconKey = progIdKey?.CreateSubKey("DefaultIcon");
+                    defaultIconKey?.SetValue("", iconReference, RegistryValueKind.String);
+                    using RegistryKey? commandKey = progIdKey?.CreateSubKey(@"shell\open\command");
+                    commandKey?.SetValue("", $"\"{executablePath}\" \"%1\"", RegistryValueKind.String);
+                }
+
+                // 기본 연결은 변경하지 않고, 파일의 "연결 프로그램" 후보로만 등록합니다.
+                using RegistryKey? extensionKey = classesKey.CreateSubKey(extension);
+                using RegistryKey? openWithProgIdsKey = extensionKey?.CreateSubKey("OpenWithProgids");
+                openWithProgIdsKey?.SetValue(progId, string.Empty, RegistryValueKind.String);
+            }
+
+            using RegistryKey? registeredApplicationsKey = Registry.CurrentUser.CreateSubKey(DefaultApplicationsRegistryPath);
+            registeredApplicationsKey?.SetValue(DefaultApplicationName, DefaultApplicationCapabilitiesPath, RegistryValueKind.String);
+        }
+
+        private static string GetProgId(string extension)
+        {
+            return $"Uviewer.File.{extension.TrimStart('.').ToLowerInvariant()}";
         }
 
         private static void RegisterOpenWithApplicationMetadata(string executablePath)
@@ -611,6 +671,10 @@ namespace Uviewer
         {
             return $@"Software\Classes\Applications\{System.IO.Path.GetFileName(executablePath)}";
         }
+
+        private const string DefaultApplicationName = "Uviewer";
+        private const string DefaultApplicationCapabilitiesPath = @"Software\Uviewer\Capabilities";
+        private const string DefaultApplicationsRegistryPath = @"Software\RegisteredApplications";
 
         private bool IsPackaged()
         {
