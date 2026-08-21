@@ -142,7 +142,7 @@ namespace Uviewer
         {
             try
             {
-                RestoreFromTray();
+                await RestoreFromTrayAsync();
 
                 if (!string.IsNullOrEmpty(filePath))
                 {

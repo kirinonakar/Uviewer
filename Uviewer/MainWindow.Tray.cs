@@ -11,6 +11,8 @@ namespace Uviewer
 {
     public sealed partial class MainWindow
     {
+        private Task _trayDocumentReleaseTask = Task.CompletedTask;
+
         private void InitializeTrayIcon()
         {
             try
@@ -48,6 +50,7 @@ namespace Uviewer
                 SaveWindowSettingsForShutdown();
                 AppWindow.Hide();
                 _isHiddenToTray = true;
+                _trayDocumentReleaseTask = ReleaseDocumentAfterHidingToTrayAsync();
                 return true;
             }
             catch (Exception ex)
@@ -59,6 +62,12 @@ namespace Uviewer
 
         private void RestoreFromTray()
         {
+            _ = RestoreFromTrayAsync();
+        }
+
+        private async Task RestoreFromTrayAsync()
+        {
+            await _trayDocumentReleaseTask;
             if (_trayExitRequested || _isWindowClosing) return;
 
             AppWindow.Show();
@@ -72,7 +81,36 @@ namespace Uviewer
             Activate();
         }
 
+        private async Task ReleaseDocumentAfterHidingToTrayAsync()
+        {
+            // Let the hide request complete before starting UI-bound document cleanup.
+            await Task.Yield();
+
+            try
+            {
+                await _bookmarkInteractionController.AddCurrentRecentAsync(true);
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error saving document position after hiding to tray: {ex.Message}");
+            }
+
+            try
+            {
+                await _explorerDocumentReleaseService.ReleaseCurrentDocumentAsync();
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error releasing document after hiding to tray: {ex.Message}");
+            }
+        }
+
         private void ExitFromTray()
+        {
+            _ = ExitFromTrayAsync();
+        }
+
+        private async Task ExitFromTrayAsync()
         {
             if (_trayExitRequested || _isWindowClosing) return;
 
@@ -82,6 +120,7 @@ namespace Uviewer
             _trayExitRequested = true;
             _trayIconService?.Dispose();
             _trayIconService = null;
+            await _trayDocumentReleaseTask;
             _shutdownCoordinator.RequestClose(Close);
         }
 
