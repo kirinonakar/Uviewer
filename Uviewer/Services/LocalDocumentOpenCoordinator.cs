@@ -60,10 +60,40 @@ namespace Uviewer.Services
             {
                 _handlers.LoadExplorerFolder(path);
 
-                // Opening a folder from Windows Explorer should behave like opening
-                // a folder through the in-app folder picker: display its first image
-                // when one is available.
                 var folder = await StorageFolder.GetFolderFromPathAsync(path);
+                var files = (await folder.GetFilesAsync())
+                    .OrderBy(file => file.Name, NaturalSortComparer.Default)
+                    .ToList();
+
+                // A directly contained image always wins over an archive, regardless
+                // of where the archive sorts in the folder.
+                var firstImage = files.FirstOrDefault(file =>
+                    ClassifyExtension(Path.GetExtension(file.Name)) == SupportedFileKind.Image);
+                if (firstImage != null)
+                {
+                    _handlers.HideEmptyState?.Invoke();
+                    await OpenFilePathAsync(
+                        firstImage.Path,
+                        isInitial: true,
+                        saveBeforeOpen: false,
+                        saveOnlyForImageOrText: false,
+                        allowUnknownAsStorageFile: false);
+                    return;
+                }
+
+                foreach (var archive in files.Where(file =>
+                    ClassifyExtension(Path.GetExtension(file.Name)) == SupportedFileKind.Archive))
+                {
+                    if (await ArchiveSession.ContainsSupportedImageAsync(archive.Path))
+                    {
+                        _handlers.HideEmptyState?.Invoke();
+                        await _handlers.OpenArchiveAsync(archive.Path);
+                        return;
+                    }
+                }
+
+                // Preserve the existing empty-folder status when neither an image nor
+                // an image-containing archive can be opened automatically.
                 await _handlers.OpenFolderAsync(folder);
             }
         }

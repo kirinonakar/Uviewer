@@ -23,6 +23,35 @@ namespace Uviewer.Services
         public bool HasArchive => CurrentArchive != null || Current7zArchive != null;
         public bool IsSevenZipArchive => Current7zArchive != null;
 
+        public static Task<bool> ContainsSupportedImageAsync(string archivePath)
+        {
+            return Task.Run(() =>
+            {
+                try
+                {
+                    string extension = Path.GetExtension(archivePath).ToLowerInvariant();
+                    if (extension == ".7z")
+                    {
+                        string libraryPath = Path.Combine(AppContext.BaseDirectory, "Libs", "7z.dll");
+                        using var archive = new ArchiveFile(archivePath, libraryPath);
+                        return archive.Entries.Any(entry =>
+                            !entry.IsFolder &&
+                            FileExplorerService.GetSupportedFileKind(entry.FileName) == SupportedFileKind.Image);
+                    }
+
+                    using var sharpCompressArchive = ArchiveFactory.OpenArchive(archivePath);
+                    return sharpCompressArchive.Entries.Any(entry =>
+                        !entry.IsDirectory &&
+                        FileExplorerService.GetSupportedFileKind(entry.Key) == SupportedFileKind.Image);
+                }
+                catch
+                {
+                    // An unreadable archive cannot be the automatic folder-open target.
+                    return false;
+                }
+            });
+        }
+
         public async Task<IReadOnlyList<ImageEntry>> OpenLocalAsync(string archivePath)
         {
             await _lock.WaitAsync();
