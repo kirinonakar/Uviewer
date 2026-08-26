@@ -8,7 +8,7 @@ namespace Uviewer.Services
         // 호버 인식 영역 상수
         public const double TopHoverZone = 80;
         public const double LeftHoverZone = 60;
-        public const double TouchZoneRatio = 0.20;
+        public const double PanelRevealZoneRatio = 0.20;
         private const int HideDelayMs = 1000;
 
         private DispatcherQueueTimer? _toolbarTimer;

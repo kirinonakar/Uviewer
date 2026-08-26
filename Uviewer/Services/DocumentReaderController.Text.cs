@@ -1144,7 +1144,8 @@ namespace Uviewer
         {
             // Use unified touch handler (Next/Prev + Fullscreen Edge UI)
             var ptr = e.GetCurrentPoint(RootGrid);
-            if (ptr.Properties.IsLeftButtonPressed)
+            bool isTouch = e.Pointer.PointerDeviceType == Microsoft.UI.Input.PointerDeviceType.Touch;
+            if (isTouch || ptr.Properties.IsLeftButtonPressed)
             {
                 if (_isAozoraMode)
                 {

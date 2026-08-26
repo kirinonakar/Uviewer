@@ -871,7 +871,7 @@ namespace Uviewer.Services
             try
             {
                 if (!_isEpubMode) return;
-                if (_host.WindowShellController.HandleFullscreenTouchPanels(e))
+                if (_host.WindowShellController.HandleFullscreenPanelPointer(e))
                 {
                     e.Handled = true;
                     RootGrid.Focus(Microsoft.UI.Xaml.FocusState.Programmatic);

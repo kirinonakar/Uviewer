@@ -149,7 +149,7 @@ namespace Uviewer.Services
         {
             try
             {
-                if (_host.WindowShellController.HandleFullscreenTouchPanels(e))
+                if (_host.WindowShellController.HandleFullscreenPanelPointer(e))
                 {
                     e.Handled = true;
                     _host.FocusRoot();
@@ -160,10 +160,11 @@ namespace Uviewer.Services
                     return;
 
                 var point = e.GetCurrentPoint(_host.ImageArea);
-                if (!point.Properties.IsLeftButtonPressed)
+                bool isTouch = e.Pointer.PointerDeviceType == PointerDeviceType.Touch;
+                if (!isTouch && !point.Properties.IsLeftButtonPressed)
                     return;
 
-                if (e.Pointer.PointerDeviceType == PointerDeviceType.Touch)
+                if (isTouch)
                 {
                     if (_host.ZoomLevel > 1.01 || _host.IsPdfMode)
                         return;

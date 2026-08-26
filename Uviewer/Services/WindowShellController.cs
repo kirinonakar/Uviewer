@@ -295,25 +295,32 @@ namespace Uviewer.Services
             }
         }
 
-        internal bool HandleFullscreenTouchPanels(PointerRoutedEventArgs e)
+        internal bool HandleFullscreenPanelPointer(PointerRoutedEventArgs e)
         {
-            if (!_windowState.IsFullscreen ||
-                e.Pointer.PointerDeviceType != Microsoft.UI.Input.PointerDeviceType.Touch)
+            if (!_windowState.IsFullscreen)
             {
                 return false;
             }
 
-            var point = e.GetCurrentPoint(_rootGrid).Position;
+            var currentPoint = e.GetCurrentPoint(_rootGrid);
+            bool isTouch = e.Pointer.PointerDeviceType == Microsoft.UI.Input.PointerDeviceType.Touch;
+            if (!isTouch && !currentPoint.Properties.IsLeftButtonPressed)
+            {
+                return false;
+            }
+
+            var point = currentPoint.Position;
             bool inTopZone = _rootGrid.ActualHeight > 0 &&
-                point.Y < _rootGrid.ActualHeight * FullscreenOverlayManager.TouchZoneRatio;
+                point.Y < _rootGrid.ActualHeight * FullscreenOverlayManager.PanelRevealZoneRatio;
             bool inLeftZone = _windowState.IsSidebarVisible &&
                 _rootGrid.ActualWidth > 0 &&
-                point.X < _rootGrid.ActualWidth * FullscreenOverlayManager.TouchZoneRatio;
+                point.X < _rootGrid.ActualWidth * FullscreenOverlayManager.PanelRevealZoneRatio;
             bool hadVisiblePanel = _toolbar.Visibility == Visibility.Visible ||
                 _sidebarGrid.Visibility == Visibility.Visible;
 
             if (inTopZone)
             {
+                _appTitleBar.Visibility = Visibility.Visible;
                 _toolbar.Visibility = Visibility.Visible;
                 _overlayManager.StartToolbarTimer();
             }
@@ -340,39 +347,13 @@ namespace Uviewer.Services
 
         internal void HandleSmartTouchNavigation(PointerRoutedEventArgs e, bool shouldInvertControls, Action prevAction, Action nextAction)
         {
-            if (HandleFullscreenTouchPanels(e))
+            if (HandleFullscreenPanelPointer(e))
             {
                 return;
             }
 
             var pt = e.GetCurrentPoint(_rootGrid);
             double x = pt.Position.X;
-            double y = pt.Position.Y;
-
-            if (_windowState.IsFullscreen &&
-                e.Pointer.PointerDeviceType != Microsoft.UI.Input.PointerDeviceType.Touch)
-            {
-                if (y < FullscreenOverlayManager.TopHoverZone)
-                {
-                    if (_toolbar.Visibility != Visibility.Visible)
-                    {
-                        _toolbar.Visibility = Visibility.Visible;
-                    }
-                    _overlayManager.StartToolbarTimer();
-                    return;
-                }
-
-                if (x < FullscreenOverlayManager.LeftHoverZone)
-                {
-                    if (_sidebarGrid.Visibility != Visibility.Visible)
-                    {
-                        _sidebarColumn.Width = new GridLength(_windowState.SidebarWidth);
-                        _sidebarGrid.Visibility = Visibility.Visible;
-                    }
-                    _overlayManager.StartSidebarTimer();
-                    return;
-                }
-            }
 
             if (x < _rootGrid.ActualWidth / 2)
             {
