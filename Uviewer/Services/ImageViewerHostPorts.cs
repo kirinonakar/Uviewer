@@ -65,6 +65,7 @@ namespace Uviewer.Services
         Grid SideBySideGrid { get; }
 
         ImageViewportNavigationService ImageViewportNavigationService { get; }
+        WindowShellController WindowShellController { get; }
 
         Task RerenderPdfCurrentPageAsync();
         void ShowNotification(string message, string icon = "\uE735", string color = "Gold");

@@ -950,6 +950,13 @@ namespace Uviewer
         internal void AozoraTextCanvas_PointerPressed(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
         {
             if (AozoraTextCanvas == null || !_isAozoraMode) return;
+            if (_windowShellController.HandleFullscreenTouchPanels(e))
+            {
+                e.Handled = true;
+                RootGrid.Focus(FocusState.Programmatic);
+                return;
+            }
+
             var pt = e.GetCurrentPoint(AozoraTextCanvas).Position;
             var width = AozoraTextCanvas.ActualWidth;
 

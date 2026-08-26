@@ -70,6 +70,7 @@ namespace Uviewer.Services
         IAnimatedWebpService AnimatedWebpService { get; }
         WebDavService WebDavService { get; }
         TocService TocService { get; }
+        WindowShellController WindowShellController { get; }
 
         Task AddToRecentAsync(bool immediate);
         Task<bool> CloseCurrentArchiveAsync();

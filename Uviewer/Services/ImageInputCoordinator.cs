@@ -149,6 +149,13 @@ namespace Uviewer.Services
         {
             try
             {
+                if (_host.WindowShellController.HandleFullscreenTouchPanels(e))
+                {
+                    e.Handled = true;
+                    _host.FocusRoot();
+                    return;
+                }
+
                 if (_host.ImageEntries.Count <= 1)
                     return;
 

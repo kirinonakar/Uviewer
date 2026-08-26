@@ -614,6 +614,13 @@ namespace Uviewer
         internal void VerticalTextCanvas_PointerPressed(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
         {
             if (VerticalTextCanvas == null) return;
+            if (_windowShellController.HandleFullscreenTouchPanels(e))
+            {
+                e.Handled = true;
+                RootGrid.Focus(FocusState.Programmatic);
+                return;
+            }
+
             var pt = e.GetCurrentPoint(VerticalTextCanvas).Position;
             var width = VerticalTextCanvas.ActualWidth;
 

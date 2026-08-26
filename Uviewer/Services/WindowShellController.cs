@@ -295,13 +295,62 @@ namespace Uviewer.Services
             }
         }
 
+        internal bool HandleFullscreenTouchPanels(PointerRoutedEventArgs e)
+        {
+            if (!_windowState.IsFullscreen ||
+                e.Pointer.PointerDeviceType != Microsoft.UI.Input.PointerDeviceType.Touch)
+            {
+                return false;
+            }
+
+            var point = e.GetCurrentPoint(_rootGrid).Position;
+            bool inTopZone = _rootGrid.ActualHeight > 0 &&
+                point.Y < _rootGrid.ActualHeight * FullscreenOverlayManager.TouchZoneRatio;
+            bool inLeftZone = _windowState.IsSidebarVisible &&
+                _rootGrid.ActualWidth > 0 &&
+                point.X < _rootGrid.ActualWidth * FullscreenOverlayManager.TouchZoneRatio;
+            bool hadVisiblePanel = _toolbar.Visibility == Visibility.Visible ||
+                _sidebarGrid.Visibility == Visibility.Visible;
+
+            if (inTopZone)
+            {
+                _toolbar.Visibility = Visibility.Visible;
+                _overlayManager.StartToolbarTimer();
+            }
+            else
+            {
+                _overlayManager.StopToolbarTimer();
+                HideToolbarUI();
+            }
+
+            if (inLeftZone)
+            {
+                _sidebarColumn.Width = new GridLength(_windowState.SidebarWidth);
+                _sidebarGrid.Visibility = Visibility.Visible;
+                _overlayManager.StartSidebarTimer();
+            }
+            else
+            {
+                _overlayManager.StopSidebarTimer();
+                HideSidebarUI();
+            }
+
+            return inTopZone || inLeftZone || hadVisiblePanel;
+        }
+
         internal void HandleSmartTouchNavigation(PointerRoutedEventArgs e, bool shouldInvertControls, Action prevAction, Action nextAction)
         {
+            if (HandleFullscreenTouchPanels(e))
+            {
+                return;
+            }
+
             var pt = e.GetCurrentPoint(_rootGrid);
             double x = pt.Position.X;
             double y = pt.Position.Y;
 
-            if (_windowState.IsFullscreen)
+            if (_windowState.IsFullscreen &&
+                e.Pointer.PointerDeviceType != Microsoft.UI.Input.PointerDeviceType.Touch)
             {
                 if (y < FullscreenOverlayManager.TopHoverZone)
                 {

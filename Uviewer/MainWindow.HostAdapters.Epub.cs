@@ -76,6 +76,7 @@ namespace Uviewer
             public IAnimatedWebpService AnimatedWebpService => _window._animatedWebpService;
             public WebDavService WebDavService => _window._webDavService;
             public TocService TocService => _window._tocService;
+            public WindowShellController WindowShellController => _window._windowShellController;
 
             public Task AddToRecentAsync(bool immediate) => _window._bookmarkInteractionController.AddCurrentRecentAsync(immediate);
             public Task<bool> CloseCurrentArchiveAsync() => _window._archiveDocumentController.CloseCurrentArchiveAsync();

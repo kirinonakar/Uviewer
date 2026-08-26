@@ -871,6 +871,13 @@ namespace Uviewer.Services
             try
             {
                 if (!_isEpubMode) return;
+                if (_host.WindowShellController.HandleFullscreenTouchPanels(e))
+                {
+                    e.Handled = true;
+                    RootGrid.Focus(Microsoft.UI.Xaml.FocusState.Programmatic);
+                    return;
+                }
+
                 DispatcherQueue.TryEnqueue(() => EpubTextCanvas?.Focus(Microsoft.UI.Xaml.FocusState.Programmatic));
                 var pt = e.GetCurrentPoint(EpubTouchOverlay);
                 double half = EpubTouchOverlay.ActualWidth / 2;

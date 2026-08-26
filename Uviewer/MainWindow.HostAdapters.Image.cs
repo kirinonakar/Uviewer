@@ -119,6 +119,7 @@ namespace Uviewer
             public Grid SideBySideGrid => Window.SideBySideGrid;
 
             public ImageViewportNavigationService ImageViewportNavigationService => Window._imageViewportNavigationService;
+            public WindowShellController WindowShellController => Window._windowShellController;
 
             public Task RerenderPdfCurrentPageAsync() => Window._pdfDocumentController.RerenderCurrentPageAsync();
             public void ShowNotification(string message, string icon = "\uE735", string color = "Gold") =>
