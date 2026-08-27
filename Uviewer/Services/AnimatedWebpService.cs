@@ -60,13 +60,15 @@ namespace Uviewer.Services
 
         private readonly struct WebpFrameInfo
         {
-            public WebpFrameInfo(int delayMs, int disposalMethod, double offsetX, double offsetY, bool noBlend)
+            public WebpFrameInfo(int delayMs, int disposalMethod, double offsetX, double offsetY, bool noBlend, int width, int height)
             {
                 DelayMs = delayMs;
                 DisposalMethod = disposalMethod;
                 OffsetX = offsetX;
                 OffsetY = offsetY;
                 NoBlend = noBlend;
+                Width = width;
+                Height = height;
             }
 
             public int DelayMs { get; }
@@ -74,6 +76,8 @@ namespace Uviewer.Services
             public double OffsetX { get; }
             public double OffsetY { get; }
             public bool NoBlend { get; }
+            public int Width { get; }
+            public int Height { get; }
         }
 
         [DllImport("winmm.dll")]
@@ -219,9 +223,11 @@ namespace Uviewer.Services
 
                 if (imageBytes == null || token.IsCancellationRequested) return;
 
-                var webpFrameInfos = TryReadWebpFrameInfos(imageBytes);
+                var (webpCanvasWidth, webpCanvasHeight, webpFrameInfos) = TryReadWebpAnimationInfo(imageBytes);
                 var (frameBitmaps, _, _, _) = await TryLoadAnimatedImageFramesNativeAsync(
                     imageBytes,
+                    webpCanvasWidth,
+                    webpCanvasHeight,
                     webpFrameInfos,
                     animationGeneration);
                 if (frameBitmaps != null
@@ -435,6 +441,8 @@ namespace Uviewer.Services
 
         private async Task<(List<CanvasBitmap>? frameBitmaps, List<int>? delaysMs, int width, int height)> TryLoadAnimatedImageFramesNativeAsync(
             byte[] imageBytes,
+            int webpCanvasWidth,
+            int webpCanvasHeight,
             IReadOnlyList<WebpFrameInfo>? webpFrameInfos,
             int animationGeneration)
         {
@@ -447,8 +455,10 @@ namespace Uviewer.Services
                 var decoder = await BitmapDecoder.CreateAsync(stream);
                 if (decoder.FrameCount <= 1) return (null, null, 0, 0);
 
-                int w = (int)decoder.PixelWidth;
-                int h = (int)decoder.PixelHeight;
+                // [수정] 캔버스 크기는 RIFF VP8X 청크의 값을 우선 사용한다.
+                // 일부 코덱/디코더는 컨테이너 크기를 다르게 보고할 수 있어 decoder.PixelWidth에 의존하지 않는다.
+                int w = webpCanvasWidth > 0 ? webpCanvasWidth : (int)decoder.PixelWidth;
+                int h = webpCanvasHeight > 0 ? webpCanvasHeight : (int)decoder.PixelHeight;
 
                 var frameBitmaps = new List<CanvasBitmap>();
                 var delaysMs = new List<int>();
@@ -480,7 +490,9 @@ namespace Uviewer.Services
                         decoder,
                         0,
                         bgRenderTarget,
-                        GetFrameInfo(webpFrameInfos, 0));
+                        GetFrameInfo(webpFrameInfos, 0),
+                        w,
+                        h);
                     delaysMs.Add(delay0);
                     frameBitmaps.Add(SnapshotRenderTarget(device, bgRenderTarget, w, h));
 
@@ -541,7 +553,9 @@ namespace Uviewer.Services
                                     decoder,
                                     i,
                                     bgRenderTarget,
-                                    GetFrameInfo(webpFrameInfos, i));
+                                    GetFrameInfo(webpFrameInfos, i),
+                                    w,
+                                    h);
 
                                 previousDisposal = disposal;
                                 previousRect = rect;
@@ -618,7 +632,9 @@ namespace Uviewer.Services
             BitmapDecoder decoder, 
             uint frameIndex, 
             CanvasRenderTarget renderTarget,
-            WebpFrameInfo? webpFrameInfo)
+            WebpFrameInfo? webpFrameInfo,
+            int canvasWidth,
+            int canvasHeight)
         {
             var frame = await decoder.GetFrameAsync(frameIndex);
             int delayMs = DefaultWebpFrameDelayMs;
@@ -667,13 +683,34 @@ namespace Uviewer.Services
                 BitmapAlphaMode.Premultiplied);
                 
             using var canvasBmp = CanvasBitmap.CreateFromSoftwareBitmap(renderTarget.Device, softwareBitmap);
-            var frameRect = new Windows.Foundation.Rect(offsetX, offsetY, canvasBmp.SizeInPixels.Width, canvasBmp.SizeInPixels.Height);
+            int decodedWidth = (int)canvasBmp.SizeInPixels.Width;
+            int decodedHeight = (int)canvasBmp.SizeInPixels.Height;
+            var frameRect = new Windows.Foundation.Rect(offsetX, offsetY, decodedWidth, decodedHeight);
+
+            // [원인 수정] 일부 WebP 코덱(Windows 내장 WebP 코덱 포함)은 프레임을 반환하기 전에
+            // 캔버스 크기로 미리 합성한 풀 프레임을 돌려준다. 이 상태에서 ANMF 오프셋을 다시
+            // 적용하면 프레임마다 같은 그림이 다른 위치로 밀려나 애니메이션이 불규칙하게 움직인다.
+            // 디코딩 크기가 ANMF 선언 크기와 다르고 캔버스 크기와 일치하면 이미 합성된 프레임으로
+            // 판단하여 (0,0)에서 캔버스 전체를 교체한다.
+            bool preCompositedByCodec = false;
+            if (webpFrameInfo.HasValue)
+            {
+                var info = webpFrameInfo.Value;
+                bool matchesDeclared = decodedWidth == info.Width && decodedHeight == info.Height;
+                bool matchesCanvas = decodedWidth == canvasWidth && decodedHeight == canvasHeight;
+
+                if (!matchesDeclared && matchesCanvas)
+                {
+                    preCompositedByCodec = true;
+                    frameRect = new Windows.Foundation.Rect(0, 0, canvasWidth, canvasHeight);
+                }
+            }
 
             using (var ds = renderTarget.CreateDrawingSession())
             {
-                if (noBlend)
+                if (preCompositedByCodec || noBlend)
                 {
-                    // WebP "no blend": 알파 블렌딩 없이 해당 영역을 통째로 덮어쓴다.
+                    // 합성 완료 프레임 또는 WebP "no blend": 알파 블렌딩 없이 해당 영역을 통째로 덮어쓴다.
                     ds.Blend = CanvasBlend.Copy;
                 }
 
@@ -693,15 +730,17 @@ namespace Uviewer.Services
             return frameInfos[(int)frameIndex];
         }
 
-        private static IReadOnlyList<WebpFrameInfo>? TryReadWebpFrameInfos(byte[] imageBytes)
+        private static (int CanvasWidth, int CanvasHeight, IReadOnlyList<WebpFrameInfo>? FrameInfos) TryReadWebpAnimationInfo(byte[] imageBytes)
         {
             if (imageBytes.Length < 12
                 || !MatchesFourCc(imageBytes, 0, "RIFF")
                 || !MatchesFourCc(imageBytes, 8, "WEBP"))
             {
-                return null;
+                return (0, 0, null);
             }
 
+            int canvasWidth = 0;
+            int canvasHeight = 0;
             var frameInfos = new List<WebpFrameInfo>();
             int chunkOffset = 12;
 
@@ -713,14 +752,26 @@ namespace Uviewer.Services
 
                 if (chunkDataOffset + chunkSize > imageBytes.Length || nextChunkOffset > int.MaxValue)
                 {
-                    return null;
+                    break;
                 }
 
-                if (MatchesFourCc(imageBytes, chunkOffset, "ANMF") && chunkSize >= 16)
+                if (MatchesFourCc(imageBytes, chunkOffset, "VP8X") && chunkSize >= 10)
+                {
+                    // VP8X 페이로드: flags(1) + reserved(3) + 캔버스 폭-1(3) + 캔버스 높이-1(3)
+                    int p = (int)chunkDataOffset;
+                    canvasWidth = (imageBytes[p + 4] | (imageBytes[p + 5] << 8) | (imageBytes[p + 6] << 16)) + 1;
+                    canvasHeight = (imageBytes[p + 7] | (imageBytes[p + 8] << 8) | (imageBytes[p + 9] << 16)) + 1;
+                }
+                else if (MatchesFourCc(imageBytes, chunkOffset, "ANMF") && chunkSize >= 16)
                 {
                     int p = (int)chunkDataOffset;
-                    int offsetX = imageBytes[p] | (imageBytes[p + 1] << 8) | (imageBytes[p + 2] << 16);
-                    int offsetY = imageBytes[p + 3] | (imageBytes[p + 4] << 8) | (imageBytes[p + 5] << 16);
+                    // [수정] 규격상 프레임 좌표는 실제 픽셀 좌표의 절반 값으로 저장되어 있다
+                    // (VP8 짝수 좌표 제약). 실제 렌더링 위치는 저장값 * 2 이다.
+                    int offsetX = (imageBytes[p] | (imageBytes[p + 1] << 8) | (imageBytes[p + 2] << 16)) * 2;
+                    int offsetY = (imageBytes[p + 3] | (imageBytes[p + 4] << 8) | (imageBytes[p + 5] << 16)) * 2;
+                    // 프레임 크기(Width/Height Minus One)는 배율 없이 실제 픽셀 값이다.
+                    int width = (imageBytes[p + 6] | (imageBytes[p + 7] << 8) | (imageBytes[p + 8] << 16)) + 1;
+                    int height = (imageBytes[p + 9] | (imageBytes[p + 10] << 8) | (imageBytes[p + 11] << 16)) + 1;
                     int durationMs = imageBytes[p + 12]
                         | (imageBytes[p + 13] << 8)
                         | (imageBytes[p + 14] << 16);
@@ -734,13 +785,15 @@ namespace Uviewer.Services
                         disposeToBackground ? 2 : 0,
                         offsetX,
                         offsetY,
-                        noBlend));
+                        noBlend,
+                        width,
+                        height));
                 }
 
                 chunkOffset = (int)nextChunkOffset;
             }
 
-            return frameInfos.Count > 0 ? frameInfos : null;
+            return (canvasWidth, canvasHeight, frameInfos.Count > 0 ? frameInfos : null);
         }
 
         private static bool MatchesFourCc(byte[] bytes, int offset, string fourCc)
