@@ -8,6 +8,11 @@ namespace Uviewer.Services
         {
             route = default;
 
+            if (context.IsDeleteDialogOpen)
+            {
+                return false;
+            }
+
             if (context.IsColorPickerOpen && input.Key == VirtualKey.Escape)
             {
                 return false;
@@ -73,6 +78,11 @@ namespace Uviewer.Services
         public bool TryRouteKeyDown(ShortcutInput input, ShortcutContext context, out ShortcutRoute route)
         {
             route = default;
+
+            if (context.IsDeleteDialogOpen)
+            {
+                return false;
+            }
 
             switch (input.Key)
             {

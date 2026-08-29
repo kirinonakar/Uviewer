@@ -87,6 +87,7 @@ namespace Uviewer.Services
                 ImageEntriesCount = actions.ImageEntriesCount,
                 HasPdfDocument = actions.HasPdfDocument,
                 IsAboutDialogActive = actions.IsAboutDialogActive,
+                IsDeleteDialogOpen = actions.IsDeleteDialogOpen,
                 IsSearchOverlayOpen = actions.IsSearchOverlayOpen,
                 CanSearchCurrentDocument = actions.CanSearchCurrentDocument
             };

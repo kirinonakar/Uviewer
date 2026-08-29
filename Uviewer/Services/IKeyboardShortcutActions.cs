@@ -17,6 +17,7 @@ namespace Uviewer.Services
         int ImageEntriesCount { get; }
         bool HasPdfDocument { get; }
         bool IsAboutDialogActive { get; }
+        bool IsDeleteDialogOpen { get; }
         bool IsSearchOverlayOpen { get; }
         bool CanSearchCurrentDocument { get; }
 

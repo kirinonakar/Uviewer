@@ -1,9 +1,12 @@
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Input;
+using Microsoft.UI.Xaml.Media;
 using System;
 using System.IO;
 using System.Threading.Tasks;
 using Uviewer.Models;
+using Windows.System;
 
 namespace Uviewer.Services
 {
@@ -26,6 +29,8 @@ namespace Uviewer.Services
     {
         private readonly ExplorerItemLaunchService _launchService;
         private readonly ExplorerItemOperationHandlers _handlers;
+
+        public bool IsDeleteDialogOpen { get; private set; }
 
         public ExplorerItemOperationController(
             ExplorerItemLaunchService launchService,
@@ -166,7 +171,44 @@ namespace Uviewer.Services
                 RequestedTheme = _handlers.GetRequestedTheme()
             };
 
-            var result = await dialog.ShowAsync();
+            Button? deleteButton = null;
+            Button? cancelButton = null;
+            dialog.Opened += (_, _) =>
+            {
+                deleteButton = FindButtonByText(dialog, dialog.PrimaryButtonText);
+                cancelButton = FindButtonByText(dialog, dialog.CloseButtonText);
+            };
+
+            dialog.PreviewKeyDown += (_, e) =>
+            {
+                if (e.Key == VirtualKey.Left)
+                {
+                    e.Handled = true;
+                    deleteButton?.Focus(FocusState.Keyboard);
+                }
+                else if (e.Key == VirtualKey.Right)
+                {
+                    e.Handled = true;
+                    cancelButton?.Focus(FocusState.Keyboard);
+                }
+                else if (e.Key == VirtualKey.Escape)
+                {
+                    e.Handled = true;
+                    dialog.Hide();
+                }
+            };
+
+            ContentDialogResult result;
+            IsDeleteDialogOpen = true;
+            try
+            {
+                result = await dialog.ShowAsync();
+            }
+            finally
+            {
+                IsDeleteDialogOpen = false;
+            }
+
             if (result != ContentDialogResult.Primary) return;
 
             var shouldClearViewer = _handlers.IsTargetOpen(path, item.IsDirectory);
@@ -211,6 +253,29 @@ namespace Uviewer.Services
             {
                 _handlers.ShowNotification(Strings.DeleteFailed(ex.Message), "\uE783", "Red");
             }
+        }
+
+        private static Button? FindButtonByText(DependencyObject parent, string text)
+        {
+            int childCount = VisualTreeHelper.GetChildrenCount(parent);
+            for (int index = 0; index < childCount; index++)
+            {
+                var child = VisualTreeHelper.GetChild(parent, index);
+                if (child is Button button &&
+                    ((button.Content is string content && content == text) ||
+                     (button.Content is TextBlock textBlock && textBlock.Text == text)))
+                {
+                    return button;
+                }
+
+                var descendant = FindButtonByText(child, text);
+                if (descendant != null)
+                {
+                    return descendant;
+                }
+            }
+
+            return null;
         }
     }
 }
