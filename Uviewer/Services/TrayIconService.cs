@@ -38,6 +38,8 @@ namespace Uviewer.Services
         private readonly Func<string> _exitText;
         private readonly Action _openRequested;
         private readonly Action _exitRequested;
+        private readonly Action _contextMenuOpening;
+        private readonly Action _contextMenuClosed;
         private readonly SubclassProc _subclassProc;
         private readonly uint _taskbarCreatedMessage;
         private IntPtr _iconHandle;
@@ -52,7 +54,9 @@ namespace Uviewer.Services
             Func<string> openText,
             Func<string> exitText,
             Action openRequested,
-            Action exitRequested)
+            Action exitRequested,
+            Action contextMenuOpening,
+            Action contextMenuClosed)
         {
             _windowHandle = windowHandle;
             _dispatcherQueue = dispatcherQueue ?? throw new ArgumentNullException(nameof(dispatcherQueue));
@@ -60,6 +64,8 @@ namespace Uviewer.Services
             _exitText = exitText ?? throw new ArgumentNullException(nameof(exitText));
             _openRequested = openRequested ?? throw new ArgumentNullException(nameof(openRequested));
             _exitRequested = exitRequested ?? throw new ArgumentNullException(nameof(exitRequested));
+            _contextMenuOpening = contextMenuOpening ?? throw new ArgumentNullException(nameof(contextMenuOpening));
+            _contextMenuClosed = contextMenuClosed ?? throw new ArgumentNullException(nameof(contextMenuClosed));
             _subclassProc = WindowSubclassProc;
             _taskbarCreatedMessage = RegisterWindowMessage("TaskbarCreated");
 
@@ -200,8 +206,13 @@ namespace Uviewer.Services
 
         private void ShowContextMenu()
         {
+            _contextMenuOpening();
             IntPtr menu = CreatePopupMenu();
-            if (menu == IntPtr.Zero) return;
+            if (menu == IntPtr.Zero)
+            {
+                _contextMenuClosed();
+                return;
+            }
 
             try
             {
@@ -226,6 +237,7 @@ namespace Uviewer.Services
             finally
             {
                 DestroyMenu(menu);
+                _contextMenuClosed();
             }
         }
 

@@ -14,7 +14,7 @@
     </Window.SystemBackdrop>
 
     <ContentControl x:Name="RootFontControl" HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch">
-        <Grid x:Name="RootGrid" AllowDrop="True" IsTabStop="True" Background="Transparent"
+        <uc:CursorGrid x:Name="RootGrid" AllowDrop="True" IsTabStop="True" Background="Transparent"
               PointerMoved="RootGrid_PointerMoved"
               PointerExited="RootGrid_PointerExited"
               PointerPressed="RootGrid_PointerPressed">
@@ -187,6 +187,6 @@
                            VerticalAlignment="Center" FontWeight="SemiBold"/>
             </StackPanel>
         </Border>
-        </Grid>
+        </uc:CursorGrid>
     </ContentControl>
 </Window>

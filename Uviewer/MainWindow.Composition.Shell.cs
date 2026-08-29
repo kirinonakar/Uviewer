@@ -197,6 +197,7 @@ namespace Uviewer
 
                     window.Closed += async (s, e) =>
                     {
+                        window._windowShellController.Dispose();
                         window.DisposeTrayIcon();
                         App.NotifyWindowClosing();
                         window._isWindowClosing = true;

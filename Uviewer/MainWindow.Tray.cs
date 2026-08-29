@@ -24,7 +24,9 @@ namespace Uviewer
                     () => Strings.TrayOpen,
                     () => Strings.TrayExit,
                     RestoreFromTray,
-                    ExitFromTray);
+                    ExitFromTray,
+                    () => _windowShellController.BeginExternalPointerInteraction(),
+                    () => _windowShellController.EndExternalPointerInteraction());
             }
             catch (Exception ex)
             {
@@ -42,12 +44,15 @@ namespace Uviewer
         {
             if (!_keepInTray || _trayExitRequested || _isWindowClosing) return false;
 
+            bool cursorTrackingSuspended = false;
             try
             {
                 _trayIconService?.SetVisible(true);
                 if (_trayIconService?.IsVisible != true) return false;
 
                 SaveWindowSettingsForShutdown();
+                _windowShellController.BeginExternalPointerInteraction();
+                cursorTrackingSuspended = true;
                 AppWindow.Hide();
                 _isHiddenToTray = true;
                 _trayDocumentReleaseTask = ReleaseDocumentAfterHidingToTrayAsync();
@@ -55,6 +60,11 @@ namespace Uviewer
             }
             catch (Exception ex)
             {
+                if (cursorTrackingSuspended)
+                {
+                    _windowShellController.EndExternalPointerInteraction();
+                }
+
                 System.Diagnostics.Debug.WriteLine($"Error hiding window to tray: {ex.Message}");
                 return false;
             }
@@ -79,6 +89,7 @@ namespace Uviewer
             }
 
             Activate();
+            _windowShellController.EndExternalPointerInteraction();
         }
 
         private async Task ReleaseDocumentAfterHidingToTrayAsync()

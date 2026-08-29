@@ -1,5 +1,6 @@
 using Microsoft.UI;
 using Microsoft.UI.Dispatching;
+using Microsoft.UI.Input;
 using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
@@ -11,10 +12,11 @@ using Uviewer.Controls;
 
 namespace Uviewer.Services
 {
-    internal sealed class WindowShellController
+    internal sealed class WindowShellController : IDisposable
     {
         private readonly Window _window;
         private readonly Grid _rootGrid;
+        private readonly CursorGrid _cursorSurface;
         private readonly UIElement _appTitleBar;
         private readonly MainToolbarControl _toolbar;
         private readonly UIElement _statusBarGrid;
@@ -23,10 +25,22 @@ namespace Uviewer.Services
         private readonly ColumnDefinition _sidebarColumn;
         private readonly WindowStateManager _windowState;
         private readonly FullscreenOverlayManager _overlayManager;
-        private readonly DispatcherQueueTimer _cursorHideTimer;
+        private readonly IntPtr _windowHandle;
+        private readonly DispatcherQueueTimer _cursorActivityTimer;
+        private readonly SubclassProc _subclassProc;
+        private readonly InputCursor? _hiddenInputCursor;
         private readonly Action _saveWindowSettings;
         private readonly Action _invalidateThemeTargets;
+        private Point? _lastCursorPosition;
+        private long _cursorLastMovedAt;
+        private bool _cursorHidden;
+        private int _cursorHidingSuspendCount;
+        private bool _windowSubclassInstalled;
+        private bool _disposed;
         private const int IdcArrow = 32512;
+        private const uint WmSetCursor = 0x0020;
+        private const nuint CursorSubclassId = 0x55564352;
+        private static readonly TimeSpan CursorPollInterval = TimeSpan.FromMilliseconds(100);
         private static readonly TimeSpan CursorHideDelay = TimeSpan.FromSeconds(2);
 
         internal WindowShellController(
@@ -45,6 +59,8 @@ namespace Uviewer.Services
         {
             _window = window;
             _rootGrid = rootGrid;
+            _cursorSurface = rootGrid as CursorGrid ??
+                throw new ArgumentException("The root grid must support XAML cursor control.", nameof(rootGrid));
             _appTitleBar = appTitleBar;
             _toolbar = toolbar;
             _statusBarGrid = statusBarGrid;
@@ -55,17 +71,25 @@ namespace Uviewer.Services
             _overlayManager = overlayManager;
             _saveWindowSettings = saveWindowSettings;
             _invalidateThemeTargets = invalidateThemeTargets;
+            _windowHandle = WinRT.Interop.WindowNative.GetWindowHandle(window);
+            _subclassProc = WindowSubclassProc;
+            _hiddenInputCursor = TransparentInputCursorFactory.TryCreate();
 
-            _cursorHideTimer = _rootGrid.DispatcherQueue.CreateTimer();
-            _cursorHideTimer.Interval = CursorHideDelay;
-            _cursorHideTimer.IsRepeating = false;
-            _cursorHideTimer.Tick += (_, _) =>
+            _cursorActivityTimer = _rootGrid.DispatcherQueue.CreateTimer();
+            _cursorActivityTimer.Interval = CursorPollInterval;
+            _cursorActivityTimer.IsRepeating = true;
+            _cursorActivityTimer.Tick += (_, _) => PollCursorActivity();
+
+            _windowSubclassInstalled = SetWindowSubclass(
+                _windowHandle,
+                _subclassProc,
+                CursorSubclassId,
+                0);
+
+            if (!_windowSubclassInstalled)
             {
-                if (_windowState.IsFullscreen)
-                {
-                    HidePointerCursor();
-                }
-            };
+                System.Diagnostics.Debug.WriteLine("Failed to install the fullscreen cursor window hook.");
+            }
         }
 
         internal ElementTheme CurrentTheme { get; private set; } = ElementTheme.Default;
@@ -75,6 +99,38 @@ namespace Uviewer.Services
 
         [DllImport("user32.dll")]
         private static extern IntPtr SetCursor(IntPtr hCursor);
+
+        [DllImport("user32.dll", SetLastError = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        private static extern bool GetCursorPos(out Point point);
+
+        [DllImport("user32.dll")]
+        private static extern IntPtr WindowFromPoint(Point point);
+
+        [DllImport("user32.dll")]
+        private static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint processId);
+
+        [DllImport("comctl32.dll", ExactSpelling = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        private static extern bool SetWindowSubclass(
+            IntPtr hWnd,
+            SubclassProc callback,
+            nuint subclassId,
+            nuint referenceData);
+
+        [DllImport("comctl32.dll", ExactSpelling = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        private static extern bool RemoveWindowSubclass(
+            IntPtr hWnd,
+            SubclassProc callback,
+            nuint subclassId);
+
+        [DllImport("comctl32.dll", ExactSpelling = true)]
+        private static extern IntPtr DefSubclassProc(
+            IntPtr hWnd,
+            uint message,
+            UIntPtr wParam,
+            IntPtr lParam);
 
         internal void ApplyInitialShellState()
         {
@@ -215,11 +271,11 @@ namespace Uviewer.Services
             RefreshPointerCursor();
             if (_windowState.IsFullscreen)
             {
-                RestartCursorHideTimer();
+                StartCursorActivityTracking();
             }
             else
             {
-                _cursorHideTimer.Stop();
+                StopCursorActivityTracking();
             }
         }
 
@@ -255,10 +311,168 @@ namespace Uviewer.Services
             }
         }
 
-        private void RestartCursorHideTimer()
+        private void StartCursorActivityTracking()
         {
-            _cursorHideTimer.Stop();
-            _cursorHideTimer.Start();
+            _lastCursorPosition = null;
+            _cursorLastMovedAt = Environment.TickCount64;
+            SetCursorHidden(false);
+            if (_cursorHidingSuspendCount == 0)
+            {
+                _cursorActivityTimer.Start();
+            }
+        }
+
+        private void StopCursorActivityTracking()
+        {
+            _cursorActivityTimer.Stop();
+            _lastCursorPosition = null;
+            SetCursorHidden(false);
+        }
+
+        private void PollCursorActivity()
+        {
+            if (!_windowState.IsFullscreen || _cursorHidingSuspendCount > 0)
+            {
+                _cursorLastMovedAt = Environment.TickCount64;
+                SetCursorHidden(false);
+                return;
+            }
+
+            if (!GetCursorPos(out Point cursor) || !IsCursorInsideFullscreenWindow(cursor))
+            {
+                _lastCursorPosition = cursor;
+                _cursorLastMovedAt = Environment.TickCount64;
+                SetCursorHidden(false);
+                return;
+            }
+
+            long now = Environment.TickCount64;
+            bool moved = !_lastCursorPosition.HasValue ||
+                _lastCursorPosition.Value.X != cursor.X ||
+                _lastCursorPosition.Value.Y != cursor.Y;
+
+            _lastCursorPosition = cursor;
+            if (moved)
+            {
+                _cursorLastMovedAt = now;
+                SetCursorHidden(false);
+                return;
+            }
+
+            SetCursorHidden(now - _cursorLastMovedAt >= CursorHideDelay.TotalMilliseconds);
+        }
+
+        private bool IsCursorInsideFullscreenWindow(Point cursor)
+        {
+            if (!_windowState.IsFullscreen)
+            {
+                return false;
+            }
+
+            var appWindow = _window.AppWindow;
+            int left = appWindow.Position.X;
+            int top = appWindow.Position.Y;
+            int right = left + appWindow.Size.Width;
+            int bottom = top + appWindow.Size.Height;
+            return cursor.X >= left && cursor.X < right &&
+                cursor.Y >= top && cursor.Y < bottom;
+        }
+
+        private static bool IsWindowOwnedByCurrentProcess(IntPtr windowHandle)
+        {
+            if (windowHandle == IntPtr.Zero)
+            {
+                return false;
+            }
+
+            GetWindowThreadProcessId(windowHandle, out uint processId);
+            return processId == (uint)Environment.ProcessId;
+        }
+
+        private void SetCursorHidden(bool hidden)
+        {
+            if (_cursorHidden == hidden)
+            {
+                if (hidden)
+                {
+                    ApplyPointerCursor();
+                }
+
+                return;
+            }
+
+            _cursorHidden = hidden;
+            ApplyPointerCursor();
+        }
+
+        private void ApplyPointerCursor()
+        {
+            _cursorSurface.SetPointerCursor(_cursorHidden ? _hiddenInputCursor : null);
+            if (_cursorHidden)
+            {
+                if (GetCursorPos(out Point cursor) &&
+                    IsWindowOwnedByCurrentProcess(WindowFromPoint(cursor)))
+                {
+                    HidePointerCursor();
+                }
+            }
+            else
+            {
+                SetArrowCursor();
+            }
+        }
+
+        private IntPtr WindowSubclassProc(
+            IntPtr hWnd,
+            uint message,
+            UIntPtr wParam,
+            IntPtr lParam,
+            UIntPtr subclassId,
+            UIntPtr referenceData)
+        {
+            try
+            {
+                if (message == WmSetCursor &&
+                    _cursorHidden &&
+                    _cursorHidingSuspendCount == 0 &&
+                    _windowState.IsFullscreen)
+                {
+                    HidePointerCursor();
+                    return new IntPtr(1);
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error handling WM_SETCURSOR: {ex.Message}");
+            }
+
+            return DefSubclassProc(hWnd, message, wParam, lParam);
+        }
+
+        internal void BeginExternalPointerInteraction()
+        {
+            _cursorHidingSuspendCount++;
+            _cursorActivityTimer.Stop();
+            _cursorLastMovedAt = Environment.TickCount64;
+            SetCursorHidden(false);
+            SetArrowCursor();
+        }
+
+        internal void EndExternalPointerInteraction()
+        {
+            if (_cursorHidingSuspendCount > 0)
+            {
+                _cursorHidingSuspendCount--;
+            }
+
+            _lastCursorPosition = null;
+            _cursorLastMovedAt = Environment.TickCount64;
+            SetCursorHidden(false);
+            SetArrowCursor();
+            if (_cursorHidingSuspendCount == 0 && _windowState.IsFullscreen)
+            {
+                _cursorActivityTimer.Start();
+            }
         }
 
         internal void ToggleMaximizeRestore()
@@ -269,13 +483,6 @@ namespace Uviewer.Services
 
         internal void HandlePointerMoved(PointerRoutedEventArgs e)
         {
-            if (_windowState.IsFullscreen &&
-                e.Pointer.PointerDeviceType == Microsoft.UI.Input.PointerDeviceType.Mouse)
-            {
-                SetArrowCursor();
-                RestartCursorHideTimer();
-            }
-
             if (!_windowState.IsFullscreen && _windowState.IsPinned) return;
 
             var pt = e.GetCurrentPoint(_rootGrid);
@@ -327,6 +534,13 @@ namespace Uviewer.Services
 
         internal void HandlePointerExited()
         {
+            if (_windowState.IsFullscreen)
+            {
+                _lastCursorPosition = null;
+                _cursorLastMovedAt = Environment.TickCount64;
+                SetCursorHidden(false);
+            }
+
             if (!_windowState.IsFullscreen && _windowState.IsPinned) return;
 
             if (_toolbar.Visibility == Visibility.Visible && !_overlayManager.IsToolbarTimerRunning)
@@ -564,5 +778,34 @@ namespace Uviewer.Services
         {
             _windowState.SetCaptionButtonsVisibility(isVisible);
         }
+
+        public void Dispose()
+        {
+            if (_disposed) return;
+            _disposed = true;
+
+            StopCursorActivityTracking();
+            _hiddenInputCursor?.Dispose();
+            if (_windowSubclassInstalled)
+            {
+                RemoveWindowSubclass(_windowHandle, _subclassProc, CursorSubclassId);
+                _windowSubclassInstalled = false;
+            }
+        }
+
+        [StructLayout(LayoutKind.Sequential)]
+        private struct Point
+        {
+            public int X;
+            public int Y;
+        }
+
+        private delegate IntPtr SubclassProc(
+            IntPtr hWnd,
+            uint message,
+            UIntPtr wParam,
+            IntPtr lParam,
+            UIntPtr subclassId,
+            UIntPtr referenceData);
     }
 }
