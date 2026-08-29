@@ -176,8 +176,8 @@ namespace Uviewer.Services
 
             dialog.Opened += (_, _) =>
             {
-                _deleteButton = FindButtonByText(dialog, dialog.PrimaryButtonText);
-                _cancelButton = FindButtonByText(dialog, dialog.CloseButtonText);
+                _deleteButton = FindButtonByName(dialog, "PrimaryButton");
+                _cancelButton = FindButtonByName(dialog, "CloseButton");
                 _cancelButton?.Focus(FocusState.Programmatic);
             };
 
@@ -254,14 +254,12 @@ namespace Uviewer.Services
 
             if (key == VirtualKey.Left)
             {
-                _deleteButton?.Focus(FocusState.Keyboard);
-                return true;
+                return _deleteButton?.Focus(FocusState.Keyboard) == true;
             }
 
             if (key == VirtualKey.Right)
             {
-                _cancelButton?.Focus(FocusState.Keyboard);
-                return true;
+                return _cancelButton?.Focus(FocusState.Keyboard) == true;
             }
 
             if (key == VirtualKey.Escape)
@@ -273,20 +271,18 @@ namespace Uviewer.Services
             return false;
         }
 
-        private static Button? FindButtonByText(DependencyObject parent, string text)
+        private static Button? FindButtonByName(DependencyObject parent, string name)
         {
             int childCount = VisualTreeHelper.GetChildrenCount(parent);
             for (int index = 0; index < childCount; index++)
             {
                 var child = VisualTreeHelper.GetChild(parent, index);
-                if (child is Button button &&
-                    ((button.Content is string content && content == text) ||
-                     (button.Content is TextBlock textBlock && textBlock.Text == text)))
+                if (child is Button button && button.Name == name)
                 {
                     return button;
                 }
 
-                var descendant = FindButtonByText(child, text);
+                var descendant = FindButtonByName(child, name);
                 if (descendant != null)
                 {
                     return descendant;
