@@ -165,6 +165,9 @@ namespace Uviewer
             public bool IsSearchOverlayOpen => _window._searchOverlayService?.IsOpen == true;
             public bool CanSearchCurrentDocument => _window._searchController.CanSearchCurrentDocument;
 
+            public bool HandleDeleteDialogKey(Windows.System.VirtualKey key) =>
+                _window._explorerItemOperationController.HandleDeleteDialogKey(key);
+
             public void ToggleFullscreen() => _window.ToggleFullscreen();
             public void ToggleMaximizeRestore() => _window.ToggleMaximizeRestore();
             public void CloseApp() => _window.RequestWindowClose();

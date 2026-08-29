@@ -25,6 +25,12 @@ namespace Uviewer.Services
 
         public async Task HandlePreviewKeyDownAsync(object sender, KeyRoutedEventArgs e, IKeyboardShortcutActions actions)
         {
+            if (actions.HandleDeleteDialogKey(e.Key))
+            {
+                e.Handled = true;
+                return;
+            }
+
             if (IsTextInput(e.OriginalSource))
             {
                 return;

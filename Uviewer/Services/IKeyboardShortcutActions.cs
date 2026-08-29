@@ -1,4 +1,5 @@
 using System.Threading.Tasks;
+using Windows.System;
 
 namespace Uviewer.Services
 {
@@ -20,6 +21,8 @@ namespace Uviewer.Services
         bool IsDeleteDialogOpen { get; }
         bool IsSearchOverlayOpen { get; }
         bool CanSearchCurrentDocument { get; }
+
+        bool HandleDeleteDialogKey(VirtualKey key);
 
         void ToggleFullscreen();
         void ToggleMaximizeRestore();

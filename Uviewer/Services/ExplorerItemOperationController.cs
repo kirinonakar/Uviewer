@@ -29,8 +29,11 @@ namespace Uviewer.Services
     {
         private readonly ExplorerItemLaunchService _launchService;
         private readonly ExplorerItemOperationHandlers _handlers;
+        private ContentDialog? _activeDeleteDialog;
+        private Button? _deleteButton;
+        private Button? _cancelButton;
 
-        public bool IsDeleteDialogOpen { get; private set; }
+        public bool IsDeleteDialogOpen => _activeDeleteDialog != null;
 
         public ExplorerItemOperationController(
             ExplorerItemLaunchService launchService,
@@ -171,42 +174,29 @@ namespace Uviewer.Services
                 RequestedTheme = _handlers.GetRequestedTheme()
             };
 
-            Button? deleteButton = null;
-            Button? cancelButton = null;
             dialog.Opened += (_, _) =>
             {
-                deleteButton = FindButtonByText(dialog, dialog.PrimaryButtonText);
-                cancelButton = FindButtonByText(dialog, dialog.CloseButtonText);
+                _deleteButton = FindButtonByText(dialog, dialog.PrimaryButtonText);
+                _cancelButton = FindButtonByText(dialog, dialog.CloseButtonText);
+                _cancelButton?.Focus(FocusState.Programmatic);
             };
 
             dialog.PreviewKeyDown += (_, e) =>
             {
-                if (e.Key == VirtualKey.Left)
-                {
-                    e.Handled = true;
-                    deleteButton?.Focus(FocusState.Keyboard);
-                }
-                else if (e.Key == VirtualKey.Right)
-                {
-                    e.Handled = true;
-                    cancelButton?.Focus(FocusState.Keyboard);
-                }
-                else if (e.Key == VirtualKey.Escape)
-                {
-                    e.Handled = true;
-                    dialog.Hide();
-                }
+                e.Handled = HandleDeleteDialogKey(e.Key);
             };
 
             ContentDialogResult result;
-            IsDeleteDialogOpen = true;
+            _activeDeleteDialog = dialog;
             try
             {
                 result = await dialog.ShowAsync();
             }
             finally
             {
-                IsDeleteDialogOpen = false;
+                _activeDeleteDialog = null;
+                _deleteButton = null;
+                _cancelButton = null;
             }
 
             if (result != ContentDialogResult.Primary) return;
@@ -253,6 +243,34 @@ namespace Uviewer.Services
             {
                 _handlers.ShowNotification(Strings.DeleteFailed(ex.Message), "\uE783", "Red");
             }
+        }
+
+        public bool HandleDeleteDialogKey(VirtualKey key)
+        {
+            if (_activeDeleteDialog == null)
+            {
+                return false;
+            }
+
+            if (key == VirtualKey.Left)
+            {
+                _deleteButton?.Focus(FocusState.Keyboard);
+                return true;
+            }
+
+            if (key == VirtualKey.Right)
+            {
+                _cancelButton?.Focus(FocusState.Keyboard);
+                return true;
+            }
+
+            if (key == VirtualKey.Escape)
+            {
+                _activeDeleteDialog.Hide();
+                return true;
+            }
+
+            return false;
         }
 
         private static Button? FindButtonByText(DependencyObject parent, string text)
