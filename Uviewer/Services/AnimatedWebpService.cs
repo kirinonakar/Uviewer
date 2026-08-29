@@ -24,19 +24,28 @@ namespace Uviewer.Services
         private readonly DispatcherQueue _dispatcherQueue;
 
         private DispatcherQueueTimer? _animatedWebpTimer;
-        private List<CanvasBitmap>? _animatedWebpFrameBitmaps;
+        private List<AnimatedFrameData>? _animatedWebpFrames;
         private List<int>? _animatedWebpDelaysMs;
         private int _animatedWebpFrameIndex;
         private int _animatedWebpWidth;
         private int _animatedWebpHeight;
         private const int DefaultWebpFrameDelayMs = 30;
+        private const long GpuFrameCacheBudgetBytes = 96L * 1024 * 1024;
+        private const int MinimumGpuFrameCacheCount = 2;
+        private const int MaximumGpuFrameCacheCount = 12;
         private volatile bool _isDecodingAnimatedImage = false;
         private int _animationGeneration;
         private int _highResolutionTimerActive;
+        private long _animatedWebpNextFrameTimestamp;
+        private int _gpuFrameCacheCapacity = MinimumGpuFrameCacheCount;
+        private int _framePrefetchActive;
 
         private readonly object _animatedWebpBitmapCacheLock = new();
-        private readonly Dictionary<int, CanvasBitmap> _animatedWebpSharpenedCache = new();
+        private readonly Dictionary<int, CanvasBitmap> _animatedWebpFrameCache = new();
+        private readonly Dictionary<int, Task<CanvasBitmap?>> _animatedWebpFramePreparationTasks = new();
+        private readonly Stack<CanvasBitmap> _animatedWebpBitmapPool = new();
         private CanvasControl? _currentCanvas;
+        private CanvasDevice? _animationDevice;
         
         // Settings for sharpening (cached during animation)
         private bool _sharpenEnabled;
@@ -78,6 +87,22 @@ namespace Uviewer.Services
             public bool NoBlend { get; }
             public int Width { get; }
             public int Height { get; }
+        }
+
+        private sealed class AnimatedFrameData
+        {
+            public AnimatedFrameData(byte[] pixels, int width, int height, bool isDisplayReady)
+            {
+                Pixels = pixels;
+                Width = width;
+                Height = height;
+                IsDisplayReady = isDisplayReady;
+            }
+
+            public byte[] Pixels { get; set; }
+            public int Width { get; set; }
+            public int Height { get; set; }
+            public bool IsDisplayReady { get; set; }
         }
 
         [DllImport("winmm.dll")]
@@ -133,6 +158,8 @@ namespace Uviewer.Services
             _animatedWebpWidth = 0;
             _animatedWebpHeight = 0;
             _animatedWebpFrameIndex = 0;
+            _animatedWebpNextFrameTimestamp = 0;
+            _animationDevice = null;
 
             // [안정성 수정] Stop()을 호출한 측에서 _currentBitmap을 null로 설정한 뒤에
             // 캐시를 해제하도록 AnimationStopped 이벤트를 먼저 발행합니다.
@@ -141,19 +168,17 @@ namespace Uviewer.Services
             List<CanvasBitmap> bitmapsToDispose;
             lock (_animatedWebpBitmapCacheLock)
             {
-                var staleFrameBitmaps = _animatedWebpFrameBitmaps;
-                _animatedWebpFrameBitmaps = null;
+                _animatedWebpFrames?.Clear();
+                _animatedWebpFrames = null;
 
-                bitmapsToDispose = _animatedWebpSharpenedCache.Values.ToList();
-                _animatedWebpSharpenedCache.Clear();
-
-                if (staleFrameBitmaps != null)
-                {
-                    bitmapsToDispose.AddRange(staleFrameBitmaps);
-                }
+                bitmapsToDispose = _animatedWebpFrameCache.Values.Distinct().ToList();
+                bitmapsToDispose.AddRange(_animatedWebpBitmapPool);
+                _animatedWebpFrameCache.Clear();
+                _animatedWebpFramePreparationTasks.Clear();
+                _animatedWebpBitmapPool.Clear();
             }
 
-            DisposeBitmapsOnDispatcher(bitmapsToDispose.Distinct().ToList());
+            DisposeBitmapsOnDispatcher(bitmapsToDispose);
         }
 
         private void RaiseAnimationStopped()
@@ -224,17 +249,17 @@ namespace Uviewer.Services
                 if (imageBytes == null || token.IsCancellationRequested) return;
 
                 var (webpCanvasWidth, webpCanvasHeight, webpFrameInfos) = TryReadWebpAnimationInfo(imageBytes);
-                var (frameBitmaps, _, _, _) = await TryLoadAnimatedImageFramesNativeAsync(
+                var (frames, _, _, _) = await TryLoadAnimatedImageFramesNativeAsync(
                     imageBytes,
                     webpCanvasWidth,
                     webpCanvasHeight,
                     webpFrameInfos,
                     animationGeneration);
-                if (frameBitmaps != null
+                if (frames != null
                     && !token.IsCancellationRequested
                     && animationGeneration == Volatile.Read(ref _animationGeneration))
                 {
-                    // 상태(_animatedWebpFrameBitmaps 등) 할당은 TryLoadAnimatedImageFramesNativeAsync 내부에서 수행된다.
+                    // 상태(_animatedWebpFrames 등) 할당은 TryLoadAnimatedImageFramesNativeAsync 내부에서 수행된다.
                     _dispatcherQueue.TryEnqueue(() =>
                     {
                         if (!token.IsCancellationRequested
@@ -254,13 +279,13 @@ namespace Uviewer.Services
 
         private void StartAnimatedWebpTimer()
         {
-            var frameBitmaps = _animatedWebpFrameBitmaps;
+            var frames = _animatedWebpFrames;
             var delaysMs = _animatedWebpDelaysMs;
             var canvas = _currentCanvas;
-            if (frameBitmaps == null || delaysMs == null || canvas == null || frameBitmaps.Count == 0)
+            if (frames == null || delaysMs == null || canvas == null || frames.Count == 0)
                 return;
 
-            if (_animatedWebpFrameBitmaps != frameBitmaps
+            if (_animatedWebpFrames != frames
                 || _animatedWebpDelaysMs != delaysMs
                 || _currentCanvas != canvas
                 || _animatedWebpFrameIndex >= delaysMs.Count)
@@ -274,25 +299,27 @@ namespace Uviewer.Services
             EnsureHighResolutionTimer();
 
             _animatedWebpTimer = _dispatcherQueue.CreateTimer();
+            _animatedWebpNextFrameTimestamp = Stopwatch.GetTimestamp()
+                + MillisecondsToStopwatchTicks(delaysMs[_animatedWebpFrameIndex]);
             _animatedWebpTimer.Interval = TimeSpan.FromMilliseconds(delaysMs[_animatedWebpFrameIndex]);
             _animatedWebpTimer.Tick += AnimatedWebpTimer_Tick;
             _animatedWebpTimer.Start();
+            QueueFramePrefetch(frames, canvas);
         }
 
         private async void AnimatedWebpTimer_Tick(DispatcherQueueTimer sender, object args)
         {
             // [안정성 수정] 로컬 변수에 스냅샷을 캡처하여 도중에 Stop()이 호출되어도 안전하게 접근
-            var frameBitmaps = _animatedWebpFrameBitmaps;
+            var frames = _animatedWebpFrames;
             var delaysMs = _animatedWebpDelaysMs;
             var canvas = _currentCanvas;
-            if (frameBitmaps == null || delaysMs == null || canvas == null)
+            if (frames == null || delaysMs == null || canvas == null)
                 return;
 
             // [안정성 수정] 두 리스트의 최소 Count를 기준으로 바운드 체크 (백그라운드 디코딩 중 비원자적 추가 대응)
-            int safeFrameCount = Math.Min(frameBitmaps.Count, delaysMs.Count);
+            int safeFrameCount = Math.Min(frames.Count, delaysMs.Count);
             if (safeFrameCount == 0) return;
 
-            var stopwatch = Stopwatch.StartNew();
             sender.Stop();
 
             try
@@ -302,81 +329,44 @@ namespace Uviewer.Services
                     _animatedWebpFrameIndex = 0;
                 }
 
-                int nextIndex = _animatedWebpFrameIndex + 1;
-                if (nextIndex >= safeFrameCount)
+                long nowTimestamp = Stopwatch.GetTimestamp();
+                if (_animatedWebpNextFrameTimestamp <= 0)
                 {
-                    if (_isDecodingAnimatedImage)
-                    {
-                        nextIndex = _animatedWebpFrameIndex; 
-                    }
-                    else
-                    {
-                        nextIndex = 0;
-                    }
+                    _animatedWebpNextFrameTimestamp = nowTimestamp
+                        + MillisecondsToStopwatchTicks(delaysMs[_animatedWebpFrameIndex]);
                 }
-                _animatedWebpFrameIndex = nextIndex;
+
+                // DispatcherQueueTimer/DWM이 늦게 깨어난 경우에도 지연을 다음 프레임에
+                // 누적하지 않고, 단조 시계상의 현재 재생 위치로 따라잡는다.
+                if (!AdvanceFrameToPlaybackTime(delaysMs, safeFrameCount, nowTimestamp)) return;
 
                 // 재검증: Stop()이 호출되었거나 인덱스가 범위를 벗어나면 중단
                 if (canvas.Device == null || _animatedWebpFrameIndex >= safeFrameCount) return;
 
-                CanvasBitmap? newBitmap = null;
-
-                if (_sharpenEnabled)
-                {
-                    lock (_animatedWebpBitmapCacheLock)
-                    {
-                        if (_animatedWebpSharpenedCache.TryGetValue(_animatedWebpFrameIndex, out var cached))
-                        {
-                            newBitmap = cached;
-                        }
-                    }
-
-                    if (newBitmap == null)
-                    {
-                        var originalBitmap = GetValidatedFrameBitmap(frameBitmaps, canvas, _animatedWebpFrameIndex);
-                        if (originalBitmap == null) return;
-
-                        newBitmap = await _sharpeningService.ApplySharpenToBitmapAsync(originalBitmap, _upscaleFactor, _sharpenAmountParam, _sharpenThresholdParam, _unsharpAmount, _unsharpRadius, skipUpscale: false);
-
-                        if (_animatedWebpFrameBitmaps != frameBitmaps || _currentCanvas != canvas)
-                        {
-                            if (newBitmap != null && !ReferenceEquals(newBitmap, originalBitmap))
-                            {
-                                newBitmap.Dispose();
-                            }
-                            return;
-                        }
-
-                        if (newBitmap != null)
-                        {
-                            lock (_animatedWebpBitmapCacheLock)
-                            {
-                                if (_animatedWebpFrameBitmaps == frameBitmaps && _currentCanvas == canvas)
-                                {
-                                    _animatedWebpSharpenedCache[_animatedWebpFrameIndex] = newBitmap;
-                                }
-                                else if (!ReferenceEquals(newBitmap, originalBitmap))
-                                {
-                                    newBitmap.Dispose();
-                                    return;
-                                }
-                                else
-                                {
-                                    return;
-                                }
-                            }
-                        }
-                    }
-                }
-                else
-                {
-                    // [성능 수정] 프레임 비트맵은 디코딩 시점에 이미 생성되어 있으므로 그대로 재사용한다.
-                    newBitmap = GetValidatedFrameBitmap(frameBitmaps, canvas, _animatedWebpFrameIndex);
-                }
+                CanvasBitmap? newBitmap = await GetOrPrepareFrameBitmapAsync(
+                    frames,
+                    canvas,
+                    _animatedWebpFrameIndex);
 
                 if (newBitmap != null)
                 {
-                    FrameUpdated?.Invoke(this, newBitmap);
+                    lock (_animatedWebpBitmapCacheLock)
+                    {
+                        if (_animatedWebpFrames != frames
+                            || _currentCanvas != canvas
+                            || !_animatedWebpFrameCache.TryGetValue(_animatedWebpFrameIndex, out var cached)
+                            || !ReferenceEquals(cached, newBitmap))
+                        {
+                            return;
+                        }
+
+                        // Stop()이 다른 스레드에서 실행되더라도 이벤트 처리 중인 비트맵은
+                        // 캐시 잠금으로 수명을 보장한다.
+                        FrameUpdated?.Invoke(this, newBitmap);
+                    }
+
+                    TrimGpuFrameCache(frames, canvas);
+                    QueueFramePrefetch(frames, canvas);
                 }
             }
             catch (Exception ex)
@@ -385,16 +375,88 @@ namespace Uviewer.Services
             }
             finally
             {
-                stopwatch.Stop();
-                var currentDelays = _animatedWebpDelaysMs;
-                if (currentDelays != null && _animatedWebpFrameIndex < currentDelays.Count)
+                if (ReferenceEquals(sender, _animatedWebpTimer)
+                    && _animatedWebpFrames == frames
+                    && _animatedWebpDelaysMs == delaysMs
+                    && _currentCanvas == canvas)
                 {
-                    int targetDelay = currentDelays[_animatedWebpFrameIndex];
-                    int adjustedDelay = Math.Max(1, targetDelay - (int)stopwatch.ElapsedMilliseconds);
-                    sender.Interval = TimeSpan.FromMilliseconds(adjustedDelay);
-                    sender.Start();
+                    ScheduleNextFrame(sender);
                 }
             }
+        }
+
+        private bool AdvanceFrameToPlaybackTime(List<int> delaysMs, int frameCount, long nowTimestamp)
+        {
+            long deadline = _animatedWebpNextFrameTimestamp;
+            if (nowTimestamp < deadline)
+            {
+                return false;
+            }
+
+            long overdueTicks = nowTimestamp - deadline;
+            int nextIndex = _animatedWebpFrameIndex + 1;
+
+            if (nextIndex >= frameCount && _isDecodingAnimatedImage)
+            {
+                // 아직 다음 프레임이 디코딩되지 않았다. 현재 프레임의 지연시간 뒤에
+                // 다시 확인하되, 디코딩 대기 시간을 이후 재생에 누적하지 않는다.
+                _animatedWebpNextFrameTimestamp = nowTimestamp
+                    + MillisecondsToStopwatchTicks(delaysMs[_animatedWebpFrameIndex]);
+                return false;
+            }
+
+            if (!_isDecodingAnimatedImage && frameCount > 0)
+            {
+                long cycleTicks = 0;
+                for (int i = 0; i < frameCount; i++)
+                {
+                    cycleTicks += MillisecondsToStopwatchTicks(delaysMs[i]);
+                }
+
+                if (cycleTicks > 0 && overdueTicks >= cycleTicks)
+                {
+                    overdueTicks %= cycleTicks;
+                }
+            }
+
+            while (true)
+            {
+                if (nextIndex >= frameCount)
+                {
+                    if (_isDecodingAnimatedImage)
+                    {
+                        _animatedWebpNextFrameTimestamp = nowTimestamp
+                            + MillisecondsToStopwatchTicks(delaysMs[_animatedWebpFrameIndex]);
+                        return true;
+                    }
+
+                    nextIndex = 0;
+                }
+
+                _animatedWebpFrameIndex = nextIndex;
+                long frameDurationTicks = MillisecondsToStopwatchTicks(delaysMs[nextIndex]);
+                if (overdueTicks < frameDurationTicks)
+                {
+                    _animatedWebpNextFrameTimestamp = nowTimestamp + frameDurationTicks - overdueTicks;
+                    return true;
+                }
+
+                overdueTicks -= frameDurationTicks;
+                nextIndex++;
+            }
+        }
+
+        private void ScheduleNextFrame(DispatcherQueueTimer timer)
+        {
+            long remainingTicks = _animatedWebpNextFrameTimestamp - Stopwatch.GetTimestamp();
+            double remainingMilliseconds = remainingTicks * 1000.0 / Stopwatch.Frequency;
+            timer.Interval = TimeSpan.FromMilliseconds(Math.Max(1.0, remainingMilliseconds));
+            timer.Start();
+        }
+
+        private static long MillisecondsToStopwatchTicks(int milliseconds)
+        {
+            return Math.Max(1L, (long)Math.Ceiling(milliseconds * (double)Stopwatch.Frequency / 1000.0));
         }
 
         public bool IsBitmapInCache(CanvasBitmap bitmap)
@@ -402,44 +464,321 @@ namespace Uviewer.Services
             if (bitmap == null) return false;
             lock (_animatedWebpBitmapCacheLock)
             {
-                if (_animatedWebpFrameBitmaps != null && _animatedWebpFrameBitmaps.Contains(bitmap))
-                {
-                    return true;
-                }
-
-                return _animatedWebpSharpenedCache.ContainsValue(bitmap);
+                return _animatedWebpFrameCache.ContainsValue(bitmap);
             }
         }
 
-        private CanvasBitmap? GetValidatedFrameBitmap(List<CanvasBitmap> frameBitmaps, CanvasControl canvas, int frameIndex)
+        private Task<CanvasBitmap?> GetOrPrepareFrameBitmapAsync(
+            List<AnimatedFrameData> frames,
+            CanvasControl canvas,
+            int frameIndex)
         {
             lock (_animatedWebpBitmapCacheLock)
             {
-                if (_animatedWebpFrameBitmaps != frameBitmaps || _currentCanvas != canvas)
+                if (_animatedWebpFrames != frames
+                    || _currentCanvas != canvas
+                    || _animationDevice == null
+                    || frameIndex < 0
+                    || frameIndex >= frames.Count)
                 {
-                    return null;
+                    return Task.FromResult<CanvasBitmap?>(null);
                 }
 
-                if (frameIndex < 0 || frameIndex >= frameBitmaps.Count)
+                if (_animatedWebpFrameCache.TryGetValue(frameIndex, out var cached))
                 {
-                    return null;
+                    return Task.FromResult<CanvasBitmap?>(cached);
                 }
 
-                return frameBitmaps[frameIndex];
+                if (_animatedWebpFramePreparationTasks.TryGetValue(frameIndex, out var activeTask))
+                {
+                    return activeTask;
+                }
+
+                AnimatedFrameData frame = frames[frameIndex];
+                CanvasDevice device = _animationDevice;
+                Task<CanvasBitmap?> preparationTask = Task.Run(() =>
+                    CreatePreparedFrameBitmapAsync(frames, canvas, frame, frameIndex, device));
+                _animatedWebpFramePreparationTasks[frameIndex] = preparationTask;
+                _ = RemoveFramePreparationTaskWhenCompleteAsync(frameIndex, preparationTask);
+                return preparationTask;
             }
         }
 
-        private static CanvasRenderTarget SnapshotRenderTarget(CanvasDevice device, CanvasRenderTarget source, int width, int height)
+        private async Task RemoveFramePreparationTaskWhenCompleteAsync(
+            int frameIndex,
+            Task<CanvasBitmap?> preparationTask)
         {
-            var snapshot = new CanvasRenderTarget(device, width, height, 96.0f);
-            using (var ds = snapshot.CreateDrawingSession())
+            try
             {
-                ds.DrawImage(source);
+                await preparationTask.ConfigureAwait(false);
             }
-            return snapshot;
+            catch
+            {
+                // 생성 측에서 오류를 기록하고 null을 반환한다.
+            }
+            finally
+            {
+                lock (_animatedWebpBitmapCacheLock)
+                {
+                    if (_animatedWebpFramePreparationTasks.TryGetValue(frameIndex, out var currentTask)
+                        && ReferenceEquals(currentTask, preparationTask))
+                    {
+                        _animatedWebpFramePreparationTasks.Remove(frameIndex);
+                    }
+                }
+            }
         }
 
-        private async Task<(List<CanvasBitmap>? frameBitmaps, List<int>? delaysMs, int width, int height)> TryLoadAnimatedImageFramesNativeAsync(
+        private async Task<CanvasBitmap?> CreatePreparedFrameBitmapAsync(
+            List<AnimatedFrameData> frames,
+            CanvasControl canvas,
+            AnimatedFrameData frame,
+            int frameIndex,
+            CanvasDevice device)
+        {
+            CanvasBitmap? originalBitmap = null;
+            CanvasBitmap? displayBitmap = null;
+
+            try
+            {
+                originalBitmap = CreateOrReuseGpuBitmap(device, frame);
+                displayBitmap = originalBitmap;
+
+                if (_sharpenEnabled && !frame.IsDisplayReady)
+                {
+                    displayBitmap = await _sharpeningService.ApplySharpenToBitmapAsync(
+                        originalBitmap,
+                        _upscaleFactor,
+                        _sharpenAmountParam,
+                        _sharpenThresholdParam,
+                        _unsharpAmount,
+                        _unsharpRadius,
+                        skipUpscale: false).ConfigureAwait(false) ?? originalBitmap;
+
+                    byte[] processedPixels = displayBitmap.GetPixelBytes();
+                    int processedWidth = (int)displayBitmap.SizeInPixels.Width;
+                    int processedHeight = (int)displayBitmap.SizeInPixels.Height;
+
+                    lock (_animatedWebpBitmapCacheLock)
+                    {
+                        if (_animatedWebpFrames == frames
+                            && _currentCanvas == canvas
+                            && frameIndex < frames.Count
+                            && ReferenceEquals(frames[frameIndex], frame))
+                        {
+                            // 샤프닝 결과도 무손실 BGRA로 시스템 메모리에 보관하여
+                            // 다음 루프에서 효과를 다시 계산하지 않는다.
+                            frame.Pixels = processedPixels;
+                            frame.Width = processedWidth;
+                            frame.Height = processedHeight;
+                            frame.IsDisplayReady = true;
+                        }
+                    }
+                }
+
+                if (!ReferenceEquals(displayBitmap, originalBitmap))
+                {
+                    originalBitmap.Dispose();
+                    originalBitmap = null;
+                }
+
+                lock (_animatedWebpBitmapCacheLock)
+                {
+                    if (_animatedWebpFrames != frames
+                        || _currentCanvas != canvas
+                        || !IsFrameInGpuWindowLocked(frameIndex, frames.Count))
+                    {
+                        displayBitmap.Dispose();
+                        return null;
+                    }
+
+                    if (_animatedWebpFrameCache.TryGetValue(frameIndex, out var cached))
+                    {
+                        displayBitmap.Dispose();
+                        return cached;
+                    }
+
+                    _animatedWebpFrameCache[frameIndex] = displayBitmap;
+                    return displayBitmap;
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Animated frame prepare error: {ex.Message}");
+                if (displayBitmap != null && !ReferenceEquals(displayBitmap, originalBitmap))
+                {
+                    try { displayBitmap.Dispose(); } catch { }
+                }
+                try { originalBitmap?.Dispose(); } catch { }
+                return null;
+            }
+        }
+
+        private void QueueFramePrefetch(List<AnimatedFrameData> frames, CanvasControl canvas)
+        {
+            if (_animatedWebpFrames != frames || _currentCanvas != canvas) return;
+            if (Interlocked.CompareExchange(ref _framePrefetchActive, 1, 0) != 0) return;
+
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    while (_animatedWebpFrames == frames && _currentCanvas == canvas)
+                    {
+                        int targetFrame = -1;
+                        lock (_animatedWebpBitmapCacheLock)
+                        {
+                            int frameCount = frames.Count;
+                            // 현재 표시 프레임보다 다음 프레임들을 먼저 준비한다.
+                            // 현재 프레임이 캐시에 없으면 타이머 경로가 같은 준비 Task를 공유한다.
+                            for (int offset = 1; offset < _gpuFrameCacheCapacity; offset++)
+                            {
+                                int candidate = GetFrameIndexAtOffset(_animatedWebpFrameIndex, offset, frameCount);
+                                if (candidate < 0) break;
+
+                                if (!_animatedWebpFrameCache.ContainsKey(candidate)
+                                    && !_animatedWebpFramePreparationTasks.ContainsKey(candidate))
+                                {
+                                    targetFrame = candidate;
+                                    break;
+                                }
+                            }
+                        }
+
+                        if (targetFrame < 0) break;
+                        await GetOrPrepareFrameBitmapAsync(frames, canvas, targetFrame).ConfigureAwait(false);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine($"Animated frame prefetch error: {ex.Message}");
+                }
+                finally
+                {
+                    Interlocked.Exchange(ref _framePrefetchActive, 0);
+
+                    var currentFrames = _animatedWebpFrames;
+                    var currentCanvas = _currentCanvas;
+                    if (currentFrames != null
+                        && currentCanvas != null
+                        && (!ReferenceEquals(currentFrames, frames) || !ReferenceEquals(currentCanvas, canvas)))
+                    {
+                        QueueFramePrefetch(currentFrames, currentCanvas);
+                    }
+                }
+            });
+        }
+
+        private void TrimGpuFrameCache(List<AnimatedFrameData> frames, CanvasControl canvas)
+        {
+            var bitmapsToDispose = new List<CanvasBitmap>();
+            lock (_animatedWebpBitmapCacheLock)
+            {
+                if (_animatedWebpFrames != frames || _currentCanvas != canvas) return;
+
+                int frameCount = frames.Count;
+                foreach (int frameIndex in _animatedWebpFrameCache.Keys.ToList())
+                {
+                    if (!IsFrameInGpuWindowLocked(frameIndex, frameCount))
+                    {
+                        CanvasBitmap bitmap = _animatedWebpFrameCache[frameIndex];
+                        _animatedWebpFrameCache.Remove(frameIndex);
+
+                        if (_animatedWebpFrameCache.Count + _animatedWebpBitmapPool.Count < _gpuFrameCacheCapacity)
+                        {
+                            _animatedWebpBitmapPool.Push(bitmap);
+                        }
+                        else
+                        {
+                            bitmapsToDispose.Add(bitmap);
+                        }
+                    }
+                }
+            }
+
+            DisposeBitmapsOnDispatcher(bitmapsToDispose);
+        }
+
+        private CanvasBitmap CreateOrReuseGpuBitmap(CanvasDevice device, AnimatedFrameData frame)
+        {
+            CanvasBitmap? reusableBitmap = null;
+            lock (_animatedWebpBitmapCacheLock)
+            {
+                while (_animatedWebpBitmapPool.Count > 0)
+                {
+                    CanvasBitmap candidate = _animatedWebpBitmapPool.Pop();
+                    try
+                    {
+                        if ((int)candidate.SizeInPixels.Width == frame.Width
+                            && (int)candidate.SizeInPixels.Height == frame.Height)
+                        {
+                            reusableBitmap = candidate;
+                            break;
+                        }
+                    }
+                    catch { }
+
+                    try { candidate.Dispose(); } catch { }
+                }
+            }
+
+            if (reusableBitmap != null)
+            {
+                try
+                {
+                    reusableBitmap.SetPixelBytes(frame.Pixels);
+                    return reusableBitmap;
+                }
+                catch
+                {
+                    try { reusableBitmap.Dispose(); } catch { }
+                }
+            }
+
+            return CanvasBitmap.CreateFromBytes(
+                device,
+                frame.Pixels,
+                frame.Width,
+                frame.Height,
+                DirectXPixelFormat.B8G8R8A8UIntNormalized);
+        }
+
+        private bool IsFrameInGpuWindowLocked(int frameIndex, int frameCount)
+        {
+            for (int offset = 0; offset < _gpuFrameCacheCapacity; offset++)
+            {
+                int candidate = GetFrameIndexAtOffset(_animatedWebpFrameIndex, offset, frameCount);
+                if (candidate < 0) break;
+                if (candidate == frameIndex) return true;
+            }
+
+            return false;
+        }
+
+        private int GetFrameIndexAtOffset(int startIndex, int offset, int frameCount)
+        {
+            if (frameCount <= 0 || startIndex < 0 || startIndex >= frameCount) return -1;
+
+            int frameIndex = startIndex + offset;
+            if (frameIndex < frameCount) return frameIndex;
+            if (_isDecodingAnimatedImage) return -1;
+            return frameIndex % frameCount;
+        }
+
+        private void UpdateGpuFrameCacheCapacity(int width, int height)
+        {
+            double scale = _sharpenEnabled && _upscaleFactor > 1.0f ? _upscaleFactor : 1.0f;
+            long displayWidth = Math.Max(1L, (long)Math.Ceiling(width * scale));
+            long displayHeight = Math.Max(1L, (long)Math.Ceiling(height * scale));
+            long frameBytes = Math.Max(1L, displayWidth * displayHeight * 4L);
+            long capacity = GpuFrameCacheBudgetBytes / frameBytes;
+            _gpuFrameCacheCapacity = (int)Math.Clamp(
+                capacity,
+                MinimumGpuFrameCacheCount,
+                MaximumGpuFrameCacheCount);
+        }
+
+        private async Task<(List<AnimatedFrameData>? frames, List<int>? delaysMs, int width, int height)> TryLoadAnimatedImageFramesNativeAsync(
             byte[] imageBytes,
             int webpCanvasWidth,
             int webpCanvasHeight,
@@ -460,15 +799,16 @@ namespace Uviewer.Services
                 int w = webpCanvasWidth > 0 ? webpCanvasWidth : (int)decoder.PixelWidth;
                 int h = webpCanvasHeight > 0 ? webpCanvasHeight : (int)decoder.PixelHeight;
 
-                var frameBitmaps = new List<CanvasBitmap>();
+                var frames = new List<AnimatedFrameData>();
                 var delaysMs = new List<int>();
 
-                var device = CanvasDevice.GetSharedDevice();
+                var displayDevice = CanvasDevice.GetSharedDevice();
+                var decodeDevice = new CanvasDevice(forceSoftwareRenderer: true);
 
                 // [성능 수정] 렌더 타깃 소유권은 백그라운드 작업으로 이전된다.
                 // (outer using으로 감싸면 메서드 반환 시점에 백그라운드 디코딩 중인 타깃이 해제되므로 금지)
-                var bgRenderTarget = new CanvasRenderTarget(device, w, h, 96.0f);
-                var backupRenderTarget = new CanvasRenderTarget(device, w, h, 96.0f);
+                var bgRenderTarget = new CanvasRenderTarget(decodeDevice, w, h, 96.0f);
+                var backupRenderTarget = new CanvasRenderTarget(decodeDevice, w, h, 96.0f);
 
                 try
                 {
@@ -494,25 +834,35 @@ namespace Uviewer.Services
                         w,
                         h);
                     delaysMs.Add(delay0);
-                    frameBitmaps.Add(SnapshotRenderTarget(device, bgRenderTarget, w, h));
+                    frames.Add(new AnimatedFrameData(
+                        bgRenderTarget.GetPixelBytes(),
+                        w,
+                        h,
+                        isDisplayReady: !_sharpenEnabled));
 
                     initialDisposal = disposal0;
                     initialRect = rect0;
 
                     if (animationGeneration != Volatile.Read(ref _animationGeneration))
                     {
-                        DisposeAll(frameBitmaps);
+                        frames.Clear();
                         bgRenderTarget.Dispose();
                         backupRenderTarget.Dispose();
+                        decodeDevice.Dispose();
                         return (null, null, 0, 0);
                     }
 
                     // [성능 수정] 상태 할당을 백그라운드 작업 시작 전으로 옮겨서
                     // 디코더 쪽 큐잉 콜백과 UI가 같은 리스트 인스턴스를 공유하도록 한다.
-                    _animatedWebpFrameBitmaps = frameBitmaps;
-                    _animatedWebpDelaysMs = delaysMs;
-                    _animatedWebpWidth = w;
-                    _animatedWebpHeight = h;
+                    lock (_animatedWebpBitmapCacheLock)
+                    {
+                        _animatedWebpFrames = frames;
+                        _animatedWebpDelaysMs = delaysMs;
+                        _animatedWebpWidth = w;
+                        _animatedWebpHeight = h;
+                        _animationDevice = displayDevice;
+                        UpdateGpuFrameCacheCapacity(w, h);
+                    }
 
                     _isDecodingAnimatedImage = true;
                     _ = Task.Run(async () =>
@@ -560,22 +910,30 @@ namespace Uviewer.Services
                                 previousDisposal = disposal;
                                 previousRect = rect;
 
-                                // [성능 수정] GetPixelBytes()로 프레임마다 수 MB~수십 MB 배열을 CPU로
-                                // 강제 동기화 복사하는 대신 GPU 스냅샷을 만들어 그대로 화면에 재사용한다.
-                                var snapshot = SnapshotRenderTarget(device, bgRenderTarget, w, h);
+                                // 모든 합성 프레임을 VRAM에 상주시키지 않고 무손실 BGRA 픽셀을
+                                // 시스템 메모리에 보관한다. GPU에는 재생 창 주변 프레임만 선행 업로드한다.
+                                var decodedFrame = new AnimatedFrameData(
+                                    bgRenderTarget.GetPixelBytes(),
+                                    w,
+                                    h,
+                                    isDisplayReady: !_sharpenEnabled);
 
                                 _dispatcherQueue.TryEnqueue(() =>
                                 {
                                     if (animationGeneration == Volatile.Read(ref _animationGeneration)
-                                        && _animatedWebpFrameBitmaps == frameBitmaps)
+                                        && _animatedWebpFrames == frames)
                                     {
-                                        delaysMs.Add(delay);
-                                        frameBitmaps.Add(snapshot);
-                                    }
-                                    else
-                                    {
-                                        try { snapshot.Dispose(); }
-                                        catch (Exception ex) { Debug.WriteLine($"Orphan snapshot dispose error: {ex.Message}"); }
+                                        lock (_animatedWebpBitmapCacheLock)
+                                        {
+                                            delaysMs.Add(delay);
+                                            frames.Add(decodedFrame);
+                                        }
+
+                                        var currentCanvas = _currentCanvas;
+                                        if (currentCanvas != null)
+                                        {
+                                            QueueFramePrefetch(frames, currentCanvas);
+                                        }
                                     }
                                 });
                             }
@@ -585,12 +943,13 @@ namespace Uviewer.Services
                         {
                             try { bgRenderTarget.Dispose(); } catch (Exception ex) { Debug.WriteLine($"Render target dispose error: {ex.Message}"); }
                             try { backupRenderTarget.Dispose(); } catch (Exception ex) { Debug.WriteLine($"Render target dispose error: {ex.Message}"); }
+                            try { decodeDevice.Dispose(); } catch (Exception ex) { Debug.WriteLine($"Decode device dispose error: {ex.Message}"); }
 
                             // 서비스가 리스트를 채택하지 못한 경우(취소/세대 불일치) 로컬에서 정리한다.
                             if (animationGeneration != Volatile.Read(ref _animationGeneration)
-                                || _animatedWebpFrameBitmaps != frameBitmaps)
+                                || _animatedWebpFrames != frames)
                             {
-                                DisposeAll(frameBitmaps);
+                                frames.Clear();
                             }
 
                             if (animationGeneration == Volatile.Read(ref _animationGeneration))
@@ -600,13 +959,14 @@ namespace Uviewer.Services
                         }
                     });
 
-                    return (frameBitmaps, delaysMs, w, h);
+                    return (frames, delaysMs, w, h);
                 }
                 catch
                 {
-                    DisposeAll(frameBitmaps);
+                    frames.Clear();
                     try { bgRenderTarget.Dispose(); } catch { }
                     try { backupRenderTarget.Dispose(); } catch { }
+                    try { decodeDevice.Dispose(); } catch { }
                     throw;
                 }
             }
@@ -615,17 +975,6 @@ namespace Uviewer.Services
                 Debug.WriteLine($"Native Decode Error: {ex.Message}");
                 return (null, null, 0, 0);
             }
-        }
-
-        private static void DisposeAll(List<CanvasBitmap> bitmaps)
-        {
-            foreach (var bmp in bitmaps)
-            {
-                try { bmp.Dispose(); }
-                catch (Exception ex) { Debug.WriteLine($"Frame dispose error: {ex.Message}"); }
-            }
-
-            bitmaps.Clear();
         }
 
         private async Task<(int delayMs, int disposal, Windows.Foundation.Rect frameRect)> DecodeAndDrawSingleFrameAsync(
