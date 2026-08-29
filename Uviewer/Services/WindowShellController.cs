@@ -23,9 +23,11 @@ namespace Uviewer.Services
         private readonly ColumnDefinition _sidebarColumn;
         private readonly WindowStateManager _windowState;
         private readonly FullscreenOverlayManager _overlayManager;
+        private readonly DispatcherQueueTimer _cursorHideTimer;
         private readonly Action _saveWindowSettings;
         private readonly Action _invalidateThemeTargets;
         private const int IdcArrow = 32512;
+        private static readonly TimeSpan CursorHideDelay = TimeSpan.FromSeconds(2);
 
         internal WindowShellController(
             Window window,
@@ -53,6 +55,17 @@ namespace Uviewer.Services
             _overlayManager = overlayManager;
             _saveWindowSettings = saveWindowSettings;
             _invalidateThemeTargets = invalidateThemeTargets;
+
+            _cursorHideTimer = _rootGrid.DispatcherQueue.CreateTimer();
+            _cursorHideTimer.Interval = CursorHideDelay;
+            _cursorHideTimer.IsRepeating = false;
+            _cursorHideTimer.Tick += (_, _) =>
+            {
+                if (_windowState.IsFullscreen)
+                {
+                    HidePointerCursor();
+                }
+            };
         }
 
         internal ElementTheme CurrentTheme { get; private set; } = ElementTheme.Default;
@@ -200,6 +213,14 @@ namespace Uviewer.Services
             }
 
             RefreshPointerCursor();
+            if (_windowState.IsFullscreen)
+            {
+                RestartCursorHideTimer();
+            }
+            else
+            {
+                _cursorHideTimer.Stop();
+            }
         }
 
         internal void RefreshPointerCursor()
@@ -223,6 +244,23 @@ namespace Uviewer.Services
             }
         }
 
+        private static void HidePointerCursor()
+        {
+            try
+            {
+                SetCursor(IntPtr.Zero);
+            }
+            catch
+            {
+            }
+        }
+
+        private void RestartCursorHideTimer()
+        {
+            _cursorHideTimer.Stop();
+            _cursorHideTimer.Start();
+        }
+
         internal void ToggleMaximizeRestore()
         {
             _windowState.ToggleMaximizeRestore();
@@ -231,6 +269,13 @@ namespace Uviewer.Services
 
         internal void HandlePointerMoved(PointerRoutedEventArgs e)
         {
+            if (_windowState.IsFullscreen &&
+                e.Pointer.PointerDeviceType == Microsoft.UI.Input.PointerDeviceType.Mouse)
+            {
+                SetArrowCursor();
+                RestartCursorHideTimer();
+            }
+
             if (!_windowState.IsFullscreen && _windowState.IsPinned) return;
 
             var pt = e.GetCurrentPoint(_rootGrid);

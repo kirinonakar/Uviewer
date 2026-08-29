@@ -208,7 +208,7 @@ namespace Uviewer
                 public static void InitializeNotificationTimer(MainWindow window)
                 {
                     window._notificationTimer = Microsoft.UI.Dispatching.DispatcherQueue.GetForCurrentThread().CreateTimer();
-                    window._notificationTimer.Interval = TimeSpan.FromSeconds(2);
+                    window._notificationTimer.Interval = TimeSpan.FromMilliseconds(600);
                     window._notificationTimer.IsRepeating = false;
                     window._notificationTimer.Tick += (s, e) =>
                     {
