@@ -1,0 +1,44 @@
+<UserControl
+    x:Class="Uviewer.Controls.PathBreadcrumbControl"
+    x:Name="Root"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:local="using:Uviewer.Controls">
+
+    <Grid Padding="16,4,8,4">
+        <ItemsControl x:Name="Breadcrumb"
+                      FontSize="11"
+                      MinHeight="24"
+                      MaxHeight="44"
+                      VerticalAlignment="Center">
+            <ItemsControl.ItemsPanel>
+                <ItemsPanelTemplate>
+                    <local:BreadcrumbWrapPanel/>
+                </ItemsPanelTemplate>
+            </ItemsControl.ItemsPanel>
+            <ItemsControl.ItemTemplate>
+                <DataTemplate>
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="›"
+                                   Margin="2,0"
+                                   VerticalAlignment="Center"
+                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                   IsHitTestVisible="False"
+                                   Visibility="{Binding SeparatorVisibility}"/>
+                        <Button Tag="{Binding}"
+                                Click="BreadcrumbItem_Click"
+                                Padding="2,0"
+                                MinWidth="0"
+                                MinHeight="20"
+                                Background="Transparent"
+                                BorderThickness="0">
+                            <TextBlock Text="{Binding DisplayLabel}"
+                                       TextTrimming="CharacterEllipsis"
+                                       MaxWidth="220"/>
+                        </Button>
+                    </StackPanel>
+                </DataTemplate>
+            </ItemsControl.ItemTemplate>
+        </ItemsControl>
+    </Grid>
+</UserControl>

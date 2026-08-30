@@ -328,7 +328,7 @@ namespace Uviewer
             // If a folder/WebDAV path or file is already active, keep the current text.
             if (string.IsNullOrEmpty(_currentExplorerPath) && string.IsNullOrEmpty(_currentWebDavPath))
             {
-                CurrentPathText.Text = Strings.CurrentPathPlaceholder;
+                CurrentPathBreadcrumb.Text = Strings.CurrentPathPlaceholder;
             }
 
             if ((_imageEntries == null || _imageEntries.Count == 0) || _currentIndex < 0)

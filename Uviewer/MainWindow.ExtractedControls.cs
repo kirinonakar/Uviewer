@@ -63,7 +63,7 @@ namespace Uviewer
         private Flyout WebDavFlyout => SidebarPart<Flyout>(nameof(WebDavFlyout));
         private StackPanel WebDavPanel => SidebarPart<StackPanel>(nameof(WebDavPanel));
         private Button AddWebDavButton => SidebarPart<Button>(nameof(AddWebDavButton));
-        private TextBlock CurrentPathText => SidebarPart<TextBlock>(nameof(CurrentPathText));
+        private PathBreadcrumbControl CurrentPathBreadcrumb => SidebarPart<PathBreadcrumbControl>(nameof(CurrentPathBreadcrumb));
         private ListView FileListView => SidebarPart<ListView>(nameof(FileListView));
         private GridView FileGridView => SidebarPart<GridView>(nameof(FileGridView));
     }

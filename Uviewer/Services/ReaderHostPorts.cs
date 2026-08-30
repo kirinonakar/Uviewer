@@ -53,7 +53,7 @@ namespace Uviewer.Services
         ListView FileListView { get; }
         GridView FileGridView { get; }
         Pivot SidebarFavoritesPivot { get; }
-        TextBlock CurrentPathText { get; }
+        PathBreadcrumbControl CurrentPathBreadcrumb { get; }
         TextBlock NotificationText { get; }
         TextBlock FileNameText { get; }
         TextBlock ImageInfoText { get; }

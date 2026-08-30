@@ -245,11 +245,8 @@
                         <RowDefinition Height="*"/>
                     </Grid.RowDefinitions>
 
-                    <TextBlock x:Name="CurrentPathText" Grid.Row="0" 
-                               Text="폴더를 선택하세요" 
-                               Padding="12,8" FontSize="11"
-                               Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                               TextTrimming="CharacterEllipsis"/>
+                    <uc:PathBreadcrumbControl x:Name="CurrentPathBreadcrumb"
+                                              Grid.Row="0"/>
 
                     <!-- File List -->
                     <ListView x:Name="FileListView" Grid.Row="1" 

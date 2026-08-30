@@ -199,7 +199,7 @@ namespace Uviewer
         internal ListView FileListView => _viewHost.FileListView;
         internal GridView FileGridView => _viewHost.FileGridView;
         internal Pivot SidebarFavoritesPivot => _viewHost.SidebarFavoritesPivot;
-        internal TextBlock CurrentPathText => _viewHost.CurrentPathText;
+        internal PathBreadcrumbControl CurrentPathBreadcrumb => _viewHost.CurrentPathBreadcrumb;
         internal TextBlock NotificationText => _viewHost.NotificationText;
         internal TextBlock FileNameText => _viewHost.FileNameText;
         internal TextBlock ImageInfoText => _viewHost.ImageInfoText;

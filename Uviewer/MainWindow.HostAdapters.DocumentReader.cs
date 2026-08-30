@@ -72,7 +72,7 @@ namespace Uviewer
             public ListView FileListView => _window.FileListView;
             public GridView FileGridView => _window.FileGridView;
             public Pivot SidebarFavoritesPivot => _window.SidebarFavoritesPivot;
-            public TextBlock CurrentPathText => _window.CurrentPathText;
+            public PathBreadcrumbControl CurrentPathBreadcrumb => _window.CurrentPathBreadcrumb;
             public TextBlock NotificationText => _window.NotificationText;
             public TextBlock FileNameText => _window.FileNameText;
             public TextBlock ImageInfoText => _window.ImageInfoText;

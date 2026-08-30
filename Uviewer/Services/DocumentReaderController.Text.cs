@@ -935,11 +935,11 @@ namespace Uviewer
                     RootFontControl,
                     FileListView,
                     FileGridView,
-                    SidebarFavoritesPivot
+                    SidebarFavoritesPivot,
+                    CurrentPathBreadcrumb
                 },
                 TextBlocks: new TextBlock?[]
                 {
-                    CurrentPathText,
                     NotificationText,
                     FileNameText
                 },

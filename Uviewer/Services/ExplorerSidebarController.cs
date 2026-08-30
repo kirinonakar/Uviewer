@@ -8,6 +8,7 @@ using System.Collections.ObjectModel;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
+using Uviewer.Controls;
 using Uviewer.Models;
 using Windows.Storage.Pickers;
 using Visibility = Microsoft.UI.Xaml.Visibility;
@@ -38,7 +39,7 @@ namespace Uviewer.Services
         Slider ThumbnailSizeSlider { get; }
         TextBlock ThumbnailSizeValueText { get; }
         CheckBox FolderThumbnailsCheckBox { get; }
-        TextBlock CurrentPathText { get; }
+        PathBreadcrumbControl CurrentPathBreadcrumb { get; }
 
         void ClearWebDavForLocalExplorer();
         void SyncSidebarSelection(ImageEntry entry);
@@ -86,13 +87,24 @@ namespace Uviewer.Services
 
             _explorerController.LoadFolder(
                 path,
-                currentPath => _host.CurrentPathText.Text = currentPath,
-                ex => _host.CurrentPathText.Text = $"오류: {ex.Message}",
+                currentPath => _host.CurrentPathBreadcrumb.Text = currentPath,
+                ex => _host.CurrentPathBreadcrumb.Text = $"오류: {ex.Message}",
                 () =>
                 {
                     ApplyThumbnailSizeToFileItems();
                     SyncCurrentExplorerSelection();
                 });
+        }
+
+        public async Task HandleBreadcrumbNavigationAsync(BreadcrumbNavigationRequestedEventArgs args)
+        {
+            if (args.IsWebDav)
+            {
+                await _host.LoadWebDavFolderAsync(args.Target);
+                return;
+            }
+
+            LoadFolder(args.Target);
         }
 
         private void SyncCurrentExplorerSelection()

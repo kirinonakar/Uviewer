@@ -180,7 +180,7 @@ namespace Uviewer.Controls
                 nameof(WebDavFlyout) => WebDavFlyout,
                 nameof(WebDavPanel) => WebDavPanel,
                 nameof(AddWebDavButton) => AddWebDavButton,
-                nameof(CurrentPathText) => CurrentPathText,
+                nameof(CurrentPathBreadcrumb) => CurrentPathBreadcrumb,
                 nameof(FileListView) => FileListView,
                 nameof(FileGridView) => FileGridView,
                 _ => null

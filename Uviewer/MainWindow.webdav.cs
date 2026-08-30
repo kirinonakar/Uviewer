@@ -194,7 +194,7 @@ namespace Uviewer
                 _currentWebDavPath = remotePath;
                 _currentExplorerPath = null; // 로컬 경로 초기화
 
-                CurrentPathText.Text = $"WebDAV: {_webDavService.CurrentServer.ServerName}{remotePath}";
+                CurrentPathBreadcrumb.SetWebDavPath(_webDavService.CurrentServer.ServerName, remotePath);
 
                 _imageViewerController.ClearImageResources();
                 _explorerState.ReplaceItems(System.Array.Empty<FileItem>());
@@ -226,7 +226,7 @@ namespace Uviewer
             catch (OperationCanceledException) { }
             catch (Exception ex)
             {
-                CurrentPathText.Text = $"WebDAV 오류: {ex.Message}";
+                CurrentPathBreadcrumb.Text = $"WebDAV 오류: {ex.Message}";
                 System.Diagnostics.Debug.WriteLine($"WebDAV load folder error: {ex.Message}");
             }
         }

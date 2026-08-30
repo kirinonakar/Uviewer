@@ -2,6 +2,7 @@ using Microsoft.UI.Xaml.Controls;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Threading.Tasks;
+using Uviewer.Controls;
 using Uviewer.Models;
 using Uviewer.Services;
 
@@ -54,7 +55,7 @@ namespace Uviewer
             public Slider ThumbnailSizeSlider => _window.ThumbnailSizeSlider;
             public TextBlock ThumbnailSizeValueText => _window.ThumbnailSizeValueText;
             public CheckBox FolderThumbnailsCheckBox => _window.FolderThumbnailsCheckBox;
-            public TextBlock CurrentPathText => _window.CurrentPathText;
+            public PathBreadcrumbControl CurrentPathBreadcrumb => _window.CurrentPathBreadcrumb;
 
             public void ClearWebDavForLocalExplorer()
             {

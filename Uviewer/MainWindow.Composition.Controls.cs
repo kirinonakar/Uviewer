@@ -125,6 +125,7 @@ namespace Uviewer
                             ThumbnailSizeSlider = window.ThumbnailSizeSlider,
                             FolderThumbnailsCheckBox = window.FolderThumbnailsCheckBox,
                             ParentFolderButton = window.ParentFolderButton,
+                            CurrentPathBreadcrumb = window.CurrentPathBreadcrumb,
                             SidebarAddToFavoritesButton = window.SidebarAddToFavoritesButton,
                             BrowseFolderButton = window.BrowseFolderButton,
                             SortByDateButton = window.SortByDateButton,

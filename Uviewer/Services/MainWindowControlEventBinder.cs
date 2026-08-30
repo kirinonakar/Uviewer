@@ -16,6 +16,7 @@ namespace Uviewer.Services
         public Button ToggleViewButton { get; init; } = null!;
         public Slider ThumbnailSizeSlider { get; init; } = null!;
         public CheckBox FolderThumbnailsCheckBox { get; init; } = null!;
+        public PathBreadcrumbControl CurrentPathBreadcrumb { get; init; } = null!;
         public Button ParentFolderButton { get; init; } = null!;
         public Button SidebarAddToFavoritesButton { get; init; } = null!;
         public Button BrowseFolderButton { get; init; } = null!;
@@ -143,6 +144,8 @@ namespace Uviewer.Services
             _sidebar.FolderThumbnailsCheckBox.Unchecked += (_, _) =>
                 explorer.HandleFolderThumbnailsChanged(_sidebar.FolderThumbnailsCheckBox.IsChecked == true);
             _sidebar.ParentFolderButton.Click += (_, _) => explorer.HandleParentFolderClick();
+            _sidebar.CurrentPathBreadcrumb.NavigationRequested += (_, e) =>
+                RunAsync(() => explorer.HandleBreadcrumbNavigationAsync(e));
             _sidebar.SidebarAddToFavoritesButton.Click += (_, _) => RunAsync(() => bookmarks.AddCurrentFavoriteAsync());
             _sidebar.BrowseFolderButton.Click += (_, _) => explorer.HandleBrowseFolderClick();
             _sidebar.SortByDateButton.Click += (_, _) => explorer.CycleSortMode();
