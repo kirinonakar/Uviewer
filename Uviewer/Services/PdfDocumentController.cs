@@ -257,11 +257,39 @@ namespace Uviewer.Services
                 string? capturedPdfPath = pdfSession.SourcePath;
 
                 await Task.Delay(350, token);
-                if (!IsCurrentScope(capturedPdfGeneration, capturedPdfPath) || token.IsCancellationRequested) return;
+                if (!IsCurrentScope(capturedPdfGeneration, capturedPdfPath) ||
+                    token.IsCancellationRequested ||
+                    capturedIndex != _imageViewerState.CurrentIndex)
+                {
+                    return;
+                }
+
+                var canvas = _handlers.GetMainCanvas();
+                double requestedZoom = _handlers.GetZoomLevel();
+                var currentBitmap = _imageViewerState.CurrentBitmap;
+
+                if (currentBitmap != null &&
+                    pdfSession.IsPageBitmapResolutionSufficient(
+                        entry.PdfPageIndex,
+                        canvas,
+                        requestedZoom,
+                        currentBitmap))
+                {
+                    // Opening a page already renders it at the requested resolution.
+                    // Zooming out can also reuse a larger render with no quality loss.
+                    _imageCache.UpdateCache(
+                        capturedIndex,
+                        currentBitmap,
+                        true,
+                        requestedZoom,
+                        currentBitmap);
+                    StartPreload(requestedZoom);
+                    return;
+                }
 
                 var newBitmap = await LoadPageBitmapAsync(
                     entry.PdfPageIndex,
-                    _handlers.GetMainCanvas(),
+                    canvas,
                     token,
                     isPreload: false);
 
@@ -282,23 +310,12 @@ namespace Uviewer.Services
 
                 var oldBitmap = _imageViewerState.CurrentBitmap;
                 _imageViewerState.CurrentBitmap = newBitmap;
-                _imageCache.UpdateCache(capturedIndex, newBitmap, true, _handlers.GetZoomLevel(), oldBitmap);
+                _imageCache.UpdateCache(capturedIndex, newBitmap, true, requestedZoom, oldBitmap);
 
                 _handlers.InvalidateMainCanvas();
                 _handlers.UpdateStatusBar(entry, newBitmap);
 
-                _ = _preloadManager.StartPreloadAsync(
-                    _imageViewerState.CurrentIndex,
-                    _imageViewerState.Entries,
-                    isPdfMode: HasOpenDocument,
-                    zoomLevel: _handlers.GetZoomLevel(),
-                    _imageViewerState.CurrentBitmap,
-                    _imageViewerState.LeftBitmap,
-                    _imageViewerState.RightBitmap,
-                    _handlers.LoadBitmapForPreloadAsync,
-                    _handlers.InvalidateMainCanvas,
-                    prioritizeNext: true,
-                    requireSharpening: _imageViewerState.IsSharpenEnabled);
+                StartPreload(requestedZoom);
             }
             catch (OperationCanceledException) { }
             catch (Exception ex)
@@ -371,11 +388,16 @@ namespace Uviewer.Services
 
         private void StartPreload()
         {
+            StartPreload(1.0);
+        }
+
+        private void StartPreload(double zoomLevel)
+        {
             _ = _preloadManager.StartPreloadAsync(
                 _imageViewerState.CurrentIndex,
                 _imageViewerState.Entries,
                 isPdfMode: true,
-                zoomLevel: 1.0,
+                zoomLevel,
                 _imageViewerState.CurrentBitmap,
                 _imageViewerState.LeftBitmap,
                 _imageViewerState.RightBitmap,

@@ -11,7 +11,9 @@ namespace Uviewer.Services
     public sealed partial class PdfDocumentSession
     {
         private readonly SemaphoreSlim _lock = new(1, 1);
-        private readonly SemaphoreSlim _preloadRenderSemaphore = new(3);
+        // High-resolution PDF rendering is CPU and memory-bandwidth intensive. Keep
+        // speculative work serialized so it cannot contend with the visible page.
+        private readonly SemaphoreSlim _preloadRenderSemaphore = new(1, 1);
         private readonly SemaphoreSlim _currentPageRenderSemaphore = new(2, 2);
 
         private CancellationTokenSource? _zoomRerenderCts;
@@ -102,6 +104,31 @@ namespace Uviewer.Services
                 (pdfPath == null || string.Equals(SourcePath, pdfPath, StringComparison.OrdinalIgnoreCase));
         }
 
+        public bool IsPageBitmapResolutionSufficient(
+            uint pageIndex,
+            CanvasControl canvas,
+            double zoomLevel,
+            CanvasBitmap bitmap)
+        {
+            var pdfDoc = Document;
+            if (pdfDoc == null || pageIndex >= pdfDoc.PageCount) return false;
+
+            try
+            {
+                using var pdfPage = pdfDoc.GetPage(pageIndex);
+                var (width, height) = CalculateRenderDimensions(pdfPage, canvas, zoomLevel);
+                var bitmapSize = bitmap.SizeInPixels;
+
+                // A larger existing render is at least as sharp as a newly requested
+                // smaller one, so it can be reused without reducing visual quality.
+                return bitmapSize.Width + 0.5 >= width && bitmapSize.Height + 0.5 >= height;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
         public async Task<CanvasBitmap?> LoadPageBitmapAsync(
             uint pageIndex,
             CanvasControl canvas,
@@ -129,39 +156,13 @@ namespace Uviewer.Services
                 using var pdfPage = pdfDoc.GetPage(pageIndex);
                 using var stream = new Windows.Storage.Streams.InMemoryRandomAccessStream();
 
-                double targetWidth;
-                float currentDpiScale = canvas.Dpi / 96.0f;
-                if (currentDpiScale <= 0) currentDpiScale = 1.0f;
-
-                double canvasWidth = canvas.Size.Width;
-                double canvasHeight = canvas.Size.Height;
-
-                if (canvasWidth <= 0) canvasWidth = 1000;
-                if (canvasHeight <= 0) canvasHeight = 1000;
-
-                double pageAR = pdfPage.Size.Width / pdfPage.Size.Height;
-                double canvasAR = canvasWidth / canvasHeight;
-
-                double visibleWidthInDips = pageAR > canvasAR
-                    ? canvasWidth
-                    : canvasHeight * pageAR;
-
-                targetWidth = visibleWidthInDips * zoomLevel;
-
-                double minDip = 1920.0 / currentDpiScale;
-                double maxDip = 6016.0 / currentDpiScale;
-                targetWidth = Math.Clamp(targetWidth, minDip, maxDip);
-
-                double scale = 1.0;
-                if (pdfPage.Size.Width > 0)
-                {
-                    scale = targetWidth / pdfPage.Size.Width;
-                }
+                var (destinationWidth, destinationHeight) =
+                    CalculateRenderDimensions(pdfPage, canvas, zoomLevel);
 
                 var options = new PdfPageRenderOptions
                 {
-                    DestinationWidth = (uint)Math.Round(pdfPage.Size.Width * scale),
-                    DestinationHeight = (uint)Math.Round(pdfPage.Size.Height * scale)
+                    DestinationWidth = destinationWidth,
+                    DestinationHeight = destinationHeight
                 };
 
                 var semaphore = isPreload ? _preloadRenderSemaphore : _currentPageRenderSemaphore;
@@ -177,31 +178,33 @@ namespace Uviewer.Services
                         catch { }
                     });
                     await renderOperation.AsTask(linkedToken);
+
+                    if (isWindowClosing() || linkedToken.IsCancellationRequested || !IsCurrentScope(pdfGenerationAtStart, pdfPathAtStart)) return null;
+
+                    stream.Seek(0);
+
+                    var device = canvas.Device ?? CanvasDevice.GetSharedDevice();
+                    var loadOperation = CanvasBitmap.LoadAsync(device, stream, 96.0f);
+                    using var loadCancel = linkedToken.Register(() =>
+                    {
+                        try { loadOperation.Cancel(); }
+                        catch { }
+                    });
+                    var bitmap = await loadOperation.AsTask(linkedToken);
+                    if (isWindowClosing() || linkedToken.IsCancellationRequested || !IsCurrentScope(pdfGenerationAtStart, pdfPathAtStart))
+                    {
+                        bitmap.Dispose();
+                        return null;
+                    }
+
+                    return bitmap;
                 }
                 finally
                 {
+                    // Include stream decoding in the concurrency budget. Otherwise
+                    // several 6K PNG decodes can run after the render slots are freed.
                     semaphore.Release();
                 }
-
-                if (isWindowClosing() || linkedToken.IsCancellationRequested || !IsCurrentScope(pdfGenerationAtStart, pdfPathAtStart)) return null;
-
-                stream.Seek(0);
-
-                var device = canvas.Device ?? CanvasDevice.GetSharedDevice();
-                var loadOperation = CanvasBitmap.LoadAsync(device, stream, 96.0f);
-                using var loadCancel = linkedToken.Register(() =>
-                {
-                    try { loadOperation.Cancel(); }
-                    catch { }
-                });
-                var bitmap = await loadOperation.AsTask(linkedToken);
-                if (isWindowClosing() || linkedToken.IsCancellationRequested || !IsCurrentScope(pdfGenerationAtStart, pdfPathAtStart))
-                {
-                    bitmap.Dispose();
-                    return null;
-                }
-
-                return bitmap;
             }
             catch (OperationCanceledException)
             {
@@ -212,6 +215,40 @@ namespace Uviewer.Services
                 System.Diagnostics.Debug.WriteLine($"Error loading PDF page: {ex.Message}");
                 return null;
             }
+        }
+
+        private static (uint Width, uint Height) CalculateRenderDimensions(
+            PdfPage pdfPage,
+            CanvasControl canvas,
+            double zoomLevel)
+        {
+            float currentDpiScale = canvas.Dpi / 96.0f;
+            if (currentDpiScale <= 0) currentDpiScale = 1.0f;
+
+            double canvasWidth = canvas.Size.Width;
+            double canvasHeight = canvas.Size.Height;
+
+            if (canvasWidth <= 0) canvasWidth = 1000;
+            if (canvasHeight <= 0) canvasHeight = 1000;
+
+            double pageAR = pdfPage.Size.Width / pdfPage.Size.Height;
+            double canvasAR = canvasWidth / canvasHeight;
+            double visibleWidthInDips = pageAR > canvasAR
+                ? canvasWidth
+                : canvasHeight * pageAR;
+
+            double targetWidth = visibleWidthInDips * zoomLevel;
+            double minDip = 1920.0 / currentDpiScale;
+            double maxDip = 6016.0 / currentDpiScale;
+            targetWidth = Math.Clamp(targetWidth, minDip, maxDip);
+
+            double scale = pdfPage.Size.Width > 0
+                ? targetWidth / pdfPage.Size.Width
+                : 1.0;
+
+            return (
+                Math.Max(1, (uint)Math.Round(pdfPage.Size.Width * scale)),
+                Math.Max(1, (uint)Math.Round(pdfPage.Size.Height * scale)));
         }
 
         private void StartNewDocumentScope()
