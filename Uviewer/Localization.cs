@@ -137,6 +137,15 @@ namespace Uviewer
         public static string WebDavCancel => GetString("WebDavCancel");
         public static string WebDavConnecting => GetString("WebDavConnecting");
         public static string WebDavConnectionFailed => GetString("WebDavConnectionFailed");
+        public static string RequiredFieldsMissing => GetString("RequiredFieldsMissing");
+        public static string WebDavDownloadFailed => GetString("WebDavDownloadFailed");
+        public static string WebDavRemotePathEmpty => GetString("WebDavRemotePathEmpty");
+        public static string ArchiveNoImages => GetString("ArchiveNoImages");
+        public static string FolderNoImages => GetString("FolderNoImages");
+        public static string PdfNoPages => GetString("PdfNoPages");
+        public static string WebDavNotConnected => GetString("WebDavNotConnected");
+        public static string ApplicationDescription => GetString("ApplicationDescription");
+        public static string WindowTitle => GetString("WindowTitle");
         public static string LanguageSelection => GetString("LanguageSelection");
         public static string LanguageAuto => GetString("LanguageAuto");
         public static string LanguageKorean => GetString("LanguageKorean");
@@ -253,5 +262,20 @@ namespace Uviewer
         public static string DeleteConfirmation(string name) => string.Format(GetString("DeleteConfirmation"), name);
         public static string RenameFailed(string msg) => string.Format(GetString("RenameFailed"), msg);
         public static string DeleteFailed(string msg) => string.Format(GetString("DeleteFailed"), msg);
+        public static string ErrorWithMessage(string msg) => string.Format(GetString("ErrorWithMessage"), msg);
+        public static string ImageLoadFailed(string msg) => string.Format(GetString("ImageLoadFailed"), msg);
+        public static string ArchiveOpenFailed(string msg) => string.Format(GetString("ArchiveOpenFailed"), msg);
+        public static string TextLoadFailed(string msg) => string.Format(GetString("TextLoadFailed"), msg);
+        public static string ArchiveTextLoadFailed(string msg) => string.Format(GetString("ArchiveTextLoadFailed"), msg);
+        public static string PdfOpenFailed(string msg) => string.Format(GetString("PdfOpenFailed"), msg);
+        public static string FileOpenFailed(string msg) => string.Format(GetString("FileOpenFailed"), msg);
+        public static string WebDavError(string msg) => string.Format(GetString("WebDavError"), msg);
+        public static string WebDavServerSaved(string name) => string.Format(GetString("WebDavServerSaved"), name);
+        public static string WebDavServerDeleted(string name) => string.Format(GetString("WebDavServerDeleted"), name);
+        public static string WebDavServerConnected(string name) => string.Format(GetString("WebDavServerConnected"), name);
+        public static string WebDavFavoriteOpenFailed(string msg) => string.Format(GetString("WebDavFavoriteOpenFailed"), msg);
+        public static string WebDavRecentOpenFailed(string msg) => string.Format(GetString("WebDavRecentOpenFailed"), msg);
+        public static string ChapterNumber(int number) => string.Format(GetString("ChapterNumber"), number);
+        public static string FileTypeDescription(string extension) => string.Format(GetString("FileTypeDescription"), extension);
     }
 }

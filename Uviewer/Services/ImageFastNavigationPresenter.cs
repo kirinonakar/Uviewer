@@ -47,7 +47,7 @@ namespace Uviewer.Services
             _host.FileNameText.Text = _host.FastNavigationService.DisplayName;
             _host.ImageIndexText.Text = _host.FastNavigationService.GetImageIndexMessage();
             _host.TextProgressText.Text = "";
-            _host.ImageInfoText.Text = "빠르게 넘어가는 중...";
+            _host.ImageInfoText.Text = Strings.FastNavText;
         }
 
         public async Task ResetFastNavigationAsync()

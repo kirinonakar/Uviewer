@@ -16,7 +16,7 @@ namespace Uviewer
             {
                 public static void InitializeWindowShell(MainWindow window)
                 {
-                    window.Title = "Uviewer - Image & Text Viewer";
+                    window.Title = Strings.WindowTitle;
                     window.ExtendsContentIntoTitleBar = true;
                     window.SetTitleBar(window.AppTitleBar);
 

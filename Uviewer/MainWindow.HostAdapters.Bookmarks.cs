@@ -117,12 +117,12 @@ namespace Uviewer
 
             public void NotifyWebDavFavoriteOpenFailed(string message)
             {
-                _window.ShowNotification($"WebDAV 즐겨찾기 열기 실패: {message}");
+                _window.ShowNotification(Strings.WebDavFavoriteOpenFailed(message));
             }
 
             public void NotifyWebDavRecentOpenFailed(string message)
             {
-                _window.ShowNotification($"WebDAV 최근 항목 열기 실패: {message}");
+                _window.ShowNotification(Strings.WebDavRecentOpenFailed(message));
             }
         }
     }

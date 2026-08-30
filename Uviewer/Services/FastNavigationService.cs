@@ -24,7 +24,7 @@ namespace Uviewer.Services
             _dispatcherQueue = dispatcherQueue;
         }
 
-        public string GetOverlayMessage() => $"빠른 탐색 중... ({CurrentIndex + 1}/{TotalCount})";
+        public string GetOverlayMessage() => $"{Strings.FastNavText} ({CurrentIndex + 1}/{TotalCount})";
 
         public string GetImageIndexMessage()
         {

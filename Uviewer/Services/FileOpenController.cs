@@ -28,7 +28,7 @@ namespace Uviewer.Services
 
             if (e.DragUIOverride != null)
             {
-                e.DragUIOverride.Caption = "이미지 열기";
+                e.DragUIOverride.Caption = Strings.EmptyStateButton;
                 e.DragUIOverride.IsCaptionVisible = true;
                 e.DragUIOverride.IsContentVisible = true;
                 e.DragUIOverride.IsGlyphVisible = true;

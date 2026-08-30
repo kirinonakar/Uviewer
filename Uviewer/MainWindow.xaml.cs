@@ -131,7 +131,7 @@ namespace Uviewer
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"Initialization Error: {ex}");
-                if (FileNameText != null) FileNameText.Text = $"Error: {ex.Message}";
+                if (FileNameText != null) FileNameText.Text = Strings.ErrorWithMessage(ex.Message);
                 MessageBox(IntPtr.Zero, $"Initialization Error:\n{ex.Message}\n{ex.StackTrace}", "Uviewer Init Error", 0x10);
             }
         }
@@ -310,6 +310,15 @@ namespace Uviewer
         private void ApplyLocalization()
         {
             MainToolbar.ApplyLocalization();
+
+            if (string.IsNullOrEmpty(_currentTextFilePath)
+                && string.IsNullOrEmpty(_currentEpubFilePath)
+                && !_archiveSession.HasArchive
+                && _currentPdfDocument == null
+                && (_imageEntries == null || _imageEntries.Count == 0))
+            {
+                Title = Strings.WindowTitle;
+            }
 
             // Tooltips
             _explorerSidebarController.UpdateToggleViewButtonTooltip();

@@ -195,7 +195,7 @@ namespace Uviewer.Services
                     token.ThrowIfCancellationRequested();
                     toc.Add(new TocItem
                     {
-                        HeadingText = $"Chapter {i + 1}",
+                        HeadingText = Strings.ChapterNumber(i + 1),
                         EpubLink = _spine[i],
                         HeadingLevel = 1
                     });

@@ -109,7 +109,7 @@ namespace Uviewer.Services
             }
             else
             {
-                _handlers.SetStatusText("이 폴더에 이미지가 없습니다");
+                _handlers.SetStatusText(Strings.FolderNoImages);
             }
         }
 

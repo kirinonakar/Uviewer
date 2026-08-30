@@ -75,12 +75,12 @@ namespace Uviewer
 
             if (!result.IsValid || result.ServerInfo == null)
             {
-                ShowNotification("필수 입력값을 확인해주세요");
+                ShowNotification(Strings.RequiredFieldsMissing);
                 return;
             }
 
             _webDavService.SaveServer(result.ServerInfo);
-            ShowNotification($"서버 '{result.ServerInfo.ServerName}' 저장됨");
+            ShowNotification(Strings.WebDavServerSaved(result.ServerInfo.ServerName));
         }
 
         /// <summary>
@@ -127,7 +127,7 @@ namespace Uviewer
             if (sender is Button btn && btn.Tag is string serverName)
             {
                 _webDavService.DeleteServer(serverName);
-                ShowNotification($"서버 '{serverName}' 삭제됨");
+                ShowNotification(Strings.WebDavServerDeleted(serverName));
                 UpdateWebDavServerList();
             }
         }
@@ -165,7 +165,7 @@ namespace Uviewer
                 _isWebDavMode = true;
                 _currentWebDavPath = "/";
 
-                ShowNotification($"'{serverName}' 연결됨");
+                ShowNotification(Strings.WebDavServerConnected(serverName));
                 if (loadRoot)
                 {
                     await LoadWebDavFolderAsync("/");
@@ -216,7 +216,7 @@ namespace Uviewer
                 }
                 else if (items.Count == 0 && remotePath == "/")
                 {
-                    FileNameText.Text = "WebDAV: 원격 서버에 파일이 없거나 경로가 잘못되었습니다.";
+                    FileNameText.Text = Strings.WebDavRemotePathEmpty;
                 }
 
                 var explorerItems = WebDavExplorerItemFactory.CreateFolderItems(remotePath, items, _explorerSortMode);
@@ -226,7 +226,7 @@ namespace Uviewer
             catch (OperationCanceledException) { }
             catch (Exception ex)
             {
-                CurrentPathBreadcrumb.Text = $"WebDAV 오류: {ex.Message}";
+                CurrentPathBreadcrumb.Text = Strings.WebDavError(ex.Message);
                 System.Diagnostics.Debug.WriteLine($"WebDAV load folder error: {ex.Message}");
             }
         }
@@ -288,7 +288,7 @@ namespace Uviewer
             }
             else
             {
-                FileNameText.Text = "이 압축 파일에 이미지가 없습니다";
+                FileNameText.Text = Strings.ArchiveNoImages;
             }
         }
 

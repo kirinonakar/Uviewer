@@ -559,7 +559,7 @@ namespace Uviewer.Services
             UpdateSideBySideButtonState();
             UpdateNextImageSideButtonState();
             
-            Title = "Uviewer - Image & Text Viewer";
+            Title = Strings.WindowTitle;
         }
 
         private async Task PreloadEpubChaptersAsync(int currentIndex)

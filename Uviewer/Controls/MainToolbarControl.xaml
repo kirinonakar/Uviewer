@@ -50,31 +50,31 @@
                     <FontIcon Glyph="&#xE713;" FontSize="14"/>
                     <Button.Flyout>
                         <MenuFlyout Placement="Bottom">
-                            <MenuFlyoutItem x:Name="ChangeFontMenuItem" Text="폰트 변경">
+                            <MenuFlyoutItem x:Name="ChangeFontMenuItem" Text="{x:Bind app:Strings.ChangeFont}">
                                 <MenuFlyoutItem.Icon>
                                     <FontIcon Glyph="&#xE8D2;"/>
                                 </MenuFlyoutItem.Icon>
                             </MenuFlyoutItem>
-                            <MenuFlyoutSubItem x:Name="EncodingMenuItem" Text="인코딩 (Encoding)">
+                            <MenuFlyoutSubItem x:Name="EncodingMenuItem" Text="{x:Bind app:Strings.EncodingMenu}">
                                 <MenuFlyoutSubItem.Icon>
                                     <FontIcon Glyph="&#xE164;"/>
                                 </MenuFlyoutSubItem.Icon>
-                                <ToggleMenuFlyoutItem x:Name="EncAutoItem" Text="자동 (Detect)" IsChecked="True" Tag="Auto"/>
-                                <ToggleMenuFlyoutItem x:Name="EncUtf8Item" Text="UTF-8" Tag="UTF-8"/>
-                                <ToggleMenuFlyoutItem x:Name="EncEucKrItem" Text="Korean (EUC-KR)" Tag="EUC-KR"/>
-                                <ToggleMenuFlyoutItem x:Name="EncSjisItem" Text="Japanese (Shift-JIS)" Tag="Shift-JIS"/>
-                                <ToggleMenuFlyoutItem x:Name="EncJohabItem" Text="Korean (Johab)" Tag="Johab"/>
-                                <ToggleMenuFlyoutItem x:Name="EncJisItem" Text="Japanese (JIS)" Tag="JIS"/>
-                                <ToggleMenuFlyoutItem x:Name="EncGb18030Item" Text="Chinese Simplified (GB18030)" Tag="GB18030"/>
-                                <ToggleMenuFlyoutItem x:Name="EncGbkItem" Text="Chinese Simplified (GBK)" Tag="GBK"/>
-                                <ToggleMenuFlyoutItem x:Name="EncBig5Item" Text="Chinese Traditional (Big5)" Tag="Big5"/>
+                                <ToggleMenuFlyoutItem x:Name="EncAutoItem" Text="{x:Bind app:Strings.EncAuto}" IsChecked="True" Tag="Auto"/>
+                                <ToggleMenuFlyoutItem x:Name="EncUtf8Item" Text="{x:Bind app:Strings.EncUtf8}" Tag="UTF-8"/>
+                                <ToggleMenuFlyoutItem x:Name="EncEucKrItem" Text="{x:Bind app:Strings.EncEucKr}" Tag="EUC-KR"/>
+                                <ToggleMenuFlyoutItem x:Name="EncSjisItem" Text="{x:Bind app:Strings.EncSjis}" Tag="Shift-JIS"/>
+                                <ToggleMenuFlyoutItem x:Name="EncJohabItem" Text="{x:Bind app:Strings.EncJohab}" Tag="Johab"/>
+                                <ToggleMenuFlyoutItem x:Name="EncJisItem" Text="{x:Bind app:Strings.EncJis}" Tag="JIS"/>
+                                <ToggleMenuFlyoutItem x:Name="EncGb18030Item" Text="{x:Bind app:Strings.EncGb18030}" Tag="GB18030"/>
+                                <ToggleMenuFlyoutItem x:Name="EncGbkItem" Text="{x:Bind app:Strings.EncGbk}" Tag="GBK"/>
+                                <ToggleMenuFlyoutItem x:Name="EncBig5Item" Text="{x:Bind app:Strings.EncBig5}" Tag="Big5"/>
                             </MenuFlyoutSubItem>
-                            <MenuFlyoutItem x:Name="ChangeColorsMenuItem" Text="배경색/글자색">
+                            <MenuFlyoutItem x:Name="ChangeColorsMenuItem" Text="{x:Bind app:Strings.ChangeColors}">
                                 <MenuFlyoutItem.Icon>
                                     <FontIcon Glyph="&#xE790;"/>
                                 </MenuFlyoutItem.Icon>
                             </MenuFlyoutItem>
-                            <MenuFlyoutItem x:Name="ChangeUiFontMenuItem" Text="UI 폰트 변경">
+                            <MenuFlyoutItem x:Name="ChangeUiFontMenuItem" Text="{x:Bind app:Strings.ChangeUiFont}">
                                 <MenuFlyoutItem.Icon>
                                     <FontIcon Glyph="&#xE18F;"/>
                                 </MenuFlyoutItem.Icon>
@@ -89,41 +89,41 @@
                                     <FontIcon Glyph="&#xE771;"/>
                                 </MenuFlyoutItem.Icon>
                             </MenuFlyoutItem>
-                            <MenuFlyoutSubItem x:Name="LanguageMenuItem" Text="언어 (Language)">
+                            <MenuFlyoutSubItem x:Name="LanguageMenuItem" Text="{x:Bind app:Strings.LanguageSelection}">
                                 <MenuFlyoutSubItem.Icon>
                                     <FontIcon Glyph="&#xE909;"/>
                                 </MenuFlyoutSubItem.Icon>
-                                <ToggleMenuFlyoutItem x:Name="LangAutoItem" Text="자동 (Default)" Tag="Auto"/>
-                                <ToggleMenuFlyoutItem x:Name="LangKoItem" Text="한국어" Tag="ko-KR"/>
-                                <ToggleMenuFlyoutItem x:Name="LangEnItem" Text="English" Tag="en-US"/>
-                                <ToggleMenuFlyoutItem x:Name="LangJaItem" Text="日本語" Tag="ja-JP"/>
-                                <ToggleMenuFlyoutItem x:Name="LangZhHansItem" Text="简体中文" Tag="zh-Hans"/>
-                                <ToggleMenuFlyoutItem x:Name="LangZhHantItem" Text="繁體中文" Tag="zh-Hant"/>
-                                <ToggleMenuFlyoutItem x:Name="LangViItem" Text="Tiếng Việt" Tag="vi-VN"/>
+                                <ToggleMenuFlyoutItem x:Name="LangAutoItem" Text="{x:Bind app:Strings.LanguageAuto}" Tag="Auto"/>
+                                <ToggleMenuFlyoutItem x:Name="LangKoItem" Text="{x:Bind app:Strings.LanguageKorean}" Tag="ko-KR"/>
+                                <ToggleMenuFlyoutItem x:Name="LangEnItem" Text="{x:Bind app:Strings.LanguageEnglish}" Tag="en-US"/>
+                                <ToggleMenuFlyoutItem x:Name="LangJaItem" Text="{x:Bind app:Strings.LanguageJapanese}" Tag="ja-JP"/>
+                                <ToggleMenuFlyoutItem x:Name="LangZhHansItem" Text="{x:Bind app:Strings.LanguageChineseSimplified}" Tag="zh-Hans"/>
+                                <ToggleMenuFlyoutItem x:Name="LangZhHantItem" Text="{x:Bind app:Strings.LanguageChineseTraditional}" Tag="zh-Hant"/>
+                                <ToggleMenuFlyoutItem x:Name="LangViItem" Text="{x:Bind app:Strings.LanguageVietnamese}" Tag="vi-VN"/>
                             </MenuFlyoutSubItem>
                             <MenuFlyoutSeparator/>
-                            <ToggleMenuFlyoutItem x:Name="MatchControlDirectionMenuItem" Text="컨트롤 방향 일치">
+                            <ToggleMenuFlyoutItem x:Name="MatchControlDirectionMenuItem" Text="{x:Bind app:Strings.MatchControlDirection}">
                                 <ToggleMenuFlyoutItem.Icon>
                                     <FontIcon Glyph="&#xE8AB;"/>
                                 </ToggleMenuFlyoutItem.Icon>
                             </ToggleMenuFlyoutItem>
-                            <ToggleMenuFlyoutItem x:Name="AllowMultipleInstancesMenuItem" Text="다중 실행">
+                            <ToggleMenuFlyoutItem x:Name="AllowMultipleInstancesMenuItem" Text="{x:Bind app:Strings.AllowMultipleInstances}">
                                 <ToggleMenuFlyoutItem.Icon>
                                     <FontIcon Glyph="&#xE8A9;"/>
                                 </ToggleMenuFlyoutItem.Icon>
                             </ToggleMenuFlyoutItem>
-                            <ToggleMenuFlyoutItem x:Name="KeepInTrayMenuItem" Text="트레이에 유지">
+                            <ToggleMenuFlyoutItem x:Name="KeepInTrayMenuItem" Text="{x:Bind app:Strings.KeepInTray}">
                                 <ToggleMenuFlyoutItem.Icon>
                                     <FontIcon Glyph="&#xE74B;"/>
                                 </ToggleMenuFlyoutItem.Icon>
                             </ToggleMenuFlyoutItem>
-                            <ToggleMenuFlyoutItem x:Name="AutoDoublePageForArchiveMenuItem" Text="압축파일 자동 2장보기">
+                            <ToggleMenuFlyoutItem x:Name="AutoDoublePageForArchiveMenuItem" Text="{x:Bind app:Strings.AutoDoublePageForArchive}">
                                 <ToggleMenuFlyoutItem.Icon>
                                     <FontIcon Glyph="&#xE11E;"/>
                                 </ToggleMenuFlyoutItem.Icon>
                             </ToggleMenuFlyoutItem>
                             <MenuFlyoutSeparator/>
-                            <MenuFlyoutItem x:Name="AboutMenuItem" Text="정보 (About)">
+                            <MenuFlyoutItem x:Name="AboutMenuItem" Text="{x:Bind app:Strings.About}">
                                 <MenuFlyoutItem.Icon>
                                     <FontIcon Glyph="&#xE946;"/>
                                 </MenuFlyoutItem.Icon>
@@ -174,7 +174,7 @@
                                         </ResourceDictionary.ThemeDictionaries>
                                     </ResourceDictionary>
                                 </StackPanel.Resources>
-                                <Button x:Name="AddToFavoritesButton" Content="➕ 즐겨찾기 추가" 
+                                <Button x:Name="AddToFavoritesButton" Content="{x:Bind app:Strings.AddToFavorites}"
                                         HorizontalAlignment="Stretch" HorizontalContentAlignment="Left"
                                         Background="Transparent" BorderThickness="0">
                                     <Button.Resources>
@@ -261,7 +261,7 @@
                                         <RowDefinition Height="Auto"/>
                                         <RowDefinition Height="*"/>
                                     </Grid.RowDefinitions>
-                                    <TextBlock Text="목차" FontSize="18" FontWeight="SemiBold" Margin="0,0,0,12"/>
+                                    <TextBlock Text="{x:Bind app:Strings.TocTitle}" FontSize="18" FontWeight="SemiBold" Margin="0,0,0,12"/>
                                     <ListView x:Name="PdfTocListView" Grid.Row="1" SelectionMode="Single" IsItemClickEnabled="True">
                                         <ListView.ItemTemplate>
                                             <DataTemplate>
@@ -346,7 +346,7 @@
                                         <RowDefinition Height="Auto"/>
                                         <RowDefinition Height="*"/>
                                     </Grid.RowDefinitions>
-                                    <TextBlock Text="목차" FontSize="18" FontWeight="SemiBold" Margin="0,0,0,12"/>
+                                    <TextBlock Text="{x:Bind app:Strings.TocTitle}" FontSize="18" FontWeight="SemiBold" Margin="0,0,0,12"/>
                                     <ListView x:Name="TocListView" Grid.Row="1" SelectionMode="Single" IsItemClickEnabled="True">
                                         <ListView.ItemTemplate>
                                             <DataTemplate>

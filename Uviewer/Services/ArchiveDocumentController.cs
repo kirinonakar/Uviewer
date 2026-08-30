@@ -117,12 +117,12 @@ namespace Uviewer.Services
                 }
                 else
                 {
-                    _handlers.SetStatusText("이 압축 파일에 이미지가 없습니다");
+                    _handlers.SetStatusText(Strings.ArchiveNoImages);
                 }
             }
             catch (Exception ex)
             {
-                _handlers.SetStatusText($"압축 파일 열기 실패: {ex.Message}");
+                _handlers.SetStatusText(Strings.ArchiveOpenFailed(ex.Message));
             }
         }
 

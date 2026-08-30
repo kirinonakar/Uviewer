@@ -86,7 +86,7 @@ namespace Uviewer.Services
             }
             catch (Exception ex)
             {
-                _host.FileNameText.Text = $"이미지 로드 실패: {ex.Message}";
+                _host.FileNameText.Text = Strings.ImageLoadFailed(ex.Message);
             }
         }
 

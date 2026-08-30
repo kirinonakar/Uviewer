@@ -352,7 +352,7 @@ namespace Uviewer
         public async Task<List<WebDavItem>> ListFolderAsync(string remotePath, CancellationToken token = default)
         {
             if (_webDavClient == null)
-                throw new InvalidOperationException("WebDAV 서버에 연결되지 않았습니다.");
+                throw new InvalidOperationException(Strings.WebDavNotConnected);
 
             var items = new List<WebDavItem>();
 
@@ -440,7 +440,7 @@ namespace Uviewer
         public async Task<Stream?> DownloadFileAsync(string remotePath, CancellationToken token = default)
         {
             if (_webDavClient == null)
-                throw new InvalidOperationException("WebDAV 서버에 연결되지 않았습니다.");
+                throw new InvalidOperationException(Strings.WebDavNotConnected);
 
             try
             {
@@ -515,7 +515,7 @@ namespace Uviewer
         public async Task<string?> DownloadToTempFileAsync(string remotePath, CancellationToken token = default)
         {
             if (_webDavClient == null)
-                throw new InvalidOperationException("WebDAV 서버에 연결되지 않았습니다.");
+                throw new InvalidOperationException(Strings.WebDavNotConnected);
 
             try
             {

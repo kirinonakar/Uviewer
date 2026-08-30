@@ -112,13 +112,13 @@ namespace Uviewer.Services
                 }
                 else
                 {
-                    _handlers.SetStatusText("이 PDF 파일에 페이지가 없습니다");
+                    _handlers.SetStatusText(Strings.PdfNoPages);
                 }
             }
             catch (Exception ex)
             {
                 _documentSessionTracker.Clear(DocumentKind.Pdf);
-                _handlers.SetStatusText($"PDF 열기 실패: {ex.Message}");
+                _handlers.SetStatusText(Strings.PdfOpenFailed(ex.Message));
             }
         }
 

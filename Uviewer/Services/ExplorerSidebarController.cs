@@ -88,7 +88,7 @@ namespace Uviewer.Services
             _explorerController.LoadFolder(
                 path,
                 currentPath => _host.CurrentPathBreadcrumb.Text = currentPath,
-                ex => _host.CurrentPathBreadcrumb.Text = $"오류: {ex.Message}",
+                ex => _host.CurrentPathBreadcrumb.Text = Strings.ErrorWithMessage(ex.Message),
                 () =>
                 {
                     ApplyThumbnailSizeToFileItems();

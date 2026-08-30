@@ -168,7 +168,7 @@ namespace Uviewer
             catch (Exception ex)
             {
                 RevealTextContentAfterFailure(loadGeneration);
-                FileNameText.Text = $"텍스트 로드 실패: {ex.Message}";
+                FileNameText.Text = Strings.TextLoadFailed(ex.Message);
             }
             finally
             {
@@ -215,7 +215,7 @@ namespace Uviewer
             catch (Exception ex)
             {
                 RevealTextContentAfterFailure(loadGeneration);
-                FileNameText.Text = $"아카이브 텍스트 로드 실패: {ex.Message}";
+                FileNameText.Text = Strings.ArchiveTextLoadFailed(ex.Message);
             }
             finally
             {
@@ -491,7 +491,7 @@ namespace Uviewer
             }
 
             // Update Title
-            Title = "Uviewer - Image & Text Viewer";
+            Title = Strings.WindowTitle;
         }
 
         internal void LoadTextSettings()

@@ -661,4 +661,28 @@
   <data name="KeepInTrayRestartCancel" xml:space="preserve"><value>取消</value></data>
   <data name="TrayOpen" xml:space="preserve"><value>打开</value></data>
   <data name="TrayExit" xml:space="preserve"><value>关闭</value></data>
+  <data name="RequiredFieldsMissing" xml:space="preserve"><value>请检查必填项。</value></data>
+  <data name="WebDavDownloadFailed" xml:space="preserve"><value>下载失败</value></data>
+  <data name="WebDavRemotePathEmpty" xml:space="preserve"><value>WebDAV：远程服务器中没有文件，或路径无效。</value></data>
+  <data name="ArchiveNoImages" xml:space="preserve"><value>此压缩文件中没有图像。</value></data>
+  <data name="FolderNoImages" xml:space="preserve"><value>此文件夹中没有图像。</value></data>
+  <data name="PdfNoPages" xml:space="preserve"><value>此 PDF 中没有页面。</value></data>
+  <data name="WebDavNotConnected" xml:space="preserve"><value>未连接到 WebDAV 服务器。</value></data>
+  <data name="ErrorWithMessage" xml:space="preserve"><value>错误：{0}</value></data>
+  <data name="ImageLoadFailed" xml:space="preserve"><value>图像加载失败：{0}</value></data>
+  <data name="ArchiveOpenFailed" xml:space="preserve"><value>无法打开压缩文件：{0}</value></data>
+  <data name="TextLoadFailed" xml:space="preserve"><value>文本加载失败：{0}</value></data>
+  <data name="ArchiveTextLoadFailed" xml:space="preserve"><value>压缩文件内文本加载失败：{0}</value></data>
+  <data name="PdfOpenFailed" xml:space="preserve"><value>无法打开 PDF：{0}</value></data>
+  <data name="FileOpenFailed" xml:space="preserve"><value>无法打开文件：{0}</value></data>
+  <data name="WebDavError" xml:space="preserve"><value>WebDAV 错误：{0}</value></data>
+  <data name="WebDavServerSaved" xml:space="preserve"><value>服务器“{0}”已保存。</value></data>
+  <data name="WebDavServerDeleted" xml:space="preserve"><value>服务器“{0}”已删除。</value></data>
+  <data name="WebDavServerConnected" xml:space="preserve"><value>已连接到“{0}”。</value></data>
+  <data name="WebDavFavoriteOpenFailed" xml:space="preserve"><value>无法打开 WebDAV 收藏项：{0}</value></data>
+  <data name="WebDavRecentOpenFailed" xml:space="preserve"><value>无法打开最近使用的 WebDAV 项目：{0}</value></data>
+  <data name="ChapterNumber" xml:space="preserve"><value>第 {0} 章</value></data>
+  <data name="ApplicationDescription" xml:space="preserve"><value>使用 Uviewer 打开图像、文档、压缩文件、EPUB 和 PDF。</value></data>
+  <data name="FileTypeDescription" xml:space="preserve"><value>Uviewer {0} 文件</value></data>
+  <data name="WindowTitle" xml:space="preserve"><value>Uviewer - 图像和文本查看器</value></data>
 </root>

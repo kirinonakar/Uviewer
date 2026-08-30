@@ -3,11 +3,12 @@
     x:Class="Uviewer.MainWindow"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:app="using:Uviewer"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     xmlns:uc="using:Uviewer.Controls"
     mc:Ignorable="d"
-    Title="Uviewer - Image &amp; Text Viewer">
+    Title="{x:Bind app:Strings.WindowTitle}">
 
     <Window.SystemBackdrop>
         <MicaBackdrop />
@@ -133,7 +134,7 @@
                     PointerCanceled="FileNameStatusHoverSurface_PointerExited"
                     Tapped="FileNameStatusHoverSurface_Tapped">
                 <TextBlock x:Name="FileNameText"
-                           Text="파일을 선택해주세요"
+                           Text="{x:Bind app:Strings.FileSelectPlaceholder}"
                            FontSize="12"
                            Foreground="{ThemeResource TextFillColorSecondaryBrush}"
                            HorizontalAlignment="Stretch"

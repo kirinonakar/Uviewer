@@ -96,7 +96,7 @@
                                             </ResourceDictionary.ThemeDictionaries>
                                         </ResourceDictionary>
                                     </StackPanel.Resources>
-                                    <Button x:Name="SidebarAddToFavoritesButton" Content="➕ 즐겨찾기 추가" 
+                                    <Button x:Name="SidebarAddToFavoritesButton" Content="{x:Bind app:Strings.AddToFavorites}"
                                             HorizontalAlignment="Stretch" HorizontalContentAlignment="Left"
                                             Background="Transparent" BorderThickness="0">
                                         <Button.Resources>
@@ -195,7 +195,7 @@
                                                 </ResourceDictionary.ThemeDictionaries>
                                             </ResourceDictionary>
                                         </StackPanel.Resources>
-                                        <Button x:Name="AddWebDavButton" Content="➕ webdav 서버 추가"
+                                        <Button x:Name="AddWebDavButton" Content="{x:Bind app:Strings.AddWebDavServer}"
                                                 HorizontalAlignment="Stretch" HorizontalContentAlignment="Left"
                                                 Background="Transparent" BorderThickness="0">
                                             <Button.Resources>

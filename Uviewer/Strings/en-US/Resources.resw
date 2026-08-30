@@ -661,4 +661,28 @@
   <data name="KeepInTrayRestartCancel" xml:space="preserve"><value>Cancel</value></data>
   <data name="TrayOpen" xml:space="preserve"><value>Open</value></data>
   <data name="TrayExit" xml:space="preserve"><value>Close</value></data>
+  <data name="RequiredFieldsMissing" xml:space="preserve"><value>Please check the required fields.</value></data>
+  <data name="WebDavDownloadFailed" xml:space="preserve"><value>Download failed</value></data>
+  <data name="WebDavRemotePathEmpty" xml:space="preserve"><value>WebDAV: The remote server has no files, or the path is invalid.</value></data>
+  <data name="ArchiveNoImages" xml:space="preserve"><value>This archive contains no images.</value></data>
+  <data name="FolderNoImages" xml:space="preserve"><value>This folder contains no images.</value></data>
+  <data name="PdfNoPages" xml:space="preserve"><value>This PDF contains no pages.</value></data>
+  <data name="WebDavNotConnected" xml:space="preserve"><value>Not connected to a WebDAV server.</value></data>
+  <data name="ErrorWithMessage" xml:space="preserve"><value>Error: {0}</value></data>
+  <data name="ImageLoadFailed" xml:space="preserve"><value>Image load failed: {0}</value></data>
+  <data name="ArchiveOpenFailed" xml:space="preserve"><value>Failed to open archive: {0}</value></data>
+  <data name="TextLoadFailed" xml:space="preserve"><value>Text load failed: {0}</value></data>
+  <data name="ArchiveTextLoadFailed" xml:space="preserve"><value>Archive text load failed: {0}</value></data>
+  <data name="PdfOpenFailed" xml:space="preserve"><value>Failed to open PDF: {0}</value></data>
+  <data name="FileOpenFailed" xml:space="preserve"><value>Failed to open file: {0}</value></data>
+  <data name="WebDavError" xml:space="preserve"><value>WebDAV error: {0}</value></data>
+  <data name="WebDavServerSaved" xml:space="preserve"><value>Server '{0}' saved.</value></data>
+  <data name="WebDavServerDeleted" xml:space="preserve"><value>Server '{0}' deleted.</value></data>
+  <data name="WebDavServerConnected" xml:space="preserve"><value>Connected to '{0}'.</value></data>
+  <data name="WebDavFavoriteOpenFailed" xml:space="preserve"><value>Failed to open WebDAV favorite: {0}</value></data>
+  <data name="WebDavRecentOpenFailed" xml:space="preserve"><value>Failed to open recent WebDAV item: {0}</value></data>
+  <data name="ChapterNumber" xml:space="preserve"><value>Chapter {0}</value></data>
+  <data name="ApplicationDescription" xml:space="preserve"><value>Open images, documents, archives, EPUB, and PDF files with Uviewer.</value></data>
+  <data name="FileTypeDescription" xml:space="preserve"><value>Uviewer {0} file</value></data>
+  <data name="WindowTitle" xml:space="preserve"><value>Uviewer - Image &amp; Text Viewer</value></data>
 </root>

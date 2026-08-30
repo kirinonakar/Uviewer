@@ -606,7 +606,7 @@ namespace Uviewer
             string iconReference = GetExecutableIconReference(executablePath);
             using RegistryKey? capabilitiesKey = Registry.CurrentUser.CreateSubKey(DefaultApplicationCapabilitiesPath);
             capabilitiesKey?.SetValue("ApplicationName", DefaultApplicationName, RegistryValueKind.String);
-            capabilitiesKey?.SetValue("ApplicationDescription", "Uviewer에서 이미지, 문서, 압축 파일, EPUB 및 PDF를 열 수 있습니다.", RegistryValueKind.String);
+            capabilitiesKey?.SetValue("ApplicationDescription", Strings.ApplicationDescription, RegistryValueKind.String);
 
             using RegistryKey? fileAssociationsKey = capabilitiesKey?.CreateSubKey("FileAssociations");
             using RegistryKey? classesKey = Registry.CurrentUser.CreateSubKey(@"Software\Classes");
@@ -622,7 +622,7 @@ namespace Uviewer
 
                 using (RegistryKey? progIdKey = classesKey.CreateSubKey(progId))
                 {
-                    progIdKey?.SetValue("", $"Uviewer {extension.TrimStart('.').ToUpperInvariant()} 파일", RegistryValueKind.String);
+                    progIdKey?.SetValue("", Strings.FileTypeDescription(extension.TrimStart('.').ToUpperInvariant()), RegistryValueKind.String);
                     using RegistryKey? defaultIconKey = progIdKey?.CreateSubKey("DefaultIcon");
                     defaultIconKey?.SetValue("", iconReference, RegistryValueKind.String);
                     using RegistryKey? commandKey = progIdKey?.CreateSubKey(@"shell\open\command");

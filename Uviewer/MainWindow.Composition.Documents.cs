@@ -245,7 +245,7 @@ namespace Uviewer
                                 {
                                     window.MainToolbar.SetPdfTocVisible(false);
                                     window.MainToolbar.SetPdfGoToPageVisible(false);
-                                    window.Title = "Uviewer - Image & Text Viewer";
+                                    window.Title = Strings.WindowTitle;
                                 });
                             },
                             SetTitle = value => window.Title = value,

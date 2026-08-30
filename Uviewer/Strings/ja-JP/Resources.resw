@@ -661,4 +661,28 @@
   <data name="KeepInTrayRestartCancel" xml:space="preserve"><value>キャンセル</value></data>
   <data name="TrayOpen" xml:space="preserve"><value>開く</value></data>
   <data name="TrayExit" xml:space="preserve"><value>閉じる</value></data>
+  <data name="RequiredFieldsMissing" xml:space="preserve"><value>必須項目を確認してください。</value></data>
+  <data name="WebDavDownloadFailed" xml:space="preserve"><value>ダウンロードに失敗しました</value></data>
+  <data name="WebDavRemotePathEmpty" xml:space="preserve"><value>WebDAV: リモートサーバーにファイルがないか、パスが正しくありません。</value></data>
+  <data name="ArchiveNoImages" xml:space="preserve"><value>この圧縮ファイルには画像がありません。</value></data>
+  <data name="FolderNoImages" xml:space="preserve"><value>このフォルダーには画像がありません。</value></data>
+  <data name="PdfNoPages" xml:space="preserve"><value>このPDFにはページがありません。</value></data>
+  <data name="WebDavNotConnected" xml:space="preserve"><value>WebDAVサーバーに接続されていません。</value></data>
+  <data name="ErrorWithMessage" xml:space="preserve"><value>エラー: {0}</value></data>
+  <data name="ImageLoadFailed" xml:space="preserve"><value>画像の読み込みに失敗しました: {0}</value></data>
+  <data name="ArchiveOpenFailed" xml:space="preserve"><value>圧縮ファイルを開けませんでした: {0}</value></data>
+  <data name="TextLoadFailed" xml:space="preserve"><value>テキストの読み込みに失敗しました: {0}</value></data>
+  <data name="ArchiveTextLoadFailed" xml:space="preserve"><value>圧縮ファイル内のテキストの読み込みに失敗しました: {0}</value></data>
+  <data name="PdfOpenFailed" xml:space="preserve"><value>PDFを開けませんでした: {0}</value></data>
+  <data name="FileOpenFailed" xml:space="preserve"><value>ファイルを開けませんでした: {0}</value></data>
+  <data name="WebDavError" xml:space="preserve"><value>WebDAVエラー: {0}</value></data>
+  <data name="WebDavServerSaved" xml:space="preserve"><value>サーバー「{0}」を保存しました。</value></data>
+  <data name="WebDavServerDeleted" xml:space="preserve"><value>サーバー「{0}」を削除しました。</value></data>
+  <data name="WebDavServerConnected" xml:space="preserve"><value>「{0}」に接続しました。</value></data>
+  <data name="WebDavFavoriteOpenFailed" xml:space="preserve"><value>WebDAVのお気に入りを開けませんでした: {0}</value></data>
+  <data name="WebDavRecentOpenFailed" xml:space="preserve"><value>最近使用したWebDAV項目を開けませんでした: {0}</value></data>
+  <data name="ChapterNumber" xml:space="preserve"><value>第{0}章</value></data>
+  <data name="ApplicationDescription" xml:space="preserve"><value>Uviewerで画像、文書、圧縮ファイル、EPUB、PDFを開きます。</value></data>
+  <data name="FileTypeDescription" xml:space="preserve"><value>Uviewer {0} ファイル</value></data>
+  <data name="WindowTitle" xml:space="preserve"><value>Uviewer - 画像・テキストビューアー</value></data>
 </root>

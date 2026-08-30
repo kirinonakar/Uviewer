@@ -76,7 +76,7 @@ namespace Uviewer.Services
             catch (Exception ex)
             {
                 if (!token.IsCancellationRequested)
-                    _host.FileNameText.Text = $"이미지 로드 오류: {ex.Message}";
+                    _host.FileNameText.Text = Strings.ImageLoadFailed(ex.Message);
             }
         }
 

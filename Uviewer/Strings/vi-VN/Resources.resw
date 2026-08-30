@@ -661,4 +661,28 @@
   <data name="KeepInTrayRestartCancel" xml:space="preserve"><value>Hủy</value></data>
   <data name="TrayOpen" xml:space="preserve"><value>Mở</value></data>
   <data name="TrayExit" xml:space="preserve"><value>Đóng</value></data>
+  <data name="RequiredFieldsMissing" xml:space="preserve"><value>Vui lòng kiểm tra các trường bắt buộc.</value></data>
+  <data name="WebDavDownloadFailed" xml:space="preserve"><value>Tải xuống thất bại</value></data>
+  <data name="WebDavRemotePathEmpty" xml:space="preserve"><value>WebDAV: Máy chủ từ xa không có tệp hoặc đường dẫn không hợp lệ.</value></data>
+  <data name="ArchiveNoImages" xml:space="preserve"><value>Tệp nén này không chứa hình ảnh.</value></data>
+  <data name="FolderNoImages" xml:space="preserve"><value>Thư mục này không chứa hình ảnh.</value></data>
+  <data name="PdfNoPages" xml:space="preserve"><value>Tệp PDF này không có trang nào.</value></data>
+  <data name="WebDavNotConnected" xml:space="preserve"><value>Chưa kết nối với máy chủ WebDAV.</value></data>
+  <data name="ErrorWithMessage" xml:space="preserve"><value>Lỗi: {0}</value></data>
+  <data name="ImageLoadFailed" xml:space="preserve"><value>Tải hình ảnh thất bại: {0}</value></data>
+  <data name="ArchiveOpenFailed" xml:space="preserve"><value>Không thể mở tệp nén: {0}</value></data>
+  <data name="TextLoadFailed" xml:space="preserve"><value>Tải văn bản thất bại: {0}</value></data>
+  <data name="ArchiveTextLoadFailed" xml:space="preserve"><value>Tải văn bản trong tệp nén thất bại: {0}</value></data>
+  <data name="PdfOpenFailed" xml:space="preserve"><value>Không thể mở PDF: {0}</value></data>
+  <data name="FileOpenFailed" xml:space="preserve"><value>Không thể mở tệp: {0}</value></data>
+  <data name="WebDavError" xml:space="preserve"><value>Lỗi WebDAV: {0}</value></data>
+  <data name="WebDavServerSaved" xml:space="preserve"><value>Đã lưu máy chủ '{0}'.</value></data>
+  <data name="WebDavServerDeleted" xml:space="preserve"><value>Đã xóa máy chủ '{0}'.</value></data>
+  <data name="WebDavServerConnected" xml:space="preserve"><value>Đã kết nối với '{0}'.</value></data>
+  <data name="WebDavFavoriteOpenFailed" xml:space="preserve"><value>Không thể mở mục WebDAV yêu thích: {0}</value></data>
+  <data name="WebDavRecentOpenFailed" xml:space="preserve"><value>Không thể mở mục WebDAV gần đây: {0}</value></data>
+  <data name="ChapterNumber" xml:space="preserve"><value>Chương {0}</value></data>
+  <data name="ApplicationDescription" xml:space="preserve"><value>Mở hình ảnh, tài liệu, tệp nén, EPUB và PDF bằng Uviewer.</value></data>
+  <data name="FileTypeDescription" xml:space="preserve"><value>Tệp Uviewer {0}</value></data>
+  <data name="WindowTitle" xml:space="preserve"><value>Uviewer - Trình xem hình ảnh và văn bản</value></data>
 </root>
