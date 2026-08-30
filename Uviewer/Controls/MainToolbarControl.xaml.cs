@@ -507,6 +507,41 @@ namespace Uviewer.Controls
             ZoomLevelText.FontFamily = fontFamily;
             TextSizeLevelText.FontFamily = fontFamily;
             FavoritesPivot.FontFamily = fontFamily;
+            ApplyMenuFont(SettingsMenuFlyout.Items, fontFamily);
+            ApplyMenuFont(FontSettingsFlyout.Items, fontFamily);
+
+            SharpenSettingsTitleText.FontFamily = fontFamily;
+            UpscaleLabel.FontFamily = fontFamily;
+            UpscaleValueText.FontFamily = fontFamily;
+            SharpenAmountLabel.FontFamily = fontFamily;
+            SharpenValueText.FontFamily = fontFamily;
+            SharpenThresholdLabel.FontFamily = fontFamily;
+            SharpenThresholdValueText.FontFamily = fontFamily;
+            UnsharpAmountLabel.FontFamily = fontFamily;
+            UnsharpAmountValueText.FontFamily = fontFamily;
+            UnsharpRadiusLabel.FontFamily = fontFamily;
+            UnsharpRadiusValueText.FontFamily = fontFamily;
+            UpscaleSlider.FontFamily = fontFamily;
+            SharpenSlider.FontFamily = fontFamily;
+            SharpenThresholdSlider.FontFamily = fontFamily;
+            UnsharpAmountSlider.FontFamily = fontFamily;
+            UnsharpRadiusSlider.FontFamily = fontFamily;
+            SharpenParamsResetButton.FontFamily = fontFamily;
+        }
+
+        private static void ApplyMenuFont(
+            System.Collections.Generic.IEnumerable<MenuFlyoutItemBase> items,
+            FontFamily fontFamily)
+        {
+            foreach (var item in items)
+            {
+                item.FontFamily = fontFamily;
+
+                if (item is MenuFlyoutSubItem subItem)
+                {
+                    ApplyMenuFont(subItem.Items, fontFamily);
+                }
+            }
         }
 
         public void ShowSearchOverlay(

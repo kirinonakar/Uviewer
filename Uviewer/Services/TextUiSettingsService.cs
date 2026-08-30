@@ -11,6 +11,7 @@ namespace Uviewer.Services
         IReadOnlyList<Control?> Controls,
         IReadOnlyList<TextBlock?> TextBlocks,
         MainToolbarControl MainToolbar,
+        ExplorerSidebarControl ExplorerSidebar,
         FrameworkElement? ThemeRefreshRoot,
         Action RefreshDynamicItems);
 
@@ -72,6 +73,7 @@ namespace Uviewer.Services
             }
 
             targets.MainToolbar.ApplyUiFont(resolvedFont);
+            targets.ExplorerSidebar.ApplyUiFont(resolvedFont);
             targets.RefreshDynamicItems();
             ApplyFontResources(resolvedFont, targets.ThemeRefreshRoot);
             return true;

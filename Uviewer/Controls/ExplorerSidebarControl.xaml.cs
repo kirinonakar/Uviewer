@@ -1,6 +1,7 @@
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Controls.Primitives;
 using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Media;
 using System.Collections.Generic;
 using System.Linq;
 
@@ -38,6 +39,50 @@ namespace Uviewer.Controls
         }
 
         internal void RefreshOverflowLabels() => QueueOverflowUpdate();
+
+        internal void ApplyUiFont(FontFamily fontFamily)
+        {
+            ThumbnailSettingsTitleText.FontFamily = fontFamily;
+            ThumbnailSizeLabel.FontFamily = fontFamily;
+            ThumbnailSizeValueText.FontFamily = fontFamily;
+            ThumbnailSizeSlider.FontFamily = fontFamily;
+            FolderThumbnailsCheckBox.FontFamily = fontFamily;
+            ApplyContextMenuFont(FileListView.ContextFlyout, fontFamily);
+            ApplyContextMenuFont(FileGridView.ContextFlyout, fontFamily);
+        }
+
+        private static void ApplyContextMenuFont(FlyoutBase? flyout, FontFamily fontFamily)
+        {
+            if (flyout is not MenuFlyout menuFlyout)
+            {
+                return;
+            }
+
+            foreach (var item in menuFlyout.Items)
+            {
+                item.FontFamily = fontFamily;
+
+                if (item is MenuFlyoutSubItem subItem)
+                {
+                    ApplyMenuItemsFont(subItem.Items, fontFamily);
+                }
+            }
+        }
+
+        private static void ApplyMenuItemsFont(
+            IEnumerable<MenuFlyoutItemBase> items,
+            FontFamily fontFamily)
+        {
+            foreach (var item in items)
+            {
+                item.FontFamily = fontFamily;
+
+                if (item is MenuFlyoutSubItem subItem)
+                {
+                    ApplyMenuItemsFont(subItem.Items, fontFamily);
+                }
+            }
+        }
 
         private void ArrangeOverflow()
         {

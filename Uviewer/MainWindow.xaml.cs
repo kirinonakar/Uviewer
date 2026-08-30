@@ -360,6 +360,17 @@ namespace Uviewer
             // Menus
             if (SidebarAddToFavoritesButton != null) SidebarAddToFavoritesButton.Content = Strings.AddToFavorites;
             _explorerSidebarController.InitializeContextMenus();
+            if (!string.IsNullOrEmpty(_settingsManager?.UIFontFamily))
+            {
+                try
+                {
+                    ExplorerSidebar.ApplyUiFont(new Microsoft.UI.Xaml.Media.FontFamily(_settingsManager.UIFontFamily));
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"Sidebar context menu font apply error: {ex.Message}");
+                }
+            }
 
             // Favorites Pivot Headers
             if (SidebarFileFavoritesPivotItem != null) SidebarFileFavoritesPivotItem.Header = Strings.FavoritesFiles;

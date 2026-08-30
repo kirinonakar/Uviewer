@@ -60,6 +60,7 @@ namespace Uviewer.Services
         TextBlock TextProgressText { get; }
         TextBlock ImageIndexText { get; }
         MainToolbarControl MainToolbar { get; }
+        ExplorerSidebarControl ExplorerSidebar { get; }
 
         string GetTextSettingsFilePath();
     }

@@ -79,6 +79,7 @@ namespace Uviewer
             public TextBlock TextProgressText => _window.TextProgressText;
             public TextBlock ImageIndexText => _window.ImageIndexText;
             public MainToolbarControl MainToolbar => _window.MainToolbar;
+            public ExplorerSidebarControl ExplorerSidebar => _window.ExplorerSidebar;
 
             public string GetTextSettingsFilePath() => _window.GetTextSettingsFilePath();
         }

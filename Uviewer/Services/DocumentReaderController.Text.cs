@@ -944,6 +944,7 @@ namespace Uviewer
                     FileNameText
                 },
                 MainToolbar: MainToolbar,
+                ExplorerSidebar: _viewHost.ExplorerSidebar,
                 ThemeRefreshRoot: RootGrid,
                 RefreshDynamicItems: () =>
                 {

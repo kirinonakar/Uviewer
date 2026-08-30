@@ -49,7 +49,7 @@
                 <Button x:Name="SettingsButton" Style="{StaticResource ToolbarButtonStyle}" Margin="0,0,0,0" ToolTipService.ToolTip="{x:Bind app:Strings.SettingsTooltip}">
                     <FontIcon Glyph="&#xE713;" FontSize="14"/>
                     <Button.Flyout>
-                        <MenuFlyout Placement="Bottom">
+                        <MenuFlyout x:Name="SettingsMenuFlyout" Placement="Bottom">
                             <MenuFlyoutItem x:Name="ChangeFontMenuItem" Text="{x:Bind app:Strings.ChangeFont}">
                                 <MenuFlyoutItem.Icon>
                                     <FontIcon Glyph="&#xE8D2;"/>
