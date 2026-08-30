@@ -134,6 +134,8 @@ namespace Uviewer.Services
 
         internal void ApplyInitialShellState()
         {
+            _toolbar.SetSidebarState(_windowState.IsSidebarVisible);
+
             if (!_windowState.IsSidebarVisible)
             {
                 _sidebarGrid.Visibility = Visibility.Collapsed;
@@ -190,6 +192,7 @@ namespace Uviewer.Services
             }
 
             _windowState.IsSidebarVisible = !_windowState.IsSidebarVisible;
+            _toolbar.SetSidebarState(_windowState.IsSidebarVisible);
             _sidebarGrid.Visibility = _windowState.IsSidebarVisible ? Visibility.Visible : Visibility.Collapsed;
             if (_splitterGrid != null)
             {

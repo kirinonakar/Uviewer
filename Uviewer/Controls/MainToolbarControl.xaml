@@ -148,7 +148,7 @@
             <StackPanel x:Name="RightToolbarHost" Grid.Column="2" Orientation="Horizontal" Spacing="4">
             <StackPanel x:Name="RightToolbarPanel" Orientation="Horizontal" Spacing="4">
                 <Button x:Name="ToggleSidebarButton" ToolTipService.ToolTip="{x:Bind app:Strings.ToggleSidebarTooltip}">
-                    <FontIcon Glyph="&#xE8A0;" FontSize="14"/>
+                    <FontIcon x:Name="ToggleSidebarIcon" Glyph="&#xE8A0;" FontSize="14"/>
                 </Button>
 
                 <Button x:Name="FavoritesButton" ToolTipService.ToolTip="{x:Bind app:Strings.FavoritesTooltip}">
