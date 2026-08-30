@@ -283,8 +283,8 @@ namespace Uviewer.Controls
             LangZhHantItem.Text = Strings.LanguageChineseTraditional;
             LangViItem.Text = Strings.LanguageVietnamese;
 
-            FileFavoritesPivotItem.Header = Strings.FavoritesFiles;
-            FolderFavoritesPivotItem.Header = Strings.FavoritesFolders;
+            FileFavoritesHeaderText.Text = Strings.FavoritesFiles;
+            FolderFavoritesHeaderText.Text = Strings.FavoritesFolders;
 
             SharpenSettingsTitleText.Text = Strings.SharpenSettingsTitle;
             UpscaleLabel.Text = Strings.UpscaleFactorLabel;
@@ -507,6 +507,8 @@ namespace Uviewer.Controls
             ZoomLevelText.FontFamily = fontFamily;
             TextSizeLevelText.FontFamily = fontFamily;
             FavoritesPivot.FontFamily = fontFamily;
+            FileFavoritesHeaderText.FontFamily = fontFamily;
+            FolderFavoritesHeaderText.FontFamily = fontFamily;
             ApplyMenuFont(SettingsMenuFlyout.Items, fontFamily);
             ApplyMenuFont(FontSettingsFlyout.Items, fontFamily);
 

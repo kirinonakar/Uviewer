@@ -373,8 +373,10 @@ namespace Uviewer
             }
 
             // Favorites Pivot Headers
-            if (SidebarFileFavoritesPivotItem != null) SidebarFileFavoritesPivotItem.Header = Strings.FavoritesFiles;
-            if (SidebarFolderFavoritesPivotItem != null) SidebarFolderFavoritesPivotItem.Header = Strings.FavoritesFolders;
+            if (SidebarFileFavoritesPivotItem?.Header is TextBlock fileFavoritesHeader)
+                fileFavoritesHeader.Text = Strings.FavoritesFiles;
+            if (SidebarFolderFavoritesPivotItem?.Header is TextBlock folderFavoritesHeader)
+                folderFavoritesHeader.Text = Strings.FavoritesFolders;
 
             // Clear and re-populate favorites to refresh tooltips
             _bookmarkInteractionController.UpdateFavoritesMenu(_fileFavoriteItems, _folderFavoriteItems);

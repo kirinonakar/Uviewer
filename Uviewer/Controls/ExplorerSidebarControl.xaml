@@ -116,19 +116,20 @@
                                     </Button>
                                     <Border Height="1" Background="{ThemeResource DividerStrokeColorDefaultBrush}" Margin="0,4"/>
                                     <Pivot x:Name="SidebarFavoritesPivot">
-                                        <Pivot.HeaderTemplate>
-                                            <DataTemplate>
-                                                <TextBlock Text="{Binding}" FontSize="14" FontWeight="SemiBold"/>
-                                            </DataTemplate>
-                                        </Pivot.HeaderTemplate>
-                                        <PivotItem x:Name="SidebarFileFavoritesPivotItem" Header="{x:Bind app:Strings.FavoritesFiles}">
+                                        <PivotItem x:Name="SidebarFileFavoritesPivotItem">
+                                            <PivotItem.Header>
+                                                <TextBlock x:Name="SidebarFileFavoritesHeaderText" Text="{x:Bind app:Strings.FavoritesFiles}" FontSize="14" FontWeight="SemiBold"/>
+                                            </PivotItem.Header>
                                             <ScrollViewer MaxHeight="400" 
                                                          HorizontalScrollBarVisibility="Disabled" 
                                                          VerticalScrollBarVisibility="Auto">
                                                 <uc:BookmarkListControl x:Name="SidebarFileFavoritesList"/>
                                             </ScrollViewer>
                                         </PivotItem>
-                                        <PivotItem x:Name="SidebarFolderFavoritesPivotItem" Header="{x:Bind app:Strings.FavoritesFolders}">
+                                        <PivotItem x:Name="SidebarFolderFavoritesPivotItem">
+                                            <PivotItem.Header>
+                                                <TextBlock x:Name="SidebarFolderFavoritesHeaderText" Text="{x:Bind app:Strings.FavoritesFolders}" FontSize="14" FontWeight="SemiBold"/>
+                                            </PivotItem.Header>
                                             <ScrollViewer MaxHeight="400" 
                                                          HorizontalScrollBarVisibility="Disabled" 
                                                          VerticalScrollBarVisibility="Auto">

@@ -47,6 +47,8 @@ namespace Uviewer.Controls
             ThumbnailSizeValueText.FontFamily = fontFamily;
             ThumbnailSizeSlider.FontFamily = fontFamily;
             FolderThumbnailsCheckBox.FontFamily = fontFamily;
+            SidebarFileFavoritesHeaderText.FontFamily = fontFamily;
+            SidebarFolderFavoritesHeaderText.FontFamily = fontFamily;
             ApplyContextMenuFont(FileListView.ContextFlyout, fontFamily);
             ApplyContextMenuFont(FileGridView.ContextFlyout, fontFamily);
         }

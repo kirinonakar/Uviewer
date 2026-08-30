@@ -194,19 +194,20 @@
                                 </Button>
                                 <Border Height="1" Background="{ThemeResource DividerStrokeColorDefaultBrush}" Margin="0,4"/>
                                 <Pivot x:Name="FavoritesPivot">
-                                    <Pivot.HeaderTemplate>
-                                        <DataTemplate>
-                                            <TextBlock Text="{Binding}" FontSize="14" FontWeight="SemiBold"/>
-                                        </DataTemplate>
-                                    </Pivot.HeaderTemplate>
-                                    <PivotItem x:Name="FileFavoritesPivotItem" Header="{x:Bind app:Strings.FavoritesFiles}">
+                                    <PivotItem x:Name="FileFavoritesPivotItem">
+                                        <PivotItem.Header>
+                                            <TextBlock x:Name="FileFavoritesHeaderText" Text="{x:Bind app:Strings.FavoritesFiles}" FontSize="14" FontWeight="SemiBold"/>
+                                        </PivotItem.Header>
                                         <ScrollViewer MaxHeight="400" 
                                                      HorizontalScrollBarVisibility="Disabled" 
                                                      VerticalScrollBarVisibility="Auto">
                                             <uc:BookmarkListControl x:Name="FileFavoritesList"/>
                                         </ScrollViewer>
                                     </PivotItem>
-                                    <PivotItem x:Name="FolderFavoritesPivotItem" Header="{x:Bind app:Strings.FavoritesFolders}">
+                                    <PivotItem x:Name="FolderFavoritesPivotItem">
+                                        <PivotItem.Header>
+                                            <TextBlock x:Name="FolderFavoritesHeaderText" Text="{x:Bind app:Strings.FavoritesFolders}" FontSize="14" FontWeight="SemiBold"/>
+                                        </PivotItem.Header>
                                         <ScrollViewer MaxHeight="400" 
                                                      HorizontalScrollBarVisibility="Disabled" 
                                                      VerticalScrollBarVisibility="Auto">
