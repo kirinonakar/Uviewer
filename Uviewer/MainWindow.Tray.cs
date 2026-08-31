@@ -55,6 +55,7 @@ namespace Uviewer
                 cursorTrackingSuspended = true;
                 AppWindow.Hide();
                 _isHiddenToTray = true;
+                _explorerSidebarController.ClearFilter(focusInput: false);
                 _trayDocumentReleaseTask = ReleaseDocumentAfterHidingToTrayAsync();
                 return true;
             }

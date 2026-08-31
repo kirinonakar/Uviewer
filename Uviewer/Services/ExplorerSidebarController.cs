@@ -113,7 +113,7 @@ namespace Uviewer.Services
             }
         }
 
-        public void ClearFilter()
+        public void ClearFilter(bool focusInput = true)
         {
             _isUpdatingFilter = true;
             try
@@ -126,7 +126,10 @@ namespace Uviewer.Services
                 _isUpdatingFilter = false;
             }
             HandleFilterChanged();
-            _host.ExplorerFilterTextBox.Focus(FocusState.Programmatic);
+            if (focusInput)
+            {
+                _host.ExplorerFilterTextBox.Focus(FocusState.Programmatic);
+            }
         }
 
         private void UpdateFilterStatus()
