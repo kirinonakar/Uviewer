@@ -71,7 +71,8 @@ namespace Uviewer.Services
                 _host.FileItems,
                 currentPath,
                 isNext,
-                _host.IsWebDavMode);
+                _host.IsWebDavMode,
+                archivesOnly: _host.ArchiveSession.HasArchive);
 
             if (nextItem != null)
             {

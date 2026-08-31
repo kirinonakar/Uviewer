@@ -171,7 +171,12 @@ namespace Uviewer.Services
         /// <summary>
         /// 파일 리스트 안에서 현재 파일 경로를 기준으로 이전/다음 탐색 가능한 파일을 찾습니다.
         /// </summary>
-        public static FileItem? GetNextNavigableFile(IList<FileItem> fileItems, string currentPath, bool isNext, bool isWebDavMode = false)
+        public static FileItem? GetNextNavigableFile(
+            IList<FileItem> fileItems,
+            string currentPath,
+            bool isNext,
+            bool isWebDavMode = false,
+            bool archivesOnly = false)
         {
             int currentItemIndex = -1;
             for (int i = 0; i < fileItems.Count; i++)
@@ -191,6 +196,7 @@ namespace Uviewer.Services
                 
                 var item = fileItems[newIndex];
                 if (item.IsDirectory || item.IsParentDirectory) continue; // 폴더 스킵
+                if (archivesOnly && !item.IsArchive) continue;
                 
                 return item; // 찾음
             }
