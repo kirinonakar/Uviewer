@@ -108,7 +108,7 @@ namespace Uviewer
                             CloseCurrentText = window.CloseCurrentText,
                             StopAnimatedImages = window._animatedWebpService.Stop,
                             StopFastNavigation = window._fastNavigationService.StopTimers,
-                            ClearImageCache = window._imageCache.ClearAll,
+                            ClearImageCache = window._imageViewerController.ClearImageResources,
                             ResetImageState = () =>
                             {
                                 window._imageViewerState.ClearBitmaps();

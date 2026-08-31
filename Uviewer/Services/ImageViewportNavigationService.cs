@@ -220,6 +220,7 @@ namespace Uviewer.Services
         public void StopSmoothZoom()
         {
             _smoothZoomTimer?.Stop();
+            _smoothZoomContext = null;
         }
 
         public void Dispose()
@@ -240,6 +241,9 @@ namespace Uviewer.Services
             {
                 IsTransitioning = true;
 
+                int generation = context.ImageCache.Generation;
+                var token = context.GetCancellationToken();
+                if (token.IsCancellationRequested) return true;
                 double zoomLevel = context.GetZoomLevel();
                 int oldIndex = context.GetCurrentIndex();
                 context.ImageCache.UpdateCache(
@@ -256,12 +260,14 @@ namespace Uviewer.Services
                     targetBitmap = await LoadTargetBitmapAsync(context, targetIndex);
                     if (targetBitmap == null) return true;
 
-                    context.ImageCache.UpdateCache(
+                    if (!context.ImageCache.UpdateCache(
                         targetIndex,
                         targetBitmap,
                         isPdf: true,
                         currentZoom: zoomLevel,
-                        currentDisplayingBitmap: context.GetCurrentBitmap());
+                        currentDisplayingBitmap: context.GetCurrentBitmap(),
+                        expectedGeneration: generation,
+                        token: token)) return true;
                     if (!CanvasBitmapHelper.TryGetBitmapSize(targetBitmap, out targetSize)) return true;
                 }
 

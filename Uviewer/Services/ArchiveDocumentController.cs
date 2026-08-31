@@ -149,9 +149,8 @@ namespace Uviewer.Services
                 _handlers.SetWindowTitle("Uviewer - Image & Text Viewer");
             });
 
-            _imageCache.ClearAll();
+            _handlers.ClearImageResources();
             _fastNavigationService.StopTimers();
-            _imageViewerState.ClearBitmaps();
             _sevenZipExtraction.CleanupTempData();
         }
     }

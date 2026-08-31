@@ -54,6 +54,8 @@ namespace Uviewer.Services
             ImageBitmapLoaderContext context,
             CancellationToken token = default)
         {
+            int generation = _imageCache.Generation;
+            CanvasBitmap? ownedBitmap = null;
             try
             {
                 if (token.IsCancellationRequested) return null;
@@ -72,8 +74,10 @@ namespace Uviewer.Services
                             var sharpened = await ApplySharpenAsync(cachedBitmap, context.SharpenParams);
                             if (sharpened != null)
                             {
-                                _imageCache.CacheSharpenedImage(entryIndex, sharpened, context.CurrentIndex);
-                                return sharpened;
+                                if (_imageCache.CacheSharpenedImage(entryIndex, sharpened,
+                                    context.CurrentIndex, generation, token)) return sharpened;
+                                return token.IsCancellationRequested || generation != _imageCache.Generation
+                                    ? null : _imageCache.GetSharpenedImage(entryIndex);
                             }
                         }
 
@@ -83,6 +87,8 @@ namespace Uviewer.Services
 
                 CanvasBitmap? originalBitmap = await LoadOriginalBitmapAsync(entry, canvas, context, token);
                 if (originalBitmap == null) return null;
+                ownedBitmap = originalBitmap;
+                if (token.IsCancellationRequested || generation != _imageCache.Generation) return null;
 
                 if (context.SharpenEnabled && !entry.IsPdfEntry)
                 {
@@ -94,20 +100,35 @@ namespace Uviewer.Services
                     {
                         if (entryIndex >= 0)
                         {
-                            _imageCache.CacheSharpenedImage(entryIndex, sharpened, context.CurrentIndex);
+                            if (!_imageCache.CacheSharpenedImage(entryIndex, sharpened,
+                                context.CurrentIndex, generation, token))
+                            {
+                                return token.IsCancellationRequested || generation != _imageCache.Generation
+                                    ? null : _imageCache.GetSharpenedImage(entryIndex);
+                            }
+                        }
+                        else if (token.IsCancellationRequested || generation != _imageCache.Generation)
+                        {
+                            _imageCache.SafeDisposeBitmap(sharpened);
+                            return null;
                         }
 
-                        _imageCache.SafeDisposeBitmap(originalBitmap);
                         return sharpened;
                     }
                 }
 
+                if (token.IsCancellationRequested || generation != _imageCache.Generation) return null;
+                ownedBitmap = null; // Ownership transfers to the display coordinator.
                 return originalBitmap;
             }
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"Error loading image bitmap: {ex.Message}");
                 return null;
+            }
+            finally
+            {
+                _imageCache.ReleaseBitmapIfUncached(ownedBitmap);
             }
         }
 
@@ -117,6 +138,7 @@ namespace Uviewer.Services
             CancellationToken token)
         {
             CanvasBitmap? bitmap = null;
+            int generation = _imageCache.Generation;
 
             try
             {
@@ -160,7 +182,7 @@ namespace Uviewer.Services
 
                 if (bitmap != null && context.SharpenEnabled && !entry.IsPdfEntry && !token.IsCancellationRequested && entryIndex >= 0)
                 {
-                    StartSharpenPreload(bitmap, entryIndex, context, token);
+                    StartSharpenPreload(bitmap, entryIndex, context, generation, token);
                 }
             }
             catch { }
@@ -279,6 +301,7 @@ namespace Uviewer.Services
             CanvasBitmap bitmap,
             int entryIndex,
             ImageBitmapLoaderContext context,
+            int generation,
             CancellationToken token)
         {
             var capturedBitmap = bitmap;
@@ -294,8 +317,15 @@ namespace Uviewer.Services
 
                     if (sharpened != null && sharpened != capturedBitmap && !token.IsCancellationRequested)
                     {
-                        _imageCache.CacheSharpenedImage(entryIndex, sharpened, context.CurrentIndex);
-                        _dispatcherQueue.TryEnqueue(() => context.InvalidateCanvas());
+                        if (_imageCache.CacheSharpenedImage(entryIndex, sharpened,
+                            context.CurrentIndex, generation, token))
+                        {
+                            _dispatcherQueue.TryEnqueue(() =>
+                            {
+                                if (!token.IsCancellationRequested && generation == _imageCache.Generation)
+                                    context.InvalidateCanvas();
+                            });
+                        }
                     }
                     else if (sharpened != null && sharpened != capturedBitmap)
                     {

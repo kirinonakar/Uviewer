@@ -94,6 +94,8 @@ namespace Uviewer.Services
             Func<ImageEntry, CancellationToken, Task<CanvasBitmap?>> loadBitmapAsync,
             CancellationToken token)
         {
+            int generation = _imageCache.Generation;
+            if (token.IsCancellationRequested) return null;
             var bitmap = _imageCache.GetPreloadedImage(index, zoomLevel);
             if (bitmap != null)
             {
@@ -103,7 +105,8 @@ namespace Uviewer.Services
             bitmap = await loadBitmapAsync(entry, token);
             if (bitmap != null)
             {
-                _imageCache.UpdateCache(index, bitmap, false, zoomLevel, currentBitmap);
+                if (!_imageCache.UpdateCache(index, bitmap, false, zoomLevel,
+                    currentBitmap, generation, token)) return null;
             }
 
             return bitmap;

@@ -41,7 +41,7 @@ namespace Uviewer.Services
             await ReleaseCurrentDocumentAsync();
         }
 
-        public async Task ReleaseCurrentDocumentAsync()
+        public async Task ReleaseCurrentDocumentAsync(bool reduceMemory = false)
         {
             RunStep("cancel extraction", _handlers.CancelExtraction);
             RunStep("cancel image loading", _handlers.CancelImageLoading);
@@ -55,8 +55,7 @@ namespace Uviewer.Services
 
             ResetViewerAfterExplorerOperation();
 
-            GC.Collect();
-            GC.WaitForPendingFinalizers();
+            await DocumentMemoryReclaimer.CollectAsync(reduceMemory);
         }
 
         public void ResetViewerAfterExplorerOperation()

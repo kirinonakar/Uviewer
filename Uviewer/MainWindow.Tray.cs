@@ -108,7 +108,7 @@ namespace Uviewer
 
             try
             {
-                await _explorerDocumentReleaseService.ReleaseCurrentDocumentAsync();
+                await _explorerDocumentReleaseService.ReleaseCurrentDocumentAsync(reduceMemory: true);
             }
             catch (Exception ex)
             {

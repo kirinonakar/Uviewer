@@ -3,7 +3,7 @@ using Microsoft.UI.Dispatching;
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Threading.Tasks;
+using System.Threading;
 
 namespace Uviewer.Services
 {
@@ -19,26 +19,32 @@ namespace Uviewer.Services
         private readonly DispatcherQueue _dispatcher;
         private readonly object _lockObject = new(); // 스레드 안전성을 위한 락 객체
 
+        private int _generation;
+        public int Generation
+        {
+            get { lock (_lockObject) return _generation; }
+        }
+
         public ImageCacheManager(DispatcherQueue dispatcher)
         {
             _dispatcher = dispatcher ?? throw new ArgumentNullException(nameof(dispatcher));
         }
 
-        public bool TryMarkForLoading(int index)
+        public bool TryMarkForLoading(int index, int generation)
         {
             lock (_lockObject)
             {
-                if (_loadingIndices.Contains(index)) return false;
+                if (generation != _generation || _loadingIndices.Contains(index)) return false;
                 _loadingIndices.Add(index);
                 return true;
             }
         }
 
-        public void UnmarkLoading(int index)
+        public void UnmarkLoading(int index, int generation)
         {
             lock (_lockObject)
             {
-                _loadingIndices.Remove(index);
+                if (generation == _generation) _loadingIndices.Remove(index);
             }
         }
 
@@ -71,10 +77,19 @@ namespace Uviewer.Services
             }
         }
 
-        public void UpdateCache(int index, CanvasBitmap bitmap, bool isPdf, double currentZoom, CanvasBitmap? currentDisplayingBitmap = null)
+        public bool UpdateCache(int index, CanvasBitmap bitmap, bool isPdf, double currentZoom,
+            CanvasBitmap? currentDisplayingBitmap = null, int? expectedGeneration = null,
+            CancellationToken token = default)
         {
             lock (_lockObject)
             {
+                if (token.IsCancellationRequested ||
+                    (expectedGeneration.HasValue && expectedGeneration.Value != _generation))
+                {
+                    if (bitmap != currentDisplayingBitmap) ReleaseBitmapIfUncached(bitmap);
+                    return false;
+                }
+
                 bool hasOld = _preloadedImages.TryGetValue(index, out var oldBitmap);
                 
                 _preloadedImages[index] = bitmap;
@@ -92,6 +107,7 @@ namespace Uviewer.Services
                         SafeDisposeBitmap(oldBitmap);
                     }
                 }
+                return true;
             }
         }
 
@@ -136,7 +152,7 @@ namespace Uviewer.Services
         {
             if (bitmap == null) return;
 
-            _dispatcher.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, () =>
+            void DisposeBitmap()
             {
                 try
                 {
@@ -148,7 +164,21 @@ namespace Uviewer.Services
                 {
                     System.Diagnostics.Debug.WriteLine($"Bitmap Dispose Error: {ex.Message}");
                 }
-            });
+            }
+
+            if (_dispatcher.HasThreadAccess ||
+                !_dispatcher.TryEnqueue(DispatcherQueuePriority.Low, DisposeBitmap))
+            {
+                DisposeBitmap();
+            }
+        }
+
+        public void ReleaseBitmapIfUncached(CanvasBitmap? bitmap)
+        {
+            lock (_lockObject)
+            {
+                if (bitmap != null && !IsBitmapInCache(bitmap)) SafeDisposeBitmap(bitmap);
+            }
         }
 
         public CanvasBitmap? GetPreloadedImage(int index, double? requiredZoom = null)
@@ -177,10 +207,25 @@ namespace Uviewer.Services
             }
         }
 
-        public void CacheSharpenedImage(int index, CanvasBitmap sharpenedBitmap, int currentIndex)
+        public bool CacheSharpenedImage(int index, CanvasBitmap sharpenedBitmap, int currentIndex,
+            int expectedGeneration, CancellationToken token)
         {
             lock (_lockObject)
             {
+                if (token.IsCancellationRequested || expectedGeneration != _generation)
+                {
+                    ReleaseBitmapIfUncached(sharpenedBitmap);
+                    return false;
+                }
+
+                // Do not overwrite a competing load's bitmap: it may be displayed.
+                if (_sharpenedImageCache.TryGetValue(index, out var existingBitmap))
+                {
+                    if (existingBitmap == sharpenedBitmap) return true;
+                    ReleaseBitmapIfUncached(sharpenedBitmap);
+                    return false;
+                }
+
                 if (_sharpenedImageCache.Count >= MaxSharpenedCacheSize)
                 {
                     var keysToRemove = _sharpenedImageCache.Keys
@@ -203,6 +248,7 @@ namespace Uviewer.Services
                     }
                 }
                 _sharpenedImageCache[index] = sharpenedBitmap;
+                return true;
             }
         }
 
@@ -221,6 +267,8 @@ namespace Uviewer.Services
         {
             lock (_lockObject)
             {
+                _generation++;
+                _loadingIndices.Clear();
                 // [수정] 복사본을 만들고 먼저 Clear 해야 IsBitmapInCache 검증이 안전함
                 var copy = _sharpenedImageCache.ToList();
                 _sharpenedImageCache.Clear();
@@ -245,15 +293,21 @@ namespace Uviewer.Services
             }
         }
 
-        public void ClearAll()
+        public void ClearAll(params CanvasBitmap?[] additionalBitmaps)
         {
-            ClearAllExcept();
+            ClearAllCore(Array.Empty<CanvasBitmap?>(), additionalBitmaps);
         }
 
         public void ClearAllExcept(params CanvasBitmap?[] activeBitmaps)
         {
+            ClearAllCore(activeBitmaps, Array.Empty<CanvasBitmap?>());
+        }
+
+        private void ClearAllCore(CanvasBitmap?[] activeBitmaps, CanvasBitmap?[] additionalBitmaps)
+        {
             lock (_lockObject)
             {
+                _generation++;
                 var activeBitmapSet = new HashSet<CanvasBitmap>(
                     (activeBitmaps ?? Array.Empty<CanvasBitmap?>())
                         .Where(bitmap => bitmap != null)
@@ -262,7 +316,9 @@ namespace Uviewer.Services
                 // [수정] 중복된 참조가 양쪽 캐시에 있을 경우 두 번 Dispose 되는 것을 막기 위해 Distinct 처리
                 var allBitmaps = _preloadedImages.Values
                     .Concat(_sharpenedImageCache.Values)
+                    .Concat(additionalBitmaps)
                     .Where(b => b != null)
+                    .Select(b => b!)
                     .Distinct()
                     .ToList();
 

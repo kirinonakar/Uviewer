@@ -51,6 +51,7 @@ namespace Uviewer.Services
 
                 _preloadCts = new CancellationTokenSource();
                 var token = _preloadCts.Token;
+                int generation = _imageCache.Generation;
 
                 // PDF의 경우 연속 스크롤 디바운스를 위해 잠시 대기
                 if (isPdfMode)
@@ -81,7 +82,7 @@ namespace Uviewer.Services
                         bool isPdfEntry = entries[index].IsPdfEntry && isPdfMode;
 
                         if (_imageCache.ShouldSkipPreload(index, isPdfEntry, zoomLevel, requireSharpening)) continue;
-                        if (!_imageCache.TryMarkForLoading(index)) continue;
+                        if (!_imageCache.TryMarkForLoading(index, generation)) continue;
 
                         var entry = entries[index];
                         var capturedIndex = index;
@@ -97,32 +98,34 @@ namespace Uviewer.Services
 
                                 if (token.IsCancellationRequested)
                                 {
-                                    _imageCache.SafeDisposeBitmap(bitmap);
+                                    _imageCache.ReleaseBitmapIfUncached(bitmap);
                                     return;
                                 }
 
                                 if (bitmap != null)
                                 {
-                                    _imageCache.UpdateCache(capturedIndex, bitmap, isPdfEntry, zoomLevel, currentBitmap);
+                                    if (!_imageCache.UpdateCache(capturedIndex, bitmap, isPdfEntry, zoomLevel,
+                                        currentBitmap, generation, token)) return;
 
                                     _dispatcherQueue.TryEnqueue(DispatcherQueuePriority.Low, () =>
                                     {
-                                        invalidateCanvasAction();
+                                        if (!token.IsCancellationRequested && generation == _imageCache.Generation)
+                                            invalidateCanvasAction();
                                     });
                                 }
                             }
                             catch { }
                             finally
                             {
-                                _imageCache.UnmarkLoading(capturedIndex);
+                                _imageCache.UnmarkLoading(capturedIndex, generation);
                             }
-                        }, token));
+                        })); // Run finally even if cancellation preceded scheduling.
                     }
                 }
 
                 await Task.WhenAll(tasks);
 
-                if (!token.IsCancellationRequested)
+                if (!token.IsCancellationRequested && generation == _imageCache.Generation)
                 {
                     _imageCache.CleanupOldPreloadedImages(currentIndex, isPdfMode, DefaultPreloadCount, currentBitmap, leftBitmap, rightBitmap);
                 }

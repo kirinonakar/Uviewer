@@ -359,7 +359,8 @@ namespace Uviewer.Services
             if (!_handlers.IsWindowClosing())
             {
                 _handlers.ApplyPdfClosedUi();
-                _imageCache.ClearAll();
+                _imageCache.ClearAll(_imageViewerState.CurrentBitmap,
+                    _imageViewerState.LeftBitmap, _imageViewerState.RightBitmap);
             }
 
             _fastNavigationService.StopTimers();

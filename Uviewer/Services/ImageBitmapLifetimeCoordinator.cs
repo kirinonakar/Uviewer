@@ -65,12 +65,18 @@ namespace Uviewer.Services
         {
             _host.ImageLoadingCts?.Cancel();
             _host.PreloadManager.CancelAll();
-            _host.ImageCache.ClearAll();
             _host.AnimatedWebpService.Stop();
 
+            var currentBitmap = _host.CurrentBitmap;
+            var leftBitmap = _host.LeftBitmap;
+            var rightBitmap = _host.RightBitmap;
             _host.CurrentBitmap = null;
             _host.LeftBitmap = null;
             _host.RightBitmap = null;
+            _host.IsAnimatedFrameActive = false;
+
+            // Displayed images are not necessarily in either cache.
+            _host.ImageCache.ClearAll(currentBitmap, leftBitmap, rightBitmap);
 
             _host.MainCanvas?.Invalidate();
             _host.LeftCanvas?.Invalidate();
