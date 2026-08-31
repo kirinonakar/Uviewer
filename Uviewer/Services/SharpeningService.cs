@@ -78,6 +78,9 @@ namespace Uviewer.Services
                 var finalTarget = new CanvasRenderTarget(device, finalWidth, finalHeight, originalBitmap.Dpi);
                 using (var ds = finalTarget.CreateDrawingSession())
                 {
+                    // Render targets are not cleared automatically. Transparent GIF/WebP pixels
+                    // must not blend with stale texture contents from an earlier frame.
+                    ds.Clear(Windows.UI.Color.FromArgb(0, 0, 0, 0));
                     ds.Antialiasing = CanvasAntialiasing.Antialiased;
                     ds.DrawImage(currentEffect);
                 }
