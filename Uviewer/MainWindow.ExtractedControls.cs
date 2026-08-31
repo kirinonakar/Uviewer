@@ -64,6 +64,10 @@ namespace Uviewer
         private StackPanel WebDavPanel => SidebarPart<StackPanel>(nameof(WebDavPanel));
         private Button AddWebDavButton => SidebarPart<Button>(nameof(AddWebDavButton));
         private PathBreadcrumbControl CurrentPathBreadcrumb => SidebarPart<PathBreadcrumbControl>(nameof(CurrentPathBreadcrumb));
+        private TextBox ExplorerFilterTextBox => SidebarPart<TextBox>(nameof(ExplorerFilterTextBox));
+        private ComboBox ExplorerFilterKindComboBox => SidebarPart<ComboBox>(nameof(ExplorerFilterKindComboBox));
+        private Button ClearExplorerFilterButton => SidebarPart<Button>(nameof(ClearExplorerFilterButton));
+        private TextBlock ExplorerFilterEmptyText => SidebarPart<TextBlock>(nameof(ExplorerFilterEmptyText));
         private ListView FileListView => SidebarPart<ListView>(nameof(FileListView));
         private GridView FileGridView => SidebarPart<GridView>(nameof(FileGridView));
     }

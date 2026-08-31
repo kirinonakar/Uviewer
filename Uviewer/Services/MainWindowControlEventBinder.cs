@@ -17,6 +17,9 @@ namespace Uviewer.Services
         public Slider ThumbnailSizeSlider { get; init; } = null!;
         public CheckBox FolderThumbnailsCheckBox { get; init; } = null!;
         public PathBreadcrumbControl CurrentPathBreadcrumb { get; init; } = null!;
+        public TextBox ExplorerFilterTextBox { get; init; } = null!;
+        public ComboBox ExplorerFilterKindComboBox { get; init; } = null!;
+        public Button ClearExplorerFilterButton { get; init; } = null!;
         public Button ParentFolderButton { get; init; } = null!;
         public Button SidebarAddToFavoritesButton { get; init; } = null!;
         public Button BrowseFolderButton { get; init; } = null!;
@@ -149,6 +152,17 @@ namespace Uviewer.Services
             _sidebar.SidebarAddToFavoritesButton.Click += (_, _) => RunAsync(() => bookmarks.AddCurrentFavoriteAsync());
             _sidebar.BrowseFolderButton.Click += (_, _) => explorer.HandleBrowseFolderClick();
             _sidebar.SortByDateButton.Click += (_, _) => explorer.CycleSortMode();
+            _sidebar.ExplorerFilterTextBox.TextChanged += (_, _) => explorer.HandleFilterChanged();
+            _sidebar.ExplorerFilterKindComboBox.SelectionChanged += (_, _) => explorer.HandleFilterChanged();
+            _sidebar.ClearExplorerFilterButton.Click += (_, _) => explorer.ClearFilter();
+            _sidebar.ExplorerFilterTextBox.PreviewKeyDown += (_, e) =>
+            {
+                if (e.Key == Windows.System.VirtualKey.Escape)
+                {
+                    explorer.ClearFilter();
+                    e.Handled = true;
+                }
+            };
             _sidebar.WebDavFlyout.Opened += _handlers.WebDavFlyoutOpened;
             _sidebar.AddWebDavButton.Click += _handlers.AddWebDavButtonClicked;
 

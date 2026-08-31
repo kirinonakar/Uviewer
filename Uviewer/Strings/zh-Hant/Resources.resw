@@ -685,4 +685,13 @@
   <data name="ApplicationDescription" xml:space="preserve"><value>使用 Uviewer 開啟影像、文件、壓縮檔、EPUB 和 PDF。</value></data>
   <data name="FileTypeDescription" xml:space="preserve"><value>Uviewer {0} 檔案</value></data>
   <data name="WindowTitle" xml:space="preserve"><value>Uviewer - 影像與文字檢視器</value></data>
+  <data name="ExplorerFilterPlaceholder" xml:space="preserve"><value>依名稱或副檔名篩選</value></data>
+  <data name="ExplorerFilterKindLabel" xml:space="preserve"><value>依檔案類型篩選</value></data>
+  <data name="ExplorerFilterAll" xml:space="preserve"><value>所有類型</value></data>
+  <data name="ExplorerFilterImages" xml:space="preserve"><value>影像</value></data>
+  <data name="ExplorerFilterText" xml:space="preserve"><value>文字</value></data>
+  <data name="ExplorerFilterArchives" xml:space="preserve"><value>壓縮檔</value></data>
+  <data name="ExplorerFilterFolders" xml:space="preserve"><value>資料夾</value></data>
+  <data name="ExplorerFilterClear" xml:space="preserve"><value>清除篩選 (Esc)</value></data>
+  <data name="ExplorerFilterNoMatches" xml:space="preserve"><value>沒有符合篩選條件的項目。</value></data>
 </root>

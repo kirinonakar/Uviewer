@@ -685,4 +685,13 @@
   <data name="ApplicationDescription" xml:space="preserve"><value>Open images, documents, archives, EPUB, and PDF files with Uviewer.</value></data>
   <data name="FileTypeDescription" xml:space="preserve"><value>Uviewer {0} file</value></data>
   <data name="WindowTitle" xml:space="preserve"><value>Uviewer - Image &amp; Text Viewer</value></data>
+  <data name="ExplorerFilterPlaceholder" xml:space="preserve"><value>Filter by name or extension</value></data>
+  <data name="ExplorerFilterKindLabel" xml:space="preserve"><value>Filter by file type</value></data>
+  <data name="ExplorerFilterAll" xml:space="preserve"><value>All types</value></data>
+  <data name="ExplorerFilterImages" xml:space="preserve"><value>Images</value></data>
+  <data name="ExplorerFilterText" xml:space="preserve"><value>Text</value></data>
+  <data name="ExplorerFilterArchives" xml:space="preserve"><value>Archives</value></data>
+  <data name="ExplorerFilterFolders" xml:space="preserve"><value>Folders</value></data>
+  <data name="ExplorerFilterClear" xml:space="preserve"><value>Clear filters (Esc)</value></data>
+  <data name="ExplorerFilterNoMatches" xml:space="preserve"><value>No items match the filters.</value></data>
 </root>

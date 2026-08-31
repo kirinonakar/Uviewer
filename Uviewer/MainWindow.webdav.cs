@@ -197,15 +197,13 @@ namespace Uviewer
                 CurrentPathBreadcrumb.SetWebDavPath(_webDavService.CurrentServer.ServerName, remotePath);
 
                 _imageViewerController.ClearImageResources();
-                _explorerState.ReplaceItems(System.Array.Empty<FileItem>());
                 _imageEntries.Clear();
                 _currentIndex = -1;
 
                 var parentItem = WebDavExplorerItemFactory.CreateParentItem(remotePath);
-                if (parentItem != null)
-                {
-                    _fileItems.Add(parentItem);
-                }
+                _explorerState.ReplaceItems(parentItem != null
+                    ? new[] { parentItem }
+                    : System.Array.Empty<FileItem>());
 
                 var items = await _webDavService.ListFolderAsync(remotePath, token);
                 if (token.IsCancellationRequested) return;
@@ -253,7 +251,9 @@ namespace Uviewer
 
         private ImageEntry? PrepareWebDavSequentialEntries(string webDavPath, string tempPath)
         {
-            var viewableItems = _fileItems
+            // Reader navigation is independent of the sidebar filter, including
+            // files opened from favorites or recent items while hidden by it.
+            var viewableItems = _explorerState.AllItems
                 .Where(f => !f.IsDirectory && !f.IsParentDirectory)
                 .ToList();
 

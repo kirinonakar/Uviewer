@@ -243,14 +243,53 @@
                 <Grid Grid.Row="1">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
                         <RowDefinition Height="*"/>
                     </Grid.RowDefinitions>
 
                     <uc:PathBreadcrumbControl x:Name="CurrentPathBreadcrumb"
                                               Grid.Row="0"/>
 
+                    <Grid Grid.Row="1" Margin="12,4,12,8" RowSpacing="6" ColumnSpacing="6">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                        </Grid.RowDefinitions>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBox x:Name="ExplorerFilterTextBox" Grid.ColumnSpan="2" MinWidth="0"
+                                 PlaceholderText="{x:Bind app:Strings.ExplorerFilterPlaceholder}"
+                                 AutomationProperties.Name="{x:Bind app:Strings.ExplorerFilterPlaceholder}"
+                                 ToolTipService.ToolTip="{x:Bind app:Strings.ExplorerFilterPlaceholder}"/>
+                        <ComboBox x:Name="ExplorerFilterKindComboBox" Grid.Row="1" SelectedIndex="0"
+                                  HorizontalAlignment="Stretch" MinWidth="0"
+                                  AutomationProperties.Name="{x:Bind app:Strings.ExplorerFilterKindLabel}">
+                            <ComboBoxItem Content="{x:Bind app:Strings.ExplorerFilterAll}" Tag="All"/>
+                            <ComboBoxItem Content="{x:Bind app:Strings.ExplorerFilterImages}" Tag="Image"/>
+                            <ComboBoxItem Content="{x:Bind app:Strings.ExplorerFilterText}" Tag="Text"/>
+                            <ComboBoxItem Content="PDF" Tag="Pdf"/>
+                            <ComboBoxItem Content="EPUB" Tag="Epub"/>
+                            <ComboBoxItem Content="{x:Bind app:Strings.ExplorerFilterArchives}" Tag="Archive"/>
+                            <ComboBoxItem Content="{x:Bind app:Strings.ExplorerFilterFolders}" Tag="Folder"/>
+                        </ComboBox>
+                        <Button x:Name="ClearExplorerFilterButton" Grid.Row="1" Grid.Column="1"
+                                IsEnabled="False" Padding="8" VerticalAlignment="Stretch"
+                                AutomationProperties.Name="{x:Bind app:Strings.ExplorerFilterClear}"
+                                ToolTipService.ToolTip="{x:Bind app:Strings.ExplorerFilterClear}">
+                            <FontIcon Glyph="&#xE711;" FontSize="12"/>
+                        </Button>
+                    </Grid>
+                    <TextBlock x:Name="ExplorerFilterEmptyText" Grid.Row="2" Margin="12,4,12,8"
+                               Visibility="Collapsed" TextWrapping="Wrap"
+                               Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                               AutomationProperties.LiveSetting="Polite"
+                               Text="{x:Bind app:Strings.ExplorerFilterNoMatches}"/>
+
                     <!-- File List -->
-                    <ListView x:Name="FileListView" Grid.Row="1" 
+                    <ListView x:Name="FileListView" Grid.Row="3"
                               SelectionMode="Single"
                               IsItemClickEnabled="True">
                         <ListView.ItemTemplate>
@@ -273,7 +312,7 @@
                         </ListView.ItemTemplate>
                     </ListView>
 
-                    <GridView x:Name="FileGridView" Grid.Row="1"
+                    <GridView x:Name="FileGridView" Grid.Row="3"
                               SelectionMode="Single"
                               IsItemClickEnabled="True"
                               Visibility="Collapsed"

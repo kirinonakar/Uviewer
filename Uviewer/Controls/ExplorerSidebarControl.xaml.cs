@@ -42,6 +42,13 @@ namespace Uviewer.Controls
 
         internal void ApplyUiFont(FontFamily fontFamily)
         {
+            ExplorerFilterTextBox.FontFamily = fontFamily;
+            ExplorerFilterKindComboBox.FontFamily = fontFamily;
+            foreach (ComboBoxItem option in ExplorerFilterKindComboBox.Items)
+            {
+                option.FontFamily = fontFamily;
+            }
+            ExplorerFilterEmptyText.FontFamily = fontFamily;
             ThumbnailSettingsTitleText.FontFamily = fontFamily;
             ThumbnailSizeLabel.FontFamily = fontFamily;
             ThumbnailSizeValueText.FontFamily = fontFamily;
@@ -228,6 +235,10 @@ namespace Uviewer.Controls
                 nameof(WebDavPanel) => WebDavPanel,
                 nameof(AddWebDavButton) => AddWebDavButton,
                 nameof(CurrentPathBreadcrumb) => CurrentPathBreadcrumb,
+                nameof(ExplorerFilterTextBox) => ExplorerFilterTextBox,
+                nameof(ExplorerFilterKindComboBox) => ExplorerFilterKindComboBox,
+                nameof(ClearExplorerFilterButton) => ClearExplorerFilterButton,
+                nameof(ExplorerFilterEmptyText) => ExplorerFilterEmptyText,
                 nameof(FileListView) => FileListView,
                 nameof(FileGridView) => FileGridView,
                 _ => null

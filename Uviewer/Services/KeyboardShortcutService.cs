@@ -1,6 +1,7 @@
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
+using Microsoft.UI.Xaml.Media;
 using System.Threading.Tasks;
 using Windows.System;
 using Windows.UI.Core;
@@ -67,7 +68,18 @@ namespace Uviewer.Services
 
         private static bool IsTextInput(object originalSource)
         {
-            return originalSource is TextBox || originalSource is PasswordBox || originalSource is NumberBox;
+            // Input templates can raise key events from a child element. Leave editing
+            // and ComboBox navigation keys to the control instead of viewer shortcuts.
+            var source = originalSource as DependencyObject;
+            while (source != null)
+            {
+                if (source is TextBox or PasswordBox or NumberBox or ComboBox or ComboBoxItem)
+                {
+                    return true;
+                }
+                source = VisualTreeHelper.GetParent(source);
+            }
+            return false;
         }
 
         private static bool IsCtrlPressed()

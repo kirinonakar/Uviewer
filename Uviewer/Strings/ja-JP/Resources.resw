@@ -685,4 +685,13 @@
   <data name="ApplicationDescription" xml:space="preserve"><value>Uviewerで画像、文書、圧縮ファイル、EPUB、PDFを開きます。</value></data>
   <data name="FileTypeDescription" xml:space="preserve"><value>Uviewer {0} ファイル</value></data>
   <data name="WindowTitle" xml:space="preserve"><value>Uviewer - 画像・テキストビューアー</value></data>
+  <data name="ExplorerFilterPlaceholder" xml:space="preserve"><value>名前または拡張子で絞り込み</value></data>
+  <data name="ExplorerFilterKindLabel" xml:space="preserve"><value>ファイルの種類で絞り込み</value></data>
+  <data name="ExplorerFilterAll" xml:space="preserve"><value>すべての種類</value></data>
+  <data name="ExplorerFilterImages" xml:space="preserve"><value>画像</value></data>
+  <data name="ExplorerFilterText" xml:space="preserve"><value>テキスト</value></data>
+  <data name="ExplorerFilterArchives" xml:space="preserve"><value>圧縮ファイル</value></data>
+  <data name="ExplorerFilterFolders" xml:space="preserve"><value>フォルダー</value></data>
+  <data name="ExplorerFilterClear" xml:space="preserve"><value>絞り込みを解除 (Esc)</value></data>
+  <data name="ExplorerFilterNoMatches" xml:space="preserve"><value>条件に一致する項目はありません。</value></data>
 </root>

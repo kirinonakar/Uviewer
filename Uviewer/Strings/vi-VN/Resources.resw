@@ -685,4 +685,13 @@
   <data name="ApplicationDescription" xml:space="preserve"><value>Mở hình ảnh, tài liệu, tệp nén, EPUB và PDF bằng Uviewer.</value></data>
   <data name="FileTypeDescription" xml:space="preserve"><value>Tệp Uviewer {0}</value></data>
   <data name="WindowTitle" xml:space="preserve"><value>Uviewer - Trình xem hình ảnh và văn bản</value></data>
+  <data name="ExplorerFilterPlaceholder" xml:space="preserve"><value>Lọc theo tên hoặc phần mở rộng</value></data>
+  <data name="ExplorerFilterKindLabel" xml:space="preserve"><value>Lọc theo loại tệp</value></data>
+  <data name="ExplorerFilterAll" xml:space="preserve"><value>Tất cả loại tệp</value></data>
+  <data name="ExplorerFilterImages" xml:space="preserve"><value>Hình ảnh</value></data>
+  <data name="ExplorerFilterText" xml:space="preserve"><value>Văn bản</value></data>
+  <data name="ExplorerFilterArchives" xml:space="preserve"><value>Tệp nén</value></data>
+  <data name="ExplorerFilterFolders" xml:space="preserve"><value>Thư mục</value></data>
+  <data name="ExplorerFilterClear" xml:space="preserve"><value>Xóa bộ lọc (Esc)</value></data>
+  <data name="ExplorerFilterNoMatches" xml:space="preserve"><value>Không có mục nào khớp với bộ lọc.</value></data>
 </root>

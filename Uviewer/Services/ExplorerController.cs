@@ -1,5 +1,6 @@
 using Microsoft.UI.Dispatching;
 using System;
+using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using Uviewer.Models;
@@ -14,6 +15,16 @@ namespace Uviewer.Services
 
         public int ThumbnailDecodePixelWidth { get; set; } = 200;
         public bool ShowFolderThumbnails { get; set; }
+        public IReadOnlyList<FileItem> AllItems => _state.AllItems;
+        public bool IsFilterActive => _state.IsFilterActive;
+        public bool HasNoFilterResults => _state.HasNoFilterResults;
+        public event EventHandler? ItemsChanged
+        {
+            add => _state.ItemsChanged += value;
+            remove => _state.ItemsChanged -= value;
+        }
+
+        public void SetFilter(string text, ExplorerFilterKind kind) => _state.SetFilter(text, kind);
 
         public ExplorerController(
             ExplorerState state,
@@ -81,7 +92,7 @@ namespace Uviewer.Services
         public void RefreshThumbnails(bool clearExisting)
         {
             _state.CancelThumbnailLoading();
-            foreach (var item in _state.Items)
+            foreach (var item in _state.AllItems)
             {
                 if (clearExisting || (item.IsDirectory && !item.IsParentDirectory))
                 {
@@ -95,7 +106,7 @@ namespace Uviewer.Services
         private Task LoadThumbnailsAsync(CancellationToken token)
         {
             return _thumbnailService.LoadThumbnailsAsync(
-                _state.Items,
+                _state.AllItems,
                 _dispatcher,
                 token,
                 ThumbnailDecodePixelWidth,

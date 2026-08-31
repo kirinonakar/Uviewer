@@ -36,6 +36,10 @@ namespace Uviewer.Services
         Button ToggleViewButton { get; }
         Button SortByDateButton { get; }
         FontIcon SortIcon { get; }
+        TextBox ExplorerFilterTextBox { get; }
+        ComboBox ExplorerFilterKindComboBox { get; }
+        Button ClearExplorerFilterButton { get; }
+        TextBlock ExplorerFilterEmptyText { get; }
         Slider ThumbnailSizeSlider { get; }
         TextBlock ThumbnailSizeValueText { get; }
         CheckBox FolderThumbnailsCheckBox { get; }
@@ -63,6 +67,7 @@ namespace Uviewer.Services
         private readonly FavoritesController _favoritesController;
         private readonly IExplorerSidebarHost _host;
         private readonly IntPtr _windowHandle;
+        private bool _isUpdatingFilter;
 
         public ExplorerSidebarController(
             ExplorerController explorerController,
@@ -76,6 +81,59 @@ namespace Uviewer.Services
             _favoritesController = favoritesController ?? throw new ArgumentNullException(nameof(favoritesController));
             _host = host ?? throw new ArgumentNullException(nameof(host));
             _windowHandle = windowHandle;
+            _explorerController.ItemsChanged += (_, _) => UpdateFilterStatus();
+        }
+
+        public void HandleFilterChanged()
+        {
+            if (_isUpdatingFilter) return;
+            var kind = ExplorerFilterKind.All;
+            if (_host.ExplorerFilterKindComboBox.SelectedItem is ComboBoxItem option &&
+                option.Tag is string tag)
+            {
+                Enum.TryParse(tag, out kind);
+            }
+
+            var listSelection = _host.FileListView.SelectedItem as FileItem;
+            var gridSelection = _host.FileGridView.SelectedItem as FileItem;
+            _isUpdatingFilter = true;
+            try
+            {
+                _host.ExplorerContextItem = null;
+                _explorerController.SetFilter(_host.ExplorerFilterTextBox.Text, kind);
+                // Restoring a surviving selection must not reopen the document.
+                _host.FileListView.SelectedItem = listSelection != null && _host.FileItems.Contains(listSelection)
+                    ? listSelection : null;
+                _host.FileGridView.SelectedItem = gridSelection != null && _host.FileItems.Contains(gridSelection)
+                    ? gridSelection : null;
+            }
+            finally
+            {
+                _isUpdatingFilter = false;
+            }
+        }
+
+        public void ClearFilter()
+        {
+            _isUpdatingFilter = true;
+            try
+            {
+                _host.ExplorerFilterTextBox.Text = "";
+                _host.ExplorerFilterKindComboBox.SelectedIndex = 0;
+            }
+            finally
+            {
+                _isUpdatingFilter = false;
+            }
+            HandleFilterChanged();
+            _host.ExplorerFilterTextBox.Focus(FocusState.Programmatic);
+        }
+
+        private void UpdateFilterStatus()
+        {
+            _host.ClearExplorerFilterButton.IsEnabled = _explorerController.IsFilterActive;
+            _host.ExplorerFilterEmptyText.Visibility = _explorerController.HasNoFilterResults
+                ? Visibility.Visible : Visibility.Collapsed;
         }
 
         public void LoadFolder(string path)
@@ -176,7 +234,7 @@ namespace Uviewer.Services
 
         public void ApplyThumbnailSizeToFileItems()
         {
-            foreach (var item in _host.FileItems)
+            foreach (var item in _explorerController.AllItems)
             {
                 item.ApplyThumbnailSize(_host.ExplorerThumbnailSize);
             }
@@ -294,6 +352,7 @@ namespace Uviewer.Services
 
         public void HandleSelectionChanged(FileItem? item)
         {
+            if (_isUpdatingFilter) return;
             _ = HandleSelectionChangedAsync(item);
         }
 

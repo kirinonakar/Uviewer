@@ -57,6 +57,15 @@ namespace Uviewer
         public static string ThumbnailSettingsTitle => GetString("ThumbnailSettingsTitle");
         public static string ThumbnailSizeLabel => GetString("ThumbnailSizeLabel");
         public static string ShowFolderThumbnailsLabel => GetString("ShowFolderThumbnailsLabel");
+        public static string ExplorerFilterPlaceholder => GetString("ExplorerFilterPlaceholder");
+        public static string ExplorerFilterKindLabel => GetString("ExplorerFilterKindLabel");
+        public static string ExplorerFilterAll => GetString("ExplorerFilterAll");
+        public static string ExplorerFilterImages => GetString("ExplorerFilterImages");
+        public static string ExplorerFilterText => GetString("ExplorerFilterText");
+        public static string ExplorerFilterArchives => GetString("ExplorerFilterArchives");
+        public static string ExplorerFilterFolders => GetString("ExplorerFilterFolders");
+        public static string ExplorerFilterClear => GetString("ExplorerFilterClear");
+        public static string ExplorerFilterNoMatches => GetString("ExplorerFilterNoMatches");
         public static string ParentFolderTooltip => GetString("ParentFolderTooltip");
         public static string RecentTooltip => GetString("RecentTooltip");
         public static string NoRecentFiles => GetString("NoRecentFiles");

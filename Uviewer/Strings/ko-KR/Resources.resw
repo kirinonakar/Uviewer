@@ -685,4 +685,13 @@
   <data name="ApplicationDescription" xml:space="preserve"><value>Uviewer에서 이미지, 문서, 압축 파일, EPUB 및 PDF를 열 수 있습니다.</value></data>
   <data name="FileTypeDescription" xml:space="preserve"><value>Uviewer {0} 파일</value></data>
   <data name="WindowTitle" xml:space="preserve"><value>Uviewer - 이미지 및 텍스트 뷰어</value></data>
+  <data name="ExplorerFilterPlaceholder" xml:space="preserve"><value>이름 또는 확장자로 필터</value></data>
+  <data name="ExplorerFilterKindLabel" xml:space="preserve"><value>파일 종류 필터</value></data>
+  <data name="ExplorerFilterAll" xml:space="preserve"><value>모든 종류</value></data>
+  <data name="ExplorerFilterImages" xml:space="preserve"><value>이미지</value></data>
+  <data name="ExplorerFilterText" xml:space="preserve"><value>텍스트</value></data>
+  <data name="ExplorerFilterArchives" xml:space="preserve"><value>압축 파일</value></data>
+  <data name="ExplorerFilterFolders" xml:space="preserve"><value>폴더</value></data>
+  <data name="ExplorerFilterClear" xml:space="preserve"><value>필터 초기화 (Esc)</value></data>
+  <data name="ExplorerFilterNoMatches" xml:space="preserve"><value>필터에 맞는 항목이 없습니다.</value></data>
 </root>

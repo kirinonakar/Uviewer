@@ -56,6 +56,10 @@ namespace Uviewer
             public TextBlock ThumbnailSizeValueText => _window.ThumbnailSizeValueText;
             public CheckBox FolderThumbnailsCheckBox => _window.FolderThumbnailsCheckBox;
             public PathBreadcrumbControl CurrentPathBreadcrumb => _window.CurrentPathBreadcrumb;
+            public TextBox ExplorerFilterTextBox => _window.ExplorerFilterTextBox;
+            public ComboBox ExplorerFilterKindComboBox => _window.ExplorerFilterKindComboBox;
+            public Button ClearExplorerFilterButton => _window.ClearExplorerFilterButton;
+            public TextBlock ExplorerFilterEmptyText => _window.ExplorerFilterEmptyText;
 
             public void ClearWebDavForLocalExplorer()
             {
