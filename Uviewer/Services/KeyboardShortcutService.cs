@@ -66,7 +66,7 @@ namespace Uviewer.Services
             await _featureController.ExecuteAsync(route, actions);
         }
 
-        private static bool IsTextInput(object originalSource)
+        internal static bool IsTextInput(object originalSource)
         {
             // Input templates can raise key events from a child element. Leave editing
             // and ComboBox navigation keys to the control instead of viewer shortcuts.

@@ -740,7 +740,7 @@ namespace Uviewer
         {
             try
             {
-                if (e.Handled) return;
+                if (e.Handled || KeyboardShortcutService.IsTextInput(e.OriginalSource)) return;
                 if (!_isVerticalMode) return;
                 var blocks = _aozoraBlocks;
 

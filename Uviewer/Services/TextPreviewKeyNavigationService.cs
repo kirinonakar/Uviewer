@@ -40,7 +40,7 @@ namespace Uviewer.Services
     {
         internal async Task HandleAsync(KeyRoutedEventArgs e, TextPreviewKeyNavigationContext context)
         {
-            if (e.Handled || !context.IsTextMode) return;
+            if (e.Handled || !context.IsTextMode || KeyboardShortcutService.IsTextInput(e.OriginalSource)) return;
 
             switch (e.Key)
             {
