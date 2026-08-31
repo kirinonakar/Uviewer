@@ -38,6 +38,7 @@ namespace Uviewer.Services
 
             try
             {
+                int nextIndex = FileExplorerService.GetNextImageIndex(entries, currentIndex, 1, true);
                 ImageEntry leftEntry;
                 ImageEntry rightEntry;
 
@@ -47,9 +48,9 @@ namespace Uviewer.Services
                     leftBitmap = await loadBitmapAsync(leftEntry, leftCanvas, token);
                     if (ReleaseIfCanceled(token, releaseBitmap, leftBitmap)) return null;
 
-                    if (currentIndex + 1 < entries.Count)
+                    if (nextIndex != currentIndex)
                     {
-                        rightEntry = entries[currentIndex + 1];
+                        rightEntry = entries[nextIndex];
                         rightBitmap = await loadBitmapAsync(rightEntry, rightCanvas, token);
                     }
                     else
@@ -59,9 +60,9 @@ namespace Uviewer.Services
                 }
                 else
                 {
-                    if (currentIndex + 1 < entries.Count)
+                    if (nextIndex != currentIndex)
                     {
-                        leftEntry = entries[currentIndex + 1];
+                        leftEntry = entries[nextIndex];
                         leftBitmap = await loadBitmapAsync(leftEntry, leftCanvas, token);
                     }
                     else

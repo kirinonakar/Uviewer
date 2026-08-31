@@ -7,7 +7,7 @@ namespace Uviewer.Services
 {
     internal sealed class ImageNavigationHandlers
     {
-        public Func<IList<ImageEntry>> GetImageEntries { get; init; } = null!;
+        public Func<IReadOnlyList<ImageEntry>> GetImageEntries { get; init; } = null!;
         public Func<int> GetCurrentIndex { get; init; } = null!;
         public Action<int> SetCurrentIndex { get; init; } = null!;
         public Func<bool> IsCurrentViewSideBySide { get; init; } = null!;
@@ -58,17 +58,15 @@ namespace Uviewer.Services
                 }
             }
 
-            bool canNavigate = forward
-                ? currentIndex < entries.Count - 1 && !currentSpreadIncludesLastImage
-                : currentIndex > 0;
+            int step = isSideBySide ? 2 : 1;
+            int nextIndex = FileExplorerService.GetNextImageIndex(entries, currentIndex, step, forward);
+            bool canNavigate = nextIndex != currentIndex && !currentSpreadIncludesLastImage;
 
             if (canNavigate)
             {
                 bool isFast = !isManualClick &&
                     _handlers.FastNavigationService.DetectFastNavigation(_handlers.ResetFastNavigationAsync);
 
-                int step = isSideBySide ? 2 : 1;
-                int nextIndex = FileExplorerService.GetNextImageIndex(entries, currentIndex, step, forward);
                 _handlers.SetCurrentIndex(nextIndex);
 
                 if (isFast)

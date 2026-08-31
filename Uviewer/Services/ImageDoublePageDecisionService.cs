@@ -57,12 +57,13 @@ namespace Uviewer.Services
 
             if (IsTallCandidate(firstBitmap.Size.Width, firstBitmap.Size.Height))
             {
-                if (currentIndex + 1 >= entries.Count)
+                int nextIndex = FileExplorerService.GetNextImageIndex(entries, currentIndex, 1, true);
+                if (nextIndex == currentIndex)
                 {
                     return false;
                 }
 
-                var nextBitmap = await GetOrLoadBitmapAsync(entries[currentIndex + 1], currentIndex + 1, zoomLevel, currentBitmap, loadBitmapAsync, token);
+                var nextBitmap = await GetOrLoadBitmapAsync(entries[nextIndex], nextIndex, zoomLevel, currentBitmap, loadBitmapAsync, token);
                 return nextBitmap != null && IsTallCandidate(nextBitmap.Size.Width, nextBitmap.Size.Height);
             }
 

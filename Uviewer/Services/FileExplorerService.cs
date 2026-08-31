@@ -77,7 +77,9 @@ namespace Uviewer.Services
         public static bool IsEpubEntry(ImageEntry entry) => GetSupportedFileKind(GetEntryExtension(entry)) == SupportedFileKind.Epub;
         public static bool IsPdfEntry(ImageEntry entry) => GetSupportedFileKind(GetEntryExtension(entry)) == SupportedFileKind.Pdf || (entry?.IsPdfEntry ?? false);
         public static bool IsImageEntry(ImageEntry entry) => GetSupportedFileKind(GetEntryExtension(entry)) == SupportedFileKind.Image;
-        public static bool IsNavigableImage(ImageEntry entry) => entry != null && (IsPdfEntry(entry) || IsImageEntry(entry));
+        // Only pages from an opened PDF can use the image navigation pipeline.
+        // A PDF file listed beside images must be opened through the document loader.
+        public static bool IsNavigableImage(ImageEntry entry) => entry != null && (entry.IsPdfEntry || IsImageEntry(entry));
         
         public static string GetFormattedDisplayName(string displayName, bool isArchiveEntry, string? archivePath = null, string? webDavItemPath = null)
         {
@@ -205,7 +207,7 @@ namespace Uviewer.Services
         /// <summary>
         /// 뷰어 안에서 다음/이전 이미지 인덱스를 계산합니다. (두장 보기 스텝 지원)
         /// </summary>
-        public static int GetNextImageIndex(IList<ImageEntry> entries, int currentIndex, int step, bool isNext)
+        public static int GetNextImageIndex(IReadOnlyList<ImageEntry> entries, int currentIndex, int step, bool isNext)
         {
             if (entries == null || entries.Count == 0) return currentIndex;
 
