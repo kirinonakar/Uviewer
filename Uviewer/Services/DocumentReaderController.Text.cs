@@ -605,13 +605,7 @@ namespace Uviewer
             _textTotalLineCountInSource = loadPlan.TotalLineCount;
             _isTextLinesFullyLoaded = false;
 
-            var brush = _settingsManager.GetThemeForeground();
-            var maxW = GetUrlMaxWidth();
-            var lineStyle = new TextLineStyle(
-                _settingsManager.FontSize,
-                _settingsManager.FontFamily,
-                brush,
-                maxW);
+            var lineStyle = CreatePlainTextLineStyle();
 
             if (loadPlan.RequiresProgressiveLoad)
             {
@@ -652,6 +646,8 @@ namespace Uviewer
                             if (token.IsCancellationRequested) return;
                             if (_isAozoraMode) return; 
 
+                            // Settings may have changed while the remaining lines were parsed.
+                            _textLineLayoutService.UpdateLines(restTextLines, CreatePlainTextLineStyle());
                             _textLines.AddRange(restTextLines);
                             _isTextLinesFullyLoaded = true;
 
@@ -714,6 +710,12 @@ namespace Uviewer
             return _textLineLayoutService.GetFontWeightForFamily(fontFamily);
         }
 
+        private TextLineStyle CreatePlainTextLineStyle() => new(
+            _settingsManager.FontSize,
+            _settingsManager.FontFamily,
+            _settingsManager.GetThemeForeground(),
+            GetUrlMaxWidth());
+
         internal async Task RefreshTextDisplay(bool resetScroll = false)
         {
             if (_isEpubMode)
@@ -758,54 +760,18 @@ namespace Uviewer
                 return;
             }
 
-            // Store current scroll ratio before updating
-            double scrollRatio = 0;
-            if (TextScrollViewer != null && TextScrollViewer.ScrollableHeight > 0)
+            // Keep model updates and realized elements on the UI thread so repeated
+            // shortcuts cannot race each other or a progressive-load append.
+            _textLineLayoutService.UpdateLines(_textLines, CreatePlainTextLineStyle());
+            TextArea.Background = _settingsManager.GetThemeBackground();
+
+            // Resetting ItemsSource here discards StackLayout's measurements and scroll
+            // anchor. At a nonzero offset its extent corrections can cause a layout cycle.
+            // Only restyle existing elements; let ScrollViewer retain its anchor naturally.
+            _textLinePresenterService.RefreshRealizedElements(TextItemsRepeater, _textLines);
+            if (resetScroll)
             {
-                scrollRatio = TextScrollViewer.VerticalOffset / TextScrollViewer.ScrollableHeight;
-            }
-
-            // Apply current settings to all lines - process in background for large files
-            var brush = _settingsManager.GetThemeForeground();
-            var bg = _settingsManager.GetThemeBackground();
-            var maxW = GetUrlMaxWidth();
-            var lineStyle = new TextLineStyle(
-                _settingsManager.FontSize,
-                _settingsManager.FontFamily,
-                brush,
-                maxW);
-
-            await _textLineLayoutService.UpdateLinesAsync(_textLines, lineStyle);
-
-            TextArea.Background = bg;
-            TextItemsRepeater.ItemsSource = null;
-            TextItemsRepeater.ItemsSource = _textLines;
-
-            // Restore scroll position based on ratio
-            if (TextScrollViewer != null)
-            {
-                if (resetScroll)
-                {
-                    TextScrollViewer.ChangeView(null, 0, null, true);
-                }
-                else
-                {
-                    // We need to wait for layout update to get accurate ScrollableHeight
-                    // Since we cannot await here easily without making method async (which is fine but might affect callers)
-                    // Let's use a fire-and-forget task with delay
-                    _ = Task.Run(async () =>
-                    {
-                        await Task.Delay(50); // Small delay for layout
-                        RootGrid.DispatcherQueue.TryEnqueue(() =>
-                        {
-                            if (TextScrollViewer.ScrollableHeight > 0)
-                            {
-                                double newOffset = scrollRatio * TextScrollViewer.ScrollableHeight;
-                                TextScrollViewer.ChangeView(null, newOffset, null, true);
-                            }
-                        });
-                    });
-                }
+                TextScrollViewer?.ChangeView(null, 0, null, true);
             }
 
             // Trigger background page calculation

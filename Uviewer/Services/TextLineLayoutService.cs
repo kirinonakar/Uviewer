@@ -2,7 +2,6 @@ using Microsoft.UI.Text;
 using Microsoft.UI.Xaml.Media;
 using System;
 using System.Collections.Generic;
-using System.Threading.Tasks;
 using Uviewer.Models;
 
 namespace Uviewer.Services
@@ -93,17 +92,6 @@ namespace Uviewer.Services
             return line;
         }
 
-        public async Task UpdateLinesAsync(List<TextLine> lines, TextLineStyle style)
-        {
-            if (lines.Count > 1000)
-            {
-                await Task.Run(() => UpdateLines(lines, style));
-                return;
-            }
-
-            UpdateLines(lines, style);
-        }
-
         public double CalculateReadableMaxWidth(double textAreaWidth, double fontSize)
         {
             double containerWidth = textAreaWidth > 0
@@ -138,7 +126,7 @@ namespace Uviewer.Services
             };
         }
 
-        private static void UpdateLines(List<TextLine> lines, TextLineStyle style)
+        public void UpdateLines(List<TextLine> lines, TextLineStyle style)
         {
             foreach (var line in lines)
             {

@@ -4,6 +4,7 @@ using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Documents;
 using Microsoft.UI.Xaml.Media;
 using System;
+using System.Collections.Generic;
 using System.Text.RegularExpressions;
 using Uviewer.Models;
 
@@ -24,8 +25,35 @@ namespace Uviewer.Services
             int lineNumber,
             Action<TextBlock, string, int> applySearchHighlights)
         {
+            ApplyStyle(textBlock, line);
+            ApplyContent(textBlock, line.Content);
+            applySearchHighlights(textBlock, line.Content, lineNumber);
+        }
+
+        public void RefreshRealizedElements(ItemsRepeater repeater, IReadOnlyList<TextLine> lines)
+        {
+            // Preserve the repeater's layout/scroll anchor and progressive ItemsSource.
+            // Unrealized lines receive their updated style in ElementPrepared.
+            int childCount = VisualTreeHelper.GetChildrenCount(repeater);
+            for (int i = 0; i < childCount; i++)
+            {
+                if (VisualTreeHelper.GetChild(repeater, i) is not TextBlock textBlock) continue;
+
+                int index = repeater.GetElementIndex(textBlock);
+                if (index >= 0 && index < lines.Count)
+                {
+                    ApplyStyle(textBlock, lines[index]);
+                }
+            }
+        }
+
+        private void ApplyStyle(TextBlock textBlock, TextLine line)
+        {
             textBlock.FontSize = line.FontSize;
-            textBlock.FontFamily = new FontFamily(line.FontFamily);
+            if (textBlock.FontFamily.Source != line.FontFamily)
+            {
+                textBlock.FontFamily = new FontFamily(line.FontFamily);
+            }
             textBlock.FontWeight = _layoutService.GetFontWeightForFamily(line.FontFamily);
             textBlock.Foreground = line.Foreground;
             textBlock.MaxWidth = line.MaxWidth;
@@ -43,9 +71,6 @@ namespace Uviewer.Services
             {
                 textBlock.ClearValue(FrameworkElement.MinHeightProperty);
             }
-
-            ApplyContent(textBlock, line.Content);
-            applySearchHighlights(textBlock, line.Content, lineNumber);
         }
 
         private static void ApplyContent(TextBlock textBlock, string content)
