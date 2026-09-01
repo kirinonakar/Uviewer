@@ -3,6 +3,7 @@ using Microsoft.Graphics.Canvas.Effects;
 using System;
 using System.Numerics;
 using System.Threading.Tasks;
+using Windows.Graphics.DirectX;
 
 namespace Uviewer.Services
 {
@@ -75,7 +76,15 @@ namespace Uviewer.Services
                 }
 
                 // 4. 최종 결과물 렌더링
-                var finalTarget = new CanvasRenderTarget(device, finalWidth, finalHeight, originalBitmap.Dpi);
+                var finalTarget = originalBitmap.Format == DirectXPixelFormat.R16G16B16A16Float
+                    ? new CanvasRenderTarget(
+                        device,
+                        finalWidth,
+                        finalHeight,
+                        originalBitmap.Dpi,
+                        DirectXPixelFormat.R16G16B16A16Float,
+                        CanvasAlphaMode.Premultiplied)
+                    : new CanvasRenderTarget(device, finalWidth, finalHeight, originalBitmap.Dpi);
                 using (var ds = finalTarget.CreateDrawingSession())
                 {
                     // Render targets are not cleared automatically. Transparent GIF/WebP pixels

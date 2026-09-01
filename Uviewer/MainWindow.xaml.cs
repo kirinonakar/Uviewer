@@ -35,6 +35,7 @@ namespace Uviewer
         private Services.ImageStatusBarService _imageStatusBarService = null!;
         private Services.SideBySideImageLoadService _sideBySideImageLoadService = null!;
         private Services.ImageViewportNavigationService _imageViewportNavigationService = null!;
+        private readonly HdrSwapChainRenderer _hdrSwapChainRenderer = new();
 
         // Refactored Services
         private Services.WindowSettingsCoordinator _windowSettingsCoordinator = null!;
@@ -679,6 +680,25 @@ namespace Uviewer
         private void MainCanvas_Draw(CanvasControl sender, CanvasDrawEventArgs args)
         {
             double panY = _imageViewportNavigationService.PanY;
+            if (_hdrSwapChainRenderer.DrawMain(
+                HdrMainCanvas,
+                sender,
+                _currentBitmap,
+                _isHdrOutputActive,
+                _imageEntries,
+                _imageCache,
+                _currentIndex,
+                _zoomLevel,
+                _isCurrentViewSideBySide,
+                _sharpenEnabled,
+                _isAnimatedFrameActive,
+                _imageViewportNavigationService.PanX,
+                ref panY))
+            {
+                _imageViewportNavigationService.PanY = panY;
+                return;
+            }
+
             ImageCanvasRenderer.DrawMainCanvas(
                 sender,
                 args,
@@ -716,6 +736,15 @@ namespace Uviewer
 
         private void LeftCanvas_Draw(CanvasControl sender, CanvasDrawEventArgs args)
         {
+            if (_hdrSwapChainRenderer.DrawSide(
+                HdrLeftCanvas,
+                sender,
+                _leftBitmap,
+                _isHdrOutputActive,
+                _zoomLevel,
+                alignRight: true))
+                return;
+
             ImageCanvasRenderer.DrawSideCanvas(sender, args, _leftBitmap, _zoomLevel, alignRight: true);
         }
 
@@ -726,6 +755,15 @@ namespace Uviewer
 
         private void RightCanvas_Draw(CanvasControl sender, CanvasDrawEventArgs args)
         {
+            if (_hdrSwapChainRenderer.DrawSide(
+                HdrRightCanvas,
+                sender,
+                _rightBitmap,
+                _isHdrOutputActive,
+                _zoomLevel,
+                alignRight: false))
+                return;
+
             ImageCanvasRenderer.DrawSideCanvas(sender, args, _rightBitmap, _zoomLevel, alignRight: false);
         }
 

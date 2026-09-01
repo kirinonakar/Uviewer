@@ -27,6 +27,11 @@ namespace Uviewer.Controls
         public ImageViewerControl()
         {
             InitializeComponent();
+            MainCanvas.RegisterPropertyChangedCallback(VisibilityProperty, (_, _) =>
+            {
+                if (MainCanvas.Visibility != Visibility.Visible)
+                    HdrMainCanvas.Visibility = Visibility.Collapsed;
+            });
         }
 
         internal Grid ImageAreaElement => ImageArea;
@@ -34,14 +39,20 @@ namespace Uviewer.Controls
         internal Grid FastNavOverlayElement => FastNavOverlay;
         internal TextBlock FastNavTextElement => FastNavText;
         internal CanvasControl MainCanvasElement => MainCanvas;
+        internal CanvasSwapChainPanel HdrMainCanvasElement => HdrMainCanvas;
         internal Grid SideBySideGridElement => SideBySideGrid;
         internal CanvasControl LeftCanvasElement => LeftCanvas;
         internal CanvasControl RightCanvasElement => RightCanvas;
+        internal CanvasSwapChainPanel HdrLeftCanvasElement => HdrLeftCanvas;
+        internal CanvasSwapChainPanel HdrRightCanvasElement => HdrRightCanvas;
 
         internal void ShowEmptyState()
         {
             EmptyStatePanel.Visibility = Visibility.Visible;
             MainCanvas.Visibility = Visibility.Visible;
+            HdrMainCanvas.Visibility = Visibility.Collapsed;
+            HdrLeftCanvas.Visibility = Visibility.Collapsed;
+            HdrRightCanvas.Visibility = Visibility.Collapsed;
             SideBySideGrid.Visibility = Visibility.Collapsed;
             FastNavOverlay.Visibility = Visibility.Collapsed;
 

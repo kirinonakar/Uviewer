@@ -68,6 +68,10 @@
                               ManipulationCompleted="ImageArea_ManipulationCompleted"
                               ManipulationStarting="ImageArea_ManipulationStarting" />
 
+        <canvas:CanvasSwapChainPanel x:Name="HdrMainCanvas"
+                                     Visibility="Collapsed"
+                                     IsHitTestVisible="False" />
+
         <Grid x:Name="SideBySideGrid"
               Visibility="Collapsed"
               ColumnSpacing="0">
@@ -87,6 +91,16 @@
                                   IsTabStop="False"
                                   Draw="RightCanvas_Draw"
                                   CreateResources="RightCanvas_CreateResources" />
+
+            <canvas:CanvasSwapChainPanel x:Name="HdrLeftCanvas"
+                                         Grid.Column="0"
+                                         Visibility="Collapsed"
+                                         IsHitTestVisible="False" />
+
+            <canvas:CanvasSwapChainPanel x:Name="HdrRightCanvas"
+                                         Grid.Column="1"
+                                         Visibility="Collapsed"
+                                         IsHitTestVisible="False" />
         </Grid>
     </Grid>
 </UserControl>

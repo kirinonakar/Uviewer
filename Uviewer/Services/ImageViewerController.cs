@@ -272,6 +272,7 @@ namespace Uviewer.Services
                 ZoomLevel: _host.ZoomLevel,
                 SharpenEnabled: _host.SharpenEnabled,
                 SharpenParams: _host.CreateSharpenParams(),
+                IsHdrOutputActive: _host.IsHdrOutputActive,
                 IsPdfMode: _host.IsPdfMode,
                 IsWebDavMode: _host.IsWebDavMode,
                 ArchiveSession: _host.ArchiveSession,

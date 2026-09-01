@@ -42,6 +42,7 @@ namespace Uviewer
             public bool IsSideBySideMode => ImageState.IsSideBySideMode;
             public bool AutoDoublePageForArchive => ImageState.AutoDoublePageForArchive;
             public bool SharpenEnabled => ImageState.IsSharpenEnabled;
+            public bool IsHdrOutputActive => Window._isHdrOutputActive;
             public bool IsPdfMode => Window._currentPdfDocument != null;
             public bool IsWebDavMode => Window._isWebDavMode;
             public double WindowWidth => Window.AppWindow.Size.Width;

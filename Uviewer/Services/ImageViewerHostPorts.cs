@@ -291,6 +291,7 @@ namespace Uviewer.Services
         bool IsSideBySideMode { get; }
         bool AutoDoublePageForArchive { get; }
         bool SharpenEnabled { get; }
+        bool IsHdrOutputActive { get; }
         bool IsPdfMode { get; }
         bool IsWebDavMode { get; }
         double WindowWidth { get; }

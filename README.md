@@ -10,6 +10,7 @@
 
 ### 🖼️ Image & PDF Viewing
 - **Broad Format Support**: PDF, JPEG, PNG, GIF, BMP, TIFF, ICO, SVG, WebP, AVIF (AV1 Video Extension required), JXL (JPEG XL Image Extension required) and **Animated WebP**.
+- **HDR AVIF**: Displays 10-bit PQ (SMPTE ST 2084) AVIF images with BT.2020 or Display-P3 primaries through a linear FP16 scRGB rendering path, preserving wide-gamut color and highlight luminance beyond SDR white. A compatible HDR display with **Use HDR** enabled in Windows is required for true HDR output; when HDR is inactive, Uviewer automatically uses the Windows SDR decode path instead of presenting unclamped HDR luminance.
 - **High-Performance Rendering**: Powered by **Win2D** (Direct2D) for smooth zooming and panning.
 - **Smart Scaling**: Customizable zoom levels (0.1x to 10x), fit-to-window, and actual size.
 - **EXIF & Image Metadata**: Click the file name in the status bar while viewing an image to inspect EXIF details and embedded metadata such as prompts or parameters.
@@ -89,6 +90,7 @@
 - **OS**: Windows 10 (Version 19041+) or Windows 11.
 - **Runtime**: .NET 10.0.
 - **Framework**: Windows App SDK 2.2.0.
+- **HDR Viewing (optional)**: HDR-capable display, HDR enabled under **Windows Settings → System → Display → HDR**, and the **AV1 Video Extension** for HDR AVIF decoding.
 
 ## ⌨️ Keyboard Shortcuts
 

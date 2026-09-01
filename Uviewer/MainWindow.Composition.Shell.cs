@@ -180,6 +180,7 @@ namespace Uviewer
                 {
                     window.RootGrid.Loaded += async (s, e) =>
                     {
+                        window.InitializeHdrDisplayState();
                         window._windowShellController.UpdateTitleBarColors();
                         window.RootGrid.Focus(FocusState.Programmatic);
                         await Task.Delay(50);
@@ -197,6 +198,8 @@ namespace Uviewer
 
                     window.Closed += async (s, e) =>
                     {
+                        window.DisposeHdrDisplayState();
+                        window._hdrSwapChainRenderer.Dispose();
                         window._windowShellController.Dispose();
                         window.DisposeTrayIcon();
                         App.NotifyWindowClosing();

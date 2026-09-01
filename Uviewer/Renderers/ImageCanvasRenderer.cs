@@ -30,52 +30,84 @@ namespace Uviewer.Renderers
 
             try
             {
-                if (!CanvasBitmapHelper.TryGetBitmapSize(currentBitmap, out var imageSize)) return;
-
-                var ds = args.DrawingSession;
-                var canvasSize = sender.Size;
-                var fitRatio = Math.Min(canvasSize.Width / imageSize.Width, canvasSize.Height / imageSize.Height);
-                var scaledSize = new Size(imageSize.Width * fitRatio * zoomLevel, imageSize.Height * fitRatio * zoomLevel);
-                var position = new Point(
-                    (canvasSize.Width - scaledSize.Width) / 2,
-                    (canvasSize.Height - scaledSize.Height) / 2);
-
-                if (isPdfMode || (zoomLevel > 1.01 && !isCurrentViewSideBySide))
-                {
-                    double maxPan = Math.Max(0, (scaledSize.Height - canvasSize.Height) / 2);
-                    double clampMargin = canvasSize.Height + 500;
-                    if (panY > maxPan + clampMargin) panY = maxPan + clampMargin;
-                    if (panY < -maxPan - clampMargin) panY = -maxPan - clampMargin;
-
-                    position.X = (canvasSize.Width - scaledSize.Width) / 2 + panX;
-                    position.Y = (canvasSize.Height - scaledSize.Height) / 2 + panY;
-                    DrawBitmap(ds, currentBitmap, new Rect(position, scaledSize), isPdfMode, preferAnimationSpeed);
-
-                    double gap = 20 * zoomLevel;
-                    DrawAdjacentImages(
-                        ds,
-                        canvasSize,
-                        imageCache,
-                        currentBitmap,
-                        imageEntries,
-                        currentIndex,
-                        zoomLevel,
-                        isPdfMode,
-                        sharpenEnabled,
-                        panX,
-                        position.Y,
-                        scaledSize.Height,
-                        gap,
-                        preferAnimationSpeed);
-                }
-                else
-                {
-                    DrawBitmap(ds, currentBitmap, new Rect(position, scaledSize), false, preferAnimationSpeed);
-                }
+                DrawMainSurface(
+                    args.DrawingSession,
+                    sender.Size,
+                    currentBitmap,
+                    imageEntries,
+                    imageCache,
+                    currentIndex,
+                    zoomLevel,
+                    isPdfMode,
+                    isCurrentViewSideBySide,
+                    sharpenEnabled,
+                    preferAnimationSpeed,
+                    panX,
+                    ref panY);
             }
             catch
             {
                 // Bitmap resources can be released while Win2D is drawing.
+            }
+        }
+
+        public static void DrawMainSurface(
+            CanvasDrawingSession ds,
+            Size canvasSize,
+            CanvasBitmap? currentBitmap,
+            IReadOnlyList<ImageEntry> imageEntries,
+            ImageCacheManager imageCache,
+            int currentIndex,
+            double zoomLevel,
+            bool isPdfMode,
+            bool isCurrentViewSideBySide,
+            bool sharpenEnabled,
+            bool preferAnimationSpeed,
+            double panX,
+            ref double panY)
+        {
+            if (currentBitmap == null ||
+                !CanvasBitmapHelper.TryGetBitmapSize(currentBitmap, out var imageSize) ||
+                canvasSize.Width <= 0 || canvasSize.Height <= 0)
+                return;
+
+            var fitRatio = Math.Min(canvasSize.Width / imageSize.Width, canvasSize.Height / imageSize.Height);
+            var scaledSize = new Size(imageSize.Width * fitRatio * zoomLevel, imageSize.Height * fitRatio * zoomLevel);
+            var position = new Point(
+                (canvasSize.Width - scaledSize.Width) / 2,
+                (canvasSize.Height - scaledSize.Height) / 2);
+
+            if (isPdfMode || (zoomLevel > 1.01 && !isCurrentViewSideBySide))
+            {
+                double maxPan = Math.Max(0, (scaledSize.Height - canvasSize.Height) / 2);
+                double clampMargin = canvasSize.Height + 500;
+                if (panY > maxPan + clampMargin) panY = maxPan + clampMargin;
+                if (panY < -maxPan - clampMargin) panY = -maxPan - clampMargin;
+
+                position.X = (canvasSize.Width - scaledSize.Width) / 2 + panX;
+                position.Y = (canvasSize.Height - scaledSize.Height) / 2 + panY;
+                DrawBitmap(ds, currentBitmap, new Rect(position, scaledSize), isPdfMode, preferAnimationSpeed);
+
+                double gap = 20 * zoomLevel;
+                DrawAdjacentImages(
+                    ds,
+                    canvasSize,
+                    imageCache,
+                    currentBitmap,
+                    imageEntries,
+                    currentIndex,
+                    zoomLevel,
+                    isPdfMode,
+                    sharpenEnabled,
+                    panX,
+                    position.Y,
+                    scaledSize.Height,
+                    gap,
+                    preferAnimationSpeed);
+            }
+            else
+            {
+                DrawBitmap(ds, currentBitmap, new Rect(position, scaledSize), false, preferAnimationSpeed);
             }
         }
 
@@ -90,22 +122,33 @@ namespace Uviewer.Renderers
 
             try
             {
-                if (!CanvasBitmapHelper.TryGetBitmapSize(bitmap, out var imageSize)) return;
-
-                var ds = args.DrawingSession;
-                var canvasSize = sender.Size;
-                var fitRatio = Math.Min(canvasSize.Width / imageSize.Width, canvasSize.Height / imageSize.Height);
-                var scaledSize = new Size(imageSize.Width * fitRatio * zoomLevel, imageSize.Height * fitRatio * zoomLevel);
-                var position = new Point(
-                    alignRight ? canvasSize.Width - scaledSize.Width : 0,
-                    (canvasSize.Height - scaledSize.Height) / 2);
-
-                DrawBitmap(ds, bitmap, new Rect(position, scaledSize), isPdfMode: false);
+                DrawSideSurface(args.DrawingSession, sender.Size, bitmap, zoomLevel, alignRight);
             }
             catch
             {
                 // Bitmap resources can be released while Win2D is drawing.
             }
+        }
+
+        public static void DrawSideSurface(
+            CanvasDrawingSession ds,
+            Size canvasSize,
+            CanvasBitmap? bitmap,
+            double zoomLevel,
+            bool alignRight)
+        {
+            if (bitmap == null ||
+                !CanvasBitmapHelper.TryGetBitmapSize(bitmap, out var imageSize) ||
+                canvasSize.Width <= 0 || canvasSize.Height <= 0)
+                return;
+
+            var fitRatio = Math.Min(canvasSize.Width / imageSize.Width, canvasSize.Height / imageSize.Height);
+            var scaledSize = new Size(imageSize.Width * fitRatio * zoomLevel, imageSize.Height * fitRatio * zoomLevel);
+            var position = new Point(
+                alignRight ? canvasSize.Width - scaledSize.Width : 0,
+                (canvasSize.Height - scaledSize.Height) / 2);
+
+            DrawBitmap(ds, bitmap, new Rect(position, scaledSize), isPdfMode: false);
         }
 
         public static void DrawBitmapFit(

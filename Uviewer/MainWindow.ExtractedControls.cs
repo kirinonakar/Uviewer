@@ -18,9 +18,12 @@ namespace Uviewer
         private Grid FastNavOverlay => ImageViewer.FastNavOverlayElement;
         private TextBlock FastNavText => ImageViewer.FastNavTextElement;
         private CanvasControl MainCanvas => ImageViewer.MainCanvasElement;
+        private CanvasSwapChainPanel HdrMainCanvas => ImageViewer.HdrMainCanvasElement;
         private Grid SideBySideGrid => ImageViewer.SideBySideGridElement;
         private CanvasControl LeftCanvas => ImageViewer.LeftCanvasElement;
         private CanvasControl RightCanvas => ImageViewer.RightCanvasElement;
+        private CanvasSwapChainPanel HdrLeftCanvas => ImageViewer.HdrLeftCanvasElement;
+        private CanvasSwapChainPanel HdrRightCanvas => ImageViewer.HdrRightCanvasElement;
         private Grid TextArea => TextReader.TextAreaElement;
         private ScrollViewer TextScrollViewer => TextReader.TextScrollViewerElement;
         private ItemsRepeater TextItemsRepeater => TextReader.TextItemsRepeaterElement;
