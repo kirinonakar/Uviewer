@@ -1,10 +1,11 @@
 using Microsoft.Graphics.Canvas;
+using Starward.Codec.AVIF;
 using System;
+using System.IO;
 using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
 using Windows.Graphics.DirectX;
-using Windows.Graphics.Imaging;
 using Windows.Storage.Streams;
 
 namespace Uviewer.Services
@@ -71,39 +72,26 @@ namespace Uviewer.Services
             token.ThrowIfCancellationRequested();
             stream.Seek(0);
 
-            var decoder = await BitmapDecoder.CreateAsync(stream);
-            // The Windows AVIF codec can return already expanded/clipped channel
-            // values for an RGBA16 request. Its BGRA8 path retains the stable PQ
-            // signal shape; expand that signal into FP16 linear scRGB ourselves.
-            using var softwareBitmap = await decoder.GetSoftwareBitmapAsync(
-                BitmapPixelFormat.Bgra8,
-                BitmapAlphaMode.Straight,
-                new BitmapTransform(),
-                ExifOrientationMode.RespectExifOrientation,
-                ColorManagementMode.DoNotColorManage);
-
-            if (softwareBitmap.BitmapPixelFormat != BitmapPixelFormat.Bgra8)
+            using var managedStream = stream.AsStreamForRead();
+            using var decoder = await avifDecoderLite.CreateAsync(managedStream, token);
+            if ((ushort)decoder.TransferCharacteristics != PqTransfer)
                 return null;
 
-            int width = softwareBitmap.PixelWidth;
-            int height = softwareBitmap.PixelHeight;
-            int byteCount = checked(width * height * 4);
-            var pixelBuffer = new Windows.Storage.Streams.Buffer((uint)byteCount)
-            {
-                Length = (uint)byteCount
-            };
-            softwareBitmap.CopyToBuffer(pixelBuffer);
-
-            var encodedPixels = new byte[byteCount];
-            using (var reader = DataReader.FromBuffer(pixelBuffer))
-            {
-                reader.ReadBytes(encodedPixels);
-            }
+            // Decode the source YUV at full precision. Windows' AVIF RGBA16 and
+            // BGRA8 conversion paths can apply clipping or SDR color conversion
+            // before pixels reach the app, which causes severe HDR saturation.
+            using var image = decoder.GetNextImage();
+            using var rgbImage = image.ToRGBImage(16, avifRGBFormat.RGBA);
+            int width = checked((int)rgbImage.Width);
+            int height = checked((int)rgbImage.Height);
+            var encodedPixels = rgbImage.GetPixelBytes().ToArray();
+            if (encodedPixels.Length != checked(width * height * 8))
+                return null;
 
             var scRgbPixels = await Task.Run(
                 () => ConvertPqToScRgb(
                     encodedPixels,
-                    colorInfo.Value.Primaries,
+                    (ushort)decoder.ColorPrimaries,
                     colorInfo.Value.MaxContentLightLevel,
                     displayMaxLuminance,
                     token),
@@ -183,19 +171,20 @@ namespace Uviewer.Services
             float displayMaxLuminance,
             CancellationToken token)
         {
-            var destination = new byte[checked(source.Length * 2)];
+            var destination = new byte[source.Length];
             var pqLut = PqToScRgbLut.Value;
             var matrix = GetRgbToScRgbMatrix(primaries);
-            int pixelCount = source.Length / 4;
+            int pixelCount = source.Length / 8;
 
             Parallel.For(0, pixelCount, new ParallelOptions { CancellationToken = token }, pixelIndex =>
             {
-                int sourceOffset = pixelIndex * 4;
+                int sourceOffset = pixelIndex * 8;
                 int destinationOffset = pixelIndex * 8;
-                ushort bCode = (ushort)(source[sourceOffset] * 257);
-                ushort gCode = (ushort)(source[sourceOffset + 1] * 257);
-                ushort rCode = (ushort)(source[sourceOffset + 2] * 257);
-                float alpha = source[sourceOffset + 3] / 255.0f;
+                ushort rCode = ReadUInt16LittleEndian(source, sourceOffset);
+                ushort gCode = ReadUInt16LittleEndian(source, sourceOffset + 2);
+                ushort bCode = ReadUInt16LittleEndian(source, sourceOffset + 4);
+                ushort aCode = ReadUInt16LittleEndian(source, sourceOffset + 6);
+                float alpha = aCode / 65535.0f;
 
                 float r = pqLut[rCode];
                 float g = pqLut[gCode];
@@ -321,6 +310,9 @@ namespace Uviewer.Services
 
         private static ushort ReadUInt16BigEndian(byte[] bytes, int offset) =>
             (ushort)((bytes[offset] << 8) | bytes[offset + 1]);
+
+        private static ushort ReadUInt16LittleEndian(byte[] bytes, int offset) =>
+            (ushort)(bytes[offset] | (bytes[offset + 1] << 8));
 
         private static void WriteHalf(byte[] bytes, int offset, float value)
         {

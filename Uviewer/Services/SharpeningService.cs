@@ -66,40 +66,53 @@ namespace Uviewer.Services
                 // 2. 샤프닝 (SharpenEffect)
                 if (sharpenAmount > 0.0f)
                 {
-                    var sharpenEffect = new SharpenEffect
+                    if (isHdr)
                     {
-                        Source = currentEffect,
-                        Amount = sharpenAmount,
-                        Threshold = isHdr
-                            ? sharpenThreshold / (hdrNormalizationScale + 0.5f)
-                            : sharpenThreshold
-                    };
-                    if (isHdr) sharpenEffect.BufferPrecision = CanvasBufferPrecision.Precision16Float;
-                    currentEffect = sharpenEffect;
+                        currentEffect = ApplyHdrLuminanceSharpen(
+                            currentEffect,
+                            sharpenAmount,
+                            sharpenThreshold / (hdrNormalizationScale + 0.5f));
+                    }
+                    else
+                    {
+                        currentEffect = new SharpenEffect
+                        {
+                            Source = currentEffect,
+                            Amount = sharpenAmount,
+                            Threshold = sharpenThreshold
+                        };
+                    }
                 }
 
                 // 3. 언샵 마스크 (Manual Implementation using GaussianBlur + ArithmeticComposite)
                 if (unsharpAmount > 0.0f)
                 {
-                    var blurred = new GaussianBlurEffect
+                    if (isHdr)
                     {
-                        Source = currentEffect,
-                        BlurAmount = unsharpRadius,
-                        Optimization = EffectOptimization.Speed
-                    };
-                    if (isHdr) blurred.BufferPrecision = CanvasBufferPrecision.Precision16Float;
+                        currentEffect = ApplyHdrLuminanceUnsharp(
+                            currentEffect,
+                            unsharpAmount,
+                            unsharpRadius);
+                    }
+                    else
+                    {
+                        var blurred = new GaussianBlurEffect
+                        {
+                            Source = currentEffect,
+                            BlurAmount = unsharpRadius,
+                            Optimization = EffectOptimization.Speed
+                        };
 
-                    var unsharpEffect = new ArithmeticCompositeEffect
-                    {
-                        Source1 = currentEffect,
-                        Source2 = blurred,
-                        MultiplyAmount = 0.0f,
-                        Source1Amount = 1.0f + unsharpAmount,
-                        Source2Amount = -unsharpAmount,
-                        Offset = 0.0f
-                    };
-                    if (isHdr) unsharpEffect.BufferPrecision = CanvasBufferPrecision.Precision16Float;
-                    currentEffect = unsharpEffect;
+                        currentEffect = new ArithmeticCompositeEffect
+                        {
+                            Source1 = currentEffect,
+                            Source2 = blurred,
+                            MultiplyAmount = 0.0f,
+                            Source1Amount = 1.0f + unsharpAmount,
+                            Source2Amount = -unsharpAmount,
+                            Offset = 0.0f
+                        };
+                    }
                 }
 
                 if (isHdr)
@@ -158,6 +171,89 @@ namespace Uviewer.Services
             M22 = scale,
             M33 = scale,
             M44 = 1.0f
+        };
+
+        private static ICanvasImage ApplyHdrLuminanceSharpen(
+            ICanvasImage source,
+            float amount,
+            float threshold)
+        {
+            var luminance = CreateLuminanceEffect(source);
+            var sharpenedLuminance = new SharpenEffect
+            {
+                Source = luminance,
+                Amount = amount,
+                Threshold = threshold,
+                BufferPrecision = CanvasBufferPrecision.Precision16Float
+            };
+
+            return AddLuminanceDetail(source, sharpenedLuminance, luminance, 1.0f);
+        }
+
+        private static ICanvasImage ApplyHdrLuminanceUnsharp(
+            ICanvasImage source,
+            float amount,
+            float radius)
+        {
+            var luminance = CreateLuminanceEffect(source);
+            var blurredLuminance = new GaussianBlurEffect
+            {
+                Source = luminance,
+                BlurAmount = radius,
+                Optimization = EffectOptimization.Speed,
+                BufferPrecision = CanvasBufferPrecision.Precision16Float
+            };
+
+            return AddLuminanceDetail(source, luminance, blurredLuminance, amount);
+        }
+
+        private static ICanvasImage AddLuminanceDetail(
+            ICanvasImage source,
+            ICanvasImage positiveLuminance,
+            ICanvasImage negativeLuminance,
+            float amount)
+        {
+            var detail = new ArithmeticCompositeEffect
+            {
+                Source1 = positiveLuminance,
+                Source2 = negativeLuminance,
+                MultiplyAmount = 0.0f,
+                Source1Amount = amount,
+                Source2Amount = -amount,
+                Offset = 0.0f,
+                BufferPrecision = CanvasBufferPrecision.Precision16Float
+            };
+
+            return new ArithmeticCompositeEffect
+            {
+                Source1 = source,
+                Source2 = detail,
+                MultiplyAmount = 0.0f,
+                Source1Amount = 1.0f,
+                Source2Amount = 1.0f,
+                Offset = 0.0f,
+                BufferPrecision = CanvasBufferPrecision.Precision16Float
+            };
+        }
+
+        private static ColorMatrixEffect CreateLuminanceEffect(ICanvasImage source) => new()
+        {
+            Source = source,
+            ColorMatrix = new Matrix5x4
+            {
+                M11 = 0.2126f,
+                M12 = 0.2126f,
+                M13 = 0.2126f,
+                M21 = 0.7152f,
+                M22 = 0.7152f,
+                M23 = 0.7152f,
+                M31 = 0.0722f,
+                M32 = 0.0722f,
+                M33 = 0.0722f,
+                M44 = 1.0f
+            },
+            AlphaMode = CanvasAlphaMode.Straight,
+            BufferPrecision = CanvasBufferPrecision.Precision16Float
         };
 
         private static Matrix5x4 CreateHdrNormalizeMatrix(float scale) => new()
