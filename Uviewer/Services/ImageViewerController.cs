@@ -273,6 +273,7 @@ namespace Uviewer.Services
                 SharpenEnabled: _host.SharpenEnabled,
                 SharpenParams: _host.CreateSharpenParams(),
                 IsHdrOutputActive: _host.IsHdrOutputActive,
+                HdrDisplayMaxLuminance: _host.HdrDisplayMaxLuminance,
                 IsPdfMode: _host.IsPdfMode,
                 IsWebDavMode: _host.IsWebDavMode,
                 ArchiveSession: _host.ArchiveSession,

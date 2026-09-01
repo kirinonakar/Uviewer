@@ -292,6 +292,7 @@ namespace Uviewer.Services
         bool AutoDoublePageForArchive { get; }
         bool SharpenEnabled { get; }
         bool IsHdrOutputActive { get; }
+        float HdrDisplayMaxLuminance { get; }
         bool IsPdfMode { get; }
         bool IsWebDavMode { get; }
         double WindowWidth { get; }

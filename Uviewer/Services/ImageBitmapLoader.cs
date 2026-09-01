@@ -25,6 +25,7 @@ namespace Uviewer.Services
         bool SharpenEnabled,
         SharpenParams SharpenParams,
         bool IsHdrOutputActive,
+        float HdrDisplayMaxLuminance,
         bool IsPdfMode,
         bool IsWebDavMode,
         ArchiveSession ArchiveSession,
@@ -203,7 +204,8 @@ namespace Uviewer.Services
                     entry.FilePath,
                     canvas,
                     token,
-                    context.IsHdrOutputActive);
+                    context.IsHdrOutputActive,
+                    context.HdrDisplayMaxLuminance);
             }
 
             if (entry.IsArchiveEntry && context.ArchiveSession.HasArchive)
@@ -224,6 +226,7 @@ namespace Uviewer.Services
                             canvas,
                             token,
                             context.IsHdrOutputActive,
+                            context.HdrDisplayMaxLuminance,
                             entry.WebDavPath);
                     }
                 }
@@ -241,6 +244,7 @@ namespace Uviewer.Services
             CanvasControl canvas,
             CancellationToken token,
             bool isHdrOutputActive,
+            float hdrDisplayMaxLuminance,
             string? sourceName = null)
         {
             try
@@ -258,7 +262,11 @@ namespace Uviewer.Services
                 {
                     if (shouldTryHdr)
                     {
-                        var hdrBitmap = await HdrImageDecoder.TryLoadAsync(device, stream, token);
+                        var hdrBitmap = await HdrImageDecoder.TryLoadAsync(
+                            device,
+                            stream,
+                            hdrDisplayMaxLuminance,
+                            token);
                         if (hdrBitmap != null) return hdrBitmap;
                     }
                 }
@@ -300,6 +308,7 @@ namespace Uviewer.Services
                     canvas,
                     token,
                     context.IsHdrOutputActive,
+                    context.HdrDisplayMaxLuminance,
                     entryKey);
             }
 
@@ -312,6 +321,7 @@ namespace Uviewer.Services
                         canvas,
                         token,
                         context.IsHdrOutputActive,
+                        context.HdrDisplayMaxLuminance,
                         entryKey);
                 }
 
@@ -325,6 +335,7 @@ namespace Uviewer.Services
                         canvas,
                         token,
                         context.IsHdrOutputActive,
+                        context.HdrDisplayMaxLuminance,
                         entryKey);
                 }
 
@@ -337,7 +348,11 @@ namespace Uviewer.Services
                     if (context.IsHdrOutputActive &&
                         string.Equals(Path.GetExtension(entryKey), ".avif", StringComparison.OrdinalIgnoreCase))
                     {
-                        var hdrBitmap = await HdrImageDecoder.TryLoadAsync(device, randomAccessStream, token);
+                        var hdrBitmap = await HdrImageDecoder.TryLoadAsync(
+                            device,
+                            randomAccessStream,
+                            context.HdrDisplayMaxLuminance,
+                            token);
                         if (hdrBitmap != null) return hdrBitmap;
                     }
                 }

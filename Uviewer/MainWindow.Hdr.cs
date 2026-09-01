@@ -10,6 +10,7 @@ namespace Uviewer
     {
         private AppDisplayInformation? _hdrDisplayInformation;
         private bool _isHdrOutputActive;
+        private float _hdrDisplayMaxLuminance = 1000.0f;
 
         private void InitializeHdrDisplayState()
         {
@@ -19,7 +20,9 @@ namespace Uviewer
             {
                 _hdrDisplayInformation = AppDisplayInformation.CreateForWindowId(AppWindow.Id);
                 _hdrDisplayInformation.AdvancedColorInfoChanged += HdrDisplayInformation_AdvancedColorInfoChanged;
-                _isHdrOutputActive = QueryHdrOutputActive();
+                var state = QueryHdrOutputState();
+                _isHdrOutputActive = state.IsActive;
+                _hdrDisplayMaxLuminance = state.MaxLuminance;
             }
             catch (Exception ex)
             {
@@ -46,25 +49,42 @@ namespace Uviewer
             });
         }
 
-        private bool QueryHdrOutputActive()
+        private (bool IsActive, float MaxLuminance) QueryHdrOutputState()
         {
             try
             {
-                return _hdrDisplayInformation?.GetAdvancedColorInfo().CurrentAdvancedColorKind ==
+                var colorInfo = _hdrDisplayInformation?.GetAdvancedColorInfo();
+                if (colorInfo == null) return (false, _hdrDisplayMaxLuminance);
+
+                float maxLuminance = _hdrDisplayMaxLuminance;
+                if (double.IsFinite(colorInfo.MaxLuminanceInNits) && colorInfo.MaxLuminanceInNits > 80)
+                {
+                    maxLuminance = (float)Math.Clamp(
+                        colorInfo.MaxLuminanceInNits,
+                        80.0,
+                        10000.0);
+                }
+
+                bool isActive = colorInfo.CurrentAdvancedColorKind ==
                     AppDisplayAdvancedColorKind.HighDynamicRange;
+                return (isActive, maxLuminance);
             }
             catch
             {
-                return false;
+                return (false, _hdrDisplayMaxLuminance);
             }
         }
 
         private async Task ApplyHdrDisplayStateChangeAsync()
         {
-            bool isActive = QueryHdrOutputActive();
-            if (isActive == _isHdrOutputActive) return;
+            var state = QueryHdrOutputState();
+            bool modeChanged = state.IsActive != _isHdrOutputActive;
+            bool peakChanged = state.IsActive &&
+                Math.Abs(state.MaxLuminance - _hdrDisplayMaxLuminance) > 1.0f;
+            if (!modeChanged && !peakChanged) return;
 
-            _isHdrOutputActive = isActive;
+            _isHdrOutputActive = state.IsActive;
+            _hdrDisplayMaxLuminance = state.MaxLuminance;
             _hdrSwapChainRenderer.Hide(HdrMainCanvas);
             _hdrSwapChainRenderer.Hide(HdrLeftCanvas);
             _hdrSwapChainRenderer.Hide(HdrRightCanvas);

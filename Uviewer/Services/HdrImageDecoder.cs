@@ -1,5 +1,6 @@
 using Microsoft.Graphics.Canvas;
 using System;
+using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
 using Windows.Graphics.DirectX;
@@ -17,8 +18,14 @@ namespace Uviewer.Services
         private const int ProbeByteLimit = 4 * 1024 * 1024;
         private const ushort PqTransfer = 16;
         private static readonly Lazy<float[]> PqToScRgbLut = new(CreatePqToScRgbLut);
+        private static readonly ConditionalWeakTable<CanvasBitmap, HdrBitmapMetadata> BitmapMetadata = new();
 
-        private readonly record struct NclxColorInfo(ushort Primaries, ushort Transfer);
+        private readonly record struct NclxColorInfo(
+            ushort Primaries,
+            ushort Transfer,
+            float MaxContentLightLevel);
+
+        private sealed record HdrBitmapMetadata(float NormalizationScale);
 
         public static bool IsHdrBitmap(CanvasBitmap? bitmap)
         {
@@ -34,9 +41,24 @@ namespace Uviewer.Services
             }
         }
 
+        public static float GetNormalizationScale(CanvasBitmap bitmap)
+        {
+            return BitmapMetadata.TryGetValue(bitmap, out var metadata)
+                ? metadata.NormalizationScale
+                : 125.0f;
+        }
+
+        public static void CopyMetadata(CanvasBitmap source, CanvasBitmap destination)
+        {
+            if (!BitmapMetadata.TryGetValue(source, out var metadata)) return;
+            BitmapMetadata.Remove(destination);
+            BitmapMetadata.Add(destination, metadata);
+        }
+
         public static async Task<CanvasBitmap?> TryLoadAsync(
             CanvasDevice device,
             IRandomAccessStream stream,
+            float displayMaxLuminance,
             CancellationToken token)
         {
             if (!device.IsPixelFormatSupported(DirectXPixelFormat.R16G16B16A16Float))
@@ -50,19 +72,22 @@ namespace Uviewer.Services
             stream.Seek(0);
 
             var decoder = await BitmapDecoder.CreateAsync(stream);
+            // The Windows AVIF codec can return already expanded/clipped channel
+            // values for an RGBA16 request. Its BGRA8 path retains the stable PQ
+            // signal shape; expand that signal into FP16 linear scRGB ourselves.
             using var softwareBitmap = await decoder.GetSoftwareBitmapAsync(
-                BitmapPixelFormat.Rgba16,
+                BitmapPixelFormat.Bgra8,
                 BitmapAlphaMode.Straight,
                 new BitmapTransform(),
                 ExifOrientationMode.RespectExifOrientation,
                 ColorManagementMode.DoNotColorManage);
 
-            if (softwareBitmap.BitmapPixelFormat != BitmapPixelFormat.Rgba16)
+            if (softwareBitmap.BitmapPixelFormat != BitmapPixelFormat.Bgra8)
                 return null;
 
             int width = softwareBitmap.PixelWidth;
             int height = softwareBitmap.PixelHeight;
-            int byteCount = checked(width * height * 8);
+            int byteCount = checked(width * height * 4);
             var pixelBuffer = new Windows.Storage.Streams.Buffer((uint)byteCount)
             {
                 Length = (uint)byteCount
@@ -76,11 +101,16 @@ namespace Uviewer.Services
             }
 
             var scRgbPixels = await Task.Run(
-                () => ConvertPqToScRgb(encodedPixels, colorInfo.Value.Primaries, token),
+                () => ConvertPqToScRgb(
+                    encodedPixels,
+                    colorInfo.Value.Primaries,
+                    colorInfo.Value.MaxContentLightLevel,
+                    displayMaxLuminance,
+                    token),
                 token);
 
             token.ThrowIfCancellationRequested();
-            return CanvasBitmap.CreateFromBytes(
+            var bitmap = CanvasBitmap.CreateFromBytes(
                 device,
                 scRgbPixels,
                 width,
@@ -88,6 +118,10 @@ namespace Uviewer.Services
                 DirectXPixelFormat.R16G16B16A16Float,
                 96.0f,
                 CanvasAlphaMode.Premultiplied);
+            BitmapMetadata.Add(
+                bitmap,
+                new HdrBitmapMetadata(Math.Clamp(displayMaxLuminance / 80.0f, 1.0f, 125.0f)));
+            return bitmap;
         }
 
         private static async Task<NclxColorInfo?> TryReadNclxColorInfoAsync(
@@ -108,60 +142,138 @@ namespace Uviewer.Services
             var bytes = new byte[loaded];
             reader.ReadBytes(bytes);
 
+            ushort primaries = 0;
+            ushort transfer = 0;
+            float maxContentLightLevel = 4000.0f;
+            bool foundNclx = false;
+
             // ISO BMFF colour_information_box: size + "colr" + "nclx" +
             // primaries(u16), transfer(u16), matrix(u16), full-range flag(u8).
-            for (int i = 8; i <= bytes.Length - 11; i++)
+            for (int i = 8; i <= bytes.Length - 8; i++)
             {
-                if (bytes[i] != (byte)'n' || bytes[i + 1] != (byte)'c' ||
-                    bytes[i + 2] != (byte)'l' || bytes[i + 3] != (byte)'x')
-                    continue;
+                if (i <= bytes.Length - 11 &&
+                    bytes[i] == (byte)'n' && bytes[i + 1] == (byte)'c' &&
+                    bytes[i + 2] == (byte)'l' && bytes[i + 3] == (byte)'x' &&
+                    bytes[i - 4] == (byte)'c' && bytes[i - 3] == (byte)'o' &&
+                    bytes[i - 2] == (byte)'l' && bytes[i - 1] == (byte)'r')
+                {
+                    primaries = ReadUInt16BigEndian(bytes, i + 4);
+                    transfer = ReadUInt16BigEndian(bytes, i + 6);
+                    foundNclx = true;
+                }
 
-                if (bytes[i - 4] != (byte)'c' || bytes[i - 3] != (byte)'o' ||
-                    bytes[i - 2] != (byte)'l' || bytes[i - 1] != (byte)'r')
-                    continue;
-
-                ushort primaries = ReadUInt16BigEndian(bytes, i + 4);
-                ushort transfer = ReadUInt16BigEndian(bytes, i + 6);
-                return new NclxColorInfo(primaries, transfer);
+                // AVIF ContentLightLevelInformationProperty: MaxCLL and MaxFALL.
+                if (bytes[i] == (byte)'c' && bytes[i + 1] == (byte)'l' &&
+                    bytes[i + 2] == (byte)'l' && bytes[i + 3] == (byte)'i')
+                {
+                    ushort parsedMaxCll = ReadUInt16BigEndian(bytes, i + 4);
+                    if (parsedMaxCll > 0) maxContentLightLevel = parsedMaxCll;
+                }
             }
 
-            return null;
+            return foundNclx
+                ? new NclxColorInfo(primaries, transfer, maxContentLightLevel)
+                : null;
         }
 
         private static byte[] ConvertPqToScRgb(
             byte[] source,
             ushort primaries,
+            float maxContentLightLevel,
+            float displayMaxLuminance,
             CancellationToken token)
         {
-            var destination = new byte[source.Length];
+            var destination = new byte[checked(source.Length * 2)];
             var pqLut = PqToScRgbLut.Value;
             var matrix = GetRgbToScRgbMatrix(primaries);
-            int pixelCount = source.Length / 8;
+            int pixelCount = source.Length / 4;
 
             Parallel.For(0, pixelCount, new ParallelOptions { CancellationToken = token }, pixelIndex =>
             {
-                int offset = pixelIndex * 8;
-                ushort rCode = ReadUInt16LittleEndian(source, offset);
-                ushort gCode = ReadUInt16LittleEndian(source, offset + 2);
-                ushort bCode = ReadUInt16LittleEndian(source, offset + 4);
-                ushort aCode = ReadUInt16LittleEndian(source, offset + 6);
+                int sourceOffset = pixelIndex * 4;
+                int destinationOffset = pixelIndex * 8;
+                ushort bCode = (ushort)(source[sourceOffset] * 257);
+                ushort gCode = (ushort)(source[sourceOffset + 1] * 257);
+                ushort rCode = (ushort)(source[sourceOffset + 2] * 257);
+                float alpha = source[sourceOffset + 3] / 255.0f;
 
                 float r = pqLut[rCode];
                 float g = pqLut[gCode];
                 float b = pqLut[bCode];
-                float alpha = aCode / 65535.0f;
 
-                float outR = (matrix.M11 * r + matrix.M12 * g + matrix.M13 * b) * alpha;
-                float outG = (matrix.M21 * r + matrix.M22 * g + matrix.M23 * b) * alpha;
-                float outB = (matrix.M31 * r + matrix.M32 * g + matrix.M33 * b) * alpha;
+                float outR = matrix.M11 * r + matrix.M12 * g + matrix.M13 * b;
+                float outG = matrix.M21 * r + matrix.M22 * g + matrix.M23 * b;
+                float outB = matrix.M31 * r + matrix.M32 * g + matrix.M33 * b;
 
-                WriteHalf(destination, offset, outR);
-                WriteHalf(destination, offset + 2, outG);
-                WriteHalf(destination, offset + 4, outB);
-                WriteHalf(destination, offset + 6, alpha);
+                ToneMapToDisplay(
+                    ref outR,
+                    ref outG,
+                    ref outB,
+                    maxContentLightLevel,
+                    displayMaxLuminance);
+
+                outR *= alpha;
+                outG *= alpha;
+                outB *= alpha;
+
+                WriteHalf(destination, destinationOffset, outR);
+                WriteHalf(destination, destinationOffset + 2, outG);
+                WriteHalf(destination, destinationOffset + 4, outB);
+                WriteHalf(destination, destinationOffset + 6, alpha);
             });
 
             return destination;
+        }
+
+        private static void ToneMapToDisplay(
+            ref float r,
+            ref float g,
+            ref float b,
+            float maxContentLightLevel,
+            float displayMaxLuminance)
+        {
+            // scRGB 1.0 is 80 nits. A saturated PQ primary can legitimately
+            // exceed MaxCLL even when its pixel luminance does not, so use the
+            // largest positive channel to avoid hard channel clipping. Scaling
+            // all three channels by the same amount preserves hue.
+            float outputPeak = Math.Clamp(displayMaxLuminance, 80.0f, 10000.0f);
+            float signal = Math.Max(0.0f, Math.Max(r, Math.Max(g, b))) * 80.0f;
+            float sourcePeak = Math.Clamp(maxContentLightLevel, 80.0f, 10000.0f);
+
+            if (sourcePeak <= outputPeak)
+            {
+                if (signal <= outputPeak) return;
+
+                float highlightScale = outputPeak / signal;
+                r *= highlightScale;
+                g *= highlightScale;
+                b *= highlightScale;
+                return;
+            }
+
+            float knee = Math.Min(203.0f, outputPeak * 0.75f);
+            if (signal <= knee) return;
+
+            float mapped;
+
+            if (signal >= sourcePeak)
+            {
+                mapped = outputPeak;
+            }
+            else
+            {
+                float outputRange = Math.Max(outputPeak - knee, 1.0f);
+                float sourceRange = Math.Max(sourcePeak - knee, 1.0f);
+                float curve = 1.0f / outputRange;
+                float denominator = 1.0f - MathF.Exp(-curve * sourceRange);
+                float numerator = 1.0f - MathF.Exp(-curve * (signal - knee));
+                mapped = knee + outputRange * numerator / Math.Max(denominator, 0.0001f);
+            }
+
+            float scale = mapped / signal;
+            r *= scale;
+            g *= scale;
+            b *= scale;
         }
 
         private static float[] CreatePqToScRgbLut()
@@ -209,9 +321,6 @@ namespace Uviewer.Services
 
         private static ushort ReadUInt16BigEndian(byte[] bytes, int offset) =>
             (ushort)((bytes[offset] << 8) | bytes[offset + 1]);
-
-        private static ushort ReadUInt16LittleEndian(byte[] bytes, int offset) =>
-            (ushort)(bytes[offset] | (bytes[offset + 1] << 8));
 
         private static void WriteHalf(byte[] bytes, int offset, float value)
         {
