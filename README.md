@@ -9,7 +9,7 @@
 ## ✨ Key Features
 
 ### 🖼️ Image & PDF Viewing
-- **Broad Format Support**: PDF, JPEG, PNG, GIF, BMP, TIFF, ICO, SVG, WebP, AVIF (AV1 Video Extension required), JXL (JPEG XL Image Extension required) and **Animated WebP**.
+- **Broad Format Support**: PDF, JPEG, PNG, GIF, BMP, TIFF, ICO, SVG, WebP, AVIF (AV1 Video Extension required), JXL (JPEG XL Image Extension required), **Animated WebP** and **Animated AVIF**.
 - **HDR AVIF**: Uses a bundled libavif decoder for the original 10-bit PQ (SMPTE ST 2084) signal, then renders BT.2020 or Display-P3 images through a linear FP16 scRGB path. Highlights are tone-mapped to the active monitor's peak luminance, and HDR sharpening operates on luminance instead of independently boosting RGB channels. A compatible HDR display with **Use HDR** enabled in Windows is required for true HDR output; when HDR is inactive, Uviewer automatically uses the Windows SDR decode path.
 - **High-Performance Rendering**: Powered by **Win2D** (Direct2D) for smooth zooming and panning.
 - **Smart Scaling**: Customizable zoom levels (0.1x to 10x), fit-to-window, and actual size.

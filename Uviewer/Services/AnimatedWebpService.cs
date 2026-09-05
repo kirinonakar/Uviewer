@@ -14,6 +14,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Windows.Graphics.DirectX;
 using Windows.Graphics.Imaging;
+using Starward.Codec.AVIF;
 using Uviewer.Models;
 
 namespace Uviewer.Services
@@ -135,11 +136,12 @@ namespace Uviewer.Services
             string? ext = null;
             if (entry.FilePath != null) ext = Path.GetExtension(entry.FilePath).ToLowerInvariant();
             else if (entry.ArchiveEntryKey != null) ext = Path.GetExtension(entry.ArchiveEntryKey).ToLowerInvariant();
+            else if (entry.WebDavPath != null) ext = Path.GetExtension(entry.WebDavPath).ToLowerInvariant();
 
             // 압축 파일 내의 애니메이션은 재생하지 않음
             if (entry.IsArchiveEntry) return false;
 
-            return ext == ".webp" || ext == ".gif";
+            return ext == ".webp" || ext == ".gif" || ext == ".avif";
         }
 
         public void Stop()
@@ -235,7 +237,15 @@ namespace Uviewer.Services
         {
             Stop();
             int animationGeneration = Volatile.Read(ref _animationGeneration);
-            _useIndependentWebpTimer = string.Equals(Path.GetExtension(entry.FilePath), ".webp", StringComparison.OrdinalIgnoreCase);
+            string? extension = entry.FilePath != null
+                ? Path.GetExtension(entry.FilePath)
+                : entry.ArchiveEntryKey != null
+                    ? Path.GetExtension(entry.ArchiveEntryKey)
+                    : entry.WebDavPath != null
+                        ? Path.GetExtension(entry.WebDavPath)
+                        : null;
+            bool isAvif = string.Equals(extension, ".avif", StringComparison.OrdinalIgnoreCase);
+            _useIndependentWebpTimer = string.Equals(extension, ".webp", StringComparison.OrdinalIgnoreCase);
             _currentCanvas = canvas;
             _upscaleFactor = upscaleFactor;
             _sharpenAmountParam = sharpenAmount;
@@ -254,6 +264,16 @@ namespace Uviewer.Services
 
                 if (imageBytes == null || token.IsCancellationRequested) return;
 
+                if (isAvif)
+                {
+                    var (avifFrames, _, _, _) = await TryLoadAnimatedAvifFramesNativeAsync(
+                        imageBytes,
+                        animationGeneration,
+                        token);
+                    QueueAnimationTimerStart(avifFrames, token, animationGeneration);
+                    return;
+                }
+
                 var (webpCanvasWidth, webpCanvasHeight, webpFrameInfos) = TryReadWebpAnimationInfo(imageBytes);
                 var (frames, _, _, _) = await TryLoadAnimatedImageFramesNativeAsync(
                     imageBytes,
@@ -261,26 +281,37 @@ namespace Uviewer.Services
                     webpCanvasHeight,
                     webpFrameInfos,
                     animationGeneration);
-                if (frames != null
-                    && !token.IsCancellationRequested
-                    && animationGeneration == Volatile.Read(ref _animationGeneration))
-                {
-                    // 상태(_animatedWebpFrames 등) 할당은 TryLoadAnimatedImageFramesNativeAsync 내부에서 수행된다.
-                    _dispatcherQueue.TryEnqueue(() =>
-                    {
-                        if (!token.IsCancellationRequested
-                            && animationGeneration == Volatile.Read(ref _animationGeneration))
-                        {
-                            StartAnimatedWebpTimer();
-                        }
-                    });
-                }
+                QueueAnimationTimerStart(frames, token, animationGeneration);
             }
             catch (OperationCanceledException) { }
             catch (Exception ex)
             {
-                Debug.WriteLine($"Error starting animated WebP: {ex.Message}");
+                Debug.WriteLine($"Error starting animated image: {ex.Message}");
             }
+        }
+
+        private void QueueAnimationTimerStart(
+            List<AnimatedFrameData>? frames,
+            CancellationToken token,
+            int animationGeneration)
+        {
+            if (frames == null
+                || frames.Count == 0
+                || token.IsCancellationRequested
+                || animationGeneration != Volatile.Read(ref _animationGeneration))
+            {
+                return;
+            }
+
+            _dispatcherQueue.TryEnqueue(() =>
+            {
+                if (!token.IsCancellationRequested
+                    && animationGeneration == Volatile.Read(ref _animationGeneration))
+                {
+                    // 상태(_animatedWebpFrames 등)는 프레임 로더에서 이미 할당되어 있다.
+                    StartAnimatedWebpTimer();
+                }
+            });
         }
 
         private void StartAnimatedWebpTimer()
@@ -771,7 +802,9 @@ namespace Uviewer.Services
                 frame.Pixels,
                 frame.Width,
                 frame.Height,
-                DirectXPixelFormat.B8G8R8A8UIntNormalized);
+                DirectXPixelFormat.B8G8R8A8UIntNormalized,
+                96.0f,
+                CanvasAlphaMode.Premultiplied);
         }
 
         private bool IsFrameInGpuWindowLocked(int frameIndex, int frameCount)
@@ -808,6 +841,214 @@ namespace Uviewer.Services
                 MinimumGpuFrameCacheCount,
                 MaximumGpuFrameCacheCount);
         }
+
+        private Task<(List<AnimatedFrameData>? frames, List<int>? delaysMs, int width, int height)> TryLoadAnimatedAvifFramesNativeAsync(
+            byte[] imageBytes,
+            int animationGeneration,
+            CancellationToken token)
+        {
+            avifDecoderLite? decoder = null;
+
+            try
+            {
+                // libavif reads the animation track directly. This avoids relying on
+                // the installed Windows AVIF codec exposing the track as BitmapDecoder
+                // frames (some versions expose only the primary still image).
+                decoder = avifDecoderLite.Create(imageBytes);
+                int frameCount = decoder.ImageCount;
+                if (frameCount <= 1 || token.IsCancellationRequested)
+                {
+                    return Task.FromResult<(List<AnimatedFrameData>?, List<int>?, int, int)>((null, null, 0, 0));
+                }
+
+                var firstFrame = DecodeNextAvifFrame(decoder);
+                if (firstFrame == null || animationGeneration != Volatile.Read(ref _animationGeneration))
+                {
+                    return Task.FromResult<(List<AnimatedFrameData>?, List<int>?, int, int)>((null, null, 0, 0));
+                }
+
+                int width = firstFrame.Value.Width;
+                int height = firstFrame.Value.Height;
+                var frames = new List<AnimatedFrameData>
+                {
+                    new(firstFrame.Value.Pixels, width, height, isDisplayReady: !_sharpenEnabled)
+                };
+                var delaysMs = new List<int> { firstFrame.Value.DelayMs };
+                var displayDevice = CanvasDevice.GetSharedDevice();
+
+                lock (_animatedWebpBitmapCacheLock)
+                {
+                    _animatedWebpFrames = frames;
+                    _animatedWebpDelaysMs = delaysMs;
+                    _animatedWebpWidth = width;
+                    _animatedWebpHeight = height;
+                    _animationDevice = displayDevice;
+                    UpdateGpuFrameCacheCapacity(width, height);
+                }
+
+                _isDecodingAnimatedImage = true;
+                avifDecoderLite decoderForBackground = decoder;
+                decoder = null;
+                _ = Task.Run(() => DecodeRemainingAvifFrames(
+                    decoderForBackground,
+                    frameCount,
+                    frames,
+                    delaysMs,
+                    animationGeneration,
+                    token));
+
+                return Task.FromResult<(List<AnimatedFrameData>?, List<int>?, int, int)>(
+                    (frames, delaysMs, width, height));
+            }
+            catch (OperationCanceledException)
+            {
+                return Task.FromResult<(List<AnimatedFrameData>?, List<int>?, int, int)>((null, null, 0, 0));
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"AVIF animation decode error: {ex.Message}");
+                return Task.FromResult<(List<AnimatedFrameData>?, List<int>?, int, int)>((null, null, 0, 0));
+            }
+            finally
+            {
+                decoder?.Dispose();
+            }
+        }
+
+        private void DecodeRemainingAvifFrames(
+            avifDecoderLite decoder,
+            int frameCount,
+            List<AnimatedFrameData> frames,
+            List<int> delaysMs,
+            int animationGeneration,
+            CancellationToken token)
+        {
+            try
+            {
+                for (int i = 1; i < frameCount; i++)
+                {
+                    if (token.IsCancellationRequested
+                        || animationGeneration != Volatile.Read(ref _animationGeneration))
+                    {
+                        break;
+                    }
+
+                    var decodedFrame = DecodeNextAvifFrame(decoder);
+                    if (decodedFrame == null) break;
+
+                    var frame = new AnimatedFrameData(
+                        decodedFrame.Value.Pixels,
+                        decodedFrame.Value.Width,
+                        decodedFrame.Value.Height,
+                        isDisplayReady: !_sharpenEnabled);
+                    int delayMs = decodedFrame.Value.DelayMs;
+
+                    if (!_dispatcherQueue.TryEnqueue(() =>
+                    {
+                        if (token.IsCancellationRequested
+                            || animationGeneration != Volatile.Read(ref _animationGeneration)
+                            || _animatedWebpFrames != frames)
+                        {
+                            return;
+                        }
+
+                        lock (_animatedWebpBitmapCacheLock)
+                        {
+                            if (_animatedWebpFrames == frames)
+                            {
+                                delaysMs.Add(delayMs);
+                                frames.Add(frame);
+                            }
+                        }
+
+                        var currentCanvas = _currentCanvas;
+                        if (currentCanvas != null)
+                        {
+                            QueueFramePrefetch(frames, currentCanvas);
+                        }
+                    }))
+                    {
+                        break;
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"AVIF frame decode error: {ex.Message}");
+            }
+            finally
+            {
+                decoder.Dispose();
+
+                if (animationGeneration == Volatile.Read(ref _animationGeneration))
+                {
+                    _isDecodingAnimatedImage = false;
+                }
+
+                if (animationGeneration != Volatile.Read(ref _animationGeneration)
+                    || _animatedWebpFrames != frames)
+                {
+                    lock (_animatedWebpBitmapCacheLock)
+                    {
+                        frames.Clear();
+                    }
+                }
+            }
+        }
+
+        private static (byte[] Pixels, int Width, int Height, int DelayMs)? DecodeNextAvifFrame(
+            avifDecoderLite decoder)
+        {
+            using var image = decoder.GetNextImage();
+            using var rgbImage = image.ToRGBImage(8, avifRGBFormat.BGRA);
+
+            int width = checked((int)rgbImage.Width);
+            int height = checked((int)rgbImage.Height);
+            byte[] pixels = rgbImage.GetPixelBytes().ToArray();
+            if (pixels.Length != checked(width * height * 4))
+            {
+                throw new InvalidDataException("The AVIF frame has an unexpected pixel buffer size.");
+            }
+
+            // libavif returns straight-alpha pixels by default, while Win2D's
+            // B8G8R8A8 bitmap path expects premultiplied alpha.
+            PremultiplyBgraPixels(pixels);
+
+            double durationSeconds = decoder.ImageTiming.Duration;
+            double durationMilliseconds = durationSeconds * 1000.0;
+            int delayMs = double.IsFinite(durationMilliseconds) && durationMilliseconds > 0
+                ? (int)Math.Clamp(
+                    Math.Round(durationMilliseconds, MidpointRounding.AwayFromZero),
+                    1.0,
+                    int.MaxValue)
+                : DefaultWebpFrameDelayMs;
+
+            return (pixels, width, height, delayMs);
+        }
+
+        private static void PremultiplyBgraPixels(byte[] pixels)
+        {
+            for (int i = 0; i < pixels.Length; i += 4)
+            {
+                byte alpha = pixels[i + 3];
+                if (alpha == byte.MaxValue) continue;
+
+                if (alpha == 0)
+                {
+                    pixels[i] = 0;
+                    pixels[i + 1] = 0;
+                    pixels[i + 2] = 0;
+                    continue;
+                }
+
+                pixels[i] = PremultiplyChannel(pixels[i], alpha);
+                pixels[i + 1] = PremultiplyChannel(pixels[i + 1], alpha);
+                pixels[i + 2] = PremultiplyChannel(pixels[i + 2], alpha);
+            }
+        }
+
+        private static byte PremultiplyChannel(byte channel, byte alpha) =>
+            (byte)((channel * alpha + 127) / 255);
 
         private async Task<(List<AnimatedFrameData>? frames, List<int>? delaysMs, int width, int height)> TryLoadAnimatedImageFramesNativeAsync(
             byte[] imageBytes,

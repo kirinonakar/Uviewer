@@ -31,7 +31,7 @@ namespace Uviewer.Models
         private static bool IsImageFileExtension(string path)
         {
             string ext = System.IO.Path.GetExtension(path).ToLowerInvariant();
-            return ext == ".jpg" || ext == ".jpeg" || ext == ".png" || ext == ".bmp" || ext == ".gif" || ext == ".webp";
+            return ext == ".jpg" || ext == ".jpeg" || ext == ".png" || ext == ".bmp" || ext == ".gif" || ext == ".webp" || ext == ".avif";
         }
 
         public static BookmarkViewModel FromFavorite(FavoriteItem favorite, string posString, string tooltip)
