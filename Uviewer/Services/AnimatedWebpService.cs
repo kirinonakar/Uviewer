@@ -24,6 +24,8 @@ namespace Uviewer.Services
         private readonly DispatcherQueue _dispatcherQueue;
 
         private DispatcherQueueTimer? _animatedWebpTimer;
+        private AnimationWakeTimer? _animationWakeTimer;
+        private bool _useIndependentWebpTimer;
         private List<AnimatedFrameData>? _animatedWebpFrames;
         private List<int>? _animatedWebpDelaysMs;
         private int _animatedWebpFrameIndex;
@@ -147,6 +149,9 @@ namespace Uviewer.Services
             
             _animatedWebpTimer?.Stop();
             _animatedWebpTimer = null;
+            _animationWakeTimer?.Dispose();
+            _animationWakeTimer = null;
+            _useIndependentWebpTimer = false;
             RestoreTimerResolution();
 
             // [안정성 수정] 캔버스 참조를 먼저 끊어서 더 이상 프레임이 전파되지 않도록 합니다.
@@ -230,6 +235,7 @@ namespace Uviewer.Services
         {
             Stop();
             int animationGeneration = Volatile.Read(ref _animationGeneration);
+            _useIndependentWebpTimer = string.Equals(Path.GetExtension(entry.FilePath), ".webp", StringComparison.OrdinalIgnoreCase);
             _currentCanvas = canvas;
             _upscaleFactor = upscaleFactor;
             _sharpenAmountParam = sharpenAmount;
@@ -293,22 +299,39 @@ namespace Uviewer.Services
                 return;
             }
 
-            // [성능 수정] 시스템 타이머 해상도를 1ms로 올린다.
-            // 기본 해상도(15.6ms)에서는 33ms 간격 요청이 실제로는 약 46.8ms에 발화하여
-            // 샤프닝 여부와 무관하게 재생이 느려진다.
-            EnsureHighResolutionTimer();
-
             _animatedWebpTimer = _dispatcherQueue.CreateTimer();
+            if (_useIndependentWebpTimer)
+            {
+                var timer = _animatedWebpTimer;
+                int generation = Volatile.Read(ref _animationGeneration);
+                try
+                {
+                    _animationWakeTimer = new AnimationWakeTimer(() =>
+                        _dispatcherQueue.TryEnqueue(DispatcherQueuePriority.High, () =>
+                        {
+                            if (generation == Volatile.Read(ref _animationGeneration)
+                                && ReferenceEquals(timer, _animatedWebpTimer))
+                            {
+                                AnimatedWebpTimer_Tick(timer, EventArgs.Empty);
+                            }
+                        }));
+                }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine($"WebP high-resolution timer unavailable: {ex.Message}");
+                }
+            }
+            if (_animationWakeTimer == null) EnsureHighResolutionTimer();
             _animatedWebpNextFrameTimestamp = Stopwatch.GetTimestamp()
                 + MillisecondsToStopwatchTicks(delaysMs[_animatedWebpFrameIndex]);
-            _animatedWebpTimer.Interval = TimeSpan.FromMilliseconds(delaysMs[_animatedWebpFrameIndex]);
             _animatedWebpTimer.Tick += AnimatedWebpTimer_Tick;
-            _animatedWebpTimer.Start();
+            ScheduleNextFrame(_animatedWebpTimer);
             QueueFramePrefetch(frames, canvas);
         }
 
         private async void AnimatedWebpTimer_Tick(DispatcherQueueTimer sender, object args)
         {
+            if (!ReferenceEquals(sender, _animatedWebpTimer)) return;
             // [안정성 수정] 로컬 변수에 스냅샷을 캡처하여 도중에 Stop()이 호출되어도 안전하게 접근
             var frames = _animatedWebpFrames;
             var delaysMs = _animatedWebpDelaysMs;
@@ -451,6 +474,14 @@ namespace Uviewer.Services
             long remainingTicks = _animatedWebpNextFrameTimestamp - Stopwatch.GetTimestamp();
             double remainingMilliseconds = remainingTicks * 1000.0 / Stopwatch.Frequency;
             timer.Interval = TimeSpan.FromMilliseconds(Math.Max(1.0, remainingMilliseconds));
+            if (_animationWakeTimer != null)
+            {
+                if (_animationWakeTimer.TrySchedule(timer.Interval)) return;
+                Debug.WriteLine("WebP high-resolution timer scheduling failed; using dispatcher timer.");
+                _animationWakeTimer.Dispose();
+                _animationWakeTimer = null;
+                EnsureHighResolutionTimer();
+            }
             timer.Start();
         }
 
