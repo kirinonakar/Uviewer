@@ -82,6 +82,12 @@ namespace Uviewer
                 set => _window._showFolderThumbnails = value;
             }
 
+            public bool RecursiveImageBrowsing
+            {
+                get => _window._recursiveImageBrowsing;
+                set => _window._recursiveImageBrowsing = value;
+            }
+
             public string ExternalProgramPath
             {
                 get => _window._externalProgramPath;

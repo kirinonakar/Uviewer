@@ -30,6 +30,7 @@ namespace Uviewer.Models
         public double UnsharpRadius { get; set; } = 1.0;
         public double ExplorerThumbnailSize { get; set; } = 80;
         public bool ShowFolderThumbnails { get; set; } = false;
+        public bool RecursiveImageBrowsing { get; set; } = false;
         // 0 means "use the application default"; normalized on load.
         public double SidebarDefaultWidth { get; set; }
         public double SidebarExpandedWidth { get; set; }
@@ -89,6 +90,7 @@ namespace Uviewer.Models
         public const string Recent = "recent";
         public const string OpenFile = "openFile";
         public const string OpenFolder = "openFolder";
+        public const string ImageManager = "imageManager";
         public const string PdfToc = "pdfToc";
         public const string PdfGoToPage = "pdfGoToPage";
         public const string ZoomOut = "zoomOut";
@@ -115,7 +117,7 @@ namespace Uviewer.Models
 
         public static readonly string[] DefaultRightItems =
         {
-            ToggleSidebar, Favorites, Recent, OpenFile, OpenFolder,
+            ToggleSidebar, Favorites, Recent, OpenFile, OpenFolder, ImageManager,
             PdfToc, PdfGoToPage,
             ZoomOut, ZoomIn, ZoomFit, ZoomActual,
             Aozora, Vertical, Font, TextToc, GoToPage, TextSizeDown, TextSizeUp, TextTheme,
@@ -126,7 +128,7 @@ namespace Uviewer.Models
         public static readonly string[] All =
         {
             Settings, GlobalTheme, Pin, AlwaysOnTop,
-            ToggleSidebar, Favorites, Recent, OpenFile, OpenFolder,
+            ToggleSidebar, Favorites, Recent, OpenFile, OpenFolder, ImageManager,
             PdfToc, PdfGoToPage,
             ZoomOut, ZoomIn, ZoomFit, ZoomActual,
             Aozora, Vertical, Font, TextToc, GoToPage, TextSizeDown, TextSizeUp, TextTheme,
@@ -157,6 +159,7 @@ namespace Uviewer.Models
     {
         public double ThumbnailSize { get; set; } = 80;
         public bool ShowFolderThumbnails { get; set; }
+        public bool RecursiveImageBrowsing { get; set; }
         public bool SidebarVisible { get; set; } = true;
         public bool Pinned { get; set; } = true;
         public double SidebarDefaultWidth { get; set; }

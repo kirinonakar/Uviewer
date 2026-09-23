@@ -239,6 +239,7 @@ namespace Uviewer.Services
                 {
                     ThumbnailSize = settings.ExplorerThumbnailSize,
                     ShowFolderThumbnails = settings.ShowFolderThumbnails,
+                    RecursiveImageBrowsing = settings.RecursiveImageBrowsing,
                     SidebarVisible = settings.IsSidebarVisible,
                     Pinned = settings.IsPinned,
                     SidebarDefaultWidth = settings.SidebarDefaultWidth,
@@ -296,6 +297,7 @@ namespace Uviewer.Services
                 UnsharpRadius = imageProcessing.UnsharpRadius,
                 ExplorerThumbnailSize = explorer.ThumbnailSize,
                 ShowFolderThumbnails = explorer.ShowFolderThumbnails,
+                RecursiveImageBrowsing = explorer.RecursiveImageBrowsing,
                 SidebarDefaultWidth = explorer.SidebarDefaultWidth,
                 SidebarExpandedWidth = explorer.SidebarExpandedWidth,
                 ExternalProgramPath = document.ExternalProgramPath ?? defaults.ExternalProgramPath,

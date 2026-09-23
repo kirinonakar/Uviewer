@@ -3,6 +3,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using Uviewer.Models;
 using Windows.Storage;
@@ -16,6 +17,8 @@ namespace Uviewer.Services
         public Func<Task<bool>> CloseCurrentEpubAsync { get; init; } = null!;
         public Action CloseCurrentText { get; init; } = null!;
         public Func<Task> DisplayCurrentImageAsync { get; init; } = null!;
+        public Func<bool> IsRecursiveImageBrowsingEnabled { get; init; } = () => false;
+        public Func<string?> GetRecursiveRootPath { get; init; } = () => null;
         public Action CancelImageLoading { get; init; } = null!;
         public Action CancelTextLoading { get; init; } = null!;
         public Action CancelExplorerThumbnailLoading { get; init; } = null!;
@@ -32,6 +35,7 @@ namespace Uviewer.Services
         private readonly ImageViewerState _imageViewerState;
         private readonly DispatcherQueue _dispatcherQueue;
         private readonly LocalImageDocumentHandlers _handlers;
+        private CancellationTokenSource? _folderEntryScanCts;
 
         public LocalImageDocumentController(
             SevenZipExtractionCoordinator sevenZipExtraction,
@@ -74,7 +78,9 @@ namespace Uviewer.Services
             var parentFolder = await file.GetParentAsync();
             if (parentFolder != null)
             {
-                _imageViewerState.Entries = await CreateEntriesFromFolderAsync(parentFolder);
+                var scan = RestartFolderEntryScan();
+                var rootPath = GetRecursiveRootPath(file.Path, parentFolder.Path);
+                _imageViewerState.Entries = await CreateEntriesFromFolderAsync(rootPath, scan.Token);
                 _imageViewerState.CurrentIndex = _imageViewerState.Entries.FindIndex(e => e.FilePath == file.Path);
             }
             else
@@ -100,7 +106,8 @@ namespace Uviewer.Services
 
             ResetImagePipeline();
 
-            _imageViewerState.Entries = await CreateEntriesFromFolderAsync(folder);
+            var scan = RestartFolderEntryScan();
+            _imageViewerState.Entries = await CreateEntriesFromFolderAsync(folder.Path, scan.Token);
 
             if (_imageViewerState.Entries.Count > 0)
             {
@@ -115,6 +122,7 @@ namespace Uviewer.Services
 
         private void CancelActiveImageWork(bool cancelExplorerThumbnails)
         {
+            CancelFolderEntryScan();
             _sevenZipExtraction.CancelExtraction();
             _handlers.CancelImageLoading();
             if (cancelExplorerThumbnails)
@@ -148,6 +156,8 @@ namespace Uviewer.Services
 
         private void StartBackgroundFolderEntryRefresh(StorageFile file)
         {
+            var scan = RestartFolderEntryScan();
+            var token = scan.Token;
             _ = Task.Run(async () =>
             {
                 try
@@ -155,10 +165,12 @@ namespace Uviewer.Services
                     var folder = await file.GetParentAsync();
                     if (folder == null) return;
 
-                    var allEntries = await CreateEntriesFromFolderAsync(folder);
+                    var rootPath = GetRecursiveRootPath(file.Path, folder.Path);
+                    var allEntries = await CreateEntriesFromFolderAsync(rootPath, token);
 
                     _dispatcherQueue.TryEnqueue(() =>
                     {
+                        if (token.IsCancellationRequested) return;
                         if (_imageViewerState.Entries.Count != 1 ||
                             _imageViewerState.Entries[0].FilePath != file.Path)
                         {
@@ -175,15 +187,46 @@ namespace Uviewer.Services
                         _handlers.RefreshCurrentStatusBar();
                     });
                 }
+                catch (OperationCanceledException) { }
                 catch
                 {
                 }
             });
         }
 
-        private static async Task<List<ImageEntry>> CreateEntriesFromFolderAsync(StorageFolder folder)
+        private string GetRecursiveRootPath(string filePath, string fallbackPath)
         {
+            if (!_handlers.IsRecursiveImageBrowsingEnabled()) return fallbackPath;
+
+            var configuredRoot = _handlers.GetRecursiveRootPath();
+            if (string.IsNullOrWhiteSpace(configuredRoot)) return fallbackPath;
+
+            try
+            {
+                var relative = Path.GetRelativePath(configuredRoot, filePath);
+                if (relative == ".." || relative.StartsWith(".." + Path.DirectorySeparatorChar, StringComparison.Ordinal) || Path.IsPathRooted(relative))
+                {
+                    return fallbackPath;
+                }
+
+                return configuredRoot;
+            }
+            catch
+            {
+                return fallbackPath;
+            }
+        }
+
+        private async Task<List<ImageEntry>> CreateEntriesFromFolderAsync(string folderPath, CancellationToken token)
+        {
+            if (_handlers.IsRecursiveImageBrowsingEnabled())
+            {
+                return await FileExplorerService.GetRecursiveImageEntriesAsync(folderPath, token).ConfigureAwait(false);
+            }
+
+            var folder = await StorageFolder.GetFolderFromPathAsync(folderPath);
             var files = await folder.GetFilesAsync();
+            token.ThrowIfCancellationRequested();
             return files
                 .Where(file => FileExplorerService.SupportedFileExtensions.Contains(
                     Path.GetExtension(file.Name).ToLowerInvariant()))
@@ -194,6 +237,23 @@ namespace Uviewer.Services
                     FilePath = file.Path
                 })
                 .ToList();
+        }
+
+        private CancellationTokenSource RestartFolderEntryScan()
+        {
+            CancelFolderEntryScan();
+            _folderEntryScanCts = new CancellationTokenSource();
+            return _folderEntryScanCts;
+        }
+
+        private void CancelFolderEntryScan()
+        {
+            var scan = _folderEntryScanCts;
+            _folderEntryScanCts = null;
+            if (scan == null) return;
+
+            scan.Cancel();
+            scan.Dispose();
         }
     }
 }

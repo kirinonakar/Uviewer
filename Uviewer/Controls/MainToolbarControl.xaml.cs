@@ -12,6 +12,7 @@ namespace Uviewer.Controls
 {
     public sealed partial class MainToolbarControl : UserControl
     {
+        private bool _isImageManagerMode;
         public event EventHandler? TextOptionsRequested;
         public event EventHandler? ChangeFontRequested;
         public event EventHandler<string>? EncodingSelected;
@@ -32,6 +33,7 @@ namespace Uviewer.Controls
         public event EventHandler? AddToFavoritesRequested;
         public event EventHandler? OpenFileRequested;
         public event EventHandler? OpenFolderRequested;
+        public event EventHandler? ImageManagerRequested;
         public event EventHandler? PdfTocRequested;
         public event ItemClickEventHandler? PdfTocItemClicked;
         public event EventHandler? PdfGoToPageRequested;
@@ -141,6 +143,7 @@ namespace Uviewer.Controls
             AddToFavoritesButton.Click += (_, _) => AddToFavoritesRequested?.Invoke(this, EventArgs.Empty);
             OpenFileButton.Click += (_, _) => OpenFileRequested?.Invoke(this, EventArgs.Empty);
             OpenFolderButton.Click += (_, _) => OpenFolderRequested?.Invoke(this, EventArgs.Empty);
+            ImageManagerButton.Click += (_, _) => ImageManagerRequested?.Invoke(this, EventArgs.Empty);
 
             FileFavoritesList.ItemClicked += (_, item) => FavoriteItemClicked?.Invoke(this, item);
             FileFavoritesList.RemoveClicked += (_, item) => FavoriteRemoveClicked?.Invoke(this, item);
@@ -218,6 +221,7 @@ namespace Uviewer.Controls
             ToolTipService.SetToolTip(ToggleSidebarButton, Strings.ToggleSidebarTooltip);
             ToolTipService.SetToolTip(OpenFileButton, Strings.OpenFileTooltip);
             ToolTipService.SetToolTip(OpenFolderButton, Strings.OpenFolderTooltip);
+            ToolTipService.SetToolTip(ImageManagerButton, Strings.ImageManagerTooltip);
             ToolTipService.SetToolTip(ZoomOutButton, Strings.ZoomOutTooltip);
             ToolTipService.SetToolTip(ZoomInButton, Strings.ZoomInTooltip);
             ToolTipService.SetToolTip(ZoomFitButton, Strings.ZoomFitTooltip);
@@ -297,7 +301,15 @@ namespace Uviewer.Controls
             SharpenParamsResetButton.Content = Strings.ResetButton;
 
             Bindings.Update();
+            SetImageManagerMode(_isImageManagerMode);
             QueueToolbarOverflowUpdate();
+        }
+
+        public void SetImageManagerMode(bool enabled)
+        {
+            _isImageManagerMode = enabled;
+            ImageManagerButtonText.Text = enabled ? Strings.ReturnToViewerLabel : Strings.ImageManagerLabel;
+            ToolTipService.SetToolTip(ImageManagerButton, enabled ? Strings.ReturnToViewerTooltip : Strings.ImageManagerTooltip);
         }
 
         public void SetEncodingSelection(string encodingName)

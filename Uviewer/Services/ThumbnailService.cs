@@ -32,7 +32,7 @@ namespace Uviewer.Services
                 var itemList = items.Where(i => i.Thumbnail == null && 
                                               !i.IsThumbnailLoading && 
                                               (i.IsImage || i.IsArchive || i.IsEpub ||
-                                               (includeFolderThumbnails && i.IsDirectory && !i.IsParentDirectory && !i.IsWebDav))).ToList();
+                                               (includeFolderThumbnails && i.IsDirectory && !i.IsParentDirectory && !i.IsDrive && !i.IsWebDav))).ToList();
 
                 if (itemList.Count == 0) return;
 

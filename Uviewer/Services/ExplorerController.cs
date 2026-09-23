@@ -2,6 +2,7 @@ using Microsoft.UI.Dispatching;
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Uviewer.Models;
@@ -15,9 +16,14 @@ namespace Uviewer.Services
         private readonly DispatcherQueue _dispatcher;
         private const int DescendantSearchDelayMs = 250;
         private CancellationTokenSource? _descendantSearchCts;
+        private CancellationTokenSource? _folderLoadingCts;
+        private readonly SemaphoreSlim _visibleThumbnailSemaphore = new(4);
+        private readonly object _visibleThumbnailGate = new();
+        private readonly HashSet<FileItem> _visibleThumbnailRequests = new();
 
         public int ThumbnailDecodePixelWidth { get; set; } = 200;
         public bool ShowFolderThumbnails { get; set; }
+        public bool IncludeSubfolderImages { get; set; }
         public IReadOnlyList<FileItem> AllItems => _state.AllItems;
         public bool IsFilterActive => _state.IsFilterActive;
         public bool HasNoFilterResults => _state.HasNoFilterResults;
@@ -64,9 +70,13 @@ namespace Uviewer.Services
             Action<Exception> onLoadError,
             Action? onItemsLoaded = null)
         {
+            _folderLoadingCts?.Cancel();
+            _folderLoadingCts?.Dispose();
+            _folderLoadingCts = new CancellationTokenSource();
+            var token = _folderLoadingCts.Token;
             _state.CurrentPath = path;
             onPathChanged(path);
-            _ = LoadFolderCoreAsync(path, onLoadError, onItemsLoaded);
+            _ = LoadFolderCoreAsync(path, token, onLoadError, onItemsLoaded);
         }
 
         public void SetSortMode(ExplorerSortMode sortMode)
@@ -81,18 +91,20 @@ namespace Uviewer.Services
 
         private async Task LoadFolderCoreAsync(
             string path,
+            CancellationToken token,
             Action<Exception> onLoadError,
             Action? onItemsLoaded)
         {
             try
             {
                 var newItems = await FileExplorerService
-                    .GetFolderContentsAsync(path, _state.SortMode)
+                    .GetFolderContentsAsync(path, _state.SortMode, IncludeSubfolderImages, token)
                     .ConfigureAwait(false);
 
                 _dispatcher.TryEnqueue(() =>
                 {
                     if (_state.CurrentPath != path) return;
+                    if (token.IsCancellationRequested) return;
 
                     _state.ReplaceItems(newItems);
                     onItemsLoaded?.Invoke();
@@ -100,6 +112,7 @@ namespace Uviewer.Services
                     StartThumbnailLoading();
                 });
             }
+            catch (OperationCanceledException) { }
             catch (Exception ex)
             {
                 _dispatcher.TryEnqueue(() => onLoadError(ex));
@@ -227,11 +240,48 @@ namespace Uviewer.Services
         private Task LoadThumbnailsAsync(CancellationToken token)
         {
             return _thumbnailService.LoadThumbnailsAsync(
-                _state.AllItems,
+                _state.AllItems.Take(48),
                 _dispatcher,
                 token,
                 ThumbnailDecodePixelWidth,
                 ShowFolderThumbnails);
+        }
+
+        public void EnsureVisibleThumbnail(FileItem? item)
+        {
+            if (item == null || item.Thumbnail != null || item.IsThumbnailLoading) return;
+            if (!(item.IsImage || item.IsArchive || item.IsEpub ||
+                  (ShowFolderThumbnails && item.IsDirectory && !item.IsParentDirectory && !item.IsDrive && !item.IsWebDav))) return;
+
+            lock (_visibleThumbnailGate)
+            {
+                if (!_visibleThumbnailRequests.Add(item)) return;
+            }
+
+            var token = _state.ThumbnailLoadingToken;
+            _ = LoadVisibleThumbnailAsync(item, token);
+        }
+
+        private async Task LoadVisibleThumbnailAsync(FileItem item, CancellationToken token)
+        {
+            var entered = false;
+            try
+            {
+                await _visibleThumbnailSemaphore.WaitAsync(token).ConfigureAwait(false);
+                entered = true;
+                await _thumbnailService.LoadThumbnailsAsync(
+                    new[] { item },
+                    _dispatcher,
+                    token,
+                    ThumbnailDecodePixelWidth,
+                    ShowFolderThumbnails).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException) { }
+            finally
+            {
+                if (entered) _visibleThumbnailSemaphore.Release();
+                lock (_visibleThumbnailGate) _visibleThumbnailRequests.Remove(item);
+            }
         }
     }
 }

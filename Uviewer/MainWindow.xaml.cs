@@ -404,6 +404,7 @@ namespace Uviewer
             if (SidebarDefaultWidthLabel != null) SidebarDefaultWidthLabel.Text = Strings.SidebarDefaultWidthLabel;
             if (SidebarExpandedWidthLabel != null) SidebarExpandedWidthLabel.Text = Strings.SidebarExpandedWidthLabel;
             if (FolderThumbnailsCheckBox != null) FolderThumbnailsCheckBox.Content = Strings.ShowFolderThumbnailsLabel;
+            if (RecursiveImageBrowsingCheckBox != null) RecursiveImageBrowsingCheckBox.Content = Strings.RecursiveImageBrowsingLabel;
             _explorerSidebarController.ApplyThumbnailSettingsToControls();
 
             UpdateFontSettingsMenu();

@@ -29,6 +29,7 @@ namespace Uviewer.Services
         string? WebDavServerName { get; }
         double ExplorerThumbnailSize { get; set; }
         bool ShowFolderThumbnails { get; set; }
+        bool RecursiveImageBrowsing { get; set; }
         double SidebarDefaultWidth { get; set; }
         double SidebarExpandedWidth { get; set; }
         FileItem? ExplorerContextItem { get; set; }
@@ -45,6 +46,8 @@ namespace Uviewer.Services
         Slider ThumbnailSizeSlider { get; }
         TextBlock ThumbnailSizeValueText { get; }
         CheckBox FolderThumbnailsCheckBox { get; }
+        CheckBox RecursiveImageBrowsingCheckBox { get; }
+        Slider ImageManagerThumbnailSlider { get; }
         Slider SidebarDefaultWidthSlider { get; }
         TextBlock SidebarDefaultWidthValueText { get; }
         Slider SidebarExpandedWidthSlider { get; }
@@ -159,7 +162,9 @@ namespace Uviewer.Services
 
             _explorerController.LoadFolder(
                 path,
-                currentPath => _host.CurrentPathBreadcrumb.Text = currentPath,
+                currentPath => _host.CurrentPathBreadcrumb.Text = FileExplorerService.IsComputerRoot(currentPath)
+                    ? Strings.ThisPCLabel
+                    : currentPath,
                 ex => _host.CurrentPathBreadcrumb.Text = Strings.ErrorWithMessage(ex.Message),
                 () =>
                 {
@@ -221,7 +226,7 @@ namespace Uviewer.Services
                     return;
                 }
             }
-            else if (!Directory.Exists(entry.Path))
+            else if (!FileExplorerService.IsComputerRoot(entry.Path) && !Directory.Exists(entry.Path))
             {
                 _host.ShowNotification(Strings.FileNotFound, "\uE7BA", "Red");
                 return;
@@ -278,6 +283,9 @@ namespace Uviewer.Services
             UpdateExplorerView();
         }
 
+        public void EnsureVisibleThumbnail(FileItem? item) =>
+            _explorerController.EnsureVisibleThumbnail(item);
+
         private void UpdateExplorerView()
         {
             if (_host.IsExplorerGrid)
@@ -316,9 +324,13 @@ namespace Uviewer.Services
             {
                 _host.ThumbnailSizeSlider.Value = _host.ExplorerThumbnailSize;
             }
-
             _host.ThumbnailSizeValueText.Text = $"{_host.ExplorerThumbnailSize:F0}px";
             _host.FolderThumbnailsCheckBox.IsChecked = _host.ShowFolderThumbnails;
+            _host.RecursiveImageBrowsingCheckBox.IsChecked = _host.RecursiveImageBrowsing;
+            if (Math.Abs(_host.ImageManagerThumbnailSlider.Value - _host.ExplorerThumbnailSize) > 0.1)
+            {
+                _host.ImageManagerThumbnailSlider.Value = _host.ExplorerThumbnailSize;
+            }
 
             if (Math.Abs(_host.SidebarDefaultWidthSlider.Value - _host.SidebarDefaultWidth) > 0.1)
             {
@@ -343,6 +355,7 @@ namespace Uviewer.Services
                 200,
                 (int)Math.Ceiling(_host.ExplorerThumbnailSize * 2));
             _explorerController.ShowFolderThumbnails = _host.ShowFolderThumbnails;
+            _explorerController.IncludeSubfolderImages = _host.RecursiveImageBrowsing;
         }
 
         public void ApplyThumbnailSizeToFileItems()
@@ -449,6 +462,14 @@ namespace Uviewer.Services
         public void HandleThumbnailSizeChanged(double newValue)
         {
             _host.ExplorerThumbnailSize = Math.Clamp(newValue, 64, 180);
+            if (Math.Abs(_host.ThumbnailSizeSlider.Value - _host.ExplorerThumbnailSize) > 0.1)
+            {
+                _host.ThumbnailSizeSlider.Value = _host.ExplorerThumbnailSize;
+            }
+            if (Math.Abs(_host.ImageManagerThumbnailSlider.Value - _host.ExplorerThumbnailSize) > 0.1)
+            {
+                _host.ImageManagerThumbnailSlider.Value = _host.ExplorerThumbnailSize;
+            }
             ApplyExplorerThumbnailOptions();
             ApplyThumbnailSizeToFileItems();
             _host.ThumbnailSizeValueText.Text = $"{_host.ExplorerThumbnailSize:F0}px";
@@ -461,6 +482,18 @@ namespace Uviewer.Services
             ApplyExplorerThumbnailOptions();
             _explorerController.RefreshThumbnails(clearExisting: false);
             _host.SaveWindowSettings();
+        }
+
+        public void HandleRecursiveImageBrowsingChanged(bool isChecked)
+        {
+            _host.RecursiveImageBrowsing = isChecked;
+            _explorerController.IncludeSubfolderImages = isChecked;
+            _host.SaveWindowSettings();
+
+            if (!_host.IsWebDavMode && !string.IsNullOrEmpty(_host.CurrentExplorerPath))
+            {
+                LoadFolder(_host.CurrentExplorerPath);
+            }
         }
 
         public void HandleSidebarDefaultWidthChanged(double newValue)
@@ -647,10 +680,16 @@ namespace Uviewer.Services
 
             if (!string.IsNullOrEmpty(_host.CurrentExplorerPath))
             {
+                if (FileExplorerService.IsComputerRoot(_host.CurrentExplorerPath)) return;
+
                 var parentDir = Directory.GetParent(_host.CurrentExplorerPath);
                 if (parentDir != null)
                 {
                     LoadFolder(parentDir.FullName);
+                }
+                else
+                {
+                    LoadFolder(FileExplorerService.ComputerRootPath);
                 }
             }
         }

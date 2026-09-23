@@ -172,6 +172,9 @@
   <data name="ShowFolderThumbnailsLabel" xml:space="preserve">
     <value>Show folder thumbnails</value>
   </data>
+  <data name="RecursiveImageBrowsingLabel" xml:space="preserve">
+    <value>Include images in subfolders</value>
+  </data>
   <data name="SidebarDefaultWidthLabel" xml:space="preserve">
     <value>Sidebar default width:</value>
   </data>
@@ -715,4 +718,9 @@
   <data name="TextAlignRight" xml:space="preserve"><value>Right</value></data>
   <data name="TextOptionsApply" xml:space="preserve"><value>Apply</value></data>
   <data name="TextOptionsHint" xml:space="preserve"><value>Applies to horizontal plain text and Aozora reading. Wrap width is limited to the window width.</value></data>
+  <data name="ImageManagerLabel" xml:space="preserve"><value>Image manager</value></data>
+  <data name="ImageManagerTooltip" xml:space="preserve"><value>Open image manager</value></data>
+  <data name="ReturnToViewerLabel" xml:space="preserve"><value>Return to viewer</value></data>
+  <data name="ReturnToViewerTooltip" xml:space="preserve"><value>Return to image viewer</value></data>
+  <data name="ThisPCLabel" xml:space="preserve"><value>This PC</value></data>
 </root>

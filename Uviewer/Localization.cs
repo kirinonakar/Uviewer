@@ -66,6 +66,10 @@ namespace Uviewer
         public static string ToggleSidebarTooltip => GetString("ToggleSidebarTooltip");
         public static string OpenFileTooltip => GetString("OpenFileTooltip");
         public static string OpenFolderTooltip => GetString("OpenFolderTooltip");
+        public static string ImageManagerTooltip => GetString("ImageManagerTooltip");
+        public static string ImageManagerLabel => GetString("ImageManagerLabel");
+        public static string ReturnToViewerTooltip => GetString("ReturnToViewerTooltip");
+        public static string ReturnToViewerLabel => GetString("ReturnToViewerLabel");
         public static string ZoomOutTooltip => GetString("ZoomOutTooltip");
         public static string ZoomInTooltip => GetString("ZoomInTooltip");
         public static string ZoomFitTooltip => GetString("ZoomFitTooltip");
@@ -100,6 +104,7 @@ namespace Uviewer
         public static string ThumbnailSettingsTitle => GetString("ThumbnailSettingsTitle");
         public static string ThumbnailSizeLabel => GetString("ThumbnailSizeLabel");
         public static string ShowFolderThumbnailsLabel => GetString("ShowFolderThumbnailsLabel");
+        public static string RecursiveImageBrowsingLabel => GetString("RecursiveImageBrowsingLabel");
         public static string SidebarDefaultWidthLabel => GetString("SidebarDefaultWidthLabel");
         public static string SidebarExpandedWidthLabel => GetString("SidebarExpandedWidthLabel");
         public static string ExplorerFilterPlaceholder => GetString("ExplorerFilterPlaceholder");
@@ -112,6 +117,7 @@ namespace Uviewer
         public static string ExplorerFilterClear => GetString("ExplorerFilterClear");
         public static string ExplorerFilterNoMatches => GetString("ExplorerFilterNoMatches");
         public static string ParentFolderTooltip => GetString("ParentFolderTooltip");
+        public static string ThisPCLabel => GetString("ThisPCLabel");
         public static string RecentTooltip => GetString("RecentTooltip");
         public static string NoRecentFiles => GetString("NoRecentFiles");
         public static string FavoritesTooltip => GetString("FavoritesTooltip");

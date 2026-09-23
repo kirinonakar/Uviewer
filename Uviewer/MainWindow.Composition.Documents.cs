@@ -25,6 +25,7 @@ namespace Uviewer
                         LoadExplorerFolderInBackground = window.LoadExplorerFolderInBackground,
                         ShouldLoadExplorerFolder = folderPath =>
                             !string.Equals(folderPath, window._currentExplorerPath, StringComparison.OrdinalIgnoreCase),
+                        IsRecursiveImageBrowsingEnabled = () => window._recursiveImageBrowsing,
                         HideEmptyState = () =>
                         {
                             if (window.EmptyStatePanel != null) window.EmptyStatePanel.Visibility = Visibility.Collapsed;
@@ -204,7 +205,9 @@ namespace Uviewer
                                     window._imageViewerState.Entries[window._imageViewerState.CurrentIndex],
                                     window._imageViewerState.CurrentBitmap);
                             },
-                            SetStatusText = value => window.FileNameText.Text = value
+                            SetStatusText = value => window.FileNameText.Text = value,
+                            IsRecursiveImageBrowsingEnabled = () => window._recursiveImageBrowsing,
+                            GetRecursiveRootPath = () => window._currentExplorerPath
                         });
                 }
 

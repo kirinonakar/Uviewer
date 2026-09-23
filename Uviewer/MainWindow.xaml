@@ -84,8 +84,8 @@
         <Grid Grid.Row="2" Background="{ThemeResource SolidBackgroundFillColorBaseBrush}">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition x:Name="SidebarColumn" Width="340"/>
-                <ColumnDefinition Width="Auto"/>
-                <ColumnDefinition Width="*"/>
+                <ColumnDefinition x:Name="SplitterColumn" Width="Auto"/>
+                <ColumnDefinition x:Name="ViewerColumn" Width="*"/>
             </Grid.ColumnDefinitions>
 
             <!-- Sidebar Area -->

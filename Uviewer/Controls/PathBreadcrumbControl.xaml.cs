@@ -4,6 +4,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using Uviewer.Services;
 
 namespace Uviewer.Controls
 {
@@ -73,6 +74,7 @@ namespace Uviewer.Controls
                 rootLabel = root;
             }
 
+            items.Add(new BreadcrumbEntry(Strings.ThisPCLabel, FileExplorerService.ComputerRootPath, IsWebDav: false));
             items.Add(new BreadcrumbEntry(rootLabel, root, IsWebDav: false));
 
             string relative = normalizedPath.Length >= root.Length

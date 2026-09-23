@@ -29,6 +29,7 @@ namespace Uviewer.Services
         public Func<Task> AddToFavoritesAsync { get; init; } = null!;
         public Func<Task> OpenFileAsync { get; init; } = null!;
         public Func<Task> OpenFolderAsync { get; init; } = null!;
+        public Action ToggleImageManagerMode { get; init; } = null!;
         public Func<BookmarkViewModel, Task> HandleFavoriteClickedAsync { get; init; } = null!;
         public Func<BookmarkViewModel, Task> HandleFavoriteRemoveClickedAsync { get; init; } = null!;
         public Func<BookmarkViewModel, Task> HandleFavoritePinClickedAsync { get; init; } = null!;
@@ -102,6 +103,7 @@ namespace Uviewer.Services
             _toolbar.AddToFavoritesRequested += (_, _) => RunAsync(_handlers.AddToFavoritesAsync);
             _toolbar.OpenFileRequested += (_, _) => RunAsync(_handlers.OpenFileAsync);
             _toolbar.OpenFolderRequested += (_, _) => RunAsync(_handlers.OpenFolderAsync);
+            _toolbar.ImageManagerRequested += (_, _) => _handlers.ToggleImageManagerMode();
 
             _toolbar.FavoriteItemClicked += (_, item) => RunAsync(() => _handlers.HandleFavoriteClickedAsync(item));
             _toolbar.FavoriteRemoveClicked += (_, item) => RunAsync(() => _handlers.HandleFavoriteRemoveClickedAsync(item));

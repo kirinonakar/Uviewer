@@ -252,6 +252,13 @@
                     </StackPanel>
                 </Button>
 
+                <Button x:Name="ImageManagerButton" ToolTipService.ToolTip="{x:Bind app:Strings.ImageManagerTooltip}">
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                        <FontIcon Glyph="&#xE8A5;" FontSize="14"/>
+                        <TextBlock x:Name="ImageManagerButtonText" Text="{x:Bind app:Strings.ImageManagerLabel}" VerticalAlignment="Center"/>
+                    </StackPanel>
+                </Button>
+
 
                 <AppBarSeparator/>
 

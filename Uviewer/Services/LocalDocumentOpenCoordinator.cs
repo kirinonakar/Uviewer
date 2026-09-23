@@ -18,6 +18,7 @@ namespace Uviewer.Services
         public Action<string>? LoadExplorerFolderInBackground { get; init; }
         public Func<string, bool>? ShouldLoadExplorerFolder { get; init; }
         public Action? HideEmptyState { get; init; }
+        public Func<bool> IsRecursiveImageBrowsingEnabled { get; init; } = () => false;
     }
 
     internal sealed class LocalDocumentOpenCoordinator
@@ -61,6 +62,13 @@ namespace Uviewer.Services
                 _handlers.LoadExplorerFolder(path);
 
                 var folder = await StorageFolder.GetFolderFromPathAsync(path);
+                if (_handlers.IsRecursiveImageBrowsingEnabled())
+                {
+                    _handlers.HideEmptyState?.Invoke();
+                    await _handlers.OpenFolderAsync(folder);
+                    return;
+                }
+
                 var files = (await folder.GetFilesAsync())
                     .OrderBy(file => file.Name, NaturalSortComparer.Default)
                     .ToList();

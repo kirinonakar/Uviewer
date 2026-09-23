@@ -36,6 +36,7 @@ namespace Uviewer.Models
             string.IsNullOrEmpty(_displayPath) ? Visibility.Collapsed : Visibility.Visible;
 
         public bool IsDirectory { get; set; }
+        public bool IsDrive { get; set; }
         public bool IsArchive { get; set; }
         public bool IsImage { get; set; }
         public bool IsText { get; set; }
@@ -219,7 +220,7 @@ namespace Uviewer.Models
 
         public Visibility IconVisibility => Thumbnail == null ? Visibility.Visible : Visibility.Collapsed;
         public Visibility ImageThumbnailVisibility => Thumbnail != null && !IsDirectory ? Visibility.Visible : Visibility.Collapsed;
-        public Visibility FolderThumbnailVisibility => Thumbnail != null && IsDirectory && !IsParentDirectory ? Visibility.Visible : Visibility.Collapsed;
+        public Visibility FolderThumbnailVisibility => Thumbnail != null && IsDirectory && !IsParentDirectory && !IsDrive ? Visibility.Visible : Visibility.Collapsed;
 
         public void ApplyThumbnailSize(double imageSize)
         {
@@ -242,6 +243,7 @@ namespace Uviewer.Models
         }
 
         public string Icon => IsParentDirectory ? "\uE72B" :
+                              IsDrive ? "\uEDA2" :
                               IsDirectory ? "\uE8B7" :
                               IsArchive ? "\uE8D4" :
                               IsEpub ? "\uE82D" :
@@ -249,7 +251,9 @@ namespace Uviewer.Models
                               IsImage ? "\uE8B9" :
                               IsText ? "\uE8C4" : "\uE7C3";
 
-        public SolidColorBrush IconColor => IsDirectory || IsParentDirectory ?
+        public SolidColorBrush IconColor => IsDrive ?
+            new SolidColorBrush(Colors.CornflowerBlue) :
+            IsDirectory || IsParentDirectory ?
             new SolidColorBrush(Colors.Gold) :
             IsArchive ? new SolidColorBrush(Colors.Orange) :
             IsEpub ? new SolidColorBrush(Colors.MediumPurple) :

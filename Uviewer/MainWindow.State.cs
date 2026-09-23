@@ -216,6 +216,7 @@ namespace Uviewer
         private bool _isRegistered = false;
         private double _explorerThumbnailSize = 80;
         private bool _showFolderThumbnails = false;
+        private bool _recursiveImageBrowsing = false;
         private string _externalProgramPath = AppSettings.DefaultExternalProgramPath;
         private FileItem? _explorerContextItem;
 

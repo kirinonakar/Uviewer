@@ -21,6 +21,7 @@ namespace Uviewer.Services
         bool IsRegistered { get; set; }
         double ExplorerThumbnailSize { get; set; }
         bool ShowFolderThumbnails { get; set; }
+        bool RecursiveImageBrowsing { get; set; }
         string ExternalProgramPath { get; set; }
         AppToolbarSettings ToolbarSettings { get; set; }
 

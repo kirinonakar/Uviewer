@@ -172,6 +172,9 @@
   <data name="ShowFolderThumbnailsLabel" xml:space="preserve">
     <value>폴더 썸네일 표시</value>
   </data>
+  <data name="RecursiveImageBrowsingLabel" xml:space="preserve">
+    <value>하위 폴더의 이미지도 표시</value>
+  </data>
   <data name="SidebarDefaultWidthLabel" xml:space="preserve">
     <value>사이드바 기본 너비:</value>
   </data>
@@ -715,4 +718,9 @@
   <data name="TextAlignRight" xml:space="preserve"><value>오른쪽</value></data>
   <data name="TextOptionsApply" xml:space="preserve"><value>적용</value></data>
   <data name="TextOptionsHint" xml:space="preserve"><value>일반 텍스트와 아오조라 가로 읽기에 적용됩니다. 줄바꿈 폭은 창 너비를 넘지 않습니다.</value></data>
+  <data name="ImageManagerLabel" xml:space="preserve"><value>이미지 관리자</value></data>
+  <data name="ImageManagerTooltip" xml:space="preserve"><value>이미지 관리자 열기</value></data>
+  <data name="ReturnToViewerLabel" xml:space="preserve"><value>뷰어로 돌아가기</value></data>
+  <data name="ReturnToViewerTooltip" xml:space="preserve"><value>이미지 뷰어로 돌아가기</value></data>
+  <data name="ThisPCLabel" xml:space="preserve"><value>내 PC</value></data>
 </root>

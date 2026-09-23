@@ -61,6 +61,7 @@
                                     </Grid>
                                     <Slider x:Name="ThumbnailSizeSlider"/>
                                     <CheckBox x:Name="FolderThumbnailsCheckBox" Content="{x:Bind app:Strings.ShowFolderThumbnailsLabel}"/>
+                                    <CheckBox x:Name="RecursiveImageBrowsingCheckBox" Content="{x:Bind app:Strings.RecursiveImageBrowsingLabel}"/>
 
                                     <Border Height="1" Background="{ThemeResource DividerStrokeColorDefaultBrush}"/>
                                     <Grid>
@@ -252,7 +253,11 @@
                 </Grid>
 
                 <!-- Current Path -->
-                <Grid Grid.Row="1">
+                <Grid x:Name="ExplorerContentGrid" Grid.Row="1">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition x:Name="FolderNavigationColumn" Width="0"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="Auto"/>
@@ -260,10 +265,56 @@
                         <RowDefinition Height="*"/>
                     </Grid.RowDefinitions>
 
-                    <uc:PathBreadcrumbControl x:Name="CurrentPathBreadcrumb"
-                                              Grid.Row="0"/>
+                    <Border x:Name="FolderNavigationPane" Grid.Column="0" Grid.RowSpan="4"
+                            Visibility="Collapsed"
+                            BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                            BorderThickness="0,0,1,0" Background="{ThemeResource LayerFillColorDefaultBrush}">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="*"/>
+                            </Grid.RowDefinitions>
+                            <TextBlock x:Name="FolderNavigationTitleText" Grid.Row="0" Text="{x:Bind app:Strings.ExplorerFilterFolders}"
+                                       FontWeight="SemiBold" Margin="14,12,8,8"/>
+                            <TreeView x:Name="FolderNavigationTree" Grid.Row="1"
+                                      SelectionMode="Single">
+                                <TreeView.ItemTemplate>
+                                    <DataTemplate>
+                                        <Grid Padding="4,5" ColumnSpacing="8">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto" />
+                                                <ColumnDefinition Width="*" />
+                                            </Grid.ColumnDefinitions>
+                                            <FontIcon Glyph="{Binding Icon}" FontSize="14" VerticalAlignment="Center"
+                                                      Foreground="{Binding IconColor}"/>
+                                            <TextBlock Grid.Column="1" Text="{Binding Name}" TextTrimming="CharacterEllipsis"
+                                                       VerticalAlignment="Center"/>
+                                        </Grid>
+                                    </DataTemplate>
+                                </TreeView.ItemTemplate>
+                            </TreeView>
+                        </Grid>
+                    </Border>
 
-                    <Grid Grid.Row="1" Margin="12,4,12,8" RowSpacing="6" ColumnSpacing="6">
+                    <Grid Grid.Row="0" Grid.Column="1" ColumnSpacing="12">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <uc:PathBreadcrumbControl x:Name="CurrentPathBreadcrumb" Grid.Column="0" />
+                        <StackPanel x:Name="ImageManagerZoomPanel" Grid.Column="1" Orientation="Horizontal"
+                                    Spacing="8" VerticalAlignment="Center" Margin="0,0,12,0"
+                                    Visibility="Collapsed">
+                            <FontIcon Glyph="&#xE71E;" FontSize="14"
+                                      Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                            <Slider x:Name="ImageManagerThumbnailSlider" Width="160" Minimum="64" Maximum="180"
+                                    StepFrequency="4" Value="80"
+                                    AutomationProperties.Name="{x:Bind app:Strings.ThumbnailSizeLabel}"
+                                    ToolTipService.ToolTip="{x:Bind app:Strings.ThumbnailSizeLabel}" />
+                        </StackPanel>
+                    </Grid>
+
+                    <Grid Grid.Row="1" Grid.Column="1" Margin="12,4,12,8" RowSpacing="6" ColumnSpacing="6">
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto"/>
                             <RowDefinition Height="Auto"/>
@@ -299,14 +350,14 @@
                             <FontIcon Glyph="&#xE711;" FontSize="12"/>
                         </Button>
                     </Grid>
-                    <TextBlock x:Name="ExplorerFilterEmptyText" Grid.Row="2" Margin="12,4,12,8"
+                    <TextBlock x:Name="ExplorerFilterEmptyText" Grid.Row="2" Grid.Column="1" Margin="12,4,12,8"
                                Visibility="Collapsed" TextWrapping="Wrap"
                                Foreground="{ThemeResource TextFillColorSecondaryBrush}"
                                AutomationProperties.LiveSetting="Polite"
                                Text="{x:Bind app:Strings.ExplorerFilterNoMatches}"/>
 
                     <!-- File List -->
-                    <ListView x:Name="FileListView" Grid.Row="3"
+                    <ListView x:Name="FileListView" Grid.Row="3" Grid.Column="1"
                               SelectionMode="Single"
                               IsItemClickEnabled="True">
                         <ListView.ItemTemplate>
@@ -337,7 +388,7 @@
                         </ListView.ItemTemplate>
                     </ListView>
 
-                    <GridView x:Name="FileGridView" Grid.Row="3"
+                    <GridView x:Name="FileGridView" Grid.Row="3" Grid.Column="1"
                               SelectionMode="Single"
                               IsItemClickEnabled="True"
                               Visibility="Collapsed"
@@ -406,8 +457,30 @@
                             </DataTemplate>
                         </GridView.ItemTemplate>
                     </GridView>
+
+                    <GridView x:Name="ImageManagerGridView" Grid.Row="3" Grid.Column="1"
+                              SelectionMode="Single" IsItemClickEnabled="True"
+                              Visibility="Collapsed" Padding="8">
+                        <GridView.ItemTemplate>
+                            <DataTemplate>
+                                <Grid Width="{Binding ThumbnailItemWidth}" Height="{Binding ThumbnailItemHeight}"
+                                      Padding="4" Background="Transparent" CornerRadius="4"
+                                      ToolTipService.ToolTip="{Binding Name}">
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="*" />
+                                        <RowDefinition Height="Auto" />
+                                    </Grid.RowDefinitions>
+                                    <Image Grid.Row="0" Source="{Binding Thumbnail}" Stretch="Uniform"
+                                           MaxWidth="{Binding ThumbnailImageSize}" MaxHeight="{Binding ThumbnailImageSize}"
+                                           HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                    <TextBlock Grid.Row="1" Text="{Binding Name}" FontSize="11"
+                                               TextTrimming="CharacterEllipsis" HorizontalAlignment="Center"
+                                               MaxLines="2" TextAlignment="Center" Margin="0,4,0,0" />
+                                </Grid>
+                            </DataTemplate>
+                        </GridView.ItemTemplate>
+                    </GridView>
                 </Grid>
             </Grid>
 
 </UserControl>
-

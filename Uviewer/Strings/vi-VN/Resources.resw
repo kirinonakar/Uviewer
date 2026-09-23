@@ -172,6 +172,9 @@
   <data name="ShowFolderThumbnailsLabel" xml:space="preserve">
     <value>Hiển thị hình thu nhỏ cho thư mục</value>
   </data>
+  <data name="RecursiveImageBrowsingLabel" xml:space="preserve">
+    <value>Hiển thị ảnh trong thư mục con</value>
+  </data>
   <data name="SidebarDefaultWidthLabel" xml:space="preserve">
     <value>Chiều rộng mặc định:</value>
   </data>
@@ -715,4 +718,9 @@
   <data name="TextAlignRight" xml:space="preserve"><value>Phải</value></data>
   <data name="TextOptionsApply" xml:space="preserve"><value>Áp dụng</value></data>
   <data name="TextOptionsHint" xml:space="preserve"><value>Áp dụng cho văn bản thuần và Aozora nằm ngang. Độ rộng không vượt quá chiều rộng cửa sổ.</value></data>
+  <data name="ImageManagerLabel" xml:space="preserve"><value>Trình quản lý ảnh</value></data>
+  <data name="ImageManagerTooltip" xml:space="preserve"><value>Mở trình quản lý ảnh</value></data>
+  <data name="ReturnToViewerLabel" xml:space="preserve"><value>Quay lại trình xem</value></data>
+  <data name="ReturnToViewerTooltip" xml:space="preserve"><value>Quay lại trình xem ảnh</value></data>
+  <data name="ThisPCLabel" xml:space="preserve"><value>Máy tính này</value></data>
 </root>

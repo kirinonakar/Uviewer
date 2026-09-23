@@ -172,6 +172,9 @@
   <data name="ShowFolderThumbnailsLabel" xml:space="preserve">
     <value>フォルダーのサムネイルを表示</value>
   </data>
+  <data name="RecursiveImageBrowsingLabel" xml:space="preserve">
+    <value>サブフォルダー内の画像も表示</value>
+  </data>
   <data name="SidebarDefaultWidthLabel" xml:space="preserve">
     <value>サイドバー標準幅:</value>
   </data>
@@ -715,4 +718,9 @@
   <data name="TextAlignRight" xml:space="preserve"><value>右</value></data>
   <data name="TextOptionsApply" xml:space="preserve"><value>適用</value></data>
   <data name="TextOptionsHint" xml:space="preserve"><value>プレーンテキストと青空文庫の横書きに適用します。折り返し幅はウィンドウ幅以内に制限されます。</value></data>
+  <data name="ImageManagerLabel" xml:space="preserve"><value>画像マネージャー</value></data>
+  <data name="ImageManagerTooltip" xml:space="preserve"><value>画像マネージャーを開く</value></data>
+  <data name="ReturnToViewerLabel" xml:space="preserve"><value>ビューアーに戻る</value></data>
+  <data name="ReturnToViewerTooltip" xml:space="preserve"><value>画像ビューアーに戻る</value></data>
+  <data name="ThisPCLabel" xml:space="preserve"><value>PC</value></data>
 </root>

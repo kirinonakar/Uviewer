@@ -62,6 +62,7 @@ namespace Uviewer.Controls
             _toolbarItems[ToolbarItemIds.Recent] = RecentButton;
             _toolbarItems[ToolbarItemIds.OpenFile] = OpenFileButton;
             _toolbarItems[ToolbarItemIds.OpenFolder] = OpenFolderButton;
+            _toolbarItems[ToolbarItemIds.ImageManager] = ImageManagerButton;
             _toolbarItems[ToolbarItemIds.PdfToc] = PdfTocButton;
             _toolbarItems[ToolbarItemIds.PdfGoToPage] = PdfGoToPageButton;
             _toolbarItems[ToolbarItemIds.ZoomOut] = ZoomOutButton;
@@ -135,6 +136,15 @@ namespace Uviewer.Controls
             {
                 normalized.LeftItems.Insert(0, ToolbarItemIds.Settings);
                 used.Add(ToolbarItemIds.Settings);
+            }
+
+            // Upgrade saved toolbars from before the image-manager button existed.
+            // Keep it beside Open Folder so the primary entry point remains easy to find.
+            if (used.Add(ToolbarItemIds.ImageManager))
+            {
+                int openFolderIndex = normalized.RightItems.IndexOf(ToolbarItemIds.OpenFolder);
+                normalized.RightItems.Insert(openFolderIndex >= 0 ? openFolderIndex + 1 : normalized.RightItems.Count,
+                    ToolbarItemIds.ImageManager);
             }
 
             var defaultLeft = new HashSet<string>(AppToolbarSettings.CreateDefault().LeftItems, StringComparer.Ordinal);
