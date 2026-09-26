@@ -129,7 +129,7 @@ namespace Uviewer.Controls
             LangZhHantItem.Click += LanguageItem_Click;
             LangViItem.Click += LanguageItem_Click;
             MatchControlDirectionMenuItem.Click += (_, _) => MatchControlDirectionChanged?.Invoke(this, MatchControlDirectionMenuItem.IsChecked);
-            AllowMultipleInstancesMenuItem.Click += (_, _) => AllowMultipleInstancesChanged?.Invoke(this, AllowMultipleInstancesMenuItem.IsChecked);
+            AllowMultipleInstancesMenuItem.Click += (_, _) => RaiseAllowMultipleInstancesChanged(AllowMultipleInstancesMenuItem.IsChecked);
             KeepInTrayMenuItem.Click += (_, _) => KeepInTrayChanged?.Invoke(this, KeepInTrayMenuItem.IsChecked);
             AutoDoublePageForArchiveMenuItem.Click += (_, _) => AutoDoublePageForArchiveChanged?.Invoke(this, AutoDoublePageForArchiveMenuItem.IsChecked);
             AboutMenuItem.Click += (_, _) => AboutRequested?.Invoke(this, EventArgs.Empty);
@@ -137,6 +137,7 @@ namespace Uviewer.Controls
             GlobalThemeToggleButton.Click += (_, _) => GlobalThemeToggleRequested?.Invoke(this, EventArgs.Empty);
             PinButton.Click += (_, _) => PinToggleRequested?.Invoke(this, EventArgs.Empty);
             AlwaysOnTopButton.Click += (_, _) => AlwaysOnTopToggleRequested?.Invoke(this, EventArgs.Empty);
+            AllowMultipleInstancesButton.Click += (_, _) => RaiseAllowMultipleInstancesChanged(AllowMultipleInstancesButton.IsChecked ?? false);
             ToggleSidebarButton.Click += (_, _) => ToggleSidebarRequested?.Invoke(this, EventArgs.Empty);
             AddToFavoritesButton.Click += (_, _) => AddToFavoritesRequested?.Invoke(this, EventArgs.Empty);
             OpenFileButton.Click += (_, _) => OpenFileRequested?.Invoke(this, EventArgs.Empty);
@@ -213,6 +214,14 @@ namespace Uviewer.Controls
             }
         }
 
+        private void RaiseAllowMultipleInstancesChanged(bool isChecked)
+        {
+            // 메뉴 항목과 툴바 버튼의 체크 상태를 맞춘 뒤 동일한 이벤트로 알립니다.
+            AllowMultipleInstancesMenuItem.IsChecked = isChecked;
+            AllowMultipleInstancesButton.IsChecked = isChecked;
+            AllowMultipleInstancesChanged?.Invoke(this, isChecked);
+        }
+
         public void ApplyLocalization()
         {
             ToolTipService.SetToolTip(ToggleSidebarButton, Strings.ToggleSidebarTooltip);
@@ -243,6 +252,7 @@ namespace Uviewer.Controls
             ToolTipService.SetToolTip(MainToolbarOverflowButton, Strings.MoreCommandsTooltip);
             ToolTipService.SetToolTip(PinButton, Strings.PinTooltip);
             ToolTipService.SetToolTip(AlwaysOnTopButton, Strings.AlwaysOnTopTooltip);
+            ToolTipService.SetToolTip(AllowMultipleInstancesButton, Strings.AllowMultipleInstances);
             ToolTipService.SetToolTip(PrevFileButton, Strings.PrevFileTooltip);
             ToolTipService.SetToolTip(NextFileButton, Strings.NextFileTooltip);
             ToolTipService.SetToolTip(PrevPageButton, Strings.PrevPageTooltip);
@@ -335,6 +345,7 @@ namespace Uviewer.Controls
             MatchControlDirectionMenuItem.IsChecked = matchControlDirection;
             KeepInTrayMenuItem.IsChecked = keepInTray;
             AllowMultipleInstancesMenuItem.IsChecked = allowMultipleInstances;
+            AllowMultipleInstancesButton.IsChecked = allowMultipleInstances;
             AutoDoublePageForArchiveMenuItem.IsChecked = autoDoublePageForArchive;
             AlwaysOnTopButton.IsChecked = alwaysOnTop;
         }
@@ -343,6 +354,7 @@ namespace Uviewer.Controls
         public void SetAllowMultipleInstances(bool value)
         {
             AllowMultipleInstancesMenuItem.IsChecked = value;
+            AllowMultipleInstancesButton.IsChecked = value;
         }
 
         // 트레이에 유지와 다중 실행은 함께 사용할 수 있습니다.

@@ -57,6 +57,7 @@ namespace Uviewer.Controls
             _toolbarItems[ToolbarItemIds.GlobalTheme] = GlobalThemeToggleButton;
             _toolbarItems[ToolbarItemIds.Pin] = PinButton;
             _toolbarItems[ToolbarItemIds.AlwaysOnTop] = AlwaysOnTopButton;
+            _toolbarItems[ToolbarItemIds.AllowMultipleInstances] = AllowMultipleInstancesButton;
             _toolbarItems[ToolbarItemIds.ToggleSidebar] = ToggleSidebarButton;
             _toolbarItems[ToolbarItemIds.Favorites] = FavoritesButton;
             _toolbarItems[ToolbarItemIds.Recent] = RecentButton;
@@ -375,23 +376,52 @@ namespace Uviewer.Controls
         {
             if (_toolbarItems.Count == 0) return;
 
+            bool needsOverflowRefresh = false;
             var hidden = new HashSet<string>(_toolbarSettings.HiddenItems, StringComparer.Ordinal);
             foreach (var pair in _toolbarItems)
             {
                 bool userVisible = pair.Key == ToolbarItemIds.Settings || !hidden.Contains(pair.Key);
-                pair.Value.Visibility = userVisible && IsToolbarItemAvailable(pair.Key)
-                    ? Visibility.Visible
-                    : Visibility.Collapsed;
+                bool shouldShow = userVisible && IsToolbarItemAvailable(pair.Key);
+
+                // "더 보기"로 접힌 항목은 전체 재배치 전까지 접힌 상태를 그대로 유지합니다.
+                bool isOverflowed = _toolbarOverflowPresentations.ContainsKey(pair.Value);
+                var visibility = shouldShow && !isOverflowed ? Visibility.Visible : Visibility.Collapsed;
+                if (pair.Value.Visibility != visibility)
+                {
+                    pair.Value.Visibility = visibility;
+                    needsOverflowRefresh = true;
+                }
+                else if (isOverflowed && !shouldShow)
+                {
+                    // 더 보기 목록에 남아 있지만 표시 대상이 아니게 된 항목은 재배치로 정리합니다.
+                    needsOverflowRefresh = true;
+                }
             }
 
             bool zoomLevelVisible = _isImageToolbarAvailable &&
-                (!hidden.Contains(ToolbarItemIds.ZoomOut) || !hidden.Contains(ToolbarItemIds.ZoomIn));
-            ZoomLevelText.Visibility = zoomLevelVisible ? Visibility.Visible : Visibility.Collapsed;
+                (!hidden.Contains(ToolbarItemIds.ZoomOut) || !hidden.Contains(ToolbarItemIds.ZoomIn)) &&
+                !_toolbarOverflowPresentations.ContainsKey(ZoomLevelText);
+            needsOverflowRefresh |= ApplyElementVisibility(ZoomLevelText, zoomLevelVisible);
 
             bool textSizeLevelVisible = _isTextToolbarAvailable &&
-                (!hidden.Contains(ToolbarItemIds.TextSizeDown) || !hidden.Contains(ToolbarItemIds.TextSizeUp));
-            TextSizeLevelText.Visibility = textSizeLevelVisible ? Visibility.Visible : Visibility.Collapsed;
-            QueueToolbarOverflowUpdate();
+                (!hidden.Contains(ToolbarItemIds.TextSizeDown) || !hidden.Contains(ToolbarItemIds.TextSizeUp)) &&
+                !_toolbarOverflowPresentations.ContainsKey(TextSizeLevelText);
+            needsOverflowRefresh |= ApplyElementVisibility(TextSizeLevelText, textSizeLevelVisible);
+
+            // 표시 상태가 실제로 바뀐 경우에만 오버플로 재배치를 예약합니다.
+            if (needsOverflowRefresh)
+            {
+                QueueToolbarOverflowUpdate();
+            }
+        }
+
+        private static bool ApplyElementVisibility(FrameworkElement element, bool isVisible)
+        {
+            var visibility = isVisible ? Visibility.Visible : Visibility.Collapsed;
+            if (element.Visibility == visibility) return false;
+
+            element.Visibility = visibility;
+            return true;
         }
 
         private bool IsToolbarItemAvailable(string id)
@@ -689,6 +719,12 @@ namespace Uviewer.Controls
 
         private string GetToolbarItemDisplayName(string id)
         {
+            // 툴바 사용자 지정 목록에는 툴팁 대신 메뉴와 동일한 이름을 표시합니다.
+            if (id == ToolbarItemIds.AllowMultipleInstances)
+            {
+                return Strings.AllowMultipleInstances;
+            }
+
             if (_toolbarItems.TryGetValue(id, out var element) &&
                 ToolTipService.GetToolTip(element) is object tooltip &&
                 !string.IsNullOrWhiteSpace(tooltip.ToString()))

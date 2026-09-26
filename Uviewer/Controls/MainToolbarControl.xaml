@@ -147,6 +147,10 @@
                               ToolTipService.ToolTip="{x:Bind app:Strings.AlwaysOnTopTooltip}">
                     <FontIcon x:Name="AlwaysOnTopIcon" Glyph="&#xE718;" FontSize="14"/>
                 </ToggleButton>
+                <ToggleButton x:Name="AllowMultipleInstancesButton" Style="{StaticResource ToolbarToggleButtonStyle}" Margin="4,0,0,0"
+                              ToolTipService.ToolTip="{x:Bind app:Strings.AllowMultipleInstances}">
+                    <FontIcon x:Name="AllowMultipleInstancesIcon" Glyph="&#xE8A9;" FontSize="14"/>
+                </ToggleButton>
             </StackPanel>
 
             <!-- Toolbar -->

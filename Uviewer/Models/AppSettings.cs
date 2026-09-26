@@ -64,7 +64,8 @@ namespace Uviewer.Models
                 ToolbarItemIds.Settings,
                 ToolbarItemIds.GlobalTheme,
                 ToolbarItemIds.Pin,
-                ToolbarItemIds.AlwaysOnTop
+                ToolbarItemIds.AlwaysOnTop,
+                ToolbarItemIds.AllowMultipleInstances
             },
             RightItems = new List<string>(ToolbarItemIds.DefaultRightItems),
             HiddenItems = new List<string>()
@@ -84,6 +85,7 @@ namespace Uviewer.Models
         public const string GlobalTheme = "globalTheme";
         public const string Pin = "pin";
         public const string AlwaysOnTop = "alwaysOnTop";
+        public const string AllowMultipleInstances = "allowMultipleInstances";
         public const string ToggleSidebar = "toggleSidebar";
         public const string Favorites = "favorites";
         public const string Recent = "recent";
@@ -125,7 +127,7 @@ namespace Uviewer.Models
 
         public static readonly string[] All =
         {
-            Settings, GlobalTheme, Pin, AlwaysOnTop,
+            Settings, GlobalTheme, Pin, AlwaysOnTop, AllowMultipleInstances,
             ToggleSidebar, Favorites, Recent, OpenFile, OpenFolder,
             PdfToc, PdfGoToPage,
             ZoomOut, ZoomIn, ZoomFit, ZoomActual,
