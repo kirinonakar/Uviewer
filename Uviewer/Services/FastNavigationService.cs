@@ -1,17 +1,20 @@
 using Microsoft.UI.Dispatching;
 using System;
+using System.Diagnostics;
 using System.Threading;
 using System.Threading.Tasks;
 
 namespace Uviewer.Services
 {
-    public class FastNavigationService
+    public class FastNavigationService : IDisposable
     {
         private readonly DispatcherQueue _dispatcherQueue;
-        private DateTime _lastNavigationTime = DateTime.MinValue;
+        private long? _lastNavigationTimestamp;
         private readonly TimeSpan _fastNavigationThreshold = TimeSpan.FromMilliseconds(40);
         private CancellationTokenSource? _fastNavigationResetCts;
         private DispatcherQueueTimer? _fastNavOverlayTimer;
+        private Action? _hideOverlay;
+        private bool _disposed;
 
         // State for UI updates during fast navigation
         public int CurrentIndex { get; private set; }
@@ -48,89 +51,118 @@ namespace Uviewer.Services
             IsSideBySide = isSideBySide;
         }
 
-        public bool DetectFastNavigation(Func<Task> onResetCallback)
+        public bool DetectFastNavigation(Func<CancellationToken, Task> onResetCallback)
         {
-            var now = DateTime.Now;
-            var timeSinceLastNavigation = now - _lastNavigationTime;
-            _lastNavigationTime = now;
+            if (_disposed) return false;
+            var now = Stopwatch.GetTimestamp();
+            bool isFast = _lastNavigationTimestamp.HasValue &&
+                Stopwatch.GetElapsedTime(_lastNavigationTimestamp.Value, now) < _fastNavigationThreshold;
+            _lastNavigationTimestamp = now;
 
-            _fastNavigationResetCts?.Cancel();
-            _fastNavigationResetCts = new CancellationTokenSource();
-            var token = _fastNavigationResetCts.Token;
+            CancelPendingReset();
 
-            if (timeSinceLastNavigation < _fastNavigationThreshold)
+            if (isFast)
             {
-                _ = Task.Run(async () =>
-                {
-                    try
-                    {
-                        await Task.Delay(50, token);
-                        if (!token.IsCancellationRequested)
-                        {
-                            await HandleReset(onResetCallback);
-                        }
-                    }
-                    catch (OperationCanceledException) { }
-                });
-
-                return true;
+                _fastNavigationResetCts = new CancellationTokenSource();
+                _ = ResetAfterDelayAsync(onResetCallback, _fastNavigationResetCts.Token);
             }
 
-            return false;
+            return isFast;
         }
 
         public void ShowOverlay(Action showCallback, Action hideCallback)
         {
+            if (_disposed) return;
             showCallback?.Invoke();
 
             _fastNavOverlayTimer?.Stop();
-            _fastNavOverlayTimer ??= _dispatcherQueue.CreateTimer();
-            _fastNavOverlayTimer.Interval = TimeSpan.FromMilliseconds(200);
-            _fastNavOverlayTimer.Tick += (s, e) =>
+            if (_fastNavOverlayTimer == null)
             {
-                _fastNavOverlayTimer?.Stop();
-                hideCallback?.Invoke();
-            };
+                _fastNavOverlayTimer = _dispatcherQueue.CreateTimer();
+                _fastNavOverlayTimer.IsRepeating = false;
+                _fastNavOverlayTimer.Tick += OnOverlayTimerTick;
+            }
+            _hideOverlay = hideCallback;
+            _fastNavOverlayTimer.Interval = TimeSpan.FromMilliseconds(200);
             _fastNavOverlayTimer.Start();
+        }
+
+        private void OnOverlayTimerTick(DispatcherQueueTimer sender, object args)
+        {
+            StopOverlayTimer();
+            HideOverlay();
         }
 
         public void StopOverlayTimer()
         {
-             _fastNavOverlayTimer?.Stop();
+            _fastNavOverlayTimer?.Stop();
         }
 
-        private Task HandleReset(Func<Task> onResetCallback)
+        private void HideOverlay()
         {
-            var tcs = new TaskCompletionSource();
-            _dispatcherQueue.TryEnqueue(async () =>
-            {
-                _fastNavOverlayTimer?.Stop(); 
+            var hideOverlay = _hideOverlay;
+            _hideOverlay = null;
+            hideOverlay?.Invoke();
+        }
 
-                try
+        private async Task ResetAfterDelayAsync(Func<CancellationToken, Task> onResetCallback, CancellationToken token)
+        {
+            try
+            {
+                await Task.Delay(50, token).ConfigureAwait(false);
+                if (token.IsCancellationRequested) return;
+                _dispatcherQueue.TryEnqueue(async () =>
                 {
-                    if (onResetCallback != null)
+                    // Cancellation can occur after enqueueing, while the UI is busy.
+                    // Never let a stale reset load a replaced/closed document.
+                    if (token.IsCancellationRequested || _disposed) return;
+                    try
                     {
-                        await onResetCallback();
+                        StopOverlayTimer();
+                        await onResetCallback(token);
                     }
-                }
-                finally
-                {
-                    tcs.TrySetResult();
-                }
-            });
-            return tcs.Task;
+                    catch (OperationCanceledException) when (token.IsCancellationRequested) { }
+                    catch (Exception ex)
+                    {
+                        // Dispatcher callbacks are async void; exceptions must not
+                        // escape onto the UI thread, including after an await.
+                        StartupDiagnostics.Record("Fast navigation reset", ex);
+                    }
+                });
+            }
+            catch (OperationCanceledException) when (token.IsCancellationRequested) { }
+            catch (Exception ex)
+            {
+                StartupDiagnostics.Record("Scheduling fast navigation reset", ex);
+            }
+        }
+
+        private void CancelPendingReset()
+        {
+            var cts = _fastNavigationResetCts;
+            _fastNavigationResetCts = null;
+            cts?.Cancel();
+            cts?.Dispose();
         }
 
         public void StopTimers()
         {
-            _fastNavOverlayTimer?.Stop();
-            _fastNavigationResetCts?.Cancel();
+            CancelPendingReset();
+            _lastNavigationTimestamp = null;
+            StopOverlayTimer();
+            HideOverlay();
         }
 
         public void Dispose()
         {
+            if (_disposed) return;
+            _disposed = true;
             StopTimers();
-            _fastNavigationResetCts?.Dispose();
+            if (_fastNavOverlayTimer != null)
+            {
+                _fastNavOverlayTimer.Tick -= OnOverlayTimerTick;
+                _fastNavOverlayTimer = null;
+            }
         }
     }
 }

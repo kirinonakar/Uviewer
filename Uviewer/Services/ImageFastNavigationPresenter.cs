@@ -1,4 +1,5 @@
 using System;
+using System.Threading;
 using System.Threading.Tasks;
 using Visibility = Microsoft.UI.Xaml.Visibility;
 
@@ -19,7 +20,7 @@ namespace Uviewer.Services
 
         public void UpdateFastNavigationUI()
         {
-            if (_host.CurrentIndex < 0 || _host.ImageEntries.Count == 0)
+            if (_host.CurrentIndex < 0 || _host.CurrentIndex >= _host.ImageEntries.Count)
                 return;
 
             var currentEntry = _host.ImageEntries[_host.CurrentIndex];
@@ -50,8 +51,9 @@ namespace Uviewer.Services
             _host.ImageInfoText.Text = Strings.FastNavText;
         }
 
-        public async Task ResetFastNavigationAsync()
+        public async Task ResetFastNavigationAsync(CancellationToken token)
         {
+            if (token.IsCancellationRequested) return;
             _host.FastNavigationService.StopOverlayTimer();
             if (_host.CurrentIndex >= 0 && _host.CurrentIndex < _host.ImageEntries.Count)
             {
@@ -59,6 +61,7 @@ namespace Uviewer.Services
                 await _displayCurrentImageAsync();
             }
 
+            if (token.IsCancellationRequested) return;
             _host.FastNavOverlay.Visibility = Visibility.Collapsed;
             _host.MainCanvas?.Invalidate();
         }

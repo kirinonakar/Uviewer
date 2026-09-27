@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Threading;
 using System.Threading.Tasks;
 using Uviewer.Models;
 
@@ -13,7 +14,7 @@ namespace Uviewer.Services
         public Func<bool> IsCurrentViewSideBySide { get; init; } = null!;
         public Action<int> SetScrollDirection { get; init; } = null!;
         public FastNavigationService FastNavigationService { get; init; } = null!;
-        public Func<Task> ResetFastNavigationAsync { get; init; } = null!;
+        public Func<CancellationToken, Task> ResetFastNavigationAsync { get; init; } = null!;
         public Action UpdateFastNavigationUi { get; init; } = null!;
         public Func<Task> DisplayCurrentImageAsync { get; init; } = null!;
         public Func<Task> SaveCurrentPositionAsync { get; init; } = null!;
@@ -27,6 +28,7 @@ namespace Uviewer.Services
     internal sealed class ImageNavigationCoordinator
     {
         private readonly ImageNavigationHandlers _handlers;
+        private int _navigationVersion;
 
         public ImageNavigationCoordinator(ImageNavigationHandlers handlers)
         {
@@ -64,6 +66,14 @@ namespace Uviewer.Services
 
             if (canNavigate)
             {
+                int version = ++_navigationVersion;
+                var targetEntry = entries[nextIndex];
+                bool IsCurrentNavigation() => version == _navigationVersion &&
+                    _handlers.GetCurrentIndex() == nextIndex &&
+                    nextIndex < _handlers.GetImageEntries().Count &&
+                    ReferenceEquals(_handlers.GetImageEntries()[nextIndex], targetEntry);
+
+                if (isManualClick) _handlers.FastNavigationService.StopTimers();
                 bool isFast = !isManualClick &&
                     _handlers.FastNavigationService.DetectFastNavigation(_handlers.ResetFastNavigationAsync);
 
@@ -76,7 +86,9 @@ namespace Uviewer.Services
                 }
 
                 await _handlers.DisplayCurrentImageAsync();
+                if (!IsCurrentNavigation()) return;
                 await _handlers.SaveCurrentPositionAsync();
+                if (!IsCurrentNavigation()) return;
 
                 if (_handlers.ShouldPreloadAfterNavigate())
                 {

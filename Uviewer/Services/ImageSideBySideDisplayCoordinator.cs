@@ -40,6 +40,9 @@ namespace Uviewer.Services
 
         public async Task DisplaySideBySideImagesAsync(int expectedIndex, CancellationToken token)
         {
+            if (token.IsCancellationRequested || expectedIndex < 0 || expectedIndex >= _host.ImageEntries.Count)
+                return;
+            var expectedEntry = _host.ImageEntries[expectedIndex];
             try
             {
                 var pair = await _host.SideBySideImageLoadService.LoadAsync(
@@ -52,8 +55,16 @@ namespace Uviewer.Services
                     _releaseBitmapIfUnused,
                     token);
 
-                if (pair == null || token.IsCancellationRequested || _host.CurrentIndex != expectedIndex)
+                if (pair == null) return;
+                if (token.IsCancellationRequested || _host.CurrentIndex != expectedIndex ||
+                    expectedIndex >= _host.ImageEntries.Count ||
+                    !ReferenceEquals(_host.ImageEntries[expectedIndex], expectedEntry))
                 {
+                    // The pair already transferred ownership out of the loader.
+                    // A skipped fast-navigation result must release both images.
+                    _releaseBitmapIfUnused(pair.LeftBitmap);
+                    if (!ReferenceEquals(pair.LeftBitmap, pair.RightBitmap))
+                        _releaseBitmapIfUnused(pair.RightBitmap);
                     return;
                 }
 
@@ -68,7 +79,7 @@ namespace Uviewer.Services
                 _fitToWindow();
                 _showImageUi();
 
-                var primaryEntry = _host.ImageEntries[expectedIndex];
+                var primaryEntry = expectedEntry;
                 CanvasBitmap? primaryBitmap = pair.PrimaryBitmap ?? _host.CurrentBitmap;
 
                 if (primaryBitmap != null)
@@ -84,9 +95,11 @@ namespace Uviewer.Services
 
                 ReleasePreviousBitmaps(oldLeft, oldRight, pair.LeftBitmap, pair.RightBitmap);
             }
+            catch (OperationCanceledException) { }
             catch (Exception ex)
             {
-                _host.FileNameText.Text = Strings.ImageLoadFailed(ex.Message);
+                if (!token.IsCancellationRequested)
+                    _host.FileNameText.Text = Strings.ImageLoadFailed(ex.Message);
             }
         }
 

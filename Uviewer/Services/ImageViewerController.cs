@@ -83,9 +83,17 @@ namespace Uviewer.Services
             _zoomCoordinator = new ImageZoomCoordinator(dependencies.ZoomHost);
         }
 
-        public void UpdateFastNavigationUI() => _fastNavigationPresenter.UpdateFastNavigationUI();
+        public void UpdateFastNavigationUI()
+        {
+            // Fast navigation skips DisplayCurrentImageAsync, which normally
+            // cancels the preceding load. Cancel it here as well.
+            _host.ImageLoadingCts?.Cancel();
+            _host.PreloadManager.CancelAll();
+            _host.AnimatedWebpService.Stop();
+            _fastNavigationPresenter.UpdateFastNavigationUI();
+        }
 
-        public Task ResetFastNavigationAsync() => _fastNavigationPresenter.ResetFastNavigationAsync();
+        public Task ResetFastNavigationAsync(CancellationToken token) => _fastNavigationPresenter.ResetFastNavigationAsync(token);
 
         public void PrepareForImageLoad()
         {
