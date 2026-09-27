@@ -52,16 +52,19 @@
               Canvas.ZIndex="999"
               IsHitTestVisible="False"
               Visibility="Collapsed"
-              Background="#80000000"
               HorizontalAlignment="Stretch"
               VerticalAlignment="Stretch">
-            <TextBlock x:Name="FastNavText"
-                       Foreground="White"
-                       FontSize="28"
-                       FontWeight="SemiBold"
-                       HorizontalAlignment="Center"
-                       VerticalAlignment="Center"
-                       Text="{x:Bind app:Strings.FastNavText}" />
+            <Border Background="#80000000"
+                    CornerRadius="8"
+                    Padding="24,14"
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Center">
+                <TextBlock x:Name="FastNavText"
+                           Foreground="White"
+                           FontSize="28"
+                           FontWeight="SemiBold"
+                           Text="{x:Bind app:Strings.FastNavText}" />
+            </Border>
         </Grid>
 
         <canvas:CanvasControl x:Name="MainCanvas"

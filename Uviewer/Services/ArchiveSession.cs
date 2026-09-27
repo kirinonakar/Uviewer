@@ -147,11 +147,17 @@ namespace Uviewer.Services
             CurrentPath = null;
         }
 
-        public async Task<byte[]?> ReadEntryBytesAsync(string entryKey, CancellationToken token)
+        public Task<byte[]?> ReadEntryBytesAsync(string entryKey, CancellationToken token)
+            // SevenZip Extract and archive stream decompression can block even
+            // through an async caller. Never run them on the UI dispatcher.
+            => Task.Run(() => ReadEntryBytesCoreAsync(entryKey, token), token);
+
+        private async Task<byte[]?> ReadEntryBytesCoreAsync(string entryKey, CancellationToken token)
         {
-            await _lock.WaitAsync(token);
+            await _lock.WaitAsync(token).ConfigureAwait(false);
             try
             {
+                token.ThrowIfCancellationRequested();
                 if (CurrentArchive != null)
                 {
                     var archiveEntry = CurrentArchive.Entries.FirstOrDefault(e => e.Key == entryKey);
@@ -159,7 +165,7 @@ namespace Uviewer.Services
 
                     using var memoryStream = new MemoryStream();
                     using var entryStream = archiveEntry.OpenEntryStream();
-                    await entryStream.CopyToAsync(memoryStream, token);
+                    await entryStream.CopyToAsync(memoryStream, token).ConfigureAwait(false);
                     return memoryStream.ToArray();
                 }
 

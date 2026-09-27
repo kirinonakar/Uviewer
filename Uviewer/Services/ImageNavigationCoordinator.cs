@@ -43,6 +43,7 @@ namespace Uviewer.Services
 
         private async Task NavigateAsync(bool forward, bool isManualClick)
         {
+            if (_handlers.FastNavigationService.IsNavigationSuspended) return;
             _handlers.SetScrollDirection(forward ? 1 : -1);
 
             var entries = _handlers.GetImageEntries();
@@ -69,6 +70,7 @@ namespace Uviewer.Services
                 int version = ++_navigationVersion;
                 var targetEntry = entries[nextIndex];
                 bool IsCurrentNavigation() => version == _navigationVersion &&
+                    !_handlers.FastNavigationService.IsNavigationSuspended &&
                     _handlers.GetCurrentIndex() == nextIndex &&
                     nextIndex < _handlers.GetImageEntries().Count &&
                     ReferenceEquals(_handlers.GetImageEntries()[nextIndex], targetEntry);

@@ -3,6 +3,7 @@ using Microsoft.UI.Dispatching;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Runtime.CompilerServices;
 using System.Threading;
 
 namespace Uviewer.Services
@@ -18,6 +19,49 @@ namespace Uviewer.Services
         
         private readonly DispatcherQueue _dispatcher;
         private readonly object _lockObject = new(); // 스레드 안전성을 위한 락 객체
+        private readonly ConditionalWeakTable<CanvasBitmap, BitmapLifetime> _bitmapLifetimes = new();
+
+        private sealed class BitmapLifetime
+        {
+            public int Users;
+            public bool DisposeRequested;
+            public bool Disposed;
+        }
+
+        private sealed class BitmapLease : IDisposable
+        {
+            private ImageCacheManager? _owner;
+            private readonly CanvasBitmap _bitmap;
+            public BitmapLease(ImageCacheManager owner, CanvasBitmap bitmap)
+                => (_owner, _bitmap) = (owner, bitmap);
+            public void Dispose()
+                => Interlocked.Exchange(ref _owner, null)?.ReleaseBitmapLease(_bitmap);
+        }
+
+        // Canceling a preload does not interrupt native GPU processing. Pin its
+        // input until processing returns, even if an archive switch clears caches.
+        public IDisposable? TryAcquireBitmapLease(CanvasBitmap bitmap)
+        {
+            lock (_lockObject)
+            {
+                var lifetime = _bitmapLifetimes.GetOrCreateValue(bitmap);
+                if (lifetime.DisposeRequested || lifetime.Disposed) return null;
+                lifetime.Users++;
+                return new BitmapLease(this, bitmap);
+            }
+        }
+
+        private void ReleaseBitmapLease(CanvasBitmap bitmap)
+        {
+            bool dispose;
+            lock (_lockObject)
+            {
+                var lifetime = _bitmapLifetimes.GetOrCreateValue(bitmap);
+                lifetime.Users--;
+                dispose = lifetime.Users == 0 && lifetime.DisposeRequested;
+            }
+            if (dispose) SafeDisposeBitmap(bitmap);
+        }
 
         private int _generation;
         public int Generation
@@ -158,9 +202,22 @@ namespace Uviewer.Services
         public void SafeDisposeBitmap(CanvasBitmap? bitmap)
         {
             if (bitmap == null) return;
+            lock (_lockObject)
+            {
+                var lifetime = _bitmapLifetimes.GetOrCreateValue(bitmap);
+                if (lifetime.Disposed) return;
+                lifetime.DisposeRequested = true;
+                if (lifetime.Users > 0) return;
+            }
 
             void DisposeBitmap()
             {
+                lock (_lockObject)
+                {
+                    var lifetime = _bitmapLifetimes.GetOrCreateValue(bitmap);
+                    if (lifetime.Disposed || lifetime.Users > 0) return;
+                    lifetime.Disposed = true;
+                }
                 try
                 {
                     // [수정] bitmap.Device 접근 제거. 파괴된 객체의 속성에 접근하면 예외가 발생함.

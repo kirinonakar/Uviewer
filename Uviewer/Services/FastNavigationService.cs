@@ -15,6 +15,29 @@ namespace Uviewer.Services
         private DispatcherQueueTimer? _fastNavOverlayTimer;
         private Action? _hideOverlay;
         private bool _disposed;
+        private int _navigationSuspensions;
+
+        public bool IsNavigationSuspended => _navigationSuspensions > 0;
+
+        // Document switches can overlap while awaiting I/O. Keep navigation
+        // suspended until every pending switch has left its scope.
+        public IDisposable SuspendNavigation()
+        {
+            StopTimers();
+            _navigationSuspensions++;
+            return new NavigationSuspension(this);
+        }
+
+        private sealed class NavigationSuspension : IDisposable
+        {
+            private FastNavigationService? _owner;
+            public NavigationSuspension(FastNavigationService owner) => _owner = owner;
+            public void Dispose()
+            {
+                var owner = Interlocked.Exchange(ref _owner, null);
+                if (owner != null) owner._navigationSuspensions--;
+            }
+        }
 
         // State for UI updates during fast navigation
         public int CurrentIndex { get; private set; }
@@ -53,7 +76,7 @@ namespace Uviewer.Services
 
         public bool DetectFastNavigation(Func<CancellationToken, Task> onResetCallback)
         {
-            if (_disposed) return false;
+            if (_disposed || IsNavigationSuspended) return false;
             var now = Stopwatch.GetTimestamp();
             bool isFast = _lastNavigationTimestamp.HasValue &&
                 Stopwatch.GetElapsedTime(_lastNavigationTimestamp.Value, now) < _fastNavigationThreshold;
@@ -80,7 +103,7 @@ namespace Uviewer.Services
 
         public void ShowOverlay(Action showCallback, Action hideCallback)
         {
-            if (_disposed) return;
+            if (_disposed || IsNavigationSuspended) return;
             showCallback?.Invoke();
 
             _fastNavOverlayTimer?.Stop();

@@ -381,6 +381,8 @@ namespace Uviewer.Services
 
         private async Task<CanvasBitmap?> ApplySharpenAsync(CanvasBitmap bitmap, SharpenParams sharpenParams)
         {
+            using var lease = _imageCache.TryAcquireBitmapLease(bitmap);
+            if (lease == null) return null;
             return await _sharpeningService.ApplySharpenToBitmapAsync(
                 bitmap,
                 sharpenParams.UpscaleFactor,

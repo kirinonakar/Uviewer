@@ -44,6 +44,8 @@ namespace Uviewer.Services
         private readonly FastNavigationService _fastNavigationService;
         private readonly DispatcherQueue _dispatcherQueue;
         private readonly ArchiveDocumentHandlers _handlers;
+        private readonly SemaphoreSlim _transitionLock = new(1, 1);
+        private int _transitionVersion;
 
         public ArchiveDocumentController(
             ArchiveSession archiveSession,
@@ -67,34 +69,62 @@ namespace Uviewer.Services
 
         public async Task LoadImagesFromArchiveAsync(string archivePath)
         {
+            int version = ++_transitionVersion;
+            using var suspension = _fastNavigationService.SuspendNavigation();
+            CancelActiveWork();
+            _handlers.CancelTextLoading();
+            await _transitionLock.WaitAsync();
+            try
+            {
+                if (version != _transitionVersion) return;
+                await LoadImagesFromArchiveCoreAsync(archivePath, version);
+            }
+            catch (Exception ex)
+            {
+                StartupDiagnostics.Record("Switching archive", ex);
+                if (version == _transitionVersion)
+                    _handlers.SetStatusText(Strings.ArchiveOpenFailed(ex.Message));
+            }
+            finally
+            {
+                _transitionLock.Release();
+            }
+        }
+
+        private void CancelActiveWork()
+        {
             _sevenZipExtraction.CancelExtraction();
             _preloadManager.CancelAll();
             _handlers.CancelImageLoading();
-            _handlers.CancelTextLoading();
+        }
 
-            if (!await _handlers.CloseCurrentPdfAsync()) return;
-            if (!await _handlers.CloseCurrentEpubAsync()) return;
-            if (!await CloseCurrentArchiveAsync()) return;
+        private async Task LoadImagesFromArchiveCoreAsync(string archivePath, int version)
+        {
+            if (!await _handlers.CloseCurrentPdfAsync() || version != _transitionVersion) return;
+            if (!await _handlers.CloseCurrentEpubAsync() || version != _transitionVersion) return;
+            if (!await CloseCurrentArchiveCoreAsync() || version != _transitionVersion) return;
 
             _handlers.ClearImageResources();
 
             try
             {
                 var entries = (await _archiveSession.OpenLocalAsync(archivePath)).ToList();
+                if (version != _transitionVersion) return;
                 _handlers.SetImageEntries(entries);
+                _handlers.SetCurrentIndex(entries.Count > 0 ? 0 : -1);
 
                 if (entries.Count > 0)
                 {
-                    _handlers.SetCurrentIndex(0);
-
                     await _handlers.DisplayCurrentImageAsync();
+                    if (version != _transitionVersion ||
+                        !ReferenceEquals(entries, _handlers.GetImageEntries())) return;
 
                     if (_archiveSession.IsSevenZipArchive)
                     {
                         var extractToken = _sevenZipExtraction.StartNewExtraction();
                         _ = _archiveSession.ExtractSevenZipEntriesInBackgroundAsync(
                             archivePath,
-                            _handlers.GetImageEntries(),
+                            entries,
                             _handlers.GetCurrentIndex,
                             _sevenZipExtraction,
                             extractToken);
@@ -122,16 +152,33 @@ namespace Uviewer.Services
             }
             catch (Exception ex)
             {
-                _handlers.SetStatusText(Strings.ArchiveOpenFailed(ex.Message));
+                if (version == _transitionVersion)
+                    _handlers.SetStatusText(Strings.ArchiveOpenFailed(ex.Message));
             }
         }
 
         public async Task<bool> CloseCurrentArchiveAsync()
         {
-            if (!_archiveSession.HasArchive) return true;
+            // Other document openers call this even without an archive. Do not
+            // cancel the new document's load unless an archive is open/opening.
+            if (!_archiveSession.HasArchive && _transitionLock.CurrentCount != 0) return true;
+            ++_transitionVersion;
+            using var suspension = _fastNavigationService.SuspendNavigation();
+            CancelActiveWork();
+            await _transitionLock.WaitAsync();
+            try
+            {
+                return await CloseCurrentArchiveCoreAsync();
+            }
+            finally
+            {
+                _transitionLock.Release();
+            }
+        }
 
-            _sevenZipExtraction.CancelExtraction();
-            _preloadManager.CancelAll();
+        private async Task<bool> CloseCurrentArchiveCoreAsync()
+        {
+            if (!_archiveSession.HasArchive) return true;
 
             if (!await _archiveSession.CloseAsync(TimeSpan.FromSeconds(10)))
             {
@@ -144,12 +191,11 @@ namespace Uviewer.Services
 
         private void AfterArchiveClosed()
         {
-            _dispatcherQueue.TryEnqueue(() =>
-            {
-                _handlers.SetWindowTitle("Uviewer - Image & Text Viewer");
-            });
+            _handlers.SetWindowTitle("Uviewer - Image & Text Viewer");
 
             _handlers.ClearImageResources();
+            _handlers.SetImageEntries(new List<ImageEntry>());
+            _handlers.SetCurrentIndex(-1);
             _fastNavigationService.StopTimers();
             _sevenZipExtraction.CleanupTempData();
         }
