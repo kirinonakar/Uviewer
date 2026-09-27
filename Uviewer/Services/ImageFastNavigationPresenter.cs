@@ -43,6 +43,10 @@ namespace Uviewer.Services
                 hideCallback: () =>
                 {
                     _host.FastNavOverlay.Visibility = Visibility.Collapsed;
+                    // A failed/empty load does not publish a new status bar.
+                    // Clear only our placeholder; preserve successful image info.
+                    if (_host.ImageInfoText.Text == Strings.FastNavText)
+                        _host.ImageInfoText.Text = string.Empty;
                 });
 
             _host.FileNameText.Text = _host.FastNavigationService.DisplayName;
@@ -54,7 +58,6 @@ namespace Uviewer.Services
         public async Task ResetFastNavigationAsync(CancellationToken token)
         {
             if (token.IsCancellationRequested) return;
-            _host.FastNavigationService.StopOverlayTimer();
             if (_host.CurrentIndex >= 0 && _host.CurrentIndex < _host.ImageEntries.Count)
             {
                 _host.Signal7zJump();
@@ -62,7 +65,8 @@ namespace Uviewer.Services
             }
 
             if (token.IsCancellationRequested) return;
-            _host.FastNavOverlay.Visibility = Visibility.Collapsed;
+            // FastNavigationService owns overlay cleanup for success, failure,
+            // and transitions back to normal navigation.
             _host.MainCanvas?.Invalidate();
         }
     }

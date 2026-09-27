@@ -66,6 +66,14 @@ namespace Uviewer.Services
                 _fastNavigationResetCts = new CancellationTokenSource();
                 _ = ResetAfterDelayAsync(onResetCallback, _fastNavigationResetCts.Token);
             }
+            else
+            {
+                // A running reset may already have stopped the overlay timer.
+                // Normal navigation replaces that reset, so it must also take
+                // responsibility for leaving fast-navigation UI state.
+                StopOverlayTimer();
+                HideOverlay();
+            }
 
             return isFast;
         }
@@ -127,6 +135,18 @@ namespace Uviewer.Services
                         // Dispatcher callbacks are async void; exceptions must not
                         // escape onto the UI thread, including after an await.
                         StartupDiagnostics.Record("Fast navigation reset", ex);
+                    }
+                    finally
+                    {
+                        // Complete only this reset. A canceled callback must not
+                        // hide an overlay belonging to a newer navigation.
+                        if (!token.IsCancellationRequested && !_disposed)
+                        {
+                            _fastNavigationResetCts?.Dispose();
+                            _fastNavigationResetCts = null;
+                            StopOverlayTimer();
+                            HideOverlay();
+                        }
                     }
                 });
             }
