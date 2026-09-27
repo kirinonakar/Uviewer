@@ -10,7 +10,7 @@ namespace Uviewer.Services
     {
         private readonly DispatcherQueue _dispatcherQueue;
         private long? _lastNavigationTimestamp;
-        private readonly TimeSpan _fastNavigationThreshold = TimeSpan.FromMilliseconds(40);
+        private readonly TimeSpan _fastNavigationThreshold = TimeSpan.FromMilliseconds(80);
         private CancellationTokenSource? _fastNavigationResetCts;
         private DispatcherQueueTimer? _fastNavOverlayTimer;
         private Action? _hideOverlay;
@@ -120,7 +120,14 @@ namespace Uviewer.Services
 
         private void OnOverlayTimerTick(DispatcherQueueTimer sender, object args)
         {
-            StopOverlayTimer();
+            // Keep the overlay visible while the final image is still loading.
+            // The timer is restarted by each new fast-navigation update.
+            if (_fastNavigationResetCts != null)
+            {
+                sender.Start();
+                return;
+            }
+
             HideOverlay();
         }
 
@@ -140,7 +147,9 @@ namespace Uviewer.Services
         {
             try
             {
-                await Task.Delay(50, token).ConfigureAwait(false);
+                // Wait longer than the fast-navigation threshold so key repeats
+                // do not start a load in the middle of an active navigation burst.
+                await Task.Delay(100, token).ConfigureAwait(false);
                 if (token.IsCancellationRequested) return;
                 _dispatcherQueue.TryEnqueue(async () =>
                 {
@@ -149,7 +158,6 @@ namespace Uviewer.Services
                     if (token.IsCancellationRequested || _disposed) return;
                     try
                     {
-                        StopOverlayTimer();
                         await onResetCallback(token);
                     }
                     catch (OperationCanceledException) when (token.IsCancellationRequested) { }
@@ -161,14 +169,12 @@ namespace Uviewer.Services
                     }
                     finally
                     {
-                        // Complete only this reset. A canceled callback must not
-                        // hide an overlay belonging to a newer navigation.
+                        // Complete only this reset. The overlay timer handles
+                        // hiding after navigation has actually become idle.
                         if (!token.IsCancellationRequested && !_disposed)
                         {
                             _fastNavigationResetCts?.Dispose();
                             _fastNavigationResetCts = null;
-                            StopOverlayTimer();
-                            HideOverlay();
                         }
                     }
                 });
