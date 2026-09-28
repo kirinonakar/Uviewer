@@ -29,11 +29,15 @@ namespace Uviewer.Models
                 _displayPath = normalized;
                 OnPropertyChanged();
                 OnPropertyChanged(nameof(DisplayPathVisibility));
+                OnPropertyChanged(nameof(ToolTipText));
             }
         }
 
         public Visibility DisplayPathVisibility =>
             string.IsNullOrEmpty(_displayPath) ? Visibility.Collapsed : Visibility.Visible;
+
+        public string ToolTipText =>
+            string.IsNullOrEmpty(_displayPath) ? Name : $"{Name}\n{_displayPath}";
 
         public bool IsDirectory { get; set; }
         public bool IsArchive { get; set; }

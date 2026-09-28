@@ -90,7 +90,11 @@ namespace Uviewer.Services
             _favoritesController = favoritesController ?? throw new ArgumentNullException(nameof(favoritesController));
             _host = host ?? throw new ArgumentNullException(nameof(host));
             _windowHandle = windowHandle;
-            _explorerController.ItemsChanged += (_, _) => UpdateFilterStatus();
+            _explorerController.ItemsChanged += (_, _) =>
+            {
+                UpdateFilterStatus();
+                ApplyThumbnailSizeToFileItems();
+            };
         }
 
         public void HandleFilterChanged()
@@ -347,7 +351,7 @@ namespace Uviewer.Services
 
         public void ApplyThumbnailSizeToFileItems()
         {
-            foreach (var item in _explorerController.AllItems)
+            foreach (var item in _explorerController.VisibleItems)
             {
                 item.ApplyThumbnailSize(_host.ExplorerThumbnailSize);
             }

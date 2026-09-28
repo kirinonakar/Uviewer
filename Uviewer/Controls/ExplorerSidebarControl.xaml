@@ -312,7 +312,7 @@
                         <ListView.ItemTemplate>
                             <DataTemplate>
                                 <Grid Padding="4,6" ColumnSpacing="8" Background="Transparent"
-                                      ToolTipService.ToolTip="{Binding Name}">
+                                      ToolTipService.ToolTip="{Binding ToolTipText}">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="Auto"/>
                                         <ColumnDefinition Width="*"/>
@@ -345,7 +345,7 @@
                         <GridView.ItemTemplate>
                             <DataTemplate>
                                 <Grid Width="{Binding ThumbnailItemWidth}" Height="{Binding ThumbnailItemHeight}" Padding="4" Background="Transparent" CornerRadius="4"
-                                      ToolTipService.ToolTip="{Binding Name}">
+                                      ToolTipService.ToolTip="{Binding ToolTipText}">
                                     <Grid.RowDefinitions>
                                         <RowDefinition Height="*"/>
                                         <RowDefinition Height="Auto"/>
