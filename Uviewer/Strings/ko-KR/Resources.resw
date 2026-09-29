@@ -262,6 +262,9 @@
   <data name="Preview" xml:space="preserve">
     <value>미리보기</value>
   </data>
+  <data name="FastNavigation" xml:space="preserve">
+    <value>빠른 탐색</value>
+  </data>
   <data name="MatchControlDirection" xml:space="preserve">
     <value>컨트롤 방향 일치</value>
   </data>

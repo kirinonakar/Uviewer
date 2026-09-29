@@ -262,6 +262,9 @@
   <data name="Preview" xml:space="preserve">
     <value>预览</value>
   </data>
+  <data name="FastNavigation" xml:space="preserve">
+    <value>快速导航</value>
+  </data>
   <data name="MatchControlDirection" xml:space="preserve">
     <value>匹配控制方向</value>
   </data>

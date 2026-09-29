@@ -15,6 +15,7 @@ namespace Uviewer.Services
         bool NextImageOnRight { get; set; }
         ElementTheme CurrentTheme { get; }
         bool MatchControlDirection { get; set; }
+        bool FastNavigationEnabled { get; set; }
         bool AllowMultipleInstances { get; set; }
         bool KeepInTray { get; set; }
         bool AutoDoublePageForArchive { get; set; }

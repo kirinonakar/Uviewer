@@ -16,6 +16,7 @@ namespace Uviewer.Models
         public bool NextImageOnRight { get; set; } = true;
         public ElementTheme Theme { get; set; } = ElementTheme.Default;
         public bool MatchControlDirection { get; set; } = false;
+        public bool FastNavigationEnabled { get; set; } = true;
         public bool AllowMultipleInstances { get; set; } = true;
         public bool KeepInTray { get; set; } = false;
         public bool IsSidebarVisible { get; set; } = true;
@@ -152,6 +153,7 @@ namespace Uviewer.Models
         public bool NextImageOnRight { get; set; } = true;
         public bool Sharpen { get; set; }
         public bool MatchControlDirection { get; set; }
+        public bool FastNavigationEnabled { get; set; } = true;
         public bool AutoDoublePageForArchive { get; set; }
     }
 

@@ -233,6 +233,7 @@ namespace Uviewer.Services
                     NextImageOnRight = settings.NextImageOnRight,
                     Sharpen = settings.SharpenEnabled,
                     MatchControlDirection = settings.MatchControlDirection,
+                    FastNavigationEnabled = settings.FastNavigationEnabled,
                     AutoDoublePageForArchive = settings.AutoDoublePageForArchive
                 },
                 Explorer = new AppExplorerSettings
@@ -282,6 +283,7 @@ namespace Uviewer.Services
                 NextImageOnRight = viewer.NextImageOnRight,
                 Theme = (ElementTheme)app.Theme,
                 MatchControlDirection = viewer.MatchControlDirection,
+                FastNavigationEnabled = viewer.FastNavigationEnabled,
                 AllowMultipleInstances = app.AllowMultipleInstances,
                 KeepInTray = app.KeepInTray,
                 IsSidebarVisible = explorer.SidebarVisible,

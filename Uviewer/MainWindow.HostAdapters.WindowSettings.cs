@@ -46,6 +46,12 @@ namespace Uviewer
                 set => _window._matchControlDirection = value;
             }
 
+            public bool FastNavigationEnabled
+            {
+                get => _window._fastNavigationService.Enabled;
+                set => _window._fastNavigationService.Enabled = value;
+            }
+
             public bool AllowMultipleInstances
             {
                 get => _window._allowMultipleInstances;
@@ -109,6 +115,7 @@ namespace Uviewer
 
                 _window.MainToolbar.SetWindowOptionStates(
                     _window._matchControlDirection,
+                    _window._fastNavigationService.Enabled,
                     _window._allowMultipleInstances,
                     _window._keepInTray,
                     _window._imageViewerState.AutoDoublePageForArchive,

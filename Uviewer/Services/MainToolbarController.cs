@@ -18,6 +18,7 @@ namespace Uviewer.Services
         public Action SaveToolbarCustomization { get; init; } = null!;
         public Func<string, Task> ApplyLanguageAsync { get; init; } = null!;
         public Action<bool> SetMatchControlDirection { get; init; } = null!;
+        public Func<bool, Task> SetFastNavigationAsync { get; init; } = null!;
         public Action<bool> SetAllowMultipleInstances { get; init; } = null!;
         public Action<bool> SetKeepInTray { get; init; } = null!;
         public Action<bool> SetAutoDoublePageForArchive { get; init; } = null!;
@@ -90,6 +91,7 @@ namespace Uviewer.Services
             _toolbar.ToolbarCustomizationChanged += (_, _) => _handlers.SaveToolbarCustomization();
             _toolbar.LanguageSelected += (_, language) => RunAsync(() => _handlers.ApplyLanguageAsync(language));
             _toolbar.MatchControlDirectionChanged += (_, isChecked) => _handlers.SetMatchControlDirection(isChecked);
+            _toolbar.FastNavigationChanged += (_, isChecked) => RunAsync(() => _handlers.SetFastNavigationAsync(isChecked));
             _toolbar.AllowMultipleInstancesChanged += (_, isChecked) => _handlers.SetAllowMultipleInstances(isChecked);
             _toolbar.KeepInTrayChanged += (_, isChecked) => _handlers.SetKeepInTray(isChecked);
             _toolbar.AutoDoublePageForArchiveChanged += (_, isChecked) => _handlers.SetAutoDoublePageForArchive(isChecked);

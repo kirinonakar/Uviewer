@@ -67,6 +67,10 @@ namespace Uviewer.Services
 
             if (canNavigate)
             {
+                // Without fast navigation, accept repeated input only at the
+                // fastest rate that would stay below the fast-navigation threshold.
+                if (!isManualClick && !_handlers.FastNavigationService.TryBeginNormalNavigation()) return;
+
                 int version = ++_navigationVersion;
                 var targetEntry = entries[nextIndex];
                 bool IsCurrentNavigation() => version == _navigationVersion &&

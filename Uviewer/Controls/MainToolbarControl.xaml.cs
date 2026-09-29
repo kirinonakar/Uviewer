@@ -21,6 +21,7 @@ namespace Uviewer.Controls
         public event EventHandler? ToolbarCustomizationChanged;
         public event EventHandler<string>? LanguageSelected;
         public event EventHandler<bool>? MatchControlDirectionChanged;
+        public event EventHandler<bool>? FastNavigationChanged;
         public event EventHandler<bool>? AllowMultipleInstancesChanged;
         public event EventHandler<bool>? KeepInTrayChanged;
         public event EventHandler<bool>? AutoDoublePageForArchiveChanged;
@@ -129,6 +130,7 @@ namespace Uviewer.Controls
             LangZhHantItem.Click += LanguageItem_Click;
             LangViItem.Click += LanguageItem_Click;
             MatchControlDirectionMenuItem.Click += (_, _) => MatchControlDirectionChanged?.Invoke(this, MatchControlDirectionMenuItem.IsChecked);
+            FastNavigationMenuItem.Click += (_, _) => FastNavigationChanged?.Invoke(this, FastNavigationMenuItem.IsChecked);
             AllowMultipleInstancesMenuItem.Click += (_, _) => RaiseAllowMultipleInstancesChanged(AllowMultipleInstancesMenuItem.IsChecked);
             KeepInTrayMenuItem.Click += (_, _) => KeepInTrayChanged?.Invoke(this, KeepInTrayMenuItem.IsChecked);
             AutoDoublePageForArchiveMenuItem.Click += (_, _) => AutoDoublePageForArchiveChanged?.Invoke(this, AutoDoublePageForArchiveMenuItem.IsChecked);
@@ -278,6 +280,7 @@ namespace Uviewer.Controls
                 : Strings.ExternalProgramMenuWithName(System.IO.Path.GetFileName(_externalProgramPath));
             CustomizeToolbarMenuItem.Text = Strings.ToolbarCustomization;
             MatchControlDirectionMenuItem.Text = Strings.MatchControlDirection;
+            FastNavigationMenuItem.Text = Strings.FastNavigation;
             ToolTipService.SetToolTip(MatchControlDirectionMenuItem, Strings.MatchControlDirectionTooltip);
             AllowMultipleInstancesMenuItem.Text = Strings.AllowMultipleInstances;
             ToolTipService.SetToolTip(AllowMultipleInstancesMenuItem, Strings.AllowMultipleInstancesTooltip);
@@ -337,12 +340,14 @@ namespace Uviewer.Controls
 
         public void SetWindowOptionStates(
             bool matchControlDirection,
+            bool fastNavigationEnabled,
             bool allowMultipleInstances,
             bool keepInTray,
             bool autoDoublePageForArchive,
             bool alwaysOnTop)
         {
             MatchControlDirectionMenuItem.IsChecked = matchControlDirection;
+            FastNavigationMenuItem.IsChecked = fastNavigationEnabled;
             KeepInTrayMenuItem.IsChecked = keepInTray;
             AllowMultipleInstancesMenuItem.IsChecked = allowMultipleInstances;
             AllowMultipleInstancesButton.IsChecked = allowMultipleInstances;

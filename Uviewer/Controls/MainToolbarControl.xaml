@@ -107,6 +107,11 @@
                                 <ToggleMenuFlyoutItem x:Name="LangViItem" Text="{x:Bind app:Strings.LanguageVietnamese}" Tag="vi-VN"/>
                             </MenuFlyoutSubItem>
                             <MenuFlyoutSeparator/>
+                            <ToggleMenuFlyoutItem x:Name="FastNavigationMenuItem" Text="{x:Bind app:Strings.FastNavigation}" IsChecked="True">
+                                <ToggleMenuFlyoutItem.Icon>
+                                    <FontIcon Glyph="&#xE628;"/>
+                                </ToggleMenuFlyoutItem.Icon>
+                            </ToggleMenuFlyoutItem>
                             <ToggleMenuFlyoutItem x:Name="MatchControlDirectionMenuItem" Text="{x:Bind app:Strings.MatchControlDirection}">
                                 <ToggleMenuFlyoutItem.Icon>
                                     <FontIcon Glyph="&#xE8AB;"/>

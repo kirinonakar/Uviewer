@@ -262,6 +262,9 @@
   <data name="Preview" xml:space="preserve">
     <value>Preview</value>
   </data>
+  <data name="FastNavigation" xml:space="preserve">
+    <value>Fast Navigation</value>
+  </data>
   <data name="MatchControlDirection" xml:space="preserve">
     <value>Match Control Direction</value>
   </data>

@@ -29,6 +29,15 @@ namespace Uviewer
                                 window._matchControlDirection = isChecked;
                                 window._windowSettingsCoordinator.SaveWindowSettings();
                             },
+                            SetFastNavigationAsync = async isChecked =>
+                            {
+                                bool needsCurrentImage = !isChecked && window._fastNavigationService.HasPendingReset;
+                                window._fastNavigationService.Enabled = isChecked;
+                                window._fastNavigationService.StopTimers();
+                                window._windowSettingsCoordinator.SaveWindowSettings();
+                                if (needsCurrentImage)
+                                    await window._imageViewerController.DisplayCurrentImageAsync();
+                            },
                             SetAllowMultipleInstances = isChecked =>
                             {
                                 bool wasEnabled = window._allowMultipleInstances;

@@ -140,6 +140,7 @@ namespace Uviewer
         public static string Lightness => GetString("Lightness");
         public static string Preview => GetString("Preview");
         public static string MatchControlDirection => GetString("MatchControlDirection");
+        public static string FastNavigation => GetString("FastNavigation");
         public static string MatchControlDirectionTooltip => GetString("MatchControlDirectionTooltip");
         public static string AllowMultipleInstances => GetString("AllowMultipleInstances");
         public static string AllowMultipleInstancesTooltip => GetString("AllowMultipleInstancesTooltip");

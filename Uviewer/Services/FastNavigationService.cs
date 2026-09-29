@@ -10,6 +10,7 @@ namespace Uviewer.Services
     {
         private readonly DispatcherQueue _dispatcherQueue;
         private long? _lastNavigationTimestamp;
+        private long? _lastNormalNavigationTimestamp;
         private readonly TimeSpan _fastNavigationThreshold = TimeSpan.FromMilliseconds(80);
         private CancellationTokenSource? _fastNavigationResetCts;
         private DispatcherQueueTimer? _fastNavOverlayTimer;
@@ -18,6 +19,8 @@ namespace Uviewer.Services
         private int _navigationSuspensions;
 
         public bool IsNavigationSuspended => _navigationSuspensions > 0;
+        public bool Enabled { get; set; } = true;
+        public bool HasPendingReset => _fastNavigationResetCts != null;
 
         // Document switches can overlap while awaiting I/O. Keep navigation
         // suspended until every pending switch has left its scope.
@@ -76,7 +79,7 @@ namespace Uviewer.Services
 
         public bool DetectFastNavigation(Func<CancellationToken, Task> onResetCallback)
         {
-            if (_disposed || IsNavigationSuspended) return false;
+            if (_disposed || IsNavigationSuspended || !Enabled) return false;
             var now = Stopwatch.GetTimestamp();
             bool isFast = _lastNavigationTimestamp.HasValue &&
                 Stopwatch.GetElapsedTime(_lastNavigationTimestamp.Value, now) < _fastNavigationThreshold;
@@ -116,6 +119,19 @@ namespace Uviewer.Services
             _hideOverlay = hideCallback;
             _fastNavOverlayTimer.Interval = TimeSpan.FromMilliseconds(200);
             _fastNavOverlayTimer.Start();
+        }
+
+        public bool TryBeginNormalNavigation()
+        {
+            if (Enabled) return true;
+
+            var now = Stopwatch.GetTimestamp();
+            if (_lastNormalNavigationTimestamp.HasValue &&
+                Stopwatch.GetElapsedTime(_lastNormalNavigationTimestamp.Value, now) < _fastNavigationThreshold)
+                return false;
+
+            _lastNormalNavigationTimestamp = now;
+            return true;
         }
 
         private void OnOverlayTimerTick(DispatcherQueueTimer sender, object args)
@@ -198,6 +214,7 @@ namespace Uviewer.Services
         {
             CancelPendingReset();
             _lastNavigationTimestamp = null;
+            _lastNormalNavigationTimestamp = null;
             StopOverlayTimer();
             HideOverlay();
         }

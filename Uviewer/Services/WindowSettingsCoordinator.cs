@@ -40,6 +40,7 @@ namespace Uviewer.Services
             _host.NextImageOnRight = settings.NextImageOnRight;
             _host.SetTheme(settings.Theme);
             _host.MatchControlDirection = settings.MatchControlDirection;
+            _host.FastNavigationEnabled = settings.FastNavigationEnabled;
             _host.KeepInTray = settings.KeepInTray;
             // 트레이에 유지와 다중 실행은 함께 사용할 수 있으므로 강제로 끄지 않습니다.
             _host.AllowMultipleInstances = settings.AllowMultipleInstances;
@@ -92,6 +93,7 @@ namespace Uviewer.Services
                 NextImageOnRight = _host.NextImageOnRight,
                 Theme = _host.CurrentTheme,
                 MatchControlDirection = _host.MatchControlDirection,
+                FastNavigationEnabled = _host.FastNavigationEnabled,
                 AllowMultipleInstances = _host.AllowMultipleInstances,
                 KeepInTray = _host.KeepInTray,
                 IsSidebarVisible = windowState.IsSidebarVisible,

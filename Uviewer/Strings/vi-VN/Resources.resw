@@ -262,6 +262,9 @@
   <data name="Preview" xml:space="preserve">
     <value>Xem trước</value>
   </data>
+  <data name="FastNavigation" xml:space="preserve">
+    <value>Điều hướng nhanh</value>
+  </data>
   <data name="MatchControlDirection" xml:space="preserve">
     <value>Khớp hướng điều khiển</value>
   </data>
