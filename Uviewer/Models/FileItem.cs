@@ -40,6 +40,7 @@ namespace Uviewer.Models
             string.IsNullOrEmpty(_displayPath) ? Name : $"{Name}\n{_displayPath}";
 
         public bool IsDirectory { get; set; }
+        public bool IsDrive { get; set; }
         public bool IsArchive { get; set; }
         public bool IsImage { get; set; }
         public bool IsText { get; set; }
@@ -246,6 +247,7 @@ namespace Uviewer.Models
         }
 
         public string Icon => IsParentDirectory ? "\uE72B" :
+                              IsDrive ? "\uEDA2" :
                               IsDirectory ? "\uE8B7" :
                               IsArchive ? "\uE8D4" :
                               IsEpub ? "\uE82D" :

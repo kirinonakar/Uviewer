@@ -27,6 +27,26 @@ namespace Uviewer.Services
 
     public static class FileExplorerService
     {
+        public const string LocalRootPath = "/";
+
+        public static string? GetParentFolderPath(string path)
+        {
+            if (path == LocalRootPath) return null;
+
+            var normalizedPath = Path.GetFullPath(path);
+            var root = Path.GetPathRoot(normalizedPath);
+            if (string.Equals(
+                normalizedPath.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar),
+                root?.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar),
+                StringComparison.OrdinalIgnoreCase))
+            {
+                return LocalRootPath;
+            }
+
+            return Directory.GetParent(normalizedPath.TrimEnd(
+                Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar))?.FullName;
+        }
+
         #region Existing Extension Helpers
         public static readonly string[] SupportedImageExtensions = { ".jpg", ".jpeg", ".png", ".bmp", ".gif", ".webp", ".avif", ".jxl", ".ico", ".tiff", ".tif" };
         public static readonly string[] SupportedTextExtensions = { ".txt", ".log", ".json", ".toml", ".csv", ".html", ".htm", ".md", ".xml" };
@@ -112,12 +132,25 @@ namespace Uviewer.Services
         {
             return Task.Run(() =>
             {
-                var items = new List<FileItem>();
-                var parentDir = Directory.GetParent(path);
-                
-                if (parentDir != null)
+                if (path == LocalRootPath)
                 {
-                    items.Add(new FileItem { Name = "..", FullPath = parentDir.FullName, IsDirectory = true, IsParentDirectory = true });
+                    return DriveInfo.GetDrives()
+                        .OrderBy(drive => drive.Name, NaturalSortComparer.Default)
+                        .Select(drive => new FileItem
+                        {
+                            Name = drive.Name.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar),
+                            FullPath = drive.Name,
+                            IsDirectory = true,
+                            IsDrive = true
+                        }).ToList();
+                }
+
+                var items = new List<FileItem>();
+                var parentPath = GetParentFolderPath(path);
+                
+                if (parentPath != null)
+                {
+                    items.Add(new FileItem { Name = "..", FullPath = parentPath, IsDirectory = true, IsParentDirectory = true });
                 }
 
                 var di = new DirectoryInfo(path);

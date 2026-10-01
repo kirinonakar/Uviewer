@@ -4,6 +4,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using Uviewer.Services;
 
 namespace Uviewer.Controls
 {
@@ -57,6 +58,12 @@ namespace Uviewer.Controls
 
         private void SetLocalPathOrMessage(string value)
         {
+            if (value == FileExplorerService.LocalRootPath)
+            {
+                SetItems(new[] { new BreadcrumbEntry("/", FileExplorerService.LocalRootPath, IsWebDav: false) });
+                return;
+            }
+
             if (string.IsNullOrWhiteSpace(value) || !Path.IsPathRooted(value))
             {
                 SetItems(new[] { new BreadcrumbEntry(value, null, IsWebDav: false) });
@@ -65,7 +72,10 @@ namespace Uviewer.Controls
 
             string normalizedPath = value.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
             string root = Path.GetPathRoot(value) ?? string.Empty;
-            var items = new List<BreadcrumbEntry>();
+            var items = new List<BreadcrumbEntry>
+            {
+                new("/", FileExplorerService.LocalRootPath, IsWebDav: false)
+            };
 
             string rootLabel = root.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
             if (string.IsNullOrEmpty(rootLabel))
@@ -132,9 +142,8 @@ namespace Uviewer.Controls
             int firstVisibleIndex = 0;
             double maximumContentWidth = availableWidth * 2;
             double visibleWidth = _items.Sum(item => EstimateItemWidth(item, fontSize));
-            double ellipsisWidth = EstimateItemWidth(
-                new BreadcrumbEntry("…", null, IsWebDav: false),
-                fontSize);
+            var ellipsisItem = new BreadcrumbEntry("...", null, IsWebDav: false);
+            double ellipsisWidth = EstimateItemWidth(ellipsisItem, fontSize);
 
             if (visibleWidth > maximumContentWidth)
             {
@@ -155,11 +164,7 @@ namespace Uviewer.Controls
             {
                 var collapsedItems = new List<BreadcrumbEntry>
                 {
-                    new("…", null, IsWebDav: false)
-                    {
-                        DisplayLabel = "…",
-                        SeparatorVisibility = Visibility.Collapsed
-                    }
+                    ellipsisItem with { CollapsedAncestors = _items.Take(firstVisibleIndex).ToArray() }
                 };
                 collapsedItems.AddRange(_items.Skip(firstVisibleIndex));
                 visibleItems = collapsedItems;
@@ -187,7 +192,42 @@ namespace Uviewer.Controls
 
         private void BreadcrumbItem_Click(object sender, RoutedEventArgs e)
         {
-            if (sender is Button { Tag: BreadcrumbEntry { Target: not null } item })
+            if (sender is not Button { Tag: BreadcrumbEntry item } button)
+            {
+                return;
+            }
+
+            if (item.CollapsedAncestors is { } ancestors)
+            {
+                ShowAncestorFlyout(button, ancestors);
+                return;
+            }
+
+            NavigateToEntry(item);
+        }
+
+        private void ShowAncestorFlyout(Button placementTarget, IReadOnlyList<BreadcrumbEntry> ancestors)
+        {
+            var flyout = new MenuFlyout();
+            foreach (var ancestor in ancestors)
+            {
+                if (ancestor.Target == null) continue;
+
+                var menuItem = new MenuFlyoutItem { Text = ancestor.Label };
+                ToolTipService.SetToolTip(menuItem, ancestor.Target);
+                menuItem.Click += (_, _) => NavigateToEntry(ancestor);
+                flyout.Items.Add(menuItem);
+            }
+
+            if (flyout.Items.Count > 0)
+            {
+                flyout.ShowAt(placementTarget);
+            }
+        }
+
+        private void NavigateToEntry(BreadcrumbEntry item)
+        {
+            if (item.Target != null)
             {
                 NavigationRequested?.Invoke(
                     this,
@@ -197,6 +237,7 @@ namespace Uviewer.Controls
 
         private sealed record BreadcrumbEntry(string Label, string? Target, bool IsWebDav)
         {
+            public IReadOnlyList<BreadcrumbEntry>? CollapsedAncestors { get; init; }
             public string DisplayLabel { get; set; } = Label;
             public Visibility SeparatorVisibility { get; set; } = Visibility.Collapsed;
         }

@@ -71,7 +71,7 @@ namespace Uviewer.Services
 
         public async Task RenameAsync(FileItem? item)
         {
-            if (item == null || item.IsParentDirectory || item.IsWebDav) return;
+            if (item == null || item.IsParentDirectory || item.IsDrive || item.IsWebDav) return;
 
             var originalPath = item.FullPath;
             if (!File.Exists(originalPath) && !Directory.Exists(originalPath))
@@ -153,7 +153,7 @@ namespace Uviewer.Services
 
         public async Task DeleteAsync(FileItem? item)
         {
-            if (item == null || item.IsParentDirectory || item.IsWebDav) return;
+            if (item == null || item.IsParentDirectory || item.IsDrive || item.IsWebDav) return;
 
             var path = item.FullPath;
             if (!File.Exists(path) && !Directory.Exists(path))

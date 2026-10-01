@@ -225,7 +225,7 @@ namespace Uviewer.Services
                     return;
                 }
             }
-            else if (!Directory.Exists(entry.Path))
+            else if (entry.Path != FileExplorerService.LocalRootPath && !Directory.Exists(entry.Path))
             {
                 _host.ShowNotification(Strings.FileNotFound, "\uE7BA", "Red");
                 return;
@@ -387,7 +387,7 @@ namespace Uviewer.Services
             {
                 var item = GetContextItem();
                 var hasLocalItem = item != null && !item.IsWebDav;
-                var canModify = hasLocalItem && !item!.IsParentDirectory;
+                var canModify = hasLocalItem && !item!.IsParentDirectory && !item.IsDrive;
                 var canOpen = hasLocalItem && !item!.IsParentDirectory;
 
                 openExternalItem.IsEnabled = canOpen;
@@ -560,7 +560,7 @@ namespace Uviewer.Services
 
             if (item.IsDirectory)
             {
-                if (!Directory.Exists(item.FullPath))
+                if (item.FullPath != FileExplorerService.LocalRootPath && !Directory.Exists(item.FullPath))
                 {
                     _host.ShowNotification(Strings.FileNotFound, "\uE7BA", "Red");
                     Refresh();
@@ -638,23 +638,24 @@ namespace Uviewer.Services
 
         public async Task NavigateToParentFolderAsync()
         {
-            if (_host.IsWebDavMode &&
-                !string.IsNullOrEmpty(_host.CurrentWebDavPath) &&
-                _host.CurrentWebDavPath != "/")
+            if (_host.IsWebDavMode)
             {
-                var parentPath = _host.CurrentWebDavPath.TrimEnd('/');
-                var lastSlash = parentPath.LastIndexOf('/');
-                var parent = lastSlash > 0 ? parentPath.Substring(0, lastSlash + 1) : "/";
-                await _host.LoadWebDavFolderAsync(parent);
+                if (!string.IsNullOrEmpty(_host.CurrentWebDavPath) && _host.CurrentWebDavPath != "/")
+                {
+                    var parentPath = _host.CurrentWebDavPath.TrimEnd('/');
+                    var lastSlash = parentPath.LastIndexOf('/');
+                    var parent = lastSlash > 0 ? parentPath.Substring(0, lastSlash + 1) : "/";
+                    await _host.LoadWebDavFolderAsync(parent);
+                }
                 return;
             }
 
             if (!string.IsNullOrEmpty(_host.CurrentExplorerPath))
             {
-                var parentDir = Directory.GetParent(_host.CurrentExplorerPath);
-                if (parentDir != null)
+                var parentPath = FileExplorerService.GetParentFolderPath(_host.CurrentExplorerPath);
+                if (parentPath != null)
                 {
-                    LoadFolder(parentDir.FullName);
+                    LoadFolder(parentPath);
                 }
             }
         }

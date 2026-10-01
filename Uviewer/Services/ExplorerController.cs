@@ -133,7 +133,7 @@ namespace Uviewer.Services
             }
 
             var rootPath = _state.CurrentPath;
-            if (string.IsNullOrEmpty(rootPath) || !Directory.Exists(rootPath)) return;
+            if (string.IsNullOrEmpty(rootPath) || rootPath == FileExplorerService.LocalRootPath || !Directory.Exists(rootPath)) return;
 
             var cts = new CancellationTokenSource();
             _descendantSearchCts = cts;
