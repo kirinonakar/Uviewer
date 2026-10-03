@@ -26,7 +26,7 @@ namespace Uviewer.Services
 
         private DispatcherQueueTimer? _animatedWebpTimer;
         private AnimationWakeTimer? _animationWakeTimer;
-        private bool _useIndependentWebpTimer;
+        private bool _useIndependentAnimationTimer;
         private List<AnimatedFrameData>? _animatedWebpFrames;
         private List<int>? _animatedWebpDelaysMs;
         private int _animatedWebpFrameIndex;
@@ -39,7 +39,7 @@ namespace Uviewer.Services
         private volatile bool _isDecodingAnimatedImage = false;
         private int _animationGeneration;
         private int _highResolutionTimerActive;
-        private long _animatedWebpNextFrameTimestamp;
+        private readonly AnimationPlaybackClock _playbackClock = new();
         private int _gpuFrameCacheCapacity = MinimumGpuFrameCacheCount;
         private int _framePrefetchActive;
         private readonly SemaphoreSlim _framePersistenceSlots = new(2, 2);
@@ -95,37 +95,6 @@ namespace Uviewer.Services
             public int Height { get; }
         }
 
-        private sealed class AnimatedFrameData
-        {
-            public AnimatedFrameData(AnimationFrameStore store, byte[] pixels, int width, int height, bool isDisplayReady)
-            {
-                _store = store;
-                _storedFrame = store.Write(pixels);
-                Width = width;
-                Height = height;
-                IsDisplayReady = isDisplayReady;
-            }
-
-            private AnimatedFrameData(AnimationFrameStore store, AnimationFrameStore.Frame storedFrame,
-                int width, int height)
-            {
-                _store = store;
-                _storedFrame = storedFrame;
-                Width = width;
-                Height = height;
-                IsDisplayReady = true;
-            }
-
-            private readonly AnimationFrameStore _store;
-            private readonly AnimationFrameStore.Frame _storedFrame;
-            public byte[] Pixels => _store.Read(_storedFrame);
-            public AnimatedFrameData StoreProcessedPixels(AnimationFrameStore store, byte[] pixels, int width, int height) =>
-                new(store, store.Write(pixels), width, height);
-            public int Width { get; }
-            public int Height { get; }
-            public bool IsDisplayReady { get; }
-        }
-
         [DllImport("winmm.dll")]
         private static extern uint timeBeginPeriod(uint uPeriod);
 
@@ -167,23 +136,23 @@ namespace Uviewer.Services
             Interlocked.Increment(ref _animationGeneration);
             _isDecodingAnimatedImage = false; // 진행 중인 백그라운드 디코딩 중지
             
-            _animatedWebpTimer?.Stop();
+            if (_animatedWebpTimer != null)
+            {
+                _animatedWebpTimer.Stop();
+                _animatedWebpTimer.Tick -= AnimatedWebpTimer_Tick;
+            }
             _animatedWebpTimer = null;
             _animationWakeTimer?.Dispose();
             _animationWakeTimer = null;
-            _useIndependentWebpTimer = false;
+            _useIndependentAnimationTimer = false;
             RestoreTimerResolution();
 
             // [안정성 수정] 캔버스 참조를 먼저 끊어서 더 이상 프레임이 전파되지 않도록 합니다.
             _currentCanvas = null;
 
-            _animatedWebpDelaysMs?.Clear();
-            _animatedWebpDelaysMs = null;
-
             _animatedWebpWidth = 0;
             _animatedWebpHeight = 0;
             _animatedWebpFrameIndex = 0;
-            _animatedWebpNextFrameTimestamp = 0;
             _animationDevice = null;
 
             // [안정성 수정] Stop()을 호출한 측에서 _currentBitmap을 null로 설정한 뒤에
@@ -191,11 +160,16 @@ namespace Uviewer.Services
             RaiseAnimationStopped();
 
             List<CanvasBitmap> bitmapsToDispose;
+            AnimationFrameStore? frameStore;
+            AnimationFrameStore? processedFrameStore;
             lock (_animatedWebpBitmapCacheLock)
             {
-                _frameStore?.Dispose();
+                _playbackClock.Reset();
+                _animatedWebpDelaysMs?.Clear();
+                _animatedWebpDelaysMs = null;
+                frameStore = _frameStore;
                 _frameStore = null;
-                _processedFrameStore?.Dispose();
+                processedFrameStore = _processedFrameStore;
                 _processedFrameStore = null;
                 _animatedWebpFrames?.Clear();
                 _animatedWebpFrames = null;
@@ -208,6 +182,14 @@ namespace Uviewer.Services
             }
 
             DisposeBitmapsOnDispatcher(bitmapsToDispose);
+            // A cache write/upload may still hold a store lease. Do not block the
+            // UI or hold the frame-cache lock while those operations finish.
+            if (frameStore != null || processedFrameStore != null)
+                _ = Task.Run(() =>
+                {
+                    frameStore?.Dispose();
+                    processedFrameStore?.Dispose();
+                });
         }
 
         private void RaiseAnimationStopped()
@@ -279,7 +261,9 @@ namespace Uviewer.Services
                     token.ThrowIfCancellationRequested();
                     // Serialize stop/start and bitmap detachment on the owning UI queue.
                     Stop();
-                    _useIndependentWebpTimer = string.Equals(extension, ".webp", StringComparison.OrdinalIgnoreCase);
+                    _useIndependentAnimationTimer = isAvif
+                        || string.Equals(extension, ".webp", StringComparison.OrdinalIgnoreCase)
+                        || string.Equals(extension, ".gif", StringComparison.OrdinalIgnoreCase);
                     _currentCanvas = canvas;
                     _upscaleFactor = upscaleFactor;
                     _sharpenAmountParam = sharpenAmount;
@@ -373,47 +357,37 @@ namespace Uviewer.Services
                 return;
             }
 
-            // The still preview is already visible. Buffer a short lead before
-            // starting the media clock so first-pass decoding does not repeatedly
-            // run out of frames and stretch the animation's first loop.
-            long bufferingStarted = Stopwatch.GetTimestamp();
-            while (_isDecodingAnimatedImage)
-            {
-                token.ThrowIfCancellationRequested();
-                lock (_animatedWebpBitmapCacheLock)
-                {
-                    if (_animatedWebpFrames != frames || animationGeneration != Volatile.Read(ref _animationGeneration)) return;
-                    long bufferedMs = 0;
-                    if (_animatedWebpDelaysMs != null)
-                        foreach (int delay in _animatedWebpDelaysMs) bufferedMs += delay;
-                    if (bufferedMs >= 1000) break;
-                }
-                if (Stopwatch.GetElapsedTime(bufferingStarted).TotalMilliseconds >= 1500) break;
-                await Task.Delay(5, token).ConfigureAwait(false);
-            }
-
             var canvas = _currentCanvas;
-            if (canvas != null)
-            {
-                int primeCount;
-                lock (_animatedWebpBitmapCacheLock)
-                    primeCount = Math.Min(3, Math.Min(_gpuFrameCacheCapacity, frames.Count));
-                for (int i = 0; i < primeCount; i++)
-                {
-                    token.ThrowIfCancellationRequested();
-                    if (await GetOrPrepareFrameBitmapAsync(frames, canvas, i).ConfigureAwait(false) == null) break;
-                }
-            }
+            if (canvas == null) return;
 
-            _dispatcherQueue.TryEnqueue(() =>
+            // Only the first frame is required to start. Prefetch and cache writes
+            // run behind playback, for both WebP and AVIF.
+            var firstBitmap = await GetOrPrepareFrameBitmapAsync(frames, canvas, 0).ConfigureAwait(false);
+            if (firstBitmap == null) return;
+
+            if (!_dispatcherQueue.TryEnqueue(() =>
             {
-                if (!token.IsCancellationRequested
-                    && animationGeneration == Volatile.Read(ref _animationGeneration))
+                lock (_animatedWebpBitmapCacheLock)
                 {
-                    // 상태(_animatedWebpFrames 등)는 프레임 로더에서 이미 할당되어 있다.
+                    if (token.IsCancellationRequested
+                        || animationGeneration != Volatile.Read(ref _animationGeneration)
+                        || _animatedWebpFrames != frames || _currentCanvas != canvas) return;
+                    FrameUpdated?.Invoke(this, firstBitmap);
                     StartAnimatedWebpTimer();
                 }
-            });
+            })) return;
+
+            AnimatedFrameData? firstFrame;
+            lock (_animatedWebpBitmapCacheLock)
+                firstFrame = _animatedWebpFrames == frames && frames.Count > 0 ? frames[0] : null;
+            if (firstFrame != null)
+            {
+                _ = Task.Run(() =>
+                {
+                    try { firstFrame.Persist(); }
+                    catch (Exception ex) { Debug.WriteLine($"First animation frame cache: {ex.Message}"); }
+                });
+            }
         }
 
         private void StartAnimatedWebpTimer()
@@ -433,7 +407,8 @@ namespace Uviewer.Services
             }
 
             _animatedWebpTimer = _dispatcherQueue.CreateTimer();
-            if (_useIndependentWebpTimer)
+            _animatedWebpTimer.IsRepeating = false;
+            if (_useIndependentAnimationTimer)
             {
                 var timer = _animatedWebpTimer;
                 int generation = Volatile.Read(ref _animationGeneration);
@@ -451,12 +426,11 @@ namespace Uviewer.Services
                 }
                 catch (Exception ex)
                 {
-                    Debug.WriteLine($"WebP high-resolution timer unavailable: {ex.Message}");
+                    Debug.WriteLine($"Animation high-resolution timer unavailable: {ex.Message}");
                 }
             }
             if (_animationWakeTimer == null) EnsureHighResolutionTimer();
-            _animatedWebpNextFrameTimestamp = Stopwatch.GetTimestamp()
-                + MillisecondsToStopwatchTicks(delaysMs[_animatedWebpFrameIndex]);
+            _playbackClock.Start(Stopwatch.GetTimestamp());
             _animatedWebpTimer.Tick += AnimatedWebpTimer_Tick;
             ScheduleNextFrame(_animatedWebpTimer);
             QueueFramePrefetch(frames, canvas);
@@ -466,15 +440,19 @@ namespace Uviewer.Services
         {
             if (!ReferenceEquals(sender, _animatedWebpTimer)) return;
             // [안정성 수정] 로컬 변수에 스냅샷을 캡처하여 도중에 Stop()이 호출되어도 안전하게 접근
-            var frames = _animatedWebpFrames;
-            var delaysMs = _animatedWebpDelaysMs;
-            var canvas = _currentCanvas;
-            if (frames == null || delaysMs == null || canvas == null)
-                return;
-
-            // [안정성 수정] 두 리스트의 최소 Count를 기준으로 바운드 체크 (백그라운드 디코딩 중 비원자적 추가 대응)
-            int safeFrameCount = Math.Min(frames.Count, delaysMs.Count);
-            if (safeFrameCount == 0) return;
+            List<AnimatedFrameData>? frames;
+            List<int>? delaysMs;
+            CanvasControl? canvas;
+            int safeFrameCount;
+            lock (_animatedWebpBitmapCacheLock)
+            {
+                frames = _animatedWebpFrames;
+                delaysMs = _animatedWebpDelaysMs;
+                canvas = _currentCanvas;
+                if (frames == null || delaysMs == null || canvas == null) return;
+                safeFrameCount = Math.Min(frames.Count, delaysMs.Count);
+                if (safeFrameCount == 0) return;
+            }
 
             sender.Stop();
 
@@ -485,16 +463,13 @@ namespace Uviewer.Services
                     _animatedWebpFrameIndex = 0;
                 }
 
-                long nowTimestamp = Stopwatch.GetTimestamp();
-                if (_animatedWebpNextFrameTimestamp <= 0)
+                lock (_animatedWebpBitmapCacheLock)
                 {
-                    _animatedWebpNextFrameTimestamp = nowTimestamp
-                        + MillisecondsToStopwatchTicks(delaysMs[_animatedWebpFrameIndex]);
+                    if (_animatedWebpFrames != frames || _currentCanvas != canvas) return;
+                    if (!_playbackClock.Advance(Stopwatch.GetTimestamp(), !_isDecodingAnimatedImage)) return;
+                    _animatedWebpFrameIndex = _playbackClock.FrameIndex;
+                    safeFrameCount = frames.Count;
                 }
-
-                // DispatcherQueueTimer/DWM이 늦게 깨어난 경우에도 지연을 다음 프레임에
-                // 누적하지 않고, 단조 시계상의 현재 재생 위치로 따라잡는다.
-                if (!AdvanceFrameToPlaybackTime(delaysMs, safeFrameCount, nowTimestamp)) return;
 
                 // 재검증: Stop()이 호출되었거나 인덱스가 범위를 벗어나면 중단
                 if (canvas.Device == null || _animatedWebpFrameIndex >= safeFrameCount) return;
@@ -541,86 +516,22 @@ namespace Uviewer.Services
             }
         }
 
-        private bool AdvanceFrameToPlaybackTime(List<int> delaysMs, int frameCount, long nowTimestamp)
-        {
-            long deadline = _animatedWebpNextFrameTimestamp;
-            if (nowTimestamp < deadline)
-            {
-                return false;
-            }
-
-            long overdueTicks = nowTimestamp - deadline;
-            int nextIndex = _animatedWebpFrameIndex + 1;
-
-            if (nextIndex >= frameCount && _isDecodingAnimatedImage)
-            {
-                // 아직 다음 프레임이 디코딩되지 않았다. 현재 프레임의 지연시간 뒤에
-                // 다시 확인하되, 디코딩 대기 시간을 이후 재생에 누적하지 않는다.
-                _animatedWebpNextFrameTimestamp = nowTimestamp
-                    + MillisecondsToStopwatchTicks(delaysMs[_animatedWebpFrameIndex]);
-                return false;
-            }
-
-            if (!_isDecodingAnimatedImage && frameCount > 0)
-            {
-                long cycleTicks = 0;
-                for (int i = 0; i < frameCount; i++)
-                {
-                    cycleTicks += MillisecondsToStopwatchTicks(delaysMs[i]);
-                }
-
-                if (cycleTicks > 0 && overdueTicks >= cycleTicks)
-                {
-                    overdueTicks %= cycleTicks;
-                }
-            }
-
-            while (true)
-            {
-                if (nextIndex >= frameCount)
-                {
-                    if (_isDecodingAnimatedImage)
-                    {
-                        _animatedWebpNextFrameTimestamp = nowTimestamp
-                            + MillisecondsToStopwatchTicks(delaysMs[_animatedWebpFrameIndex]);
-                        return true;
-                    }
-
-                    nextIndex = 0;
-                }
-
-                _animatedWebpFrameIndex = nextIndex;
-                long frameDurationTicks = MillisecondsToStopwatchTicks(delaysMs[nextIndex]);
-                if (overdueTicks < frameDurationTicks)
-                {
-                    _animatedWebpNextFrameTimestamp = nowTimestamp + frameDurationTicks - overdueTicks;
-                    return true;
-                }
-
-                overdueTicks -= frameDurationTicks;
-                nextIndex++;
-            }
-        }
-
         private void ScheduleNextFrame(DispatcherQueueTimer timer)
         {
-            long remainingTicks = _animatedWebpNextFrameTimestamp - Stopwatch.GetTimestamp();
+            long remainingTicks;
+            lock (_animatedWebpBitmapCacheLock)
+                remainingTicks = _playbackClock.NextDeadline - Stopwatch.GetTimestamp();
             double remainingMilliseconds = remainingTicks * 1000.0 / Stopwatch.Frequency;
             timer.Interval = TimeSpan.FromMilliseconds(Math.Max(1.0, remainingMilliseconds));
             if (_animationWakeTimer != null)
             {
                 if (_animationWakeTimer.TrySchedule(timer.Interval)) return;
-                Debug.WriteLine("WebP high-resolution timer scheduling failed; using dispatcher timer.");
+                Debug.WriteLine("Animation high-resolution timer scheduling failed; using dispatcher timer.");
                 _animationWakeTimer.Dispose();
                 _animationWakeTimer = null;
                 EnsureHighResolutionTimer();
             }
             timer.Start();
-        }
-
-        private static long MillisecondsToStopwatchTicks(int milliseconds)
-        {
-            return Math.Max(1L, (long)Math.Ceiling(milliseconds * (double)Stopwatch.Frequency / 1000.0));
         }
 
         public bool IsBitmapInCache(CanvasBitmap bitmap)
@@ -906,7 +817,6 @@ namespace Uviewer.Services
 
         private CanvasBitmap CreateOrReuseGpuBitmap(CanvasDevice device, AnimatedFrameData frame, List<AnimatedFrameData> frames)
         {
-            byte[] pixels = frame.Pixels;
             CanvasBitmap? reusableBitmap = null;
             lock (_animatedWebpBitmapCacheLock)
             {
@@ -929,27 +839,39 @@ namespace Uviewer.Services
                 }
             }
 
-            if (reusableBitmap != null)
+            try
             {
-                try
+                return frame.WithPixels(pixels =>
                 {
-                    reusableBitmap.SetPixelBytes(pixels);
-                    return reusableBitmap;
-                }
-                catch
-                {
-                    try { reusableBitmap.Dispose(); } catch { }
-                }
-            }
+                    if (reusableBitmap != null)
+                    {
+                        try
+                        {
+                            reusableBitmap.SetPixelBytes(pixels);
+                            return reusableBitmap;
+                        }
+                        catch
+                        {
+                            try { reusableBitmap.Dispose(); } catch { }
+                            reusableBitmap = null;
+                        }
+                    }
 
-            return CanvasBitmap.CreateFromBytes(
-                device,
-                pixels,
-                frame.Width,
-                frame.Height,
-                DirectXPixelFormat.B8G8R8A8UIntNormalized,
-                96.0f,
-                CanvasAlphaMode.Premultiplied);
+                    return CanvasBitmap.CreateFromBytes(
+                        device,
+                        pixels,
+                        frame.Width,
+                        frame.Height,
+                        DirectXPixelFormat.B8G8R8A8UIntNormalized,
+                        96.0f,
+                        CanvasAlphaMode.Premultiplied);
+                });
+            }
+            catch
+            {
+                try { reusableBitmap?.Dispose(); } catch { }
+                throw;
+            }
         }
 
         private bool IsFrameInGpuWindowLocked(int frameIndex, int frameCount)
@@ -1029,6 +951,7 @@ namespace Uviewer.Services
                     _isDecodingAnimatedImage = true;
                     _animatedWebpFrames = frames;
                     _animatedWebpDelaysMs = delaysMs;
+                    _playbackClock.AddFrame(firstFrame.Value.DelayMs);
                     _animatedWebpWidth = width;
                     _animatedWebpHeight = height;
                     _animationDevice = displayDevice;
@@ -1094,8 +1017,8 @@ namespace Uviewer.Services
                         isDisplayReady: !_sharpenEnabled);
                     int delayMs = decodedFrame.Value.DelayMs;
 
-                    if (!PublishDecodedFrameAsync(frames, delaysMs, frame, delayMs, animationGeneration)
-                        .GetAwaiter().GetResult()) break;
+                    if (!PublishDecodedFrame(frames, delaysMs, frame, delayMs, animationGeneration)) break;
+                    frame.Persist();
                 }
             }
             catch (Exception ex)
@@ -1106,15 +1029,11 @@ namespace Uviewer.Services
             {
                 decoder.Dispose();
 
-                if (animationGeneration == Volatile.Read(ref _animationGeneration))
+                lock (_animatedWebpBitmapCacheLock)
                 {
-                    _isDecodingAnimatedImage = false;
-                }
-
-                if (animationGeneration != Volatile.Read(ref _animationGeneration)
-                    || _animatedWebpFrames != frames)
-                {
-                    lock (_animatedWebpBitmapCacheLock)
+                    if (animationGeneration == Volatile.Read(ref _animationGeneration))
+                        _isDecodingAnimatedImage = false;
+                    else
                     {
                         frames.Clear();
                     }
@@ -1173,34 +1092,22 @@ namespace Uviewer.Services
             }
         }
 
-        private async Task<bool> PublishDecodedFrameAsync(List<AnimatedFrameData> frames,
+        private bool PublishDecodedFrame(List<AnimatedFrameData> frames,
             List<int> delaysMs, AnimatedFrameData frame, int delay, int generation)
         {
-            var published = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
-            if (!_dispatcherQueue.TryEnqueue(() =>
+            CanvasControl? canvas;
+            lock (_animatedWebpBitmapCacheLock)
             {
-                lock (_animatedWebpBitmapCacheLock)
-                {
-                    if (generation != Volatile.Read(ref _animationGeneration) || _animatedWebpFrames != frames)
-                    {
-                        published.TrySetResult(false);
-                        return;
-                    }
-                    delaysMs.Add(delay);
-                    frames.Add(frame);
-                }
-                published.TrySetResult(true);
-                var canvas = _currentCanvas;
-                if (canvas != null) QueueFramePrefetch(frames, canvas);
-            })) return false;
-
-            // Shutdown may stop dispatching without running the queued callback.
-            while (!published.Task.IsCompleted)
-            {
-                await Task.WhenAny(published.Task, Task.Delay(50)).ConfigureAwait(false);
-                if (generation != Volatile.Read(ref _animationGeneration)) return false;
+                if (generation != Volatile.Read(ref _animationGeneration) || _animatedWebpFrames != frames)
+                    return false;
+                delaysMs.Add(delay);
+                frames.Add(frame);
+                _playbackClock.AddFrame(delay);
+                canvas = _currentCanvas;
             }
-            return await published.Task.ConfigureAwait(false);
+            // Publishing decoded data does not depend on how busy the UI queue is.
+            if (canvas != null) QueueFramePrefetch(frames, canvas);
+            return true;
         }
 
         private static byte PremultiplyChannel(byte channel, byte alpha) =>
@@ -1295,6 +1202,7 @@ namespace Uviewer.Services
                         _isDecodingAnimatedImage = true;
                         _animatedWebpFrames = frames;
                         _animatedWebpDelaysMs = delaysMs;
+                        _playbackClock.AddFrame(delay0);
                         _animatedWebpWidth = w;
                         _animatedWebpHeight = h;
                         _animationDevice = displayDevice;
@@ -1359,8 +1267,8 @@ namespace Uviewer.Services
                                     h,
                                     isDisplayReady: !_sharpenEnabled);
 
-                                if (!await PublishDecodedFrameAsync(frames, delaysMs, decodedFrame, delay,
-                                    animationGeneration).ConfigureAwait(false)) break;
+                                if (!PublishDecodedFrame(frames, delaysMs, decodedFrame, delay, animationGeneration)) break;
+                                decodedFrame.Persist();
                             }
                         }
                         catch (Exception ex) { Debug.WriteLine($"Bg Decode Error: {ex.Message}"); }
@@ -1372,15 +1280,12 @@ namespace Uviewer.Services
                             try { decodeDevice.Dispose(); } catch (Exception ex) { Debug.WriteLine($"Decode device dispose error: {ex.Message}"); }
 
                             // 서비스가 리스트를 채택하지 못한 경우(취소/세대 불일치) 로컬에서 정리한다.
-                            if (animationGeneration != Volatile.Read(ref _animationGeneration)
-                                || _animatedWebpFrames != frames)
+                            lock (_animatedWebpBitmapCacheLock)
                             {
-                                lock (_animatedWebpBitmapCacheLock) frames.Clear();
-                            }
-
-                            if (animationGeneration == Volatile.Read(ref _animationGeneration))
-                            {
-                                _isDecodingAnimatedImage = false;
+                                if (animationGeneration == Volatile.Read(ref _animationGeneration))
+                                    _isDecodingAnimatedImage = false;
+                                else
+                                    frames.Clear();
                             }
                         }
                     });

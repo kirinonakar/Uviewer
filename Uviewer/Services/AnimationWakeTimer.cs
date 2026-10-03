@@ -52,7 +52,7 @@ namespace Uviewer.Services
                         _stop.Dispose();
                     }
                 }
-            }) { IsBackground = true, Name = "WebP frame timer" };
+            }) { IsBackground = true, Name = "Image animation timer" };
             try { thread.Start(); }
             catch
             {

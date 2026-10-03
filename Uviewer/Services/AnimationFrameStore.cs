@@ -16,6 +16,7 @@ internal sealed class AnimationFrameStore : IDisposable
     // process-wide pool after Stop. Size is bounded by the largest single frame.
     private byte[] _writeBuffer = Array.Empty<byte>();
     private byte[] _readBuffer = Array.Empty<byte>();
+    private byte[] _pixelBuffer = Array.Empty<byte>();
 
     public AnimationFrameStore()
     {
@@ -47,12 +48,16 @@ internal sealed class AnimationFrameStore : IDisposable
         }
     }
 
-    public byte[] Read(Frame frame)
+    // Upload while holding the read lease so repeated loops reuse one exact-sized
+    // pixel buffer instead of allocating a large managed array for every frame.
+    public TResult Read<TResult>(Frame frame, Func<byte[], TResult> usePixels)
     {
         lock (_readGate)
         {
             ObjectDisposedException.ThrowIf(_stream == null, this);
-            byte[] pixels = GC.AllocateUninitializedArray<byte>(frame.Length);
+            if (_pixelBuffer.Length != frame.Length)
+                _pixelBuffer = GC.AllocateUninitializedArray<byte>(frame.Length);
+            byte[] pixels = _pixelBuffer;
             if (!frame.Compressed)
             {
                 lock (_gate)
@@ -60,7 +65,7 @@ internal sealed class AnimationFrameStore : IDisposable
                     _stream.Position = frame.Offset;
                     _stream.ReadExactly(pixels);
                 }
-                return pixels;
+                return usePixels(pixels);
             }
             if (_readBuffer.Length < frame.StoredLength)
                 _readBuffer = GC.AllocateUninitializedArray<byte>(frame.StoredLength);
@@ -71,7 +76,7 @@ internal sealed class AnimationFrameStore : IDisposable
             }
             if (LZ4Codec.Decode(_readBuffer.AsSpan(0, frame.StoredLength), pixels.AsSpan()) != frame.Length)
                 throw new InvalidDataException("Incomplete animation frame in temporary storage.");
-            return pixels;
+            return usePixels(pixels);
         }
     }
 
@@ -85,6 +90,7 @@ internal sealed class AnimationFrameStore : IDisposable
             _stream = null;
             _writeBuffer = Array.Empty<byte>();
             _readBuffer = Array.Empty<byte>();
+            _pixelBuffer = Array.Empty<byte>();
         }
     }
 }
