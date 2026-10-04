@@ -160,6 +160,9 @@ namespace Uviewer.Services
         ImageCacheManager ImageCache { get; }
         IAnimatedWebpService AnimatedWebpService { get; }
         PreloadManager PreloadManager { get; }
+
+        bool TryPresentAnimatedFrame();
+        void HideAnimatedFrame();
     }
 
     internal interface IImageDocumentEntryHost

@@ -99,6 +99,9 @@ namespace Uviewer
             public ImageCacheManager ImageCache => Window._imageCache;
             public IAnimatedWebpService AnimatedWebpService => Window._animatedWebpService;
             public PreloadManager PreloadManager => Window._preloadManager;
+
+            public bool TryPresentAnimatedFrame() => Window.TryPresentAnimatedFrame();
+            public void HideAnimatedFrame() => Window._imageSwapChainRenderer.Hide(Window.HdrMainCanvas);
         }
 
         private sealed class ImageInputPort : ImageWindowPort, IImageInputHost

@@ -40,7 +40,10 @@ namespace Uviewer.Services
                 _host.ImageCache.SafeDisposeBitmap(oldBitmap);
             }
 
-            _host.MainCanvas?.Invalidate();
+            // Submit while the animation service still holds the bitmap cache
+            // lock. Invalidate alone defers every frame to XAML's refresh clock.
+            if (!_host.TryPresentAnimatedFrame())
+                _host.MainCanvas?.Invalidate();
         }
 
         public void OnAnimatedWebpAnimationStopped(object? sender, EventArgs e)
@@ -48,6 +51,7 @@ namespace Uviewer.Services
             try
             {
                 _host.IsAnimatedFrameActive = false;
+                _host.HideAnimatedFrame();
                 var bitmap = _host.CurrentBitmap;
                 if (bitmap != null && _host.AnimatedWebpService.IsBitmapInCache(bitmap))
                 {

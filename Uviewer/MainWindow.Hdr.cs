@@ -85,9 +85,9 @@ namespace Uviewer
 
             _isHdrOutputActive = state.IsActive;
             _hdrDisplayMaxLuminance = state.MaxLuminance;
-            _hdrSwapChainRenderer.Hide(HdrMainCanvas);
-            _hdrSwapChainRenderer.Hide(HdrLeftCanvas);
-            _hdrSwapChainRenderer.Hide(HdrRightCanvas);
+            _imageSwapChainRenderer.Hide(HdrMainCanvas);
+            _imageSwapChainRenderer.Hide(HdrLeftCanvas);
+            _imageSwapChainRenderer.Hide(HdrRightCanvas);
 
             if (_imageViewerController == null || !IsCurrentEntryAvif())
             {

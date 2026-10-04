@@ -35,7 +35,7 @@ namespace Uviewer
         private Services.ImageStatusBarService _imageStatusBarService = null!;
         private Services.SideBySideImageLoadService _sideBySideImageLoadService = null!;
         private Services.ImageViewportNavigationService _imageViewportNavigationService = null!;
-        private readonly HdrSwapChainRenderer _hdrSwapChainRenderer = new();
+        private readonly ImageSwapChainRenderer _imageSwapChainRenderer = new();
 
         // Refactored Services
         private Services.WindowSettingsCoordinator _windowSettingsCoordinator = null!;
@@ -697,27 +697,11 @@ namespace Uviewer
 
         private void MainCanvas_Draw(CanvasControl sender, CanvasDrawEventArgs args)
         {
+            if (TryDrawMainSwapChain()) return;
+
             double panY = _imageViewportNavigationService.PanY;
             int displayedIndex = _currentPdfDocument != null
                 ? _imageViewportNavigationService.DisplayedPdfPageIndex : _currentIndex;
-            if (_hdrSwapChainRenderer.DrawMain(
-                HdrMainCanvas,
-                sender,
-                _currentBitmap,
-                _isHdrOutputActive,
-                _imageEntries,
-                _imageCache,
-                _currentIndex,
-                _zoomLevel,
-                _isCurrentViewSideBySide,
-                _sharpenEnabled,
-                _isAnimatedFrameActive,
-                _imageViewportNavigationService.PanX,
-                ref panY))
-            {
-                _imageViewportNavigationService.PanY = panY;
-                return;
-            }
 
             ImageCanvasRenderer.DrawMainCanvas(
                 sender,
@@ -765,6 +749,36 @@ namespace Uviewer
                 _imageViewerController.PdfSelectionHighlights);
         }
 
+        private bool TryPresentAnimatedFrame() =>
+            _isAnimatedFrameActive && TryDrawMainSwapChain();
+
+        private bool TryDrawMainSwapChain()
+        {
+            if (_isWindowClosing) return false;
+
+            double panY = _imageViewportNavigationService.PanY;
+            bool presented = _imageSwapChainRenderer.DrawMain(
+                HdrMainCanvas,
+                MainCanvas,
+                _currentBitmap,
+                _isHdrOutputActive,
+                _imageEntries,
+                _imageCache,
+                _currentIndex,
+                _zoomLevel,
+                _isCurrentViewSideBySide,
+                _sharpenEnabled,
+                _isAnimatedFrameActive,
+                // Opaque presentation prevents the old CanvasControl still
+                // image from showing through transparent WebP/GIF pixels.
+                ImageArea.Background is SolidColorBrush background
+                    ? background.Color : Microsoft.UI.Colors.Black,
+                _imageViewportNavigationService.PanX,
+                ref panY);
+            if (presented) _imageViewportNavigationService.PanY = panY;
+            return presented;
+        }
+
         private void LeftCanvas_CreateResources(CanvasControl sender, CanvasCreateResourcesEventArgs args)
         {
             // Resources will be created as needed
@@ -772,7 +786,7 @@ namespace Uviewer
 
         private void LeftCanvas_Draw(CanvasControl sender, CanvasDrawEventArgs args)
         {
-            if (_hdrSwapChainRenderer.DrawSide(
+            if (_imageSwapChainRenderer.DrawSide(
                 HdrLeftCanvas,
                 sender,
                 _leftBitmap,
@@ -791,7 +805,7 @@ namespace Uviewer
 
         private void RightCanvas_Draw(CanvasControl sender, CanvasDrawEventArgs args)
         {
-            if (_hdrSwapChainRenderer.DrawSide(
+            if (_imageSwapChainRenderer.DrawSide(
                 HdrRightCanvas,
                 sender,
                 _rightBitmap,
