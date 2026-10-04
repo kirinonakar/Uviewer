@@ -754,7 +754,7 @@ namespace Uviewer
 
         private bool TryDrawMainSwapChain()
         {
-            if (_isWindowClosing) return false;
+            if (_isWindowClosing || _isHiddenToTray) return false;
 
             double panY = _imageViewportNavigationService.PanY;
             bool presented = _imageSwapChainRenderer.DrawMain(

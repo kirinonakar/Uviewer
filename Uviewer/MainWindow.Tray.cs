@@ -84,11 +84,21 @@ namespace Uviewer
                 SaveWindowSettingsForShutdown();
                 _windowShellController.BeginExternalPointerInteraction();
                 cursorTrackingSuspended = true;
+
+                // Capture the reading position before clearing the current image.
+                // Saving it may yield; frame/resource release must not wait for I/O.
+                Task savePositionTask = SavePositionBeforeHidingToTrayAsync();
+                _imageSwapChainRenderer.ClearAndRelease(
+                    ImageArea.Background is Microsoft.UI.Xaml.Media.SolidColorBrush background
+                        ? background.Color : Microsoft.UI.Colors.Black);
+                _imageViewerController.ClearImageResources();
+                ImageViewer.ShowEmptyState();
+
                 AppWindow.Hide();
                 _isHiddenToTray = true;
                 RefreshMultiInstanceState();
                 _explorerSidebarController.ClearFilter(focusInput: false);
-                _trayDocumentReleaseTask = ReleaseDocumentAfterHidingToTrayAsync();
+                _trayDocumentReleaseTask = ReleaseDocumentAfterHidingToTrayAsync(savePositionTask);
                 return true;
             }
             catch (Exception ex)
@@ -126,19 +136,24 @@ namespace Uviewer
             _windowShellController.EndExternalPointerInteraction();
         }
 
-        private async Task ReleaseDocumentAfterHidingToTrayAsync()
+        private async Task SavePositionBeforeHidingToTrayAsync()
         {
-            // Let the hide request complete before starting UI-bound document cleanup.
-            await Task.Yield();
-
             try
             {
                 await _bookmarkInteractionController.AddCurrentRecentAsync(true);
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"Error saving document position after hiding to tray: {ex.Message}");
+                System.Diagnostics.Debug.WriteLine($"Error saving document position for tray: {ex.Message}");
             }
+        }
+
+        private async Task ReleaseDocumentAfterHidingToTrayAsync(Task savePositionTask)
+        {
+            // Frames and presentation buffers are already detached. Finish slower
+            // document cleanup after hiding, without losing the captured position.
+            await Task.Yield();
+            await savePositionTask;
 
             try
             {

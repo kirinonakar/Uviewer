@@ -112,6 +112,34 @@ namespace Uviewer.Renderers
             ReleaseSurface(panel);
         }
 
+        public void ClearAndRelease(Windows.UI.Color backgroundColor)
+        {
+            // XAML can defer a panel detach while its window is hidden. Replace
+            // the last submitted image before hiding so a retained compositor
+            // surface contains only the background when the window is restored.
+            foreach (var panel in new List<CanvasSwapChainPanel>(_surfaces.Keys))
+            {
+                var state = _surfaces[panel];
+                try
+                {
+                    using (state.SwapChain.CreateDrawingSession(
+                        state.Format == DirectXPixelFormat.R16G16B16A16Float
+                            ? Microsoft.UI.Colors.Black : backgroundColor))
+                    {
+                    }
+                    state.SwapChain.Present(0);
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"Image swap-chain clear failed: {ex.Message}");
+                }
+                finally
+                {
+                    Hide(panel);
+                }
+            }
+        }
+
         private bool Prepare(
             CanvasSwapChainPanel panel,
             Microsoft.Graphics.Canvas.UI.Xaml.CanvasControl sizingCanvas,
