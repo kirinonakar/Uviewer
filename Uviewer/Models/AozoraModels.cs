@@ -32,6 +32,7 @@ namespace Uviewer.Models
         public int TableRowIndex { get; set; } = -1;
         public int TableRowCount { get; set; } = 0;
         public int OriginalBlockIndex { get; set; } = -1;
+        public int HorizontalColumnIndex { get; set; }
         public List<AozoraSearchSegment> SearchSegments { get; set; } = new();
     }
 

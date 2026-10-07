@@ -283,6 +283,8 @@ namespace Uviewer
         public static string TextAlignRight => GetString("TextAlignRight");
         public static string TextOptionsApply => GetString("TextOptionsApply");
         public static string TextOptionsHint => GetString("TextOptionsHint");
+        public static string TextHorizontalTwoColumns => GetString("TextHorizontalTwoColumns");
+        public static string TextHorizontalTwoColumnsHint => GetString("TextHorizontalTwoColumnsHint");
         public static string Cancel => GetString("DialogClose");
         public static string DeletePrimary => GetString("DeletePrimary");
         public static string InvalidFileName => GetString("InvalidFileName");

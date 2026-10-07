@@ -23,6 +23,12 @@ namespace Uviewer
     internal sealed partial class DocumentReaderController
     {
         internal bool _isAozoraMode = true;
+        private bool UseHorizontalTwoColumns => ReaderLayoutService.ShouldUseHorizontalTwoColumns(
+            _isTextMode && !_isEpubMode && _settingsManager.HorizontalTwoColumnView,
+            _isAozoraMode,
+            _isVerticalMode,
+            RootGrid?.ActualWidth ?? 0,
+            RootGrid?.ActualHeight ?? 0);
         internal bool _isMarkdownRenderMode = false;
         internal List<AozoraBindingModel> _aozoraBlocks = new();
         internal int _aozoraTotalLineCount = 0;
@@ -79,7 +85,8 @@ namespace Uviewer
                 isVertical ? DoesVerticalImageExist : DoesAozoraImageExist,
                 isVertical && (_isSideBySideMode || CanUseAutoDoublePageForCurrentWindow),
                 isVertical ? new Func<string, bool>(ShouldPairTextImage) : null,
-                token);
+                token,
+                !isVertical && UseHorizontalTwoColumns ? 2 : 1);
         }
 
         internal int FindPreviousPageStart(int targetIdx, List<AozoraBindingModel> blocks, float maxWidth, float availHeight, Microsoft.Graphics.Canvas.ICanvasResourceCreator device, bool isVertical, CancellationToken token = default)
@@ -111,7 +118,7 @@ namespace Uviewer
             float availHeight = isVertical ? (float)(VerticalTextCanvas?.ActualHeight ?? 0) : (float)(AozoraTextCanvas?.ActualHeight ?? 0);
             var layout = isVertical
                 ? _readerLayoutService.CreateVerticalTextLayout(availWidth, availHeight, RootGrid?.ActualWidth ?? 0, RootGrid?.ActualHeight ?? 0)
-                : _readerLayoutService.CreateHorizontalTextLayout(availWidth, availHeight, RootGrid?.ActualWidth ?? 0, RootGrid?.ActualHeight ?? 0, _isMarkdownRenderMode, GetUrlMaxWidth());
+                : _readerLayoutService.CreateHorizontalTextLayout(availWidth, availHeight, RootGrid?.ActualWidth ?? 0, RootGrid?.ActualHeight ?? 0, _isMarkdownRenderMode, GetUrlMaxWidth(), UseHorizontalTwoColumns);
 
             var device = isVertical ? VerticalTextCanvas?.Device : AozoraTextCanvas?.Device;
             device ??= Microsoft.Graphics.Canvas.CanvasDevice.GetSharedDevice();
@@ -139,6 +146,7 @@ namespace Uviewer
         private IReadOnlyList<AozoraBindingModel>? _aozoraCalculatedPageMapBlocks;
         private float _aozoraCalculatedPageMapWidth;
         private float _aozoraCalculatedPageMapHeight;
+        private bool _aozoraCalculatedPageMapTwoColumns;
         private bool _aozoraCalculatedPageMapIsMarkdown;
         private double _aozoraCalculatedPageMapFontSize;
         private string? _aozoraCalculatedPageMapFontFamily;
@@ -700,7 +708,7 @@ namespace Uviewer
                 RootGrid?.ActualWidth ?? 0,
                 RootGrid?.ActualHeight ?? 0,
                 _isMarkdownRenderMode,
-                GetUrlMaxWidth());
+                GetUrlMaxWidth(), UseHorizontalTwoColumns);
 
             int index = startIdx;
             var device = AozoraTextCanvas.Device ?? Microsoft.Graphics.Canvas.CanvasDevice.GetSharedDevice();
@@ -785,7 +793,7 @@ namespace Uviewer
                     canvasWidth,
                     canvasHeight,
                     _isMarkdownRenderMode,
-                    GetUrlMaxWidth());
+                    GetUrlMaxWidth(), UseHorizontalTwoColumns);
                 var device = AozoraTextCanvas.Device ?? Microsoft.Graphics.Canvas.CanvasDevice.GetSharedDevice();
 
                 bool calculated = await _readerPageMapCalculationService.CalculateAsync(
@@ -800,7 +808,8 @@ namespace Uviewer
                         _settingsManager.FontFamily,
                         GetFontWeightForFamily,
                         DoesAozoraImageExist,
-                        cancellationToken: token),
+                        cancellationToken: token,
+                        horizontalColumnCount: layout.ColumnCount),
                     AozoraPageOrientation.Horizontal,
                     token);
 
@@ -811,6 +820,7 @@ namespace Uviewer
                 _aozoraCalculatedPageMapBlocks = blocks;
                 _aozoraCalculatedPageMapWidth = canvasWidth;
                 _aozoraCalculatedPageMapHeight = canvasHeight;
+                _aozoraCalculatedPageMapTwoColumns = UseHorizontalTwoColumns;
                 _aozoraCalculatedPageMapIsMarkdown = _isMarkdownRenderMode;
                 _aozoraCalculatedPageMapFontSize = _settingsManager.FontSize;
                 _aozoraCalculatedPageMapFontFamily = _settingsManager.FontFamily;
@@ -849,6 +859,7 @@ namespace Uviewer
                    ReferenceEquals(_aozoraCalculatedPageMapBlocks, blocks) &&
                    Math.Abs(_aozoraCalculatedPageMapWidth - canvasWidth) < 1f &&
                    Math.Abs(_aozoraCalculatedPageMapHeight - canvasHeight) < 1f &&
+                   _aozoraCalculatedPageMapTwoColumns == UseHorizontalTwoColumns &&
                    _aozoraCalculatedPageMapIsMarkdown == _isMarkdownRenderMode &&
                    Math.Abs(_aozoraCalculatedPageMapFontSize - _settingsManager.FontSize) < 0.01 &&
                    string.Equals(
@@ -886,6 +897,7 @@ namespace Uviewer
             _aozoraCalculatedPageMapBlocks = blocks;
             _aozoraCalculatedPageMapWidth = canvasWidth;
             _aozoraCalculatedPageMapHeight = canvasHeight;
+            _aozoraCalculatedPageMapTwoColumns = UseHorizontalTwoColumns;
             _aozoraCalculatedPageMapIsMarkdown = _isMarkdownRenderMode;
             _aozoraCalculatedPageMapFontSize = _settingsManager.FontSize;
             _aozoraCalculatedPageMapFontFamily = _settingsManager.FontFamily;
@@ -905,7 +917,8 @@ namespace Uviewer
                     _settingsManager.FontFamily,
                     GetFontWeightForFamily,
                     DoesAozoraImageExist,
-                    cancellationToken: token));
+                    cancellationToken: token,
+                    horizontalColumnCount: UseHorizontalTwoColumns ? 2 : 1));
         }
 
         internal void AozoraTextCanvas_CreateResources(CanvasControl sender, Microsoft.Graphics.Canvas.UI.CanvasCreateResourcesEventArgs args)
@@ -930,9 +943,10 @@ namespace Uviewer
 
             var page = _currentAozoraPageInfo;
 
-            var margins = ReaderPageMargins.HorizontalText;
-            float availableWidth = (float)size.Width - margins.Horizontal;
-            float maxWidth = _isMarkdownRenderMode ? availableWidth : Math.Min(availableWidth, (float)GetUrlMaxWidth());
+            var layout = _readerLayoutService.CreateHorizontalPageMapLayout(size.Width, size.Height,
+                _isMarkdownRenderMode, GetUrlMaxWidth(), UseHorizontalTwoColumns);
+            var margins = layout.Margins;
+            float maxWidth = layout.MaxWidth;
 
             var imgBlocks = page.Blocks.Where(b => b.HasImage).ToList();
             if (imgBlocks.Count > 0)
@@ -947,35 +961,36 @@ namespace Uviewer
             var selectionRanges = CanvasTextSelectionHelper.BuildRangesForDraw(_aozoraSelection, _aozoraSelectionGeometry, pageToken);
             var selectionGeometry = new CanvasTextGeometry(pageToken);
 
-            float contentLeft = margins.Left;
-            if (!_isMarkdownRenderMode)
+            for (int column = 0; column < layout.ColumnCount; column++)
             {
-                float spareWidth = Math.Max(0, availableWidth - maxWidth);
+                var columnBlocks = page.Blocks.Where(b => b.HorizontalColumnIndex == column).ToList();
+                if (columnBlocks.Count == 0) continue;
+                float contentLeft = margins.Left + column * layout.ColumnStride;
+                float spareWidth = _isMarkdownRenderMode ? 0 : Math.Max(0, layout.ColumnWidth - maxWidth);
                 contentLeft += _settingsManager.Alignment switch
                 {
                     TextAlignment.Center => spareWidth / 2,
                     TextAlignment.Right => spareWidth,
                     _ => 0
                 };
+                HorizontalRenderer.RenderBlocks(
+                    ds: ds,
+                    blocks: columnBlocks,
+                    textColor: textColor,
+                    marginLeft: contentLeft,
+                    marginTop: margins.Top,
+                    maxWidth: maxWidth,
+                    baseFontSize: _settingsManager.FontSize,
+                    defaultFontFamily: _settingsManager.FontFamily,
+                    getFontWeight: GetFontWeightForFamily,
+                    searchQuery: _activeSearchQuery,
+                    currentSearchMatch: GetActiveSearchMatchFor(DocumentSearchKind.Text),
+                    renderedSearchKind: DocumentSearchKind.Text,
+                    firstBlockIndex: columnBlocks[0].OriginalBlockIndex >= 0 ? columnBlocks[0].OriginalBlockIndex : _currentAozoraStartBlockIndex,
+                    selectionGeometry: selectionGeometry,
+                    selectionRanges: selectionRanges
+                );
             }
-
-            HorizontalRenderer.RenderBlocks(
-                ds: ds,
-                blocks: page.Blocks,
-                textColor: textColor,
-                marginLeft: contentLeft,
-                marginTop: margins.Top,
-                maxWidth: maxWidth,
-                baseFontSize: _settingsManager.FontSize,
-                defaultFontFamily: _settingsManager.FontFamily,
-                getFontWeight: GetFontWeightForFamily,
-                searchQuery: _activeSearchQuery,
-                currentSearchMatch: GetActiveSearchMatchFor(DocumentSearchKind.Text),
-                renderedSearchKind: DocumentSearchKind.Text,
-                firstBlockIndex: _currentAozoraStartBlockIndex,
-                selectionGeometry: selectionGeometry,
-                selectionRanges: selectionRanges
-            );
 
             CanvasTextSelectionHelper.ApplyGeometry(ref _aozoraSelectionGeometry, selectionGeometry, _aozoraSelection, pageToken);
         }
@@ -1085,7 +1100,7 @@ namespace Uviewer
                 RootGrid?.ActualWidth ?? 0,
                 RootGrid?.ActualHeight ?? 0,
                 _isMarkdownRenderMode,
-                GetUrlMaxWidth());
+                GetUrlMaxWidth(), UseHorizontalTwoColumns);
             var device = AozoraTextCanvas?.Device ?? Microsoft.Graphics.Canvas.CanvasDevice.GetSharedDevice();
 
             return GetOrFindPreviousPageStart(

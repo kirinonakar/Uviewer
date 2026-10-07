@@ -10,6 +10,7 @@ namespace Uviewer.Models
         public string FontFamily { get; set; } = "Yu Gothic";
         public int ThemeIndex { get; set; } = 0;
         public bool IsVerticalMode { get; set; } = false;
+        public bool HorizontalTwoColumnView { get; set; } = false;
         public string? CustomBackgroundColor { get; set; }
         public string? CustomForegroundColor { get; set; }
         public string? Language { get; set; } // "ko-KR", "en-US", "ja-JP", "zh-Hans", "zh-Hant", "vi-VN" or null for auto

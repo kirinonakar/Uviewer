@@ -26,6 +26,7 @@
 - **Reading Comfort**: 
   - **Adjustable Styling**: Change font size, font family (toggle between two user-defined defaults), and background themes (Light/Beige/Dark/Custom). (Recommendation: We suggest installing and using [**Noto Sans/Serif CJK**](https://fonts.google.com/noto) for the best multilingual reading experience.)
   - **Vertical Mode (Tategaki)**: Comprehensive support for vertical text rendering with pixel-accurate layout.
+  - **Horizontal Two-Column View**: Enable **Two-column horizontal view** in **Text Options** to display two columns in Aozora horizontal mode only, when the window width is at least 1.2 times its height.
 - **Go to Line**: Jump directly to a specific line (G).
 - **Search**: Find text in Text, EPUB, and PDF files with a compact overlay near the **G** button. Open it with **Ctrl + F** or right-click **G**, then move to previous/next matches.
 - **Table of Contents (TOC)**: Automatically extracts headings from textual documents (Markdown `#` or Aozora `［＃...］` tags) and **PDF Bookmarks** for quick navigation.

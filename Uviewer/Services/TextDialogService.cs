@@ -34,7 +34,7 @@ namespace Uviewer.Services
             return null;
         }
 
-        public async Task<(int wrapLength, TextAlignment alignment)?> ShowTextOptionsAsync(int wrapLength, TextAlignment alignment)
+        public async Task<(int wrapLength, TextAlignment alignment, bool twoColumns)?> ShowTextOptionsAsync(int wrapLength, TextAlignment alignment, bool twoColumns)
         {
             var slider = new Slider { Minimum = 10, Maximum = 120, StepFrequency = 1, Value = wrapLength };
             var headerLabel = new TextBlock { Text = $"{Strings.TextWrapLength}: {wrapLength}" };
@@ -56,6 +56,13 @@ namespace Uviewer.Services
             panel.Children.Add(new TextBlock { Text = Strings.TextOptionsHint, TextWrapping = TextWrapping.Wrap, MaxWidth = 360 });
             panel.Children.Add(slider);
             panel.Children.Add(alignmentPanel);
+            var twoColumnCheckBox = new CheckBox
+            {
+                Content = Strings.TextHorizontalTwoColumns,
+                IsChecked = twoColumns
+            };
+            ToolTipService.SetToolTip(twoColumnCheckBox, Strings.TextHorizontalTwoColumnsHint);
+            panel.Children.Add(twoColumnCheckBox);
             var dialog = new ContentDialog
             {
                 XamlRoot = XamlRoot,
@@ -85,7 +92,7 @@ namespace Uviewer.Services
                 1 => TextAlignment.Center,
                 2 => TextAlignment.Right,
                 _ => TextAlignment.Left
-            });
+            }, twoColumnCheckBox.IsChecked == true);
         }
 
         public async Task<string?> ShowFontPickerAsync(string currentFont, string title)

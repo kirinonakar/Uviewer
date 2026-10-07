@@ -17,6 +17,7 @@ namespace Uviewer.Services
         private float _lastHeight;
         private double _lastFontSize;
         private AozoraPageOrientation _lastOrientation;
+        private int _lastColumnCount;
         private IReadOnlyList<AozoraBindingModel>? _lastBlocksRef;
         private int _lastTargetIndex = -1;
         private int _cacheGeneration;
@@ -160,7 +161,8 @@ namespace Uviewer.Services
                 Math.Abs(_lastWidth - context.AvailableWidth) > 1f ||
                 Math.Abs(_lastHeight - context.AvailableHeight) > 1f ||
                 Math.Abs(_lastFontSize - context.FontSize) > 0.01 ||
-                _lastOrientation != orientation;
+                _lastOrientation != orientation ||
+                _lastColumnCount != context.HorizontalColumnCount;
 
             bool documentChanged = !ReferenceEquals(_lastBlocksRef, blocks);
             bool jumped = _lastTargetIndex >= 0 && Math.Abs(currentIndex - _lastTargetIndex) > 300;
@@ -172,6 +174,7 @@ namespace Uviewer.Services
                 _lastHeight = context.AvailableHeight;
                 _lastFontSize = context.FontSize;
                 _lastOrientation = orientation;
+                _lastColumnCount = context.HorizontalColumnCount;
                 _lastBlocksRef = blocks;
             }
 

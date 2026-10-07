@@ -3,6 +3,7 @@
 [Key Features]
 - Image & PDF Viewing: Support for PDF and various image formats including direct viewing from archives (ZIP/7z/RAR).
 - Text/Novel: Aozora Bunko format (vertical text support), Markdown support, smart encoding detection.
+- Aozora Two-Column View: Enable "Two-column horizontal view" in Text Options for Aozora horizontal mode only; requires a window width at least 1.2 times its height.
 - EPUB Reader: Chapter tracking, vertical mode support.
 - Remote: WebDAV connectivity.
 [Documentation] https://github.com/kirinonakar/Uviewer

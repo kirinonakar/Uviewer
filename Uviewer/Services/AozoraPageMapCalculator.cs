@@ -31,6 +31,23 @@ namespace Uviewer.Services
         {
             return Task.Run<AozoraPageMapResult?>(() =>
             {
+                if (orientation == AozoraPageOrientation.Horizontal && context.HorizontalColumnCount == 2)
+                {
+                    var map = new Dictionary<int, int>(blocks.Count);
+                    var list = blocks as List<AozoraBindingModel> ?? new List<AozoraBindingModel>(blocks);
+                    var paginator = new AozoraBlockPaginator(_measurer);
+                    int index = 0, page = 0;
+                    while (index < list.Count)
+                    {
+                        token.ThrowIfCancellationRequested();
+                        int start = index;
+                        paginator.PaginateHorizontalPage(ref index, list, context);
+                        if (index <= start) index = start + 1;
+                        page++;
+                        for (int i = start; i < index; i++) map[i] = page;
+                    }
+                    return new AozoraPageMapResult(map, Math.Max(1, page));
+                }
                 int pageCount = 1;
                 float currentPageExtent = 0;
                 var blockToPageMap = new Dictionary<int, int>(blocks.Count);

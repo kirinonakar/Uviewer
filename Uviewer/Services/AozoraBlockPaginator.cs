@@ -21,6 +21,29 @@ namespace Uviewer.Services
             List<AozoraBindingModel> blocks,
             AozoraBlockPaginationContext context)
         {
+            var spread = new List<AozoraBindingModel>();
+            for (int column = 0; column < context.HorizontalColumnCount && index < blocks.Count; column++)
+            {
+                if (column > 0 && blocks[index].IsPageBreak) break;
+                int columnStart = index;
+                var page = PaginateHorizontalColumn(ref index, blocks, context);
+                // Images retain a full-page canvas and never share a text spread.
+                if (column > 0 && page.Any(b => b.HasImage)) { index = columnStart; break; }
+                foreach (var block in page)
+                {
+                    block.HorizontalColumnIndex = column;
+                    spread.Add(block);
+                }
+                if (page.Any(b => b.HasImage)) break;
+            }
+            return spread;
+        }
+
+        private List<AozoraBindingModel> PaginateHorizontalColumn(
+            ref int index,
+            List<AozoraBindingModel> blocks,
+            AozoraBlockPaginationContext context)
+        {
             var pageBlocks = new List<AozoraBindingModel>();
             float usedHeight = 0;
 
@@ -55,7 +78,7 @@ namespace Uviewer.Services
                         continue;
                     }
 
-                    pageBlocks.Add(block);
+                    pageBlocks.Add(CreatePageBlockCopy(block, index, isVertical: false));
                     index++;
                     break;
                 }
@@ -393,7 +416,8 @@ namespace Uviewer.Services
             Func<string, bool> imageExists,
             bool imagePairingEnabled = false,
             Func<string, bool>? shouldPairImage = null,
-            CancellationToken cancellationToken = default)
+            CancellationToken cancellationToken = default,
+            int horizontalColumnCount = 1)
         {
             Device = device;
             AvailableWidth = availableWidth;
@@ -405,6 +429,7 @@ namespace Uviewer.Services
             ImagePairingEnabled = imagePairingEnabled;
             ShouldPairImage = shouldPairImage ?? (_ => false);
             CancellationToken = cancellationToken;
+            HorizontalColumnCount = horizontalColumnCount;
         }
 
         public CanvasDevice? Device { get; }
@@ -417,6 +442,7 @@ namespace Uviewer.Services
         public bool ImagePairingEnabled { get; }
         public Func<string, bool> ShouldPairImage { get; }
         public CancellationToken CancellationToken { get; }
+        public int HorizontalColumnCount { get; }
 
         public AozoraBlockPaginationContext WithCancellation(CancellationToken token) => new(
             Device,
@@ -428,6 +454,7 @@ namespace Uviewer.Services
             ImageExists,
             ImagePairingEnabled,
             ShouldPairImage,
-            token);
+            token,
+            HorizontalColumnCount);
     }
 }

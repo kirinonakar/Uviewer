@@ -1,3 +1,5 @@
+using System;
+
 namespace Uviewer.Models
 {
     public readonly struct ReaderPageMargins
@@ -28,18 +30,25 @@ namespace Uviewer.Models
             ReaderPageMargins margins,
             float availableWidth,
             float availableHeight,
-            float maxWidth)
+            float maxWidth,
+            int columnCount = 1)
         {
             Margins = margins;
             AvailableWidth = availableWidth;
             AvailableHeight = availableHeight;
             MaxWidth = maxWidth;
+            ColumnCount = columnCount;
         }
 
         public ReaderPageMargins Margins { get; }
         public float AvailableWidth { get; }
         public float AvailableHeight { get; }
         public float MaxWidth { get; }
+        public int ColumnCount { get; }
+        public float ColumnWidth => ColumnCount == 2
+            ? Math.Max(1, (AvailableWidth - 40f) / 2f)
+            : AvailableWidth;
+        public float ColumnStride => ColumnWidth + 40f;
     }
 
     public readonly struct ReaderViewportSize

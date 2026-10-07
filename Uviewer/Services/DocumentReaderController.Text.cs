@@ -808,10 +808,11 @@ namespace Uviewer
             _isTextOptionsDialogOpen = true;
             try
             {
-                var result = await _textDialogService.ShowTextOptionsAsync(_settingsManager.WrapLength, _settingsManager.Alignment);
+                var result = await _textDialogService.ShowTextOptionsAsync(_settingsManager.WrapLength, _settingsManager.Alignment, _settingsManager.HorizontalTwoColumnView);
                 if (result is not { } options) return;
                 _settingsManager.WrapLength = options.wrapLength;
                 _settingsManager.Alignment = options.alignment;
+                _settingsManager.HorizontalTwoColumnView = options.twoColumns;
                 SaveTextSettings();
                 await RefreshTextDisplay();
             }

@@ -5,13 +5,18 @@ namespace Uviewer.Services
 {
     public sealed class ReaderLayoutService
     {
+        public static bool ShouldUseHorizontalTwoColumns(bool enabled, bool isAozora, bool isVertical, double width, double height) =>
+            enabled && isAozora && !isVertical && double.IsFinite(width) && double.IsFinite(height) &&
+            width > 0 && height > 0 && width >= height * 1.2;
+
         public ReaderPageLayout CreateHorizontalTextLayout(
             double canvasWidth,
             double canvasHeight,
             double rootWidth,
             double rootHeight,
             bool isMarkdown,
-            double maxContentWidth)
+            double maxContentWidth,
+            bool twoColumns = false)
         {
             var margins = ReaderPageMargins.HorizontalText;
 
@@ -25,27 +30,30 @@ namespace Uviewer.Services
             if (availableWidth < 50) availableWidth = 800;
             availableWidth -= margins.Horizontal;
 
+            float columnWidth = twoColumns ? Math.Max(1, (availableWidth - 40f) / 2f) : availableWidth;
             float maxWidth = isMarkdown
-                ? availableWidth
-                : Math.Min(availableWidth, (float)maxContentWidth);
+                ? columnWidth
+                : Math.Min(columnWidth, (float)maxContentWidth);
 
-            return new ReaderPageLayout(margins, availableWidth, availableHeight, maxWidth);
+            return new ReaderPageLayout(margins, availableWidth, availableHeight, maxWidth, twoColumns ? 2 : 1);
         }
 
         public ReaderPageLayout CreateHorizontalPageMapLayout(
             double canvasWidth,
             double canvasHeight,
             bool isMarkdown,
-            double maxContentWidth)
+            double maxContentWidth,
+            bool twoColumns = false)
         {
             var margins = ReaderPageMargins.HorizontalText;
             float availableWidth = Math.Max(0, (float)canvasWidth - margins.Horizontal);
             float availableHeight = Math.Max(0, (float)canvasHeight - margins.Vertical);
+            float columnWidth = twoColumns ? Math.Max(1, (availableWidth - 40f) / 2f) : availableWidth;
             float maxWidth = isMarkdown
-                ? availableWidth
-                : Math.Min(availableWidth, (float)maxContentWidth);
+                ? columnWidth
+                : Math.Min(columnWidth, (float)maxContentWidth);
 
-            return new ReaderPageLayout(margins, availableWidth, availableHeight, maxWidth);
+            return new ReaderPageLayout(margins, availableWidth, availableHeight, maxWidth, twoColumns ? 2 : 1);
         }
 
         public ReaderPageLayout CreateVerticalTextLayout(

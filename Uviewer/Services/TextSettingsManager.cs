@@ -21,6 +21,7 @@ namespace Uviewer.Services
         public int ThemeIndex { get; set; } = 0; // 0: White, 1: Beige, 2: Dark, 3: Custom
         public string Language { get; set; } = "Auto";
         public bool IsVerticalMode { get; set; } = false;
+        public bool HorizontalTwoColumnView { get; set; } = false;
         public Color? CustomBackgroundColor { get; set; }
         public Color? CustomForegroundColor { get; set; }
         public string DefaultFont1 { get; set; } = "Yu Gothic";
@@ -51,6 +52,7 @@ namespace Uviewer.Services
                         FontFamily = settings.FontFamily ?? "Yu Gothic";
                         ThemeIndex = settings.ThemeIndex;
                         IsVerticalMode = settings.IsVerticalMode;
+                        HorizontalTwoColumnView = settings.HorizontalTwoColumnView;
                         Language = settings.Language ?? "Auto";
                         UIFontFamily = settings.UIFontFamily ?? "";
                         DefaultFont1 = settings.DefaultFont1 ?? "Yu Gothic";
@@ -81,6 +83,7 @@ namespace Uviewer.Services
                     FontFamily = FontFamily,
                     ThemeIndex = ThemeIndex,
                     IsVerticalMode = IsVerticalMode,
+                    HorizontalTwoColumnView = HorizontalTwoColumnView,
                     CustomBackgroundColor = CustomBackgroundColor?.ToString(),
                     CustomForegroundColor = CustomForegroundColor?.ToString(),
                     Language = Language,
