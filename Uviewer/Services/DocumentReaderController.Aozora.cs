@@ -23,12 +23,24 @@ namespace Uviewer
     internal sealed partial class DocumentReaderController
     {
         internal bool _isAozoraMode = true;
-        private bool UseHorizontalTwoColumns => ReaderLayoutService.ShouldUseHorizontalTwoColumns(
-            _isTextMode && !_isEpubMode && _settingsManager.HorizontalTwoColumnView,
-            _isAozoraMode,
-            _isVerticalMode,
-            RootGrid?.ActualWidth ?? 0,
-            RootGrid?.ActualHeight ?? 0);
+        private bool UseHorizontalTwoColumns
+        {
+            get
+            {
+                // EPUB pagination runs on a worker thread. Reject ineligible modes
+                // before reading thread-affine XAML dimensions.
+                if (!_isTextMode || _isEpubMode || !_isAozoraMode || _isVerticalMode ||
+                    !_settingsManager.HorizontalTwoColumnView)
+                    return false;
+
+                return ReaderLayoutService.ShouldUseHorizontalTwoColumns(
+                    enabled: true,
+                    isAozora: true,
+                    isVertical: false,
+                    RootGrid?.ActualWidth ?? 0,
+                    RootGrid?.ActualHeight ?? 0);
+            }
+        }
         internal bool _isMarkdownRenderMode = false;
         internal List<AozoraBindingModel> _aozoraBlocks = new();
         internal int _aozoraTotalLineCount = 0;
