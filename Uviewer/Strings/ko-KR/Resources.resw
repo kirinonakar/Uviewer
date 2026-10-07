@@ -719,5 +719,5 @@
   <data name="TextOptionsApply" xml:space="preserve"><value>적용</value></data>
   <data name="TextOptionsHint" xml:space="preserve"><value>일반 텍스트와 아오조라 가로 읽기에 적용됩니다. 줄바꿈 폭은 창 너비를 넘지 않습니다.</value></data>
   <data name="TextHorizontalTwoColumns" xml:space="preserve"><value>가로2단보기</value></data>
-  <data name="TextHorizontalTwoColumnsHint" xml:space="preserve"><value>아오조라 모드에서만 적용됩니다. 창 너비가 높이의 1.2배 이상이면 가로 읽기를 2단으로 표시합니다.</value></data>
+  <data name="TextHorizontalTwoColumnsHint" xml:space="preserve"><value>아오조라와 EPUB 본문에 적용됩니다. 창 너비가 높이의 1.2배 이상이면 가로 읽기를 2단으로 표시합니다.</value></data>
 </root>

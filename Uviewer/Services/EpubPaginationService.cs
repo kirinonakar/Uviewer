@@ -182,6 +182,7 @@ namespace Uviewer.Services
             foreach (var page in pages)
             {
                 page.TotalLinesInChapter = total;
+                if (!page.IsImagePage) page.HorizontalColumnCount = request.HorizontalColumnCount;
             }
 
             return new EpubPaginationResult(pages, parseResult.TotalLineCount, parseIsPartial);
@@ -229,6 +230,9 @@ namespace Uviewer.Services
 
             if (!request.IsVerticalMode)
             {
+                if (request.HorizontalColumnCount == 2)
+                    maxWidth = (maxWidth - 40f) / 2f;
+
                 // 텍스트 옵션의 "줄바꿈 길이"를 EPUB 가로쓰기 열 폭에도 적용합니다.
                 int wrapLength = Math.Clamp(request.WrapLength, 10, 120);
                 float limitedWidth = (float)(request.FontSize * wrapLength);
@@ -331,7 +335,8 @@ namespace Uviewer.Services
             int targetLine = -1,
             int maxPreviewPages = 3,
             int wrapLength = 42,
-            CancellationToken cancellationToken = default)
+            CancellationToken cancellationToken = default,
+            int horizontalColumnCount = 1)
         {
             Html = html;
             CurrentPath = currentPath;
@@ -347,6 +352,7 @@ namespace Uviewer.Services
             MaxPreviewPages = Math.Max(1, maxPreviewPages);
             CancellationToken = cancellationToken;
             WrapLength = wrapLength;
+            HorizontalColumnCount = !isVerticalMode && horizontalColumnCount == 2 ? 2 : 1;
         }
 
         public string Html { get; }
@@ -362,6 +368,7 @@ namespace Uviewer.Services
         public int TargetLine { get; }
         public int MaxPreviewPages { get; }
         public int WrapLength { get; }
+        public int HorizontalColumnCount { get; }
         public CancellationToken CancellationToken { get; }
     }
 

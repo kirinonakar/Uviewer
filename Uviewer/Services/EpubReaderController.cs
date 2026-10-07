@@ -124,10 +124,6 @@ namespace Uviewer.Services
         private DocumentSearchMatch? GetActiveSearchMatchFor(DocumentSearchKind kind) => _host.GetActiveSearchMatchFor(kind);
         private List<AozoraBindingModel> PaginateVerticalAozoraPage(ref int index, List<AozoraBindingModel> blocks, float availableWidth, float availableHeight, CanvasDevice? device, CancellationToken token) =>
             _host.PaginateVerticalAozoraPage(ref index, blocks, availableWidth, availableHeight, device, token);
-        private List<AozoraBindingModel> PaginateHorizontalAozoraPage(ref int index, List<AozoraBindingModel> blocks, float availableWidth, float availableHeight, CanvasDevice? device, CancellationToken token) =>
-            _host.PaginateHorizontalAozoraPage(ref index, blocks, availableWidth, availableHeight, device, token);
-        private int FindPreviousPageStart(int targetIdx, List<AozoraBindingModel> blocks, float maxWidth, float availHeight, ICanvasResourceCreator device, bool isVertical, CancellationToken token) =>
-            _host.FindPreviousPageStart(targetIdx, blocks, maxWidth, availHeight, device, isVertical, token);
         private Task LoadImageResourceAndInvalidateAsync(string resourcePath, string cacheKey, CanvasDevice device, Action invalidate, Action? onMissing = null, Func<bool>? shouldKeepLoadedBitmap = null) =>
             _host.LoadImageResourceAndInvalidateAsync(resourcePath, cacheKey, device, invalidate, onMissing, shouldKeepLoadedBitmap);
 
@@ -648,6 +644,32 @@ namespace Uviewer.Services
 
         // --- Core Rendering Logic ---
 
+        // Evaluate XAML dimensions on the UI thread, then carry the column count
+        // through both forward and backward pagination without reading UI state.
+        private int GetEpubHorizontalColumnCount() => ReaderLayoutService.ShouldUseHorizontalTwoColumns(
+            _settingsManager.HorizontalTwoColumnView,
+            isAozora: true,
+            _isVerticalMode,
+            RootGrid?.ActualWidth ?? 0,
+            RootGrid?.ActualHeight ?? 0) ? 2 : 1;
+
+        private Task<EpubPaginationResult> PaginateEpubRequestAsync(EpubPaginationRequest request)
+        {
+            int columnCount = request.HorizontalColumnCount;
+            List<AozoraBindingModel> PaginateHorizontal(
+                ref int index, List<AozoraBindingModel> blocks, float width, float height,
+                CanvasDevice? device, CancellationToken token) =>
+                _host.PaginateHorizontalAozoraPage(ref index, blocks, width, height, device, token, columnCount);
+            int FindPrevious(
+                int index, List<AozoraBindingModel> blocks, float width, float height,
+                ICanvasResourceCreator device, bool isVertical, CancellationToken token) =>
+                _host.FindPreviousPageStart(index, blocks, width, height, device, isVertical, token, columnCount);
+
+            return Task.Run(() => _epubPaginationService.CreatePagesAsync(
+                request, _epubDocumentService, PaginateVerticalAozoraPage,
+                PaginateHorizontal, FindPrevious), request.CancellationToken);
+        }
+
         internal async Task<List<EpubWin2DPage>> RenderEpubPagesAsync(
             string html,
             string currentPath,
@@ -677,13 +699,9 @@ namespace Uviewer.Services
                 pinBlockIndex,
                 device,
                 wrapLength: _settingsManager.WrapLength,
-                cancellationToken: token);
-            var result = await Task.Run(() => _epubPaginationService.CreatePagesAsync(
-                request,
-                _epubDocumentService,
-                PaginateVerticalAozoraPage,
-                PaginateHorizontalAozoraPage,
-                FindPreviousPageStart), token);
+                cancellationToken: token,
+                horizontalColumnCount: GetEpubHorizontalColumnCount());
+            var result = await PaginateEpubRequestAsync(request);
 
             _textTotalLineCountInSource = result.TotalLineCount;
             return result.Pages;
@@ -721,13 +739,9 @@ namespace Uviewer.Services
                     isPreview: true,
                     targetLine: targetLine,
                     wrapLength: _settingsManager.WrapLength,
-                    cancellationToken: token);
-            var result = await Task.Run(() => _epubPaginationService.CreatePagesAsync(
-                request,
-                _epubDocumentService,
-                PaginateVerticalAozoraPage,
-                PaginateHorizontalAozoraPage,
-                FindPreviousPageStart), token);
+                    cancellationToken: token,
+                    horizontalColumnCount: GetEpubHorizontalColumnCount());
+            var result = await PaginateEpubRequestAsync(request);
 
             _textTotalLineCountInSource = result.TotalLineCount;
             return result;
@@ -859,40 +873,48 @@ namespace Uviewer.Services
             }
             else
             {
-                var margins = ReaderPageMargins.HorizontalText;
                 int wrapLength = Math.Clamp(_settingsManager.WrapLength, 10, 120);
                 float limitedWidth = (float)(_settingsManager.FontSize * wrapLength);
-                float availableWidth = (float)size.Width - margins.Horizontal;
-                float contentWidth = Math.Min(limitedWidth, availableWidth);
+                var layout = _readerLayoutService.CreateHorizontalPageMapLayout(
+                    size.Width, size.Height, isMarkdown: false, limitedWidth,
+                    twoColumns: pg.HorizontalColumnCount == 2);
 
-                // 텍스트 옵션의 "텍스트 영역 위치"를 EPUB 가로쓰기에도 동일하게 적용합니다.
-                // 읽기 열이 페이지보다 좁을 때 남는 공간만큼 열 전체를 이동시킵니다.
-                float spareWidth = Math.Max(0, availableWidth - contentWidth);
-                float contentLeft = margins.Left;
-                contentLeft += _settingsManager.Alignment switch
+                int selectionBlockOffset = 0;
+                for (int column = 0; column < layout.ColumnCount; column++)
                 {
-                    TextAlignment.Center => spareWidth / 2,
-                    TextAlignment.Right => spareWidth,
-                    _ => 0
-                };
+                    var columnBlocks = pg.Blocks.Where(b => b.HorizontalColumnIndex == column).ToList();
+                    if (columnBlocks.Count == 0) continue;
 
-                HorizontalRenderer.RenderBlocks(
-                    ds: ds,
-                    blocks: pg.Blocks,
-                    textColor: textColor,
-                    marginLeft: contentLeft,
-                    marginTop: margins.Top,
-                    maxWidth: contentWidth,
-                    baseFontSize: _settingsManager.FontSize,
-                    defaultFontFamily: _settingsManager.FontFamily,
-                    getFontWeight: GetFontWeightForFamily,
-                    searchQuery: _activeSearchQuery,
-                    currentSearchMatch: GetActiveSearchMatchFor(DocumentSearchKind.Epub),
-                    renderedSearchKind: DocumentSearchKind.Epub,
-                    firstBlockIndex: pg.StartBlockIndex,
-                    selectionGeometry: selectionGeometry,
-                    selectionRanges: selectionRanges
-                );
+                    float contentLeft = layout.Margins.Left + column * layout.ColumnStride;
+                    float spareWidth = Math.Max(0, layout.ColumnWidth - layout.MaxWidth);
+                    contentLeft += _settingsManager.Alignment switch
+                    {
+                        TextAlignment.Center => spareWidth / 2,
+                        TextAlignment.Right => spareWidth,
+                        _ => 0
+                    };
+
+                    HorizontalRenderer.RenderBlocks(
+                        ds: ds,
+                        blocks: columnBlocks,
+                        textColor: textColor,
+                        marginLeft: contentLeft,
+                        marginTop: layout.Margins.Top,
+                        maxWidth: layout.MaxWidth,
+                        baseFontSize: _settingsManager.FontSize,
+                        defaultFontFamily: _settingsManager.FontFamily,
+                        getFontWeight: GetFontWeightForFamily,
+                        searchQuery: _activeSearchQuery,
+                        currentSearchMatch: GetActiveSearchMatchFor(DocumentSearchKind.Epub),
+                        renderedSearchKind: DocumentSearchKind.Epub,
+                        firstBlockIndex: columnBlocks[0].OriginalBlockIndex >= 0
+                            ? columnBlocks[0].OriginalBlockIndex : pg.StartBlockIndex,
+                        selectionGeometry: selectionGeometry,
+                        selectionRanges: selectionRanges,
+                        selectionBlockOffset: selectionBlockOffset
+                    );
+                    selectionBlockOffset += columnBlocks.Count;
+                }
             }
 
             CanvasTextSelectionHelper.ApplyGeometry(ref _epubSelectionGeometry, selectionGeometry, _epubSelection, pageToken);

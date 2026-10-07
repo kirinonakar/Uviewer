@@ -719,5 +719,5 @@
   <data name="TextOptionsApply" xml:space="preserve"><value>Áp dụng</value></data>
   <data name="TextOptionsHint" xml:space="preserve"><value>Áp dụng cho văn bản thuần và Aozora nằm ngang. Độ rộng không vượt quá chiều rộng cửa sổ.</value></data>
   <data name="TextHorizontalTwoColumns" xml:space="preserve"><value>Chế độ đọc ngang hai cột</value></data>
-  <data name="TextHorizontalTwoColumnsHint" xml:space="preserve"><value>Chỉ áp dụng trong chế độ Aozora. Đọc ngang hiển thị hai cột khi chiều rộng cửa sổ ít nhất bằng 1,2 lần chiều cao.</value></data>
+  <data name="TextHorizontalTwoColumnsHint" xml:space="preserve"><value>Áp dụng cho văn bản Aozora và EPUB. Đọc ngang hiển thị hai cột khi chiều rộng cửa sổ ít nhất bằng 1,2 lần chiều cao.</value></data>
 </root>

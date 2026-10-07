@@ -719,5 +719,5 @@
   <data name="TextOptionsApply" xml:space="preserve"><value>適用</value></data>
   <data name="TextOptionsHint" xml:space="preserve"><value>プレーンテキストと青空文庫の横書きに適用します。折り返し幅はウィンドウ幅以内に制限されます。</value></data>
   <data name="TextHorizontalTwoColumns" xml:space="preserve"><value>横書き2段表示</value></data>
-  <data name="TextHorizontalTwoColumnsHint" xml:space="preserve"><value>青空文庫モードでのみ適用されます。ウィンドウの幅が高さの1.2倍以上の場合、横書きを2段で表示します。</value></data>
+  <data name="TextHorizontalTwoColumnsHint" xml:space="preserve"><value>青空文庫とEPUBの本文に適用されます。ウィンドウの幅が高さの1.2倍以上の場合、横書きを2段で表示します。</value></data>
 </root>

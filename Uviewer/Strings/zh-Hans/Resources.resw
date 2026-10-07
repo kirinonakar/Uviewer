@@ -719,5 +719,5 @@
   <data name="TextOptionsApply" xml:space="preserve"><value>应用</value></data>
   <data name="TextOptionsHint" xml:space="preserve"><value>适用于纯文本和青空文库横排阅读。换行宽度不超过窗口宽度。</value></data>
   <data name="TextHorizontalTwoColumns" xml:space="preserve"><value>横向双栏视图</value></data>
-  <data name="TextHorizontalTwoColumnsHint" xml:space="preserve"><value>仅适用于青空文库模式。窗口宽度达到高度的1.2倍时，横向阅读使用双栏显示。</value></data>
+  <data name="TextHorizontalTwoColumnsHint" xml:space="preserve"><value>适用于青空文库和EPUB正文。窗口宽度达到高度的1.2倍时，横向阅读使用双栏显示。</value></data>
 </root>

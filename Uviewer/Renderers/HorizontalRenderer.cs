@@ -129,7 +129,8 @@ namespace Uviewer.Renderers
             DocumentSearchKind renderedSearchKind = DocumentSearchKind.Text,
             int firstBlockIndex = -1,
             CanvasTextGeometry? selectionGeometry = null,
-            IReadOnlyList<CanvasTextRange>? selectionRanges = null)
+            IReadOnlyList<CanvasTextRange>? selectionRanges = null,
+            int selectionBlockOffset = 0)
         {
             float currentY = marginTop;
             bool isBoxing = false;
@@ -396,7 +397,7 @@ namespace Uviewer.Renderers
                     var blockSelectionRanges = new List<(int start, int length)>();
                     foreach (var range in selectionRanges)
                     {
-                        if (range.BlockIndex == i && range.Length > 0)
+                        if (range.BlockIndex == selectionBlockOffset + i && range.Length > 0)
                         {
                             blockSelectionRanges.Add((range.Start, range.Length));
                         }
@@ -418,7 +419,7 @@ namespace Uviewer.Renderers
                 ds.DrawTextLayout(textLayout, drawX, currentY, textColor);
                 if (selectionGeometry != null)
                 {
-                    selectionGeometry.AddBlock(i, blockText, drawX, currentY, fontSize, textLayout);
+                    selectionGeometry.AddBlock(selectionBlockOffset + i, blockText, drawX, currentY, fontSize, textLayout);
                     layoutRetained = true;
                 }
 

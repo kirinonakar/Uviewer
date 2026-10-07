@@ -9,6 +9,7 @@ namespace Uviewer.Models
         public int StartLine { get; set; }
         public int LineCount { get; set; }
         public int TotalLinesInChapter { get; set; }
+        public int HorizontalColumnCount { get; set; } = 1;
         public bool IsImagePage { get; set; }
         public string ImagePath { get; set; } = string.Empty;
     }

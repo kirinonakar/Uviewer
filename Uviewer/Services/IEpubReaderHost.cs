@@ -104,7 +104,8 @@ namespace Uviewer.Services
             float availableWidth,
             float availableHeight,
             CanvasDevice? device,
-            CancellationToken token);
+            CancellationToken token,
+            int horizontalColumnCount);
         int FindPreviousPageStart(
             int targetIdx,
             List<AozoraBindingModel> blocks,
@@ -112,7 +113,8 @@ namespace Uviewer.Services
             float availHeight,
             ICanvasResourceCreator device,
             bool isVertical,
-            CancellationToken token);
+            CancellationToken token,
+            int horizontalColumnCount);
         Task LoadImageResourceAndInvalidateAsync(
             string resourcePath,
             string cacheKey,

@@ -85,7 +85,8 @@ namespace Uviewer
             float maxWidth,
             float availHeight,
             bool isVertical,
-            CancellationToken token = default)
+            CancellationToken token = default,
+            int? horizontalColumnCount = null)
         {
             return new AozoraBlockPaginationContext(
                 device as CanvasDevice,
@@ -98,12 +99,12 @@ namespace Uviewer
                 isVertical && (_isSideBySideMode || CanUseAutoDoublePageForCurrentWindow),
                 isVertical ? new Func<string, bool>(ShouldPairTextImage) : null,
                 token,
-                !isVertical && UseHorizontalTwoColumns ? 2 : 1);
+                isVertical ? 1 : horizontalColumnCount ?? (UseHorizontalTwoColumns ? 2 : 1));
         }
 
-        internal int FindPreviousPageStart(int targetIdx, List<AozoraBindingModel> blocks, float maxWidth, float availHeight, Microsoft.Graphics.Canvas.ICanvasResourceCreator device, bool isVertical, CancellationToken token = default)
+        internal int FindPreviousPageStart(int targetIdx, List<AozoraBindingModel> blocks, float maxWidth, float availHeight, Microsoft.Graphics.Canvas.ICanvasResourceCreator device, bool isVertical, CancellationToken token = default, int? horizontalColumnCount = null)
         {
-            var context = CreatePreviousPageContext(device as CanvasDevice, maxWidth, availHeight, isVertical, token);
+            var context = CreatePreviousPageContext(device as CanvasDevice, maxWidth, availHeight, isVertical, token, horizontalColumnCount);
             return _aozoraPreviousPageCache.FindPreviousPageStart(
                 targetIdx,
                 blocks,
@@ -916,7 +917,7 @@ namespace Uviewer
             DispatcherQueue.TryEnqueue(UpdateAozoraStatusBar);
         }
 
-        internal List<AozoraBindingModel> PaginateHorizontalAozoraPage(ref int index, List<AozoraBindingModel> blocks, float availableWidth, float availableHeight, CanvasDevice? device = null, CancellationToken token = default)
+        internal List<AozoraBindingModel> PaginateHorizontalAozoraPage(ref int index, List<AozoraBindingModel> blocks, float availableWidth, float availableHeight, CanvasDevice? device = null, CancellationToken token = default, int? horizontalColumnCount = null)
         {
             return _aozoraBlockPaginator.PaginateHorizontalPage(
                 ref index,
@@ -930,7 +931,7 @@ namespace Uviewer
                     GetFontWeightForFamily,
                     DoesAozoraImageExist,
                     cancellationToken: token,
-                    horizontalColumnCount: UseHorizontalTwoColumns ? 2 : 1));
+                    horizontalColumnCount: horizontalColumnCount ?? (UseHorizontalTwoColumns ? 2 : 1)));
         }
 
         internal void AozoraTextCanvas_CreateResources(CanvasControl sender, Microsoft.Graphics.Canvas.UI.CanvasCreateResourcesEventArgs args)
@@ -973,6 +974,7 @@ namespace Uviewer
             var selectionRanges = CanvasTextSelectionHelper.BuildRangesForDraw(_aozoraSelection, _aozoraSelectionGeometry, pageToken);
             var selectionGeometry = new CanvasTextGeometry(pageToken);
 
+            int selectionBlockOffset = 0;
             for (int column = 0; column < layout.ColumnCount; column++)
             {
                 var columnBlocks = page.Blocks.Where(b => b.HorizontalColumnIndex == column).ToList();
@@ -1000,8 +1002,10 @@ namespace Uviewer
                     renderedSearchKind: DocumentSearchKind.Text,
                     firstBlockIndex: columnBlocks[0].OriginalBlockIndex >= 0 ? columnBlocks[0].OriginalBlockIndex : _currentAozoraStartBlockIndex,
                     selectionGeometry: selectionGeometry,
-                    selectionRanges: selectionRanges
+                    selectionRanges: selectionRanges,
+                    selectionBlockOffset: selectionBlockOffset
                 );
+                selectionBlockOffset += columnBlocks.Count;
             }
 
             CanvasTextSelectionHelper.ApplyGeometry(ref _aozoraSelectionGeometry, selectionGeometry, _aozoraSelection, pageToken);

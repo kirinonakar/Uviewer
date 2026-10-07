@@ -719,5 +719,5 @@
   <data name="TextOptionsApply" xml:space="preserve"><value>套用</value></data>
   <data name="TextOptionsHint" xml:space="preserve"><value>適用於純文字和青空文庫橫排閱讀。換行寬度不超過視窗寬度。</value></data>
   <data name="TextHorizontalTwoColumns" xml:space="preserve"><value>橫向雙欄檢視</value></data>
-  <data name="TextHorizontalTwoColumnsHint" xml:space="preserve"><value>僅適用於青空文庫模式。視窗寬度達到高度的1.2倍時，橫向閱讀使用雙欄顯示。</value></data>
+  <data name="TextHorizontalTwoColumnsHint" xml:space="preserve"><value>適用於青空文庫和EPUB內文。視窗寬度達到高度的1.2倍時，橫向閱讀使用雙欄顯示。</value></data>
 </root>
