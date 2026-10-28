@@ -65,20 +65,20 @@
   <ItemGroup>
     <PackageReference Include="CSharpMath.Rendering" Version="0.5.1" />
     <PackageReference Include="HtmlAgilityPack" Version="1.13.1" />
-    <PackageReference Include="Markdig" Version="1.4.0" />
+    <PackageReference Include="Markdig" Version="1.5.0" />
     <PackageReference Include="K4os.Compression.LZ4" Version="1.3.8" />
     <PackageReference Include="Microsoft.Windows.SDK.BuildTools" Version="10.0.28000.2705" />
-    <PackageReference Include="Microsoft.WindowsAppSDK" Version="2.5.1" />
+    <PackageReference Include="Microsoft.WindowsAppSDK" Version="2.6.4" />
     <PackageReference Include="PDFtoImage" Version="5.4.0" />
     <PackageReference Include="PdfPig" Version="0.1.16" />
     <!-- Use Libs\7z.dll; skip the package targets that copy x64/x86 native DLLs. -->
     <PackageReference Include="SevenZipExtractor" Version="1.0.19" ExcludeAssets="build" />
-    <PackageReference Include="SharpCompress" Version="0.50.5" />
-    <PackageReference Include="SkiaSharp" Version="4.150.1" />
+    <PackageReference Include="SharpCompress" Version="0.50.7" />
+    <PackageReference Include="SkiaSharp" Version="4.154.0" />
     <PackageReference Include="Starward.Codec" Version="0.5.2" />
     <PackageReference Include="Microsoft.Graphics.Win2D" Version="1.4.0" />
-    <PackageReference Include="System.Management" Version="10.0.13" />
-    <PackageReference Include="System.Security.Cryptography.ProtectedData" Version="10.0.13" />
+    <PackageReference Include="System.Management" Version="10.0.14" />
+    <PackageReference Include="System.Security.Cryptography.ProtectedData" Version="10.0.14" />
     <PackageReference Include="WebDav.Client" Version="2.9.0" />
   </ItemGroup>
 
