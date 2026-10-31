@@ -14,15 +14,17 @@ internal static class TableColumnLayout
 {
     private static readonly ConditionalWeakTable<object, ConcurrentDictionary<(float, float, string, ushort), float[]>> Cache = new();
     public static float[] Measure(ICanvasResourceCreator creator, AozoraBindingModel block, float availableWidth,
-        float fontSize, string font, FontWeight weight)
+        float fontSize, string font, FontWeight weight, Func<AozoraImage, CanvasBitmap?>? getImage = null)
     {
+        if (block.TableContentRows.SelectMany(row => row).SelectMany(cell => cell).Any(item => item is AozoraImage))
+            return MeasureCore(creator, block, availableWidth, fontSize, font, weight, getImage);
         object identity = block.TableContentRows.Count > 0 ? block.TableContentRows : block.TableRows;
         var cache = Cache.GetOrCreateValue(identity);
         return cache.GetOrAdd((availableWidth, fontSize, font, weight.Weight), _ => MeasureCore(creator, block, availableWidth, fontSize, font, weight));
     }
 
     private static float[] MeasureCore(ICanvasResourceCreator creator, AozoraBindingModel block, float availableWidth,
-        float fontSize, string font, FontWeight weight)
+        float fontSize, string font, FontWeight weight, Func<AozoraImage, CanvasBitmap?>? getImage = null)
     {
         int columns = block.TableRows[0].Count;
         if (columns == 0) return [];
@@ -34,8 +36,8 @@ internal static class TableColumnLayout
             {
                 IEnumerable<object> content = block.TableContentRows.Count > 0
                     ? block.TableContentRows[r][c] : TableCellLayout.GetCell(block, c);
-                using var cell = new TableCellLayout(creator, content, 100000, fontSize, font,
-                    r == 0 ? Microsoft.UI.Text.FontWeights.Bold : weight, Colors.Black, wrap: false);
+                using var cell = new TableCellLayout(creator, content, getImage != null ? availableWidth : 100000, fontSize, font,
+                    r == 0 ? Microsoft.UI.Text.FontWeights.Bold : weight, Colors.Black, wrap: false, getImage: getImage);
                 preferred[c] = Math.Max(preferred[c], (float)cell.Layout.LayoutBounds.Width + 20);
             }
         }

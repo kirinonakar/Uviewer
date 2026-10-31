@@ -3,6 +3,7 @@ using SkiaSharp;
 using Svg.Skia;
 using System;
 using System.Collections.Generic;
+using System.Collections.Concurrent;
 using System.IO;
 using System.Security.Cryptography;
 using System.Text;
@@ -17,8 +18,9 @@ internal static class PeleDiagramRenderer
     private const int MaxSourceLength = 50_000;
     private const int MaxCacheCharacters = 16 * 1024 * 1024;
     private static readonly object Sync = new();
-    private static readonly Dictionary<string, (string Image, string? Error)> Cache = new();
+    private static readonly ConcurrentDictionary<string, (string Image, string? Error)> Cache = new();
     private static int _cacheCharacters;
+    private static Engine? _engine;
     private static readonly Lazy<Prepared<Acornima.Ast.Script>> Bundle = new(() =>
     {
         using var stream = typeof(PeleDiagramRenderer).Assembly.GetManifestResourceStream("Uviewer.Pele.js")
@@ -28,6 +30,15 @@ internal static class PeleDiagramRenderer
     });
     private static readonly Regex Variable = new(@"var\(\s*(--[\w-]+)\s*(?:,\s*([^()]*))?\)", RegexOptions.Compiled);
     private static readonly Regex Declaration = new(@"(?:^|;)\s*(--[\w-]+)\s*:\s*([^;]+)", RegexOptions.Compiled);
+
+    public static bool TryGetError(string source, out string? error)
+    {
+        error = source.Length > MaxSourceLength ? "Diagram exceeds Pele's 50,000-character limit." : null;
+        if (error == null && Cache.TryGetValue(GetKey(source), out var cached)) error = cached.Error;
+        return error != null;
+    }
+
+    private static string GetKey(string source) => Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(source)));
 
     public static bool TryRender(string source, out string image, out string? error)
     {
@@ -39,9 +50,14 @@ internal static class PeleDiagramRenderer
             return false;
         }
 
-        string key = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(source)));
-        // Parsing previews and full documents can overlap. Bound native work and
-        // reuse their result without sharing mutable JS state between diagrams.
+        string key = GetKey(source);
+        // Cache reads (including error fallback on the UI thread) never wait for
+        // another diagram. JS execution remains serialized because Jint is mutable.
+        if (Cache.TryGetValue(key, out var ready))
+        {
+            (image, error) = ready;
+            return error == null;
+        }
         lock (Sync)
         {
             if (Cache.TryGetValue(key, out var cached))
@@ -51,31 +67,16 @@ internal static class PeleDiagramRenderer
             }
             try
             {
-                using var engine = new Engine(options => options
-                    .TimeoutInterval(TimeSpan.FromSeconds(5))
-                    .LimitMemory(128 * 1024 * 1024)
-                    .LimitRecursion(256));
-                var bundle = Bundle.Value;
-                engine.Execute(in bundle);
-                engine.Execute("""
-                    function renderDiagram(source) {
-                        return pele.render(source, {
-                            maxWidth: 1200,
-                            fontFamily: 'Segoe UI',
-                            links: false,
-                            images: false,
-                            limit: 50000,
-                            outputLimit: 4000000,
-                            maxEdges: 1000
-                        }).svg;
-                    }
-                    """);
+                var engine = _engine ??= CreateEngine();
                 // Pass diagram text as data, never as executable JavaScript.
                 string svg = engine.Invoke("renderDiagram", source).AsString();
                 image = "data:image/png;base64," + Convert.ToBase64String(Rasterize(svg));
             }
             catch (Exception ex)
             {
+                // Discard partial state after syntax errors, limits or failures.
+                _engine?.Dispose();
+                _engine = null;
                 error = "Pele: " + ex.Message;
                 if (error.Length > 1000) error = error[..1000] + "…";
             }
@@ -92,6 +93,42 @@ internal static class PeleDiagramRenderer
                 _cacheCharacters += size;
             }
             return error == null;
+        }
+    }
+
+    private static Engine CreateEngine()
+    {
+        var engine = new Engine(options => options
+            .TimeoutInterval(TimeSpan.FromSeconds(5))
+            .LimitMemory(128 * 1024 * 1024)
+            .LimitRecursion(256));
+        try
+        {
+            var bundle = Bundle.Value;
+            engine.Execute(in bundle);
+            engine.Execute("""
+                function renderDiagram(source) {
+                    try {
+                        return pele.render(source, {
+                            maxWidth: 1200,
+                            fontFamily: 'Segoe UI',
+                            links: false,
+                            images: false,
+                            limit: 50000,
+                            outputLimit: 4000000,
+                            maxEdges: 1000
+                        }).svg;
+                    } finally {
+                        pele.forgetTextWidths();
+                    }
+                }
+                """);
+            return engine;
+        }
+        catch
+        {
+            engine.Dispose();
+            throw;
         }
     }
 

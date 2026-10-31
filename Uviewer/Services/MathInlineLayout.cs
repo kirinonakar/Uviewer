@@ -15,7 +15,7 @@ internal sealed class MathInlineLayout : IDisposable
     private readonly List<MathObject> _objects = new();
 
     public void Apply(CanvasTextLayout layout, IEnumerable<(int start, int length, AozoraMath math)> ranges,
-        float fontSize, float maxWidth, Color color)
+        float fontSize, float maxWidth, Color color, bool preserveNaturalLineSpacing = false)
     {
         float ascent = 0, descent = 0;
         foreach (var range in ranges)
@@ -29,7 +29,7 @@ internal sealed class MathInlineLayout : IDisposable
             descent = Math.Max(descent, (float)item.Size.Height - item.Baseline);
         }
 
-        if (_objects.Count > 0)
+        if (_objects.Count > 0 && !preserveNaturalLineSpacing)
         {
             // Uniform spacing must reserve both sides of the common text/math baseline.
             // Keep the normal reading rhythm, but expand it for tall fractions and limits.

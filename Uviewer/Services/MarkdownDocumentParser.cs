@@ -27,6 +27,8 @@ internal static class MarkdownDocumentParser
     {
         var builder = new MarkdownPipelineBuilder()
             .UsePipeTables()
+            .UseTaskLists()
+            .UseAutoLinks()
             .UseEmphasisExtras()
             .UseMathematics()
             // A closing math delimiter is punctuation; allow **$...$**입니다.
@@ -66,6 +68,7 @@ internal static class MarkdownDocumentParser
         html.LoadHtml(writer.ToString());
         var converter = new Converter();
         converter.Read(html.DocumentNode);
+        foreach (var block in converter.Blocks) block.IsMarkdown = true;
         // Preserve Markdown paragraphs and inline runs. Aozora's pagination chunks
         // would become forced line breaks in the continuous-scrolling renderer.
         return (converter.Blocks, source.Count(c => c == '\n') + 1);
@@ -144,7 +147,7 @@ internal static class MarkdownDocumentParser
         public List<AozoraBindingModel> Blocks { get; } = new();
         private AozoraBindingModel _current = new();
         private int _sourceLine = 1;
-        private bool _bold, _italic, _highlight, _code, _underline, _strike;
+        private bool _bold, _italic, _highlight, _code, _underline, _strike, _link;
         private int _script;
         private int _codeGroup;
 
@@ -181,19 +184,30 @@ internal static class MarkdownDocumentParser
                 node.Attributes["hidden"] != null || Regex.IsMatch(node.GetAttributeValue("style", ""), @"display\s*:\s*none", RegexOptions.IgnoreCase)) return;
             if (name == "img")
             {
-                Flush();
                 string src = WebUtility.HtmlDecode(node.GetAttributeValue("src", ""));
                 if (src.Length > 0)
                 {
-                    var image = AozoraParserService.CloneBlockProperties(_current);
-                    image.SourceLineNumber = _sourceLine;
-                    image.Inlines.Add(new AozoraImage { Source = src });
-                    Blocks.Add(image);
+                    var width = ReadImageLength(node, "width");
+                    var height = ReadImageLength(node, "height");
+                    var maxWidth = ReadImageLength(node, "max-width");
+                    _current.Inlines.Add(new AozoraImage
+                    {
+                        Source = src, AltText = WebUtility.HtmlDecode(node.GetAttributeValue("alt", "")),
+                        Width = width.Value, WidthIsPercent = width.Percent,
+                        Height = height.Value, HeightIsPercent = height.Percent,
+                        MaxWidth = maxWidth.Value, MaxWidthIsPercent = maxWidth.Percent
+                    });
                 }
                 else AddText(WebUtility.HtmlDecode(node.GetAttributeValue("alt", "")));
                 return;
             }
             if (name == "br") { _current.Inlines.Add(new AozoraLineBreak()); return; }
+            if (name == "input")
+            {
+                if (node.GetAttributeValue("type", "").Equals("checkbox", StringComparison.OrdinalIgnoreCase))
+                    AddText(node.Attributes["checked"] != null ? "☑ " : "☐ ");
+                return;
+            }
             if (name == "table") { Flush(); ReadTable(node); return; }
             if (name == "pre") { Flush(); ReadCodeBlock(node); return; }
             if (name == "ruby")
@@ -220,21 +234,23 @@ internal static class MarkdownDocumentParser
                 _current.Inlines.Add(new AozoraLineBreak());
             bool block = !listParagraph && name is ("p" or "div" or "center" or "section" or "article" or "blockquote" or "li" or "ul" or "ol" or "h1" or "h2" or "h3" or "h4" or "h5" or "h6" or "hr" or "details" or "summary");
             var parent = _current;
-            var style = (_bold, _italic, _highlight, _code, _underline, _strike, _script);
+            var style = (_bold, _italic, _highlight, _code, _underline, _strike, _script, _link);
             if (block)
             {
                 Flush();
                 parent = _current;
                 _current = AozoraParserService.CloneBlockProperties(parent);
                 _current.SourceLineNumber = _sourceLine;
+                _current.Margin = new Thickness(parent.Margin.Left, 0, parent.Margin.Right, name == "p" ? 16 : 0);
                 if (name.Length == 2 && name[0] == 'h' && char.IsDigit(name[1]))
                 {
                     int level = name[1] - '0';
                     _current.HeadingLevel = level;
                     _current.HeadingText = WebUtility.HtmlDecode(node.InnerText);
-                    _current.FontSizeScale = level == 1 ? 2 : level == 2 ? 1.5 : level == 3 ? 1.25 : 1.1;
+                    _current.FontSizeScale = level switch { 1 => 2, 2 => 1.5, 3 => 1.25, 4 => 1, 5 => 0.875, _ => 0.85 };
                     _current.IsBold = true;
-                    _current.Margin = new Thickness(parent.Margin.Left, 0, 0, 10);
+                    _current.Margin = new Thickness(parent.Margin.Left, Blocks.Count > 0 ? 24 : 0, parent.Margin.Right, 16);
+                    if (level <= 2) { _current.BorderColor = Colors.Gray; _current.BorderThickness = new Thickness(0, 0, 0, 1); }
                 }
                 if (name == "blockquote") { _current.BorderColor = Colors.Gray; _current.BorderThickness = new Thickness(4, 0, 0, 0); _current.Margin = new Thickness(parent.Margin.Left + 20, 0, 0, 0); }
                 if (name == "li")
@@ -258,6 +274,8 @@ internal static class MarkdownDocumentParser
             _code |= name is "code" or "kbd" or "samp";
             _underline |= name is "u" or "ins";
             _strike |= name is "s" or "strike" or "del";
+            _link |= name == "a" && !string.IsNullOrEmpty(node.GetAttributeValue("href", ""));
+            _bold |= name == "summary";
             if (name == "sup") _script = 1;
             else if (name == "sub") _script = -1;
             string css = node.GetAttributeValue("style", "").ToLowerInvariant();
@@ -272,7 +290,7 @@ internal static class MarkdownDocumentParser
                 _current = AozoraParserService.CloneBlockProperties(parent);
                 _current.SourceLineNumber = _sourceLine;
             }
-            (_bold, _italic, _highlight, _code, _underline, _strike, _script) = style;
+            (_bold, _italic, _highlight, _code, _underline, _strike, _script, _link) = style;
             if (node.NodeType == HtmlNodeType.Document) Flush();
         }
 
@@ -280,14 +298,25 @@ internal static class MarkdownDocumentParser
         {
             if (!_code) text = Regex.Replace(text, @"\s+", " ");
             if (text.Length == 0 || (_current.Inlines.Count == 0 && string.IsNullOrWhiteSpace(text))) return;
-            if (_underline || _strike || _script != 0 || (_bold && _italic) || (_highlight && (_bold || _italic || _code)))
+            if (_link || _underline || _strike || _script != 0 || (_bold && _italic) || (_highlight && (_bold || _italic || _code)))
                 _current.Inlines.Add(new AozoraStyledText { Text = text, Bold = _bold, Italic = _italic, Underline = _underline,
-                    Strikethrough = _strike, Script = _script, Highlight = _highlight, Code = _code });
+                    Strikethrough = _strike, Script = _script, Highlight = _highlight, Code = _code, IsLink = _link });
             else if (_code) _current.Inlines.Add(new AozoraCode { Text = text });
             else if (_bold) _current.Inlines.Add(new AozoraBold { Text = text });
             else if (_italic) _current.Inlines.Add(new AozoraItalic { Text = text });
             else if (_highlight) _current.Inlines.Add(new AozoraHighlight { Text = text });
             else _current.Inlines.Add(text);
+        }
+
+        private static (double? Value, bool Percent) ReadImageLength(HtmlNode node, string property)
+        {
+            string value = node.GetAttributeValue(property, "");
+            var css = Regex.Match(node.GetAttributeValue("style", ""), @"(?:^|;)\s*" + Regex.Escape(property) + @"\s*:\s*([^;]+)", RegexOptions.IgnoreCase);
+            if (css.Success) value = css.Groups[1].Value.Trim();
+            var length = Regex.Match(value, @"^\s*(\d+(?:\.\d+)?)\s*(px|%)?\s*$", RegexOptions.IgnoreCase);
+            if (!length.Success || !double.TryParse(length.Groups[1].Value, NumberStyles.Float, CultureInfo.InvariantCulture, out double number) || number <= 0)
+                return (null, false);
+            return (Math.Min(number, 100_000), length.Groups[2].Value == "%");
         }
 
         private void ReadTable(HtmlNode node)
@@ -326,34 +355,28 @@ internal static class MarkdownDocumentParser
             if (languages.Any(language => language.Equals("language-mermaid", StringComparison.OrdinalIgnoreCase) ||
                                           language.Equals("language-pele", StringComparison.OrdinalIgnoreCase)))
             {
-                if (PeleDiagramRenderer.TryRender(code, out string imageSource, out string? error))
-                {
-                    var image = AozoraParserService.CloneBlockProperties(_current);
-                    image.SourceLineNumber = _sourceLine;
-                    image.Inlines.Add(new AozoraImage { Source = imageSource });
-                    Blocks.Add(image);
-                    return;
-                }
-                // Keep every source line readable when a diagram is invalid or
-                // exceeds the renderer's limits, and let the rest of the document load.
-                Blocks.Add(new AozoraBindingModel
-                {
-                    SourceLineNumber = _sourceLine,
-                    Inlines = { error ?? "Pele could not render this diagram." }
-                });
+                var image = AozoraParserService.CloneBlockProperties(_current);
+                image.SourceLineNumber = _sourceLine;
+                image.Inlines.Add(new AozoraImage { Source = PeleDiagramSource.Create(code) });
+                Blocks.Add(image);
+                return;
             }
-            var lines = code.Split('\n');
+            string language = languages.FirstOrDefault(s => s.StartsWith("language-", StringComparison.OrdinalIgnoreCase))?[9..] ?? "";
+            var lines = MarkdownCodeHighlighter.HighlightLines(code, language);
             int group = ++_codeGroup;
-            for (int i = 0; i < lines.Length; i++)
+            for (int i = 0; i < lines.Count; i++)
             {
                 Blocks.Add(new AozoraBindingModel
                 {
                     IsCodeBlock = true, CodeBlockGroup = group, IsTable = true,
+                    CodeBlockLineIndex = i, CodeBlockLineCount = lines.Count,
                     IsParagraphContinuation = i > 0, FontFamily = "Consolas",
+                    FontSizeScale = 0.85,
                     BackgroundColor = ColorHelper.FromArgb(30, 128, 128, 128),
-                    Padding = new Thickness(12), Margin = new Thickness(12, 0, 12, 8),
+                    Padding = new Thickness(16, i == 0 ? 16 : 0, 16, i == lines.Count - 1 ? 16 : 0),
+                    Margin = new Thickness(16, 0, 16, i == lines.Count - 1 ? 16 : 0),
                     SourceLineNumber = _sourceLine + i,
-                    Inlines = { new AozoraCode { Text = lines[i] } }
+                    Inlines = lines[i]
                 });
             }
         }

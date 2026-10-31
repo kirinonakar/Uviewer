@@ -16,15 +16,21 @@ internal sealed class TableCellLayout : IDisposable
 {
     public CanvasTextLayout Layout { get; }
     private readonly MathInlineLayout _math = new();
+    private readonly ImageInlineLayout _images = new();
+    private readonly List<(int start, int length)> _code = new();
+    private readonly float _fontSize;
 
     public TableCellLayout(ICanvasResourceCreator creator, IEnumerable<object> inlines,
-        float width, float fontSize, string font, FontWeight weight, Color color, bool wrap = true)
+        float width, float fontSize, string font, FontWeight weight, Color color, bool wrap = true,
+        Func<AozoraImage, CanvasBitmap?>? getImage = null)
     {
+        _fontSize = fontSize;
         var text = new StringBuilder();
         var bold = new List<(int, int)>();
         var italic = new List<(int, int)>();
         var math = new List<(int start, int length, AozoraMath math)>();
         var styled = new List<(int start, int length, AozoraStyledText style)>();
+        var images = new List<(int Start, AozoraImage Image)>();
         foreach (var item in inlines)
         {
             int start = text.Length;
@@ -34,13 +40,15 @@ internal sealed class TableCellLayout : IDisposable
             if (item is AozoraItalic) italic.Add((start, length));
             if (item is AozoraMath formula) math.Add((start, length, formula));
             if (item is AozoraStyledText style) styled.Add((start, length, style));
+            if (item is AozoraImage image) images.Add((start, image));
+            if (item is AozoraCode || item is AozoraStyledText { Code: true }) _code.Add((start, length));
         }
         using var format = new CanvasTextFormat
         {
             FontFamily = font, FontSize = fontSize, FontWeight = weight,
-            LineSpacing = fontSize * 1.3f, VerticalAlignment = CanvasVerticalAlignment.Top,
-            LineSpacingBaseline = fontSize * 1.05f,
-            LineSpacingMode = CanvasLineSpacingMode.Uniform,
+            LineSpacing = images.Count > 0 ? -1 : fontSize * 1.3f, VerticalAlignment = CanvasVerticalAlignment.Top,
+            LineSpacingBaseline = images.Count > 0 ? 0 : fontSize * 1.05f,
+            LineSpacingMode = images.Count > 0 ? CanvasLineSpacingMode.Default : CanvasLineSpacingMode.Uniform,
             WordWrapping = wrap ? CanvasWordWrapping.Wrap : CanvasWordWrapping.NoWrap
         };
         Layout = new CanvasTextLayout(creator, text.Length == 0 ? " " : text.ToString(), format, Math.Max(1, width), 0);
@@ -48,18 +56,25 @@ internal sealed class TableCellLayout : IDisposable
         foreach (var (start, length) in bold) Layout.SetFontWeight(start, length, Microsoft.UI.Text.FontWeights.Bold);
         foreach (var (start, length) in italic) Layout.SetFontStyle(start, length, FontStyle.Italic);
         foreach (var r in styled) InlineTextFormatting.Apply(Layout, r.start, r.length, r.style);
-        _math.Apply(Layout, math, fontSize, width, color);
+        foreach (var r in _code) MarkdownNativeStyle.ApplyCode(Layout, r.start, r.length, fontSize, false);
+        foreach (var r in styled.Where(r => r.style.IsLink && r.length > 0)) Layout.SetColor(r.start, r.length, MarkdownNativeStyle.LinkColor(color));
+        _math.Apply(Layout, math, fontSize, width, color, images.Count > 0);
+        _images.Apply(Layout, images, width, getImage);
     }
 
-    public void Draw(CanvasDrawingSession session, float x, float y, Color color) => _math.Draw(session, Layout, x, y, color);
-    public void Dispose() { _math.Dispose(); Layout.Dispose(); }
+    public void Draw(CanvasDrawingSession session, float x, float y, Color color)
+    {
+        HorizontalRenderer.DrawRangeBackgrounds(session, Layout, _code, x, y, MarkdownNativeStyle.InlineCodeBackground(color), _fontSize, rounded: true);
+        _images.Draw(session, () => _math.Draw(session, Layout, x, y, color));
+    }
+    public void Dispose() { _images.Dispose(); _math.Dispose(); Layout.Dispose(); }
 
     public static string InlineText(object item) => item switch
     {
         string text => text, AozoraBold x => x.Text, AozoraItalic x => x.Text, AozoraStyledText x => x.Text,
         AozoraCode x => x.Text, AozoraHighlight x => x.Text, AozoraRuby x => x.BaseText,
         AozoraTCY x => x.Text, AozoraMath x => KatexStandaloneRenderer.RenderToText(x.Text),
-        AozoraLineBreak => "\n", _ => ""
+        AozoraLineBreak => "\n", AozoraImage => "\uFFFC", _ => ""
     };
 
     public static IEnumerable<object> GetCell(AozoraBindingModel block, int column)

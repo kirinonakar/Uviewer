@@ -48,6 +48,7 @@ namespace Uviewer.Services
         private readonly Dictionary<string, CanvasBitmap?> _cache = new();
         private readonly HashSet<string> _knownMissing = new();
         private readonly object _lock = new();
+        private readonly Dictionary<(int Version, string Key), Task<CanvasBitmap?>> _diagramLoads = new();
         private int _cacheVersion;
 
         private readonly ISharpeningService _sharpeningService;
@@ -179,6 +180,55 @@ namespace Uviewer.Services
             bool sharpenEnabled,
             SharpenParams sharpenParams,
             Func<bool>? shouldKeepLoadedBitmap = null)
+        {
+            if (!PeleDiagramSource.IsDiagram(relativePath))
+                return await LoadCoreAsync(cacheKey, relativePath, device, ctx, sharpenEnabled, sharpenParams, shouldKeepLoadedBitmap);
+
+            // A second viewport request must wait for the actual result rather
+            // than treating the cache's in-flight null placeholder as a failure.
+            Task<CanvasBitmap?> pending;
+            TaskCompletionSource<CanvasBitmap?>? owner = null;
+            (int Version, string Key) key;
+            lock (_lock)
+            {
+                key = (_cacheVersion, cacheKey);
+                if (!_diagramLoads.TryGetValue(key, out pending!))
+                {
+                    // Selective cache clears also invalidate pending work. A null
+                    // left by an older version must not masquerade as a cache hit.
+                    if (_cache.TryGetValue(cacheKey, out var cached) && cached == null)
+                        _cache.Remove(cacheKey);
+                    owner = new(TaskCreationOptions.RunContinuationsAsynchronously);
+                    pending = owner.Task;
+                    _diagramLoads[key] = pending;
+                }
+            }
+            if (owner == null) return await pending;
+            try
+            {
+                var result = await LoadCoreAsync(cacheKey, relativePath, device, ctx, sharpenEnabled, sharpenParams, shouldKeepLoadedBitmap);
+                owner.TrySetResult(result);
+                return result;
+            }
+            catch (Exception ex)
+            {
+                owner.TrySetException(ex);
+                throw;
+            }
+            finally
+            {
+                lock (_lock) _diagramLoads.Remove(key);
+            }
+        }
+
+        private async Task<CanvasBitmap?> LoadCoreAsync(
+            string cacheKey,
+            string relativePath,
+            CanvasDevice device,
+            ViewingContext ctx,
+            bool sharpenEnabled,
+            SharpenParams sharpenParams,
+            Func<bool>? shouldKeepLoadedBitmap)
         {
             int loadVersion;
 
@@ -420,6 +470,16 @@ namespace Uviewer.Services
 
         private async Task<byte[]?> ExtractBytesAsync(string relativePath, ViewingContext ctx)
         {
+            if (PeleDiagramSource.IsDiagram(relativePath))
+            {
+                return await Task.Run(() =>
+                {
+                    string source = PeleDiagramSource.Decode(relativePath);
+                    if (!PeleDiagramRenderer.TryRender(source, out string image, out string? error))
+                        throw new InvalidDataException(error);
+                    return Convert.FromBase64String(image[(image.IndexOf(',') + 1)..]);
+                });
+            }
             if (relativePath.StartsWith("data:image/", StringComparison.OrdinalIgnoreCase))
             {
                 int comma = relativePath.IndexOf(',');
@@ -501,6 +561,7 @@ namespace Uviewer.Services
         }
 
         private static bool IsExternalImage(string path) =>
+            PeleDiagramSource.IsDiagram(path) ||
             path.StartsWith("data:image/", StringComparison.OrdinalIgnoreCase) ||
             (Uri.TryCreate(path, UriKind.Absolute, out var uri) && uri.Scheme is "http" or "https");
 

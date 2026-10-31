@@ -15,5 +15,9 @@ Markdown fences labeled `mermaid` or `pele` use this renderer. A rendering failu
 leaves the original code block visible with an error message. Ordinary code fences
 continue to display as text.
 
-Run `dotnet run --project Checks/PeleRendering -c Release` from the repository root
-for rendering smoke checks, optionally passing a directory after `--` to save PNGs.
+Document parsing stores diagram source without loading the JavaScript/SVG runtime.
+Only diagrams in the Markdown viewport are rendered, on a worker thread through
+the image resource loader. Concurrent requests for one diagram share its pending
+load. Successful renders reuse the initialized Jint engine and a bounded image
+cache; failed renders reset the engine and replace the image block with the error
+and complete source while preserving the block index and source anchor.

@@ -11,7 +11,6 @@ using System.Threading.Tasks;
 using Uviewer.Models;
 using Uviewer.Renderers;
 using Uviewer.Services;
-using Windows.Foundation;
 
 namespace Uviewer;
 
@@ -23,6 +22,7 @@ internal sealed partial class DocumentReaderController
     private MarkdownScrollLayout? _markdownScrollLayout;
     private readonly HashSet<string> _markdownRequestedImages = new();
     private float _markdownContentWidth;
+    private float _markdownContentLeft;
     private bool _markdownUpdatingLayout;
 
     private void ConfigureMarkdownScrollView()
@@ -112,25 +112,18 @@ internal sealed partial class DocumentReaderController
         int anchor = oldLayout?.FindBlock(offset) ?? 0;
         double withinBlock = oldLayout != null ? offset - oldLayout.GetTop(anchor) : 0;
         var margins = ReaderPageMargins.HorizontalText;
-        _markdownContentWidth = Math.Max(100, (float)AozoraTextCanvas.ActualWidth - margins.Horizontal);
+        _markdownContentWidth = Math.Min(980, Math.Max(100, (float)AozoraTextCanvas.ActualWidth - margins.Horizontal));
+        _markdownContentLeft = Math.Max(margins.Left, ((float)AozoraTextCanvas.ActualWidth - _markdownContentWidth) / 2);
         var device = AozoraTextCanvas.Device ?? CanvasDevice.GetSharedDevice();
         var heights = new double[_aozoraBlocks.Count];
         for (int i = 0; i < heights.Length; i++)
         {
             var block = _aozoraBlocks[i];
-            if (block.HasImage)
-            {
-                string source = block.Inlines.OfType<AozoraImage>().First().Source;
-                var bitmap = _imageResourceService.TryGetCached(ImageResourceService.GetTextCacheKey(source));
-                heights[i] = bitmap != null
-                    ? GetMarkdownImageSize(bitmap).Height + 16
-                    : DoesAozoraImageExist(source) ? 120 : 0;
-            }
-            else if (!block.IsPageBreak)
+            if (!block.IsPageBreak)
             {
                 heights[i] = _aozoraBlockMeasurer.MeasureHorizontalBlockHeight(device, block,
                     _markdownContentWidth, (float)(_settingsManager.FontSize * block.FontSizeScale),
-                    _settingsManager.FontFamily, GetFontWeightForFamily);
+                    _settingsManager.FontFamily, GetFontWeightForFamily, GetMarkdownInlineImage);
             }
         }
 
@@ -147,11 +140,13 @@ internal sealed partial class DocumentReaderController
         UpdateMarkdownViewport();
     }
 
-    private Size GetMarkdownImageSize(CanvasBitmap bitmap)
-    {
-        var size = MarkdownScrollLayout.FitImage(bitmap.Size.Width, bitmap.Size.Height, _markdownContentWidth);
-        return new Size(size.Width, size.Height);
-    }
+    private CanvasBitmap? GetMarkdownInlineImage(AozoraImage image) =>
+        _imageResourceService.TryGetCached(ImageResourceService.GetTextCacheKey(image.Source));
+
+    private static IEnumerable<AozoraImage> GetMarkdownImages(AozoraBindingModel block) =>
+        block.Inlines.OfType<AozoraImage>().Concat(block.TableRowIndex >= 0 && block.TableRowIndex < block.TableContentRows.Count
+            ? block.TableContentRows[block.TableRowIndex].SelectMany(cell => cell).OfType<AozoraImage>()
+            : Enumerable.Empty<AozoraImage>());
 
     private void ScrollMarkdownToBlock(int index)
     {
@@ -188,7 +183,7 @@ internal sealed partial class DocumentReaderController
         var blocks = _aozoraBlocks;
         for (int i = first; i <= last; i++)
         {
-            foreach (var image in blocks[i].Inlines.OfType<AozoraImage>())
+            foreach (var image in GetMarkdownImages(blocks[i]))
             {
                 if (_imageResourceService.TryGetCached(ImageResourceService.GetTextCacheKey(image.Source)) == null &&
                     _markdownRequestedImages.Add(image.Source))
@@ -201,13 +196,36 @@ internal sealed partial class DocumentReaderController
     {
         try
         {
-            await _imageResourceService.LoadAsync(ImageResourceService.GetTextCacheKey(source), source,
+            if (token.IsCancellationRequested || !ReferenceEquals(blocks, _aozoraBlocks)) return;
+            var bitmap = await _imageResourceService.LoadAsync(ImageResourceService.GetTextCacheKey(source), source,
                 AozoraTextCanvas.Device ?? CanvasDevice.GetSharedDevice(), CreateViewingContext(),
-                _sharpenEnabled, CreateSharpenParams());
+                false, CreateSharpenParams()); // Preserve intrinsic image dimensions, including small badges.
             if (!token.IsCancellationRequested && IsMarkdownScrollMode && ReferenceEquals(blocks, _aozoraBlocks))
+            {
+                if (bitmap == null && PeleDiagramSource.IsDiagram(source))
+                    ShowMarkdownDiagramError(source, blocks);
                 RebuildMarkdownScrollLayout(preservePosition: true);
+            }
         }
         catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"Markdown image load error: {ex.Message}"); }
+    }
+
+    private static void ShowMarkdownDiagramError(string source, List<AozoraBindingModel> blocks)
+    {
+        string code = PeleDiagramSource.Decode(source);
+        PeleDiagramRenderer.TryGetError(code, out string? error);
+        foreach (var block in blocks.Where(block => block.Inlines.OfType<AozoraImage>().Any(image => image.Source == source)))
+        {
+            // Preserve block indices and the source anchor when replacing the
+            // deferred image. The complete source stays readable in the scroll view.
+            block.Inlines = new() { new AozoraCode { Text = (error ?? "Pele could not render this diagram.") + "\n\n" + code } };
+            block.IsCodeBlock = block.IsTable = true;
+            block.CodeBlockGroup = -block.SourceLineNumber;
+            block.FontFamily = "Consolas";
+            block.BackgroundColor = ColorHelper.FromArgb(30, 128, 128, 128);
+            block.Padding = new Thickness(12);
+            block.Margin = new Thickness(12, 0, 12, 8);
+        }
     }
 
     private void DrawMarkdownViewport(CanvasDrawingSession ds)
@@ -216,35 +234,14 @@ internal sealed partial class DocumentReaderController
         object pageToken = _aozoraBlocks;
         var ranges = CanvasTextSelectionHelper.BuildRangesForDraw(_aozoraSelection, _aozoraSelectionGeometry, pageToken);
         var geometry = new CanvasTextGeometry(pageToken);
-        var margins = ReaderPageMargins.HorizontalText;
         double offset = _markdownScrollViewer.VerticalOffset;
         int first = _currentAozoraStartBlockIndex;
         int end = Math.Min(_aozoraBlocks.Count, _currentAozoraEndBlockIndex + 1);
-        for (int i = first; i < end;)
-        {
-            float y = (float)(_markdownScrollLayout.GetTop(i) - offset);
-            var block = _aozoraBlocks[i];
-            if (block.HasImage)
-            {
-                string source = block.Inlines.OfType<AozoraImage>().First().Source;
-                var bitmap = _imageResourceService.TryGetCached(ImageResourceService.GetTextCacheKey(source));
-                if (bitmap != null)
-                {
-                    var size = GetMarkdownImageSize(bitmap);
-                    ds.DrawImage(bitmap, new Rect(margins.Left + (_markdownContentWidth - size.Width) / 2,
-                        y + 8, size.Width, size.Height));
-                }
-                i++;
-                continue;
-            }
-            if (block.IsPageBreak) { i++; continue; }
-            int start = i++;
-            while (i < end && !_aozoraBlocks[i].HasImage && !_aozoraBlocks[i].IsPageBreak) i++;
-            HorizontalRenderer.RenderBlocks(ds, _aozoraBlocks.GetRange(start, i - start), GetVerticalTextColor(),
-                margins.Left, y, _markdownContentWidth, _settingsManager.FontSize, _settingsManager.FontFamily,
-                GetFontWeightForFamily, _activeSearchQuery, GetActiveSearchMatchFor(DocumentSearchKind.Text),
-                DocumentSearchKind.Text, start, geometry, ranges, start);
-        }
+        HorizontalRenderer.RenderBlocks(ds, _aozoraBlocks.GetRange(first, end - first), GetVerticalTextColor(),
+            _markdownContentLeft, (float)(_markdownScrollLayout.GetTop(first) - offset), _markdownContentWidth,
+            _settingsManager.FontSize, _settingsManager.FontFamily, GetFontWeightForFamily, _activeSearchQuery,
+            GetActiveSearchMatchFor(DocumentSearchKind.Text), DocumentSearchKind.Text, first, geometry, ranges, first,
+            GetMarkdownInlineImage);
         CanvasTextSelectionHelper.ApplyGeometry(ref _aozoraSelectionGeometry, geometry, _aozoraSelection, pageToken);
     }
 

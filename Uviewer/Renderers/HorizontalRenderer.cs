@@ -130,7 +130,8 @@ namespace Uviewer.Renderers
             int firstBlockIndex = -1,
             CanvasTextGeometry? selectionGeometry = null,
             IReadOnlyList<CanvasTextRange>? selectionRanges = null,
-            int selectionBlockOffset = 0)
+            int selectionBlockOffset = 0,
+            Func<AozoraImage, CanvasBitmap?>? getImage = null)
         {
             float currentY = marginTop;
             bool isBoxing = false;
@@ -146,6 +147,7 @@ namespace Uviewer.Renderers
                 var block = blocks[i];
                 float fontSize = (float)(baseFontSize * block.FontSizeScale);
                 float rubyFontSize = fontSize * 0.5f;
+                if (block.IsMarkdown) currentY += (float)block.Margin.Top;
 
                 // 1. 테이블 렌더링
                 if (block.IsTable && block.TableRows != null && block.TableRows.Count > 0)
@@ -163,7 +165,7 @@ namespace Uviewer.Renderers
                     float tableMaxWidth = maxWidth - tableIndent - tableRightMargin;
                     float tableDrawX = marginLeft + tableIndent;
                     var columnWidths = TableColumnLayout.Measure(ds, block, tableMaxWidth, fontSize,
-                        block.FontFamily ?? defaultFontFamily, getFontWeight(block.FontFamily ?? defaultFontFamily));
+                        block.FontFamily ?? defaultFontFamily, getFontWeight(block.FontFamily ?? defaultFontFamily), getImage);
                     tableMaxWidth = columnWidths.Sum();
 
                     using var tableFormat = new CanvasTextFormat
@@ -183,7 +185,7 @@ namespace Uviewer.Renderers
                     for (int c = 0; c < colCount; c++)
                     {
                         var cellLayout = new TableCellLayout(ds, TableCellLayout.GetCell(block, c),
-                            Math.Max(1, columnWidths[c] - 20), fontSize, tableFormat.FontFamily, tableFormat.FontWeight, textColor);
+                            Math.Max(1, columnWidths[c] - 20), fontSize, tableFormat.FontFamily, tableFormat.FontWeight, textColor, getImage: getImage);
                             
                         cellLayouts.Add(cellLayout);
                         float h = (float)cellLayout.Layout.LayoutBounds.Height;
@@ -220,7 +222,7 @@ namespace Uviewer.Renderers
 
                 // 2. 일반 텍스트 블록 렌더링
                 if (block.IsCodeBlock) currentY += (float)block.Padding.Top;
-                float lineSpacing = (block.IsTable || block.HeadingLevel > 0) ? fontSize * 1.3f : fontSize * 2.1f;
+                float lineSpacing = MarkdownNativeStyle.LineSpacing(block, fontSize);
 
                 StringBuilder sb = new StringBuilder();
                 var rubyRanges = new List<(int start, int length, string rubyText)>();
@@ -229,6 +231,8 @@ namespace Uviewer.Renderers
                 var highlightRanges = new List<(int start, int length)>();
                 var mathRanges = new List<(int start, int length, AozoraMath math)>();
                 var styledRanges = new List<(int start, int length, AozoraStyledText style)>();
+                var codeRanges = new List<(int start, int length)>();
+                var imageRanges = new List<(int Start, AozoraImage Image)>();
 
                 foreach (var inline in block.Inlines)
                 {
@@ -238,6 +242,7 @@ namespace Uviewer.Renderers
                     {
                         sb.Append(styled.Text);
                         styledRanges.Add((start, styled.Text.Length, styled));
+                        if (styled.Code) codeRanges.Add((start, styled.Text.Length));
                         if (styled.Highlight) highlightRanges.Add((start, styled.Text.Length));
                     }
                     else if (inline is AozoraRuby ruby)
@@ -256,7 +261,8 @@ namespace Uviewer.Renderers
                         sb.Append(italic.Text);
                         italicRanges.Add((start, italic.Text.Length));
                     }
-                    else if (inline is AozoraCode code) sb.Append(code.Text);
+                    else if (inline is AozoraCode code) { sb.Append(code.Text); codeRanges.Add((start, code.Text.Length)); }
+                    else if (inline is AozoraImage image && block.IsMarkdown) { sb.Append('\uFFFC'); imageRanges.Add((start, image)); }
                     else if (inline is AozoraHighlight highlight)
                     {
                         sb.Append(highlight.Text);
@@ -283,6 +289,7 @@ namespace Uviewer.Renderers
                 float blockIndentChars = (float)(block.BlockIndentChars > 0 ? block.BlockIndentChars : (block.Margin.Left / baseFontSize));
                 float indent = (float)(blockIndentChars * fontSize);
                 float rightMargin = (float)(block.RightMarginChars > 0 ? block.RightMarginChars * fontSize : block.Margin.Right);
+                if (block.IsMarkdown) { indent = (float)block.Margin.Left; rightMargin = (float)block.Margin.Right; }
                 float actualMaxWidth = maxWidth - indent - rightMargin;
                 if (actualMaxWidth < 100) actualMaxWidth = 100;
 
@@ -293,9 +300,9 @@ namespace Uviewer.Renderers
                     FontWeight = getFontWeight(block.FontFamily ?? defaultFontFamily),
                     Direction = CanvasTextDirection.LeftToRightThenTopToBottom,
                     WordWrapping = block.IsTable && !block.IsCodeBlock ? CanvasWordWrapping.NoWrap : CanvasWordWrapping.Wrap,
-                    LineSpacing = lineSpacing,
-                    LineSpacingBaseline = fontSize * ((block.IsTable || block.HeadingLevel > 0) ? 1.05f : 1.35f),
-                    LineSpacingMode = CanvasLineSpacingMode.Uniform,
+                    LineSpacing = imageRanges.Count > 0 ? -1 : lineSpacing,
+                    LineSpacingBaseline = imageRanges.Count > 0 ? 0 : MarkdownNativeStyle.Baseline(block, fontSize),
+                    LineSpacingMode = imageRanges.Count > 0 ? CanvasLineSpacingMode.Default : CanvasLineSpacingMode.Uniform,
                     VerticalAlignment = CanvasVerticalAlignment.Top
                 };
 
@@ -306,9 +313,19 @@ namespace Uviewer.Renderers
                 if (block.IsBold) textLayout.SetFontWeight(0, blockText.Length, FontWeights.Bold);
                 foreach (var r in boldRanges) textLayout.SetFontWeight(r.start, r.length, FontWeights.Bold);
                 foreach (var r in italicRanges) textLayout.SetFontStyle(r.start, r.length, Windows.UI.Text.FontStyle.Italic);
-                foreach (var r in styledRanges) InlineTextFormatting.Apply(textLayout, r.start, r.length, r.style);
+                foreach (var r in styledRanges)
+                {
+                    InlineTextFormatting.Apply(textLayout, r.start, r.length, r.style);
+                    if (r.length > 0 && r.style.IsLink) textLayout.SetColor(r.start, r.length, MarkdownNativeStyle.LinkColor(textColor));
+                    var syntaxColor = MarkdownNativeStyle.SyntaxColor(r.style.SyntaxScope, textColor);
+                    if (r.length > 0 && syntaxColor.HasValue) textLayout.SetColor(r.start, r.length, syntaxColor.Value);
+                }
+                if (block.IsMarkdown)
+                    foreach (var r in codeRanges) MarkdownNativeStyle.ApplyCode(textLayout, r.start, r.length, fontSize, block.IsCodeBlock);
                 using var mathLayout = new MathInlineLayout();
-                mathLayout.Apply(textLayout, mathRanges, fontSize, actualMaxWidth, textColor);
+                mathLayout.Apply(textLayout, mathRanges, fontSize, actualMaxWidth, textColor, imageRanges.Count > 0);
+                using var imageLayout = new ImageInlineLayout();
+                imageLayout.Apply(textLayout, imageRanges, actualMaxWidth, getImage);
 
                 var extent = HorizontalHeadingLayout.Measure(textLayout, block);
                 currentY += extent.topInset;
@@ -373,11 +390,18 @@ namespace Uviewer.Renderers
                         bgHeight = currentBlockHeight + padTop + padBottom;
                     }
 
-                    ds.FillRectangle(drawX - padLeft, bgTop,
-                        (block.IsCodeBlock ? actualMaxWidth : currentW) + padLeft + padRight, bgHeight, block.BackgroundColor.Value);
+                    var backgroundRect = new Windows.Foundation.Rect(drawX - padLeft, bgTop,
+                        (block.IsCodeBlock ? actualMaxWidth : currentW) + padLeft + padRight, bgHeight);
+                    if (block.IsMarkdown && block.IsCodeBlock)
+                        FillMarkdownCodeBackground(ds, backgroundRect, MarkdownNativeStyle.CodeBackground(textColor),
+                            block.CodeBlockLineIndex == 0, block.CodeBlockLineCount <= 1 || block.CodeBlockLineIndex == block.CodeBlockLineCount - 1);
+                    else ds.FillRectangle(backgroundRect, block.BackgroundColor.Value);
                 }
 
                 // 5. 인라인 배경 및 텍스트 본문 그리기
+                if (block.IsMarkdown && !block.IsCodeBlock)
+                    DrawRangeBackgrounds(ds, textLayout, codeRanges, drawX, currentY,
+                        MarkdownNativeStyle.InlineCodeBackground(textColor), fontSize, rounded: true);
                 DrawRangeBackgrounds(ds, textLayout, highlightRanges, drawX, currentY, ColorHelper.FromArgb(120, 255, 230, 96), fontSize);
                 var searchHighlights = SearchHighlightService.CreateAozoraHighlightRanges(
                     block,
@@ -433,7 +457,7 @@ namespace Uviewer.Renderers
                     }
                 }
 
-                mathLayout.Draw(ds, textLayout, drawX, currentY, textColor);
+                imageLayout.Draw(ds, () => mathLayout.Draw(ds, textLayout, drawX, currentY, textColor));
                 if (selectionGeometry != null)
                 {
                     selectionGeometry.AddBlock(selectionBlockOffset + i, blockText, drawX, currentY, fontSize, textLayout);
@@ -448,7 +472,7 @@ namespace Uviewer.Renderers
                     
                     if (block.BorderThickness.Bottom > 0)
                     {
-                        ds.DrawLine(drawX, borderBottomY, drawX + currentW, borderBottomY, block.BorderColor.Value, (float)block.BorderThickness.Bottom);
+                        ds.DrawLine(drawX, borderBottomY, drawX + (block.IsMarkdown ? actualMaxWidth : currentW), borderBottomY, block.BorderColor.Value, (float)block.BorderThickness.Bottom);
                     }
                     if (block.BorderThickness.Left > 0)
                     {
@@ -541,14 +565,23 @@ namespace Uviewer.Renderers
             }
         }
 
-        private static void DrawRangeBackgrounds(
+        private static void FillMarkdownCodeBackground(CanvasDrawingSession ds, Windows.Foundation.Rect rect, Color color, bool first, bool last)
+        {
+            if (!first && !last) { ds.FillRectangle(rect, color); return; }
+            ds.FillRoundedRectangle(rect, 6, 6, color);
+            if (!last) ds.FillRectangle(new Windows.Foundation.Rect(rect.X, rect.Y + rect.Height / 2, rect.Width, rect.Height / 2), color);
+            if (!first) ds.FillRectangle(new Windows.Foundation.Rect(rect.X, rect.Y, rect.Width, rect.Height / 2), color);
+        }
+
+        internal static void DrawRangeBackgrounds(
             CanvasDrawingSession ds,
             CanvasTextLayout layout,
             List<(int start, int length)> ranges,
             float drawX,
             float drawY,
             Color color,
-            float fontSize)
+            float fontSize,
+            bool rounded = false)
         {
             var lineBounds = BuildLineBounds(layout);
 
@@ -568,7 +601,8 @@ namespace Uviewer.Renderers
                     float y = drawY + highlightBounds.y;
                     float width = Math.Max(2f, (float)bounds.Width + 4f);
                     float height = highlightBounds.height;
-                    ds.FillRectangle(x, y, width, height, color);
+                    if (rounded) ds.FillRoundedRectangle(x, y, width, height, 4, 4, color);
+                    else ds.FillRectangle(x, y, width, height, color);
 
                     if (lineBounds.Count > 0 && lineIndex < lineBounds.Count - 1)
                         lineIndex++;

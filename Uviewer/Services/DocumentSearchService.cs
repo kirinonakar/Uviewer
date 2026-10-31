@@ -463,6 +463,9 @@ namespace Uviewer.Services
                     case AozoraLineBreak:
                         sb.Append(' ');
                         break;
+                    case AozoraImage when block.IsMarkdown:
+                        sb.Append('\uFFFC'); // Keep text offsets aligned with native inline image objects.
+                        break;
                 }
             }
 
