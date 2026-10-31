@@ -29,7 +29,7 @@ namespace Uviewer
             {
                 // EPUB pagination runs on a worker thread. Reject ineligible modes
                 // before reading thread-affine XAML dimensions.
-                if (!_isTextMode || _isEpubMode || !_isAozoraMode || _isVerticalMode ||
+                if (!_isTextMode || _isEpubMode || !_isAozoraMode || _isVerticalMode || _isMarkdownRenderMode ||
                     !_settingsManager.HorizontalTwoColumnView)
                     return false;
 
@@ -308,6 +308,7 @@ namespace Uviewer
 
         internal async Task ReloadTextDisplayFromCacheAsync(string fileName, int targetLine)
         {
+            ConfigureMarkdownScrollView();
             int loadGeneration = BeginTextContentLoad();
             try
             {
@@ -382,6 +383,13 @@ namespace Uviewer
         {
             targetLine = _aozoraPendingTargetLine;
             // _aozoraPendingTargetLine = 0; // <--- 이 줄을 삭제하세요! (섣불리 지우면 위치를 잃어버립니다)
+        }
+
+        ConfigureMarkdownScrollView();
+        if (IsMarkdownScrollMode)
+        {
+            await PrepareMarkdownScrollDisplayAsync(rawContent, targetLine, targetBlockIndex, token);
+            return;
         }
 
         // 화면 전환 전 불필요한 UI 숨기기 (로딩 뷰가 있다면 여기서 띄워도 좋습니다)
@@ -681,6 +689,11 @@ namespace Uviewer
         internal void AozoraTextCanvas_SizeChanged(object sender, SizeChangedEventArgs e)
         {
             if (!_isTextMode || !_isAozoraMode) return;
+            if (IsMarkdownScrollMode)
+            {
+                RebuildMarkdownScrollLayout(preservePosition: true);
+                return;
+            }
             if (_aozoraBlocks.Count == 0) return;
 
             ClearBackwardCache(); // <-- 화면 크기 변경 시 캐시 지우기
@@ -704,6 +717,11 @@ namespace Uviewer
 
         private async Task RenderAozoraDynamicPageCore(int startIdx)
         {
+            if (IsMarkdownScrollMode)
+            {
+                ScrollMarkdownToBlock(startIdx);
+                return;
+            }
             if (AozoraTextCanvas == null || _aozoraBlocks == null || _aozoraBlocks.Count == 0)
             {
                 _aozoraPageState.SetEmptyPage();
@@ -752,6 +770,7 @@ namespace Uviewer
 
         internal async void StartAozoraPageCalculationAsync()
         {
+            if (IsMarkdownScrollMode) return;
             CancellationTokenSource? calculationCts = null;
             IReadOnlyList<AozoraBindingModel>? blocks = null;
             try
@@ -948,6 +967,12 @@ namespace Uviewer
 
             ds.Clear(GetVerticalBackgroundColor());
 
+            if (IsMarkdownScrollMode)
+            {
+                DrawMarkdownViewport(ds);
+                return;
+            }
+
             if (_currentAozoraPageInfo.Blocks == null || _currentAozoraPageInfo.Blocks.Count == 0)
             {
                 ClearAozoraSelection();
@@ -1050,6 +1075,11 @@ namespace Uviewer
 
         internal void NavigateAozoraPage(int direction)
         {
+            if (IsMarkdownScrollMode)
+            {
+                ScrollMarkdownBy(direction * Math.Max(1, AozoraTextCanvas.ActualHeight - _settingsManager.FontSize * 2));
+                return;
+            }
             _ = NavigateAozoraPageAsync(direction);
         }
 
@@ -1196,6 +1226,11 @@ namespace Uviewer
 
         internal void UpdateAozoraStatusBar()
         {
+            if (IsMarkdownScrollMode)
+            {
+                UpdateMarkdownStatusBar();
+                return;
+            }
             if (!_isTextMode || !_isAozoraMode || _aozoraBlocks.Count == 0) return;
 
             int startLine = _aozoraBlocks[_currentAozoraStartBlockIndex].SourceLineNumber;

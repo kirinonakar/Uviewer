@@ -68,7 +68,10 @@ namespace Uviewer
                 state.Focus = caret;
             }
 
-            canvas.CapturePointer(e.Pointer);
+            // Markdown's drawing canvas is transparent to input so its underlying
+            // ScrollViewer can pan. Capture on the parent for Ctrl+drag selection.
+            UIElement captureTarget = IsMarkdownScrollMode && ReferenceEquals(canvas, AozoraTextCanvas) ? TextArea : canvas;
+            captureTarget.CapturePointer(e.Pointer);
             canvas.Invalidate();
             return true;
         }
@@ -105,7 +108,8 @@ namespace Uviewer
             if (!state.IsDragging || state.PointerId != e.Pointer.PointerId) return;
 
             state.IsDragging = false;
-            canvas.ReleasePointerCaptures();
+            UIElement captureTarget = IsMarkdownScrollMode && ReferenceEquals(canvas, AozoraTextCanvas) ? TextArea : canvas;
+            captureTarget.ReleasePointerCaptures();
             e.Handled = true;
 
             if (!state.HasSelection || geometry == null) return;
@@ -170,6 +174,11 @@ namespace Uviewer
 
         internal void TextArea_PointerMoved(object sender, PointerRoutedEventArgs e)
         {
+            if (IsMarkdownScrollMode)
+            {
+                UpdateCanvasTextSelection(e, AozoraTextCanvas, _aozoraSelection, _aozoraSelectionGeometry);
+                return;
+            }
             if (!_plainTextSelection.IsDragging || _plainTextSelection.PointerId != e.Pointer.PointerId) return;
 
             e.Handled = true;
@@ -195,6 +204,11 @@ namespace Uviewer
 
         internal void TextArea_PointerReleased(object sender, PointerRoutedEventArgs e)
         {
+            if (IsMarkdownScrollMode)
+            {
+                EndCanvasTextSelection(e, AozoraTextCanvas, _aozoraSelection, _aozoraSelectionGeometry);
+                return;
+            }
             if (!_plainTextSelection.IsDragging || _plainTextSelection.PointerId != e.Pointer.PointerId) return;
 
             _plainTextSelection.IsDragging = false;

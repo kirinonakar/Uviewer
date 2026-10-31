@@ -21,8 +21,8 @@
 - **Advanced Text Engine**: 
   - **Immediate loading of large text files**
   - **Aozora Bunko format Support**: Native rendering of Ruby text (Furigana), emphasis, indentation and images.
-  - **Markdown Support**: Custom-built Markdown rendering including tables, code blocks, and inline formatting.
-  - **Pele Diagrams**: Render Mermaid syntax in fenced `mermaid` or `pele` code blocks using the bundled [Pele](https://pele.run) renderer, fully offline. Each diagram occupies an image page with a light background; invalid diagrams show an error and retain their source code. Press **A** to read the original Markdown.
+  - **Markdown Support**: Continuous scrolling in rendered A mode, including tables, code blocks, inline formatting, and images within the document flow.
+  - **Pele Diagrams**: Render Mermaid syntax in fenced `mermaid` or `pele` code blocks using the bundled [Pele](https://pele.run) renderer, fully offline. Diagrams appear inline with a light background; invalid diagrams show an error and retain their source code. Press **A** to read the original Markdown.
   - **Smart Encoding Detection**: Automatically detects and handles various encodings (UTF-8, Unicode, **EUC-KR**, **Shift-JIS**, **Johab**).
 - **Reading Comfort**: 
   - **Adjustable Styling**: Change font size, font family (toggle between two user-defined defaults), and background themes (Light/Beige/Dark/Custom). (Recommendation: We suggest installing and using [**Noto Sans/Serif CJK**](https://fonts.google.com/noto) for the best multilingual reading experience.)

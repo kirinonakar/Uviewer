@@ -66,7 +66,9 @@ internal static class MarkdownDocumentParser
         html.LoadHtml(writer.ToString());
         var converter = new Converter();
         converter.Read(html.DocumentNode);
-        return (converter.Blocks.SelectMany(AozoraParserService.SplitBlockBySentences).ToList(), source.Count(c => c == '\n') + 1);
+        // Preserve Markdown paragraphs and inline runs. Aozora's pagination chunks
+        // would become forced line breaks in the continuous-scrolling renderer.
+        return (converter.Blocks, source.Count(c => c == '\n') + 1);
     }
 
     private static string NormalizeDisplayDelimiters(string source)

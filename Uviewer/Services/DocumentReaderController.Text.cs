@@ -250,6 +250,8 @@ namespace Uviewer
             _lastRecentSaveLine = -1;
 
             _isMarkdownRenderMode = preparedText.IsMarkdownRenderMode;
+            if (_isMarkdownRenderMode) _isVerticalMode = false;
+            ConfigureMarkdownScrollView();
             bool canUseVerticalMode = preparedText.CanUseVerticalMode && !_isCurrentTextPlainModeLocked;
             MainToolbar.SetVerticalToggleState(
                 isChecked: canUseVerticalMode && _isVerticalMode,
@@ -1029,6 +1031,11 @@ namespace Uviewer
                 },
                 GoToAozoraEndAsync = async () =>
                 {
+                    if (IsMarkdownScrollMode && _markdownScrollViewer != null)
+                    {
+                        _markdownScrollViewer.ChangeView(null, _markdownScrollViewer.ScrollableHeight, null, true);
+                        return;
+                    }
                     int lastIdx = Math.Max(0, _aozoraBlocks.Count - 5);
                     await RenderAozoraDynamicPage(lastIdx);
                     UpdateAozoraStatusBar();
@@ -1194,6 +1201,20 @@ namespace Uviewer
 
         internal void TextArea_PointerPressed(object sender, PointerRoutedEventArgs e)
         {
+            if (IsMarkdownScrollMode)
+            {
+                if (_windowShellController.HandleFullscreenPanelPointer(e) || TryBeginAozoraTextSelection(e))
+                {
+                    e.Handled = true;
+                    RootGrid.Focus(FocusState.Programmatic);
+                }
+                else if (!CanvasTextSelectionHelper.IsControlKeyDown())
+                {
+                    ClearAozoraSelection();
+                    AozoraTextCanvas.Invalidate();
+                }
+                return;
+            }
             // Ctrl+드래그: 일반 텍스트 선택 (선택 완료 시 자동으로 클립보드에 복사)
             if (TryBeginPlainTextSelection(e))
             {
@@ -1233,6 +1254,7 @@ namespace Uviewer
 
         internal void TextArea_PointerWheelChanged(object sender, PointerRoutedEventArgs e)
         {
+            if (IsMarkdownScrollMode) return; // Native ScrollViewer wheel/touch scrolling.
             if (_isVerticalMode) return;
             var ptr = e.GetCurrentPoint(TextArea);
             var delta = ptr.Properties.MouseWheelDelta;
@@ -1305,6 +1327,11 @@ namespace Uviewer
 
         internal void TextArea_SizeChanged(object sender, SizeChangedEventArgs e)
         {
+            if (IsMarkdownScrollMode)
+            {
+                RebuildMarkdownScrollLayout(preservePosition: true);
+                return;
+            }
             // Handle TextArea resize for window drag resizing in Aozora mode.
             // AozoraTextCanvas_SizeChanged handles the canvas itself;
             // this covers the outer Grid container resize event wired in XAML.
