@@ -1,4 +1,5 @@
 using Microsoft.Graphics.Canvas;
+using Microsoft.Graphics.Canvas.Text;
 using Microsoft.UI;
 using System;
 using System.Collections.Concurrent;
@@ -29,6 +30,7 @@ internal static class TableColumnLayout
         int columns = block.TableRows[0].Count;
         if (columns == 0) return [];
         var preferred = Enumerable.Repeat(fontSize + 20, columns).ToArray();
+        var minimum = Enumerable.Repeat(20f, columns).ToArray();
         int rowCount = Math.Max(1, block.TableContentRows.Count);
         for (int r = 0; r < rowCount; r++)
         {
@@ -39,14 +41,33 @@ internal static class TableColumnLayout
                 using var cell = new TableCellLayout(creator, content, getImage != null ? availableWidth : 100000, fontSize, font,
                     r == 0 ? Microsoft.UI.Text.FontWeights.Bold : weight, Colors.Black, wrap: false, getImage: getImage);
                 preferred[c] = Math.Max(preferred[c], (float)cell.Layout.LayoutBounds.Width + 20);
+                // Reserve the widest unbreakable word (with its actual styling),
+                // rather than shrinking every column to the same two-em floor.
+                // NoWrap is useful for max-content measurement, but min-content
+                // must allow normal word boundaries before asking DirectWrite.
+                cell.Layout.WordWrapping = CanvasWordWrapping.Wrap;
+                minimum[c] = Math.Max(minimum[c], MathF.Ceiling(cell.Layout.GetMinimumLineLength()) + 20);
+                preferred[c] = Math.Max(preferred[c], minimum[c]);
             }
         }
 
         float total = preferred.Sum();
         if (total <= availableWidth) return preferred;
-        float minimum = Math.Min(fontSize * 2 + 20, availableWidth / columns);
-        float extra = Math.Max(0, availableWidth - minimum * columns);
-        float demand = preferred.Sum(w => Math.Max(0, w - minimum));
-        return preferred.Select(w => minimum + (demand > 0 ? extra * Math.Max(0, w - minimum) / demand : extra / columns)).ToArray();
+        float minimumTotal = minimum.Sum();
+        if (minimumTotal <= availableWidth)
+        {
+            float extra = availableWidth - minimumTotal;
+            float demand = total - minimumTotal;
+            return preferred.Select((width, c) => minimum[c] +
+                (demand > 0 ? extra * (width - minimum[c]) / demand : extra / columns)).ToArray();
+        }
+
+        // Only fall back to character wrapping when even whole-word minimums
+        // cannot fit in the viewport (for example, at very narrow window sizes).
+        float floor = Math.Min(fontSize * 2 + 20, availableWidth / columns);
+        float remaining = Math.Max(0, availableWidth - floor * columns);
+        float shortage = minimum.Sum(width => Math.Max(0, width - floor));
+        return minimum.Select(width => floor +
+            (shortage > 0 ? remaining * Math.Max(0, width - floor) / shortage : remaining / columns)).ToArray();
     }
 }
