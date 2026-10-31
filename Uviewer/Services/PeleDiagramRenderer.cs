@@ -18,7 +18,7 @@ internal static class PeleDiagramRenderer
     private const int MaxSourceLength = 50_000;
     private const int MaxCacheCharacters = 16 * 1024 * 1024;
     private static readonly object Sync = new();
-    private static readonly ConcurrentDictionary<string, (string Image, string? Error)> Cache = new();
+    private static readonly ConcurrentDictionary<string, (string Image, string? Error, float Dpi)> Cache = new();
     private static int _cacheCharacters;
     private static Engine? _engine;
     private static readonly Lazy<Prepared<Acornima.Ast.Script>> Bundle = new(() =>
@@ -41,9 +41,13 @@ internal static class PeleDiagramRenderer
     private static string GetKey(string source) => Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(source)));
 
     public static bool TryRender(string source, out string image, out string? error)
+        => TryRender(source, out image, out error, out _);
+
+    public static bool TryRender(string source, out string image, out string? error, out float dpi)
     {
         image = "";
         error = null;
+        dpi = 96;
         if (source.Length > MaxSourceLength)
         {
             error = "Diagram exceeds Pele's 50,000-character limit.";
@@ -55,14 +59,14 @@ internal static class PeleDiagramRenderer
         // another diagram. JS execution remains serialized because Jint is mutable.
         if (Cache.TryGetValue(key, out var ready))
         {
-            (image, error) = ready;
+            (image, error, dpi) = ready;
             return error == null;
         }
         lock (Sync)
         {
             if (Cache.TryGetValue(key, out var cached))
             {
-                (image, error) = cached;
+                (image, error, dpi) = cached;
                 return error == null;
             }
             try
@@ -70,7 +74,7 @@ internal static class PeleDiagramRenderer
                 var engine = _engine ??= CreateEngine();
                 // Pass diagram text as data, never as executable JavaScript.
                 string svg = engine.Invoke("renderDiagram", source).AsString();
-                image = "data:image/png;base64," + Convert.ToBase64String(Rasterize(svg));
+                image = "data:image/png;base64," + Convert.ToBase64String(Rasterize(svg, out dpi));
             }
             catch (Exception ex)
             {
@@ -89,7 +93,7 @@ internal static class PeleDiagramRenderer
                     Cache.Clear();
                     _cacheCharacters = 0;
                 }
-                Cache[key] = (image, error);
+                Cache[key] = (image, error, dpi);
                 _cacheCharacters += size;
             }
             return error == null;
@@ -132,7 +136,7 @@ internal static class PeleDiagramRenderer
         }
     }
 
-    private static byte[] Rasterize(string markup)
+    private static byte[] Rasterize(string markup, out float dpi)
     {
         // Pele uses CSS variables, which native SVG readers don't consistently
         // resolve. Materialize inherited values before passing it to Svg.Skia.
@@ -142,18 +146,13 @@ internal static class PeleDiagramRenderer
         using var stream = new MemoryStream(Encoding.UTF8.GetBytes(document.ToString(SaveOptions.DisableFormatting)));
         var picture = svg.Load(stream) ?? throw new InvalidOperationException("Could not draw the Pele diagram.");
         var bounds = picture.CullRect;
-        if (!float.IsFinite(bounds.Width) || !float.IsFinite(bounds.Height) || bounds.Width <= 0 || bounds.Height <= 0)
-            throw new InvalidOperationException("Pele returned invalid diagram dimensions.");
-
-        // Keep text crisp on HiDPI displays while bounding bitmap allocation.
-        float scale = Math.Min(2, Math.Min(4096 / bounds.Width, 4096 / bounds.Height));
-        int width = Math.Max(1, (int)Math.Ceiling(bounds.Width * scale));
-        int height = Math.Max(1, (int)Math.Ceiling(bounds.Height * scale));
-        using var surface = SKSurface.Create(new SKImageInfo(width, height))
+        var layout = PeleRasterLayout.Create(bounds.Width, bounds.Height);
+        dpi = layout.Dpi;
+        using var surface = SKSurface.Create(new SKImageInfo(layout.Width, layout.Height))
             ?? throw new InvalidOperationException("Could not allocate the diagram image.");
         // A light panel keeps Pele's authored colors readable in all reader themes.
         surface.Canvas.Clear(SKColors.White);
-        surface.Canvas.Scale(scale);
+        surface.Canvas.Scale(layout.Scale);
         surface.Canvas.Translate(-bounds.Left, -bounds.Top);
         surface.Canvas.DrawPicture(picture);
         using var snapshot = surface.Snapshot();

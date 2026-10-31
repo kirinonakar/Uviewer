@@ -41,6 +41,7 @@ internal sealed class ImageInlineLayout : IDisposable
     {
         private readonly CanvasBitmap? _bitmap;
         private readonly string _alt;
+        private readonly bool _isDiagram;
         public CanvasDrawingSession? Session { get; set; }
         public Size Size { get; }
         public float Baseline => (float)Size.Height;
@@ -53,10 +54,12 @@ internal sealed class ImageInlineLayout : IDisposable
         {
             _bitmap = bitmap;
             _alt = image.AltText;
-            // CSS image pixels ignore raster DPI metadata. SVGs are rendered into
-            // a high-DPI CanvasRenderTarget whose DIP size retains the SVG size.
-            double naturalWidth = bitmap == null ? 180 : bitmap is CanvasRenderTarget ? bitmap.Size.Width : bitmap.SizeInPixels.Width;
-            double naturalHeight = bitmap == null ? 120 : bitmap is CanvasRenderTarget ? bitmap.Size.Height : bitmap.SizeInPixels.Height;
+            _isDiagram = PeleDiagramSource.IsDiagram(image.Source);
+            // Ordinary image pixels follow CSS sizing. Generated diagrams retain
+            // their logical size while carrying extra pixels for HiDPI displays.
+            bool useLogicalSize = bitmap is CanvasRenderTarget || _isDiagram;
+            double naturalWidth = bitmap == null ? 180 : useLogicalSize ? bitmap.Size.Width : bitmap.SizeInPixels.Width;
+            double naturalHeight = bitmap == null ? 120 : useLogicalSize ? bitmap.Size.Height : bitmap.SizeInPixels.Height;
             var size = MarkdownImageSizing.Resolve(image, naturalWidth, naturalHeight, maxWidth);
             Size = new Size(size.Width, size.Height);
         }
@@ -66,7 +69,12 @@ internal sealed class ImageInlineLayout : IDisposable
             if (Session == null) return;
             // Win2D supplies the object's top-left after baseline alignment.
             var rect = new Rect(baselineOrigin.X, baselineOrigin.Y, Size.Width, Size.Height);
-            if (_bitmap != null) Session.DrawImage(_bitmap, rect);
+            if (_bitmap != null)
+            {
+                if (_isDiagram)
+                    Session.DrawImage(_bitmap, rect, _bitmap.Bounds, 1, CanvasImageInterpolation.HighQualityCubic);
+                else Session.DrawImage(_bitmap, rect);
+            }
             else
             {
                 Session.DrawRectangle(rect, Colors.Gray, 1);

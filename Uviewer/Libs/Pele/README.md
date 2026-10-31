@@ -21,3 +21,8 @@ the image resource loader. Concurrent requests for one diagram share its pending
 load. Successful renders reuse the initialized Jint engine and a bounded image
 cache; failed renders reset the engine and replace the image block with the error
 and complete source while preserving the block index and source anchor.
+
+Diagrams rasterize at 4x SVG resolution. Win2D receives the corresponding DPI,
+and the inline layout uses logical dimensions, preserving the existing display
+size while providing 2x pixel density at 200% Windows scaling. Very large diagrams
+are bounded to 8192 pixels per axis and 16 megapixels (64 MiB of RGBA).

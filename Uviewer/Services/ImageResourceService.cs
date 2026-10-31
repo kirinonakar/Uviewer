@@ -248,7 +248,8 @@ namespace Uviewer.Services
 
             try
             {
-                byte[]? bytes = await ExtractBytesAsync(relativePath, ctx);
+                var content = await ExtractBytesAsync(relativePath, ctx);
+                byte[]? bytes = content.Bytes;
 
                 if (bytes == null)
                 {
@@ -290,7 +291,9 @@ namespace Uviewer.Services
                         }
                         originalBitmap = rendered;
                     }
-                    else originalBitmap = await CanvasBitmap.LoadAsync(device, ras);
+                    else originalBitmap = content.Dpi.HasValue
+                        ? await CanvasBitmap.LoadAsync(device, ras, content.Dpi.Value)
+                        : await CanvasBitmap.LoadAsync(device, ras);
                 }
                 CanvasBitmap finalBitmap = originalBitmap;
 
@@ -468,18 +471,23 @@ namespace Uviewer.Services
         // 내부 헬퍼: 바이트 추출
         // ------------------------------------------------------------------
 
-        private async Task<byte[]?> ExtractBytesAsync(string relativePath, ViewingContext ctx)
+        private async Task<(byte[]? Bytes, float? Dpi)> ExtractBytesAsync(string relativePath, ViewingContext ctx)
         {
             if (PeleDiagramSource.IsDiagram(relativePath))
             {
                 return await Task.Run(() =>
                 {
                     string source = PeleDiagramSource.Decode(relativePath);
-                    if (!PeleDiagramRenderer.TryRender(source, out string image, out string? error))
+                    if (!PeleDiagramRenderer.TryRender(source, out string image, out string? error, out float dpi))
                         throw new InvalidDataException(error);
-                    return Convert.FromBase64String(image[(image.IndexOf(',') + 1)..]);
+                    return (Bytes: (byte[]?)Convert.FromBase64String(image[(image.IndexOf(',') + 1)..]), Dpi: (float?)dpi);
                 });
             }
+            return (await ExtractFileBytesAsync(relativePath, ctx), null);
+        }
+
+        private async Task<byte[]?> ExtractFileBytesAsync(string relativePath, ViewingContext ctx)
+        {
             if (relativePath.StartsWith("data:image/", StringComparison.OrdinalIgnoreCase))
             {
                 int comma = relativePath.IndexOf(',');
