@@ -319,6 +319,27 @@ internal static class MarkdownDocumentParser
         {
             string code = WebUtility.HtmlDecode(node.InnerText).Replace("\r\n", "\n");
             if (code.EndsWith('\n')) code = code[..^1];
+            var codeNode = node.ChildNodes.FirstOrDefault(n => n.Name == "code");
+            var languages = (codeNode?.GetAttributeValue("class", "") ?? "").Split(' ', StringSplitOptions.RemoveEmptyEntries);
+            if (languages.Any(language => language.Equals("language-mermaid", StringComparison.OrdinalIgnoreCase) ||
+                                          language.Equals("language-pele", StringComparison.OrdinalIgnoreCase)))
+            {
+                if (PeleDiagramRenderer.TryRender(code, out string imageSource, out string? error))
+                {
+                    var image = AozoraParserService.CloneBlockProperties(_current);
+                    image.SourceLineNumber = _sourceLine;
+                    image.Inlines.Add(new AozoraImage { Source = imageSource });
+                    Blocks.Add(image);
+                    return;
+                }
+                // Keep every source line readable when a diagram is invalid or
+                // exceeds the renderer's limits, and let the rest of the document load.
+                Blocks.Add(new AozoraBindingModel
+                {
+                    SourceLineNumber = _sourceLine,
+                    Inlines = { error ?? "Pele could not render this diagram." }
+                });
+            }
             var lines = code.Split('\n');
             int group = ++_codeGroup;
             for (int i = 0; i < lines.Length; i++)

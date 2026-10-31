@@ -40,6 +40,11 @@
 
   <ItemGroup>
     <EmbeddedResource Include="Strings\en-US\Resources.resw" LogicalName="Uviewer.FallbackStrings.resw" />
+    <EmbeddedResource Include="Libs\Pele\pele.global.js" LogicalName="Uviewer.Pele.js" />
+    <Content Include="Libs\Pele\LICENSE.txt">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+    </Content>
     <Content Include="Assets\Uviewer.ico" />
     <Content Include="Assets\Uviewer2.png">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
@@ -65,6 +70,7 @@
   <ItemGroup>
     <PackageReference Include="CSharpMath.Rendering" Version="0.5.1" />
     <PackageReference Include="HtmlAgilityPack" Version="1.13.1" />
+    <PackageReference Include="Jint" Version="4.17.0" />
     <PackageReference Include="Markdig" Version="1.5.0" />
     <PackageReference Include="K4os.Compression.LZ4" Version="1.3.8" />
     <PackageReference Include="Microsoft.Windows.SDK.BuildTools" Version="10.0.28000.2705" />
@@ -75,6 +81,7 @@
     <PackageReference Include="SevenZipExtractor" Version="1.0.19" ExcludeAssets="build" />
     <PackageReference Include="SharpCompress" Version="0.50.7" />
     <PackageReference Include="SkiaSharp" Version="4.154.0" />
+    <PackageReference Include="Svg.Skia" Version="5.2.3" />
     <PackageReference Include="Starward.Codec" Version="0.5.2" />
     <PackageReference Include="Microsoft.Graphics.Win2D" Version="1.4.0" />
     <PackageReference Include="System.Management" Version="10.0.14" />

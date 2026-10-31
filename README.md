@@ -22,6 +22,7 @@
   - **Immediate loading of large text files**
   - **Aozora Bunko format Support**: Native rendering of Ruby text (Furigana), emphasis, indentation and images.
   - **Markdown Support**: Custom-built Markdown rendering including tables, code blocks, and inline formatting.
+  - **Pele Diagrams**: Render Mermaid syntax in fenced `mermaid` or `pele` code blocks using the bundled [Pele](https://pele.run) renderer, fully offline. Each diagram occupies an image page with a light background; invalid diagrams show an error and retain their source code. Press **A** to read the original Markdown.
   - **Smart Encoding Detection**: Automatically detects and handles various encodings (UTF-8, Unicode, **EUC-KR**, **Shift-JIS**, **Johab**).
 - **Reading Comfort**: 
   - **Adjustable Styling**: Change font size, font family (toggle between two user-defined defaults), and background themes (Light/Beige/Dark/Custom). (Recommendation: We suggest installing and using [**Noto Sans/Serif CJK**](https://fonts.google.com/noto) for the best multilingual reading experience.)
@@ -179,6 +180,8 @@ dotnet build -c Release --self-contained true
 This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
 
 ### Third-Party Licenses
+
+- **Pele 1.12.0**: MIT license. Bundled JavaScript and license are in `Uviewer/Libs/Pele`; [source](https://github.com/obsidianmd/pele).
 - **7-Zip (7z.dll)**: Licensed under the **GNU LGPL**. For more information, please visit [www.7-zip.org](https://www.7-zip.org).
 
 ## 👤 Author
