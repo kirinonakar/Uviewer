@@ -152,9 +152,10 @@ namespace Uviewer.Services
                 return;
             }
 
+            bool invert = context.ShouldInvertControls && !(context.IsAozoraMode && context.IsMarkdownRenderMode);
             int dir = isLeftKey
-                ? (context.ShouldInvertControls ? 1 : -1)
-                : (context.ShouldInvertControls ? -1 : 1);
+                ? (invert ? 1 : -1)
+                : (invert ? -1 : 1);
 
             if (context.IsAozoraMode)
             {

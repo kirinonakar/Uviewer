@@ -2,6 +2,7 @@ using Microsoft.Graphics.Canvas;
 using Microsoft.UI;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
 using System;
 using System.Collections.Generic;
@@ -43,6 +44,13 @@ internal sealed partial class DocumentReaderController
             // The scroll extent receives native wheel/touch input. A viewport-sized
             // canvas above it renders only visible blocks, even for long documents.
             TextArea.Children.Insert(TextArea.Children.IndexOf(AozoraTextCanvas), _markdownScrollViewer);
+            // ScrollViewer can handle a press before it bubbles to TextArea.
+            // Handle mouse clicks here as well, while leaving touch panning native.
+            _markdownScrollViewer.AddHandler(UIElement.PointerPressedEvent, new PointerEventHandler((sender, e) =>
+            {
+                if (IsMarkdownScrollMode && e.Pointer.PointerDeviceType != Microsoft.UI.Input.PointerDeviceType.Touch)
+                    TextArea_PointerPressed(sender, e);
+            }), handledEventsToo: true);
             _markdownScrollViewer.ViewChanged += (_, _) =>
             {
                 if (IsMarkdownScrollMode && !_markdownUpdatingLayout)
@@ -156,11 +164,11 @@ internal sealed partial class DocumentReaderController
         UpdateMarkdownViewport();
     }
 
-    private void ScrollMarkdownBy(double distance)
+    private void NavigateMarkdownPage(int direction)
     {
         if (_markdownScrollViewer == null) return;
-        _markdownScrollViewer.ChangeView(null, Math.Clamp(_markdownScrollViewer.VerticalOffset + distance,
-            0, _markdownScrollViewer.ScrollableHeight), null, true);
+        _textViewportService.NavigatePage(_markdownScrollViewer, _settingsManager.FontSize, direction);
+        UpdateMarkdownViewport();
     }
 
     private void UpdateMarkdownViewport()

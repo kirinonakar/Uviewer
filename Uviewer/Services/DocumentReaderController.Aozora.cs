@@ -1077,7 +1077,7 @@ namespace Uviewer
         {
             if (IsMarkdownScrollMode)
             {
-                ScrollMarkdownBy(direction * Math.Max(1, AozoraTextCanvas.ActualHeight - _settingsManager.FontSize * 2));
+                NavigateMarkdownPage(direction);
                 return;
             }
             _ = NavigateAozoraPageAsync(direction);

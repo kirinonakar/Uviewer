@@ -1207,11 +1207,23 @@ namespace Uviewer
                 {
                     e.Handled = true;
                     RootGrid.Focus(FocusState.Programmatic);
+                    return;
                 }
                 else if (!CanvasTextSelectionHelper.IsControlKeyDown())
                 {
                     ClearAozoraSelection();
                     AozoraTextCanvas.Invalidate();
+                }
+                var markdownPoint = e.GetCurrentPoint(TextArea);
+                if (e.Pointer.PointerDeviceType != Microsoft.UI.Input.PointerDeviceType.Touch &&
+                    markdownPoint.Properties.IsLeftButtonPressed)
+                {
+                    _windowShellController.HandleSmartTouchNavigation(e, shouldInvertControls: false,
+                        () => NavigateAozoraPage(-1),
+                        () => NavigateAozoraPage(1));
+                    e.Handled = true;
+                    // Keep arrow keys on the reader after clicking its ScrollViewer.
+                    RootGrid.Focus(FocusState.Programmatic);
                 }
                 return;
             }
