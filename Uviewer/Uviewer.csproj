@@ -41,6 +41,7 @@
   <ItemGroup>
     <EmbeddedResource Include="Strings\en-US\Resources.resw" LogicalName="Uviewer.FallbackStrings.resw" />
     <EmbeddedResource Include="Libs\Pele\pele.global.js" LogicalName="Uviewer.Pele.js" />
+    <EmbeddedResource Include="Libs\Pele\pele.common.global.js" LogicalName="Uviewer.Pele.Common.js" />
     <Content Include="Libs\Pele\LICENSE.txt">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>

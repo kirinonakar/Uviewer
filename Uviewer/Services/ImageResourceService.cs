@@ -248,10 +248,8 @@ namespace Uviewer.Services
 
             try
             {
-                var content = await ExtractBytesAsync(relativePath, ctx);
-                byte[]? bytes = content.Bytes;
-
-                if (bytes == null)
+                var originalBitmap = await LoadBitmapAsync(relativePath, device, ctx);
+                if (originalBitmap == null)
                 {
                     lock (_lock)
                     {
@@ -264,37 +262,6 @@ namespace Uviewer.Services
                     return null;
                 }
 
-                // [안정성 수정] using으로 감싸서 스트림 리소스 누수 방지
-                CanvasBitmap originalBitmap;
-                using (var ras = new InMemoryRandomAccessStream())
-                {
-                    using (var writer = new Windows.Storage.Streams.DataWriter(ras))
-                    {
-                        writer.WriteBytes(bytes);
-                        await writer.StoreAsync();
-                        await writer.FlushAsync();
-                        writer.DetachStream();
-                    }
-                    ras.Seek(0);
-
-                    // SVG badges/diagrams are common in Markdown but are not WIC bitmaps.
-                    string prefix = Encoding.UTF8.GetString(bytes, 0, Math.Min(bytes.Length, 2048));
-                    if (Regex.IsMatch(prefix, @"<svg(?:\s|>)", RegexOptions.IgnoreCase))
-                    {
-                        using var svg = await CanvasSvgDocument.LoadAsync(device, ras);
-                        var size = GetSvgSize(Encoding.UTF8.GetString(bytes));
-                        var rendered = new CanvasRenderTarget(device, size.width, size.height, 144);
-                        using (var session = rendered.CreateDrawingSession())
-                        {
-                            session.Clear(Microsoft.UI.Colors.Transparent);
-                            session.DrawSvg(svg, new Windows.Foundation.Size(size.width, size.height));
-                        }
-                        originalBitmap = rendered;
-                    }
-                    else originalBitmap = content.Dpi.HasValue
-                        ? await CanvasBitmap.LoadAsync(device, ras, content.Dpi.Value)
-                        : await CanvasBitmap.LoadAsync(device, ras);
-                }
                 CanvasBitmap finalBitmap = originalBitmap;
 
                 if (sharpenEnabled)
@@ -356,6 +323,47 @@ namespace Uviewer.Services
                 }
                 return null;
             }
+        }
+
+        private async Task<CanvasBitmap?> LoadBitmapAsync(string source, CanvasDevice device, ViewingContext ctx)
+        {
+            if (PeleDiagramSource.IsDiagram(source))
+            {
+                var frame = await Task.Run(() =>
+                {
+                    if (!PeleDiagramRenderer.TryRender(PeleDiagramSource.Decode(source), out var result, out string? error))
+                        throw new InvalidDataException(error);
+                    return result!;
+                });
+                return CanvasBitmap.CreateFromBytes(device, frame.Pixels, frame.Width, frame.Height,
+                    Windows.Graphics.DirectX.DirectXPixelFormat.B8G8R8A8UIntNormalized,
+                    frame.Dpi, CanvasAlphaMode.Premultiplied);
+            }
+
+            var bytes = await ExtractFileBytesAsync(source, ctx);
+            if (bytes == null) return null;
+            using var ras = new InMemoryRandomAccessStream();
+            using (var writer = new DataWriter(ras))
+            {
+                writer.WriteBytes(bytes);
+                await writer.StoreAsync();
+                await writer.FlushAsync();
+                writer.DetachStream();
+            }
+            ras.Seek(0);
+            string prefix = Encoding.UTF8.GetString(bytes, 0, Math.Min(bytes.Length, 2048));
+            if (!Regex.IsMatch(prefix, @"<svg(?:\s|>)", RegexOptions.IgnoreCase))
+                return await CanvasBitmap.LoadAsync(device, ras);
+
+            using var svg = await CanvasSvgDocument.LoadAsync(device, ras);
+            var size = GetSvgSize(Encoding.UTF8.GetString(bytes));
+            var rendered = new CanvasRenderTarget(device, size.width, size.height, 144);
+            using (var session = rendered.CreateDrawingSession())
+            {
+                session.Clear(Microsoft.UI.Colors.Transparent);
+                session.DrawSvg(svg, new Windows.Foundation.Size(size.width, size.height));
+            }
+            return rendered;
         }
 
         public Task PreloadTextImagesAsync(
@@ -470,21 +478,6 @@ namespace Uviewer.Services
         // ------------------------------------------------------------------
         // 내부 헬퍼: 바이트 추출
         // ------------------------------------------------------------------
-
-        private async Task<(byte[]? Bytes, float? Dpi)> ExtractBytesAsync(string relativePath, ViewingContext ctx)
-        {
-            if (PeleDiagramSource.IsDiagram(relativePath))
-            {
-                return await Task.Run(() =>
-                {
-                    string source = PeleDiagramSource.Decode(relativePath);
-                    if (!PeleDiagramRenderer.TryRender(source, out string image, out string? error, out float dpi))
-                        throw new InvalidDataException(error);
-                    return (Bytes: (byte[]?)Convert.FromBase64String(image[(image.IndexOf(',') + 1)..]), Dpi: (float?)dpi);
-                });
-            }
-            return (await ExtractFileBytesAsync(relativePath, ctx), null);
-        }
 
         private async Task<byte[]?> ExtractFileBytesAsync(string relativePath, ViewingContext ctx)
         {
