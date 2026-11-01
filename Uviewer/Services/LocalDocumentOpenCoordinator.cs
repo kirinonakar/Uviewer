@@ -67,6 +67,11 @@ namespace Uviewer.Services
             _handlers.LoadExplorerFolder(path);
 
             var folder = await StorageFolder.GetFolderFromPathAsync(path);
+            await OpenFolderContentsAsync(folder, isInitial);
+        }
+
+        private async Task OpenFolderContentsAsync(StorageFolder folder, bool isInitial = false)
+        {
             var files = (await folder.GetFilesAsync())
                 .OrderBy(file => file.Name, NaturalSortComparer.Default)
                 .ToList();
@@ -97,13 +102,17 @@ namespace Uviewer.Services
                 }
             }
 
-            var firstText = files.FirstOrDefault(file =>
-                ClassifyExtension(Path.GetExtension(file.Name)) == SupportedFileKind.Text);
-            if (firstText != null)
+            var firstDocument = files.FirstOrDefault(file =>
+                ClassifyExtension(Path.GetExtension(file.Name)) == SupportedFileKind.Text)
+                ?? files.FirstOrDefault(file =>
+                    ClassifyExtension(Path.GetExtension(file.Name)) == SupportedFileKind.Pdf)
+                ?? files.FirstOrDefault(file =>
+                    ClassifyExtension(Path.GetExtension(file.Name)) == SupportedFileKind.Epub);
+            if (firstDocument != null)
             {
                 _handlers.HideEmptyState?.Invoke();
                 await OpenFilePathAsync(
-                    firstText.Path,
+                    firstDocument.Path,
                     isInitial: isInitial,
                     saveBeforeOpen: false,
                     saveOnlyForImageOrText: false,
@@ -134,7 +143,7 @@ namespace Uviewer.Services
             if (folder == null) return;
 
             _handlers.LoadExplorerFolder(folder.Path);
-            await _handlers.OpenFolderAsync(folder);
+            await OpenFolderContentsAsync(folder);
         }
 
         public async Task OpenDroppedStorageItemAsync(IStorageItem item)
@@ -152,8 +161,7 @@ namespace Uviewer.Services
                     break;
 
                 case StorageFolder folder:
-                    _handlers.LoadExplorerFolder(folder.Path);
-                    await _handlers.OpenFolderAsync(folder);
+                    await OpenPickedFolderAsync(folder);
                     break;
             }
         }
