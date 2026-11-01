@@ -325,14 +325,10 @@ namespace Uviewer.Services
                 zoomLevel,
                 isPreload);
 
-            // Keep rasterization and the one required pixel copy off the UI thread.
-            // Transfer BGRA directly to Win2D instead of encoding and decoding PNG.
-            var pixels = await Task.Run(() =>
-            {
-                using var rendered = pdfiumDoc.Render(pageIndex, destinationWidth, destinationHeight, token);
-                token.ThrowIfCancellationRequested();
-                return rendered.Bytes;
-            }, token);
+            // Render directly into managed BGRA pixels off the UI thread, then upload
+            // once to Win2D without an intermediate bitmap or PNG encode/decode.
+            var pixels = await Task.Run(
+                () => pdfiumDoc.Render(pageIndex, destinationWidth, destinationHeight, token), token);
 
             if (isWindowClosing() || token.IsCancellationRequested ||
                 !IsCurrentScopeForRender(pdfiumDoc, pdfGenerationAtStart, pdfPathAtStart))

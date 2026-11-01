@@ -166,7 +166,7 @@ namespace Uviewer.Services
                 byte[]? encoded = null;
                 try
                 {
-                    encoded = ArchiveThumbnailEncoder.Encode(image, decodePixelWidth, ct);
+                    encoded = await ArchiveThumbnailEncoder.EncodeAsync(image, decodePixelWidth, ct);
                 }
                 catch (OperationCanceledException) { throw; }
                 catch (Exception ex)

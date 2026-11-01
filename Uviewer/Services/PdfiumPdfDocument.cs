@@ -1,6 +1,4 @@
 using Microsoft.Win32.SafeHandles;
-using PDFtoImage.Exceptions;
-using SkiaSharp;
 using System;
 using System.IO;
 using System.Runtime.InteropServices;
@@ -38,13 +36,13 @@ namespace Uviewer.Services
                     buffer = default; // The native document now owns the pinned input.
 
                     int count = Native.FPDF_GetPageCount(handle);
-                    if (count <= 0) throw new PdfInvalidFormatException();
+                    if (count <= 0) throw new PdfiumException(PdfiumError.InvalidFormat);
                     var sizes = new PdfiumPageSize[count];
                     for (int index = 0; index < count; index++)
                     {
                         if (Native.FPDF_GetPageSizeByIndex(handle, index, out double width, out double height) == 0 ||
                             !double.IsFinite(width) || !double.IsFinite(height) ||
-                            width <= 0 || height <= 0) throw new PdfPageNotFoundException();
+                            width <= 0 || height <= 0) throw new PdfiumException(PdfiumError.PageNotFound);
                         sizes[index] = new PdfiumPageSize(width, height);
                     }
                     return new PdfiumPdfDocument(document, sizes);
@@ -65,7 +63,7 @@ namespace Uviewer.Services
             return _pageSizes[(int)pageIndex];
         }
 
-        public SKBitmap Render(uint pageIndex, uint width, uint height, CancellationToken token)
+        public byte[] Render(uint pageIndex, uint width, uint height, CancellationToken token)
         {
             GetPageSize(pageIndex);
             token.ThrowIfCancellationRequested();
@@ -83,22 +81,23 @@ namespace Uviewer.Services
                 {
                     token.ThrowIfCancellationRequested();
                     var page = Native.FPDF_LoadPage(_document.DangerousGetHandle(), checked((int)pageIndex));
-                    if (page == IntPtr.Zero) throw new PdfPageNotFoundException();
+                    if (page == IntPtr.Zero) throw new PdfiumException(PdfiumError.PageNotFound);
                     try
                     {
-                        var bitmap = new SKBitmap(pixelWidth, pixelHeight, SKColorType.Bgra8888, SKAlphaType.Premul);
+                        int stride = checked(pixelWidth * 4);
+                        var bitmap = GC.AllocateUninitializedArray<byte>(checked(stride * pixelHeight));
+                        var buffer = GCHandle.Alloc(bitmap, GCHandleType.Pinned);
                         try
                         {
-                            if (bitmap.GetPixels() == IntPtr.Zero) throw new OutOfMemoryException("Cannot allocate PDF page pixels.");
                             // Render into the final BGRA pixels. Tiles bound native work
                             // and allow cancellation between strips at large zoom levels.
                             for (int y = 0; y < pixelHeight; y += 1024)
                             {
                                 token.ThrowIfCancellationRequested();
                                 int tileHeight = Math.Min(1024, pixelHeight - y);
-                                var pixels = IntPtr.Add(bitmap.GetPixels(), checked(y * bitmap.RowBytes));
-                                var target = Native.FPDFBitmap_CreateEx(pixelWidth, tileHeight, 4, pixels, bitmap.RowBytes);
-                                if (target == IntPtr.Zero) throw new PdfUnknownException();
+                                var pixels = IntPtr.Add(buffer.AddrOfPinnedObject(), checked(y * stride));
+                                var target = Native.FPDFBitmap_CreateEx(pixelWidth, tileHeight, 4, pixels, stride);
+                                if (target == IntPtr.Zero) throw new PdfiumException(PdfiumError.Unknown);
                                 try
                                 {
                                     Native.FPDFBitmap_FillRect(target, 0, 0, pixelWidth, tileHeight, 0xFFFFFFFF);
@@ -109,7 +108,7 @@ namespace Uviewer.Services
                             token.ThrowIfCancellationRequested();
                             return bitmap;
                         }
-                        catch { bitmap.Dispose(); throw; }
+                        finally { buffer.Free(); }
                     }
                     finally { Native.FPDF_ClosePage(page); }
                 }
@@ -140,22 +139,13 @@ namespace Uviewer.Services
         }
 
         // PDFium is not thread-safe, including calls against different documents.
-        // Own its process-wide initialization here; do not mix Conversion.* calls
-        // (which independently manage PDFium) with this persistent document path.
+        // Own its process-wide initialization here for the persistent document path.
         private static class Native
         {
             internal static readonly object Sync = new();
             static Native() => FPDF_InitLibrary();
 
-            internal static Exception CreateException() => FPDF_GetLastError() switch
-            {
-                2 => new PdfCannotOpenFileException(),
-                3 => new PdfInvalidFormatException(),
-                4 => new PdfPasswordProtectedException(),
-                5 => new PdfUnsupportedSecuritySchemeException(),
-                6 => new PdfPageNotFoundException(),
-                _ => new PdfUnknownException()
-            };
+            internal static Exception CreateException() => new PdfiumException((PdfiumError)FPDF_GetLastError());
 
             [DllImport("pdfium", CallingConvention = CallingConvention.StdCall, ExactSpelling = true)]
             private static extern void FPDF_InitLibrary();

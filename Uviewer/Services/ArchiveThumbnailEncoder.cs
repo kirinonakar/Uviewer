@@ -1,57 +1,55 @@
+using Microsoft.Graphics.Canvas;
 using System;
 using System.IO;
 using System.Threading;
-using SkiaSharp;
+using System.Threading.Tasks;
+using Windows.Foundation;
+using Windows.Storage.Streams;
 
 namespace Uviewer.Services
 {
     internal static class ArchiveThumbnailEncoder
     {
-        // Archive workers must not create WinRT imaging objects: their COM callbacks can
-        // contend with XAML property marshaling while the UI is opening another document.
-        public static byte[]? Encode(Stream image, int size, CancellationToken token)
+        public static async Task<byte[]> EncodeAsync(Stream image, int size, CancellationToken token)
         {
+            ArgumentOutOfRangeException.ThrowIfNegativeOrZero(size);
             token.ThrowIfCancellationRequested();
             image.Position = 0;
-            using var input = new SKManagedStream(image, disposeManagedStream: false);
-            using var codec = SKCodec.Create(input);
-            if (codec == null) return null; // The UI decoder retains the original-format fallback.
+            // Use a native stream: Win2D's asynchronous decoder must not call back
+            // through a managed stream adapter while XAML marshals UI properties.
+            using var input = new InMemoryRandomAccessStream();
+            using var inputWriter = input.AsStreamForWrite();
+            await image.CopyToAsync(inputWriter, token).ConfigureAwait(false);
+            await inputWriter.FlushAsync(token).ConfigureAwait(false);
+            input.Seek(0);
 
-            float scale = Math.Min(1f, (float)size / Math.Max(codec.Info.Width, codec.Info.Height));
-            var dimensions = codec.GetScaledDimensions(scale);
-            using var colorSpace = SKColorSpace.CreateSrgb();
-            var info = new SKImageInfo(dimensions.Width, dimensions.Height, SKColorType.Bgra8888, SKAlphaType.Premul, colorSpace);
-            using var decoded = new SKBitmap(info);
-            if (codec.GetPixels(info, decoded.GetPixels()) != SKCodecResult.Success) return null;
+            var device = CanvasDevice.GetSharedDevice();
+            // Virtual bitmaps retain EXIF orientation and accept covers larger than
+            // the GPU bitmap limit. CacheOnDemand also avoids full JPEG decoding.
+            using var source = await CanvasVirtualBitmap.LoadAsync(device, input,
+                CanvasVirtualBitmapOptions.CacheOnDemand).AsTask(token).ConfigureAwait(false);
             token.ThrowIfCancellationRequested();
-
-            bool rotated = codec.EncodedOrigin is SKEncodedOrigin.LeftTop or SKEncodedOrigin.RightTop or
-                SKEncodedOrigin.RightBottom or SKEncodedOrigin.LeftBottom;
-            double outputScale = Math.Min(1d, (double)size / Math.Max(info.Width, info.Height));
-            int width = Math.Max(1, (int)Math.Round(info.Width * outputScale));
-            int height = Math.Max(1, (int)Math.Round(info.Height * outputScale));
-            using var thumbnail = new SKBitmap(rotated ? height : width, rotated ? width : height);
-            using (var canvas = new SKCanvas(thumbnail))
+            var bounds = source.Bounds;
+            double scale = Math.Min(1, (double)size / Math.Max(bounds.Width, bounds.Height));
+            int width = Math.Max(1, (int)Math.Round(bounds.Width * scale));
+            int height = Math.Max(1, (int)Math.Round(bounds.Height * scale));
+            using var thumbnail = new CanvasRenderTarget(device, width, height, 96);
+            using (var session = thumbnail.CreateDrawingSession())
             {
-                canvas.Clear(SKColors.Transparent);
-                switch (codec.EncodedOrigin)
-                {
-                    case SKEncodedOrigin.TopRight: canvas.Translate(width, 0); canvas.Scale(-1, 1); break;
-                    case SKEncodedOrigin.BottomRight: canvas.Translate(width, height); canvas.RotateDegrees(180); break;
-                    case SKEncodedOrigin.BottomLeft: canvas.Translate(0, height); canvas.Scale(1, -1); break;
-                    case SKEncodedOrigin.LeftTop: canvas.RotateDegrees(90); canvas.Scale(1, -1); break;
-                    case SKEncodedOrigin.RightTop: canvas.Translate(height, 0); canvas.RotateDegrees(90); break;
-                    case SKEncodedOrigin.RightBottom: canvas.Translate(height, width); canvas.RotateDegrees(90); canvas.Scale(-1, 1); break;
-                    case SKEncodedOrigin.LeftBottom: canvas.Translate(0, width); canvas.RotateDegrees(270); break;
-                }
-                using var source = SKImage.FromBitmap(decoded);
-                canvas.DrawImage(source, new SKRect(0, 0, width, height), new SKSamplingOptions(SKFilterMode.Linear));
+                session.Clear(Microsoft.UI.Colors.Transparent);
+                session.DrawImage(source, new Rect(0, 0, width, height), bounds, 1,
+                    CanvasImageInterpolation.HighQualityCubic);
             }
             token.ThrowIfCancellationRequested();
-            using var result = SKImage.FromBitmap(thumbnail);
-            using var png = result.Encode(SKEncodedImageFormat.Png, 100);
+            using var output = new InMemoryRandomAccessStream();
+            await thumbnail.SaveAsync(output, CanvasBitmapFileFormat.Png).AsTask(token).ConfigureAwait(false);
+            output.Seek(0);
+            using var reader = new DataReader(output);
+            var bytes = new byte[checked((int)output.Size)];
+            await reader.LoadAsync((uint)bytes.Length).AsTask(token).ConfigureAwait(false);
+            reader.ReadBytes(bytes);
             token.ThrowIfCancellationRequested();
-            return png?.ToArray();
+            return bytes;
         }
     }
 }

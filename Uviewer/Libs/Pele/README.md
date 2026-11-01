@@ -8,8 +8,11 @@
 - License: MIT, reproduced in `LICENSE.txt` and copied to app output.
 
 The bundle is embedded in the application and executed by Jint without browser,
-Node.js, filesystem, or network APIs. Svg.Skia rasterizes its SVG for the native
-inline image renderer. Diagram links and remote images are disabled.
+Node.js, filesystem, or network APIs. Win2D rasterizes its SVG for the native
+inline image renderer. DirectWrite converts text and multiline labels to SVG
+paths before drawing, preserving fonts, baselines, transforms, and paint order
+within Direct2D's SVG subset. Pele emits arrowheads as ordinary paths. Diagram
+links and remote images are disabled.
 
 Markdown fences labeled `mermaid` or `pele` use this renderer. A rendering failure
 leaves the original code block visible with an error message. Ordinary code fences

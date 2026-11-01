@@ -1,4 +1,3 @@
-using PDFtoImage.Exceptions;
 using System;
 using System.Runtime.InteropServices;
 using System.Threading.Tasks;
@@ -30,7 +29,7 @@ namespace Uviewer.Services
                     // Let the rendering backend validate the empty password first.
                     usePdfium = true;
                 }
-                catch (PdfPasswordProtectedException) when (usePdfium)
+                catch (PdfiumException ex) when (usePdfium && ex.Error == PdfiumError.PasswordProtected)
                 {
                     password = await requestPasswordAsync(isRetry);
                     if (password == null) return false;

@@ -1,10 +1,12 @@
 using Jint;
-using SkiaSharp;
-using Svg.Skia;
+using Microsoft.Graphics.Canvas;
+using Microsoft.Graphics.Canvas.Svg;
 using System;
 using System.Collections.Generic;
 using System.Collections.Concurrent;
 using System.IO;
+using System.Globalization;
+using System.Numerics;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.RegularExpressions;
@@ -24,7 +26,7 @@ internal static class PeleDiagramRenderer
     private static readonly SemaphoreSlim RasterGate = new(2);
     private static readonly ConcurrentDictionary<string, (byte[]? Raster, string? Error)> Cache = new();
     private static readonly ThumbnailDiskCache DiskCache = new(
-        Path.Combine(Path.GetTempPath(), "Uviewer", "Cache", "PeleRaster-v1"), 64 * 1024 * 1024, 512);
+        Path.Combine(Path.GetTempPath(), "Uviewer", "Cache", "PeleRaster-win2d-v2"), 64 * 1024 * 1024, 512);
     private static int _cacheBytes;
     private static Engine? _engine;
     private static bool _hasFullBundle;
@@ -49,7 +51,7 @@ internal static class PeleDiagramRenderer
     }
 
     private static string GetKey(string source) => Convert.ToHexString(SHA256.HashData(
-        Encoding.UTF8.GetBytes("pele-1.12.0-bgra4x-v1\n" + Environment.OSVersion.Version + "\n" + source)));
+        Encoding.UTF8.GetBytes("pele-1.12.0-win2d-bgra4x-v2\n" + Environment.OSVersion.Version + "\n" + source)));
 
     public static bool TryRender(string source, out PeleDiagramFrame? frame, out string? error)
     {
@@ -65,7 +67,7 @@ internal static class PeleDiagramRenderer
         if (TryReadCache(key, out frame, out error)) return error == null;
 
         // This method runs on an image-loader worker. A disk hit bypasses Jint,
-        // Svg.Skia and all first-use initialization, including after app restarts.
+        // Win2D rasterization and all first-use initialization, including after app restarts.
         var stored = DiskCache.ReadAsync(key, CancellationToken.None).GetAwaiter().GetResult();
         if (stored != null && (frame = PeleDiagramFrameCodec.Decode(stored)) != null)
         {
@@ -227,30 +229,33 @@ internal static class PeleDiagramRenderer
 
     private static PeleDiagramFrame Rasterize(string markup)
     {
-        // Pele uses CSS variables, which native SVG readers don't consistently
-        // resolve. Materialize inherited values before passing it to Svg.Skia.
+        // Materialize Pele's CSS variables and outline text with DirectWrite.
+        // Direct2D's SVG subset ignores text/tspan; paths preserve painter order,
+        // inherited paint, clipping and transforms without a second text overlay.
         var document = XDocument.Parse(markup);
-        ResolveVariables(document.Root!, new Dictionary<string, string>());
-        using var svg = new SKSvg();
-        using var stream = new MemoryStream(Encoding.UTF8.GetBytes(document.ToString(SaveOptions.DisableFormatting)));
-        var picture = svg.Load(stream) ?? throw new InvalidOperationException("Could not draw the Pele diagram.");
-        var bounds = picture.CullRect;
-        var layout = PeleRasterLayout.Create(bounds.Width, bounds.Height);
-        var info = new SKImageInfo(layout.Width, layout.Height, SKColorType.Bgra8888, SKAlphaType.Premul);
-        using var surface = SKSurface.Create(info)
-            ?? throw new InvalidOperationException("Could not allocate the diagram image.");
-        // A light panel keeps Pele's authored colors readable in all reader themes.
-        surface.Canvas.Clear(SKColors.White);
-        surface.Canvas.Scale(layout.Scale);
-        surface.Canvas.Translate(-bounds.Left, -bounds.Top);
-        surface.Canvas.DrawPicture(picture);
-        using var pixels = surface.PeekPixels();
-        var bytes = GC.AllocateUninitializedArray<byte>(checked(layout.Width * layout.Height * 4));
-        var source = pixels.GetPixelSpan();
-        int rowBytes = checked(layout.Width * 4);
-        for (int row = 0; row < layout.Height; row++)
-            source.Slice(row * pixels.RowBytes, rowBytes).CopyTo(bytes.AsSpan(row * rowBytes, rowBytes));
-        return new(bytes, layout.Width, layout.Height, layout.Dpi);
+        var root = document.Root!;
+        ResolveVariables(root, new Dictionary<string, string>());
+        var viewBox = ((string?)root.Attribute("viewBox") ?? "").Split(
+            new[] { ' ', ',', '\t', '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
+        if (viewBox.Length != 4) throw new InvalidOperationException("Pele returned no SVG viewBox.");
+        float width = float.Parse(viewBox[2], CultureInfo.InvariantCulture);
+        float height = float.Parse(viewBox[3], CultureInfo.InvariantCulture);
+        var layout = PeleRasterLayout.Create(width, height);
+        var device = CanvasDevice.GetSharedDevice();
+        PeleSvgTextOutliner.Convert(device, root);
+        // Render in pixels at 96 DPI. The frame carries its separate display DPI,
+        // preserving the existing 2x logical size and bounded 4x raster density.
+        root.SetAttributeValue("width", width.ToString(CultureInfo.InvariantCulture));
+        root.SetAttributeValue("height", height.ToString(CultureInfo.InvariantCulture));
+        using var svg = CanvasSvgDocument.LoadFromXml(device, document.ToString(SaveOptions.DisableFormatting));
+        using var surface = new CanvasRenderTarget(device, layout.Width, layout.Height, 96);
+        using (var session = surface.CreateDrawingSession())
+        {
+            session.Clear(Microsoft.UI.Colors.White);
+            session.Transform = Matrix3x2.CreateScale(layout.Scale);
+            session.DrawSvg(svg, new Windows.Foundation.Size(width, height));
+        }
+        return new(surface.GetPixelBytes(), layout.Width, layout.Height, layout.Dpi);
     }
 
     private static void ResolveVariables(XElement element, Dictionary<string, string> inherited)
