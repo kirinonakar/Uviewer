@@ -1,5 +1,4 @@
 using Microsoft.Graphics.Canvas;
-using Starward.Codec.AVIF;
 using System;
 using System.IO;
 using System.Runtime.CompilerServices;
@@ -73,18 +72,17 @@ namespace Uviewer.Services
             stream.Seek(0);
 
             using var managedStream = stream.AsStreamForRead();
-            using var decoder = await avifDecoderLite.CreateAsync(managedStream, token);
+            using var decoder = await LibAvifDecoder.CreateAsync(managedStream, token);
             if ((ushort)decoder.TransferCharacteristics != PqTransfer)
                 return null;
 
             // Decode the source YUV at full precision. Windows' AVIF RGBA16 and
             // BGRA8 conversion paths can apply clipping or SDR color conversion
             // before pixels reach the app, which causes severe HDR saturation.
-            using var image = decoder.GetNextImage();
-            using var rgbImage = image.ToRGBImage(16, avifRGBFormat.RGBA);
-            int width = checked((int)rgbImage.Width);
-            int height = checked((int)rgbImage.Height);
-            var encodedPixels = rgbImage.GetPixelBytes().ToArray();
+            var frame = decoder.DecodeNextFrame(16);
+            int width = frame.Width;
+            int height = frame.Height;
+            var encodedPixels = frame.Pixels;
             if (encodedPixels.Length != checked(width * height * 8))
                 return null;
 

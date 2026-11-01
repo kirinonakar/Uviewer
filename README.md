@@ -182,6 +182,7 @@ This project is licensed under the MIT License. See the [LICENSE](LICENSE) file 
 ### Third-Party Licenses
 
 - **Pele 1.12.0**: MIT license. Bundled JavaScript and license are in `Uviewer/Libs/Pele`; [source](https://github.com/obsidianmd/pele).
+- **libavif 1.4.2 / libaom 3.14.1**: Bundled x64 native AVIF decoder at `Uviewer/Libs/libavif.dll`. Source, build details, and license notices are in [Uviewer/Libs/libavif](Uviewer/Libs/libavif/README.md); these notices are copied with the application.
 - **7-Zip (7z.dll)**: Licensed under the **GNU LGPL**. For more information, please visit [www.7-zip.org](https://www.7-zip.org).
 
 ## 👤 Author

@@ -14,7 +14,6 @@ using System.Threading;
 using System.Threading.Tasks;
 using Windows.Graphics.DirectX;
 using Windows.Graphics.Imaging;
-using Starward.Codec.AVIF;
 using Uviewer.Models;
 
 namespace Uviewer.Services
@@ -915,14 +914,14 @@ namespace Uviewer.Services
             int animationGeneration,
             CancellationToken token)
         {
-            avifDecoderLite? decoder = null;
+            LibAvifDecoder? decoder = null;
 
             try
             {
                 // libavif reads the animation track directly. This avoids relying on
                 // the installed Windows AVIF codec exposing the track as BitmapDecoder
                 // frames (some versions expose only the primary still image).
-                decoder = avifDecoderLite.Create(imageBytes);
+                decoder = LibAvifDecoder.Create(imageBytes);
                 int frameCount = decoder.ImageCount;
                 if (frameCount <= 1 || token.IsCancellationRequested)
                 {
@@ -958,7 +957,7 @@ namespace Uviewer.Services
                     UpdateGpuFrameCacheCapacity(width, height);
                 }
 
-                avifDecoderLite decoderForBackground = decoder;
+                LibAvifDecoder decoderForBackground = decoder;
                 decoder = null;
                 _ = Task.Run(() => DecodeRemainingAvifFrames(
                     decoderForBackground,
@@ -988,7 +987,7 @@ namespace Uviewer.Services
         }
 
         private void DecodeRemainingAvifFrames(
-            avifDecoderLite decoder,
+            LibAvifDecoder decoder,
             AnimationFrameStore store,
             int frameCount,
             List<AnimatedFrameData> frames,
@@ -1042,14 +1041,12 @@ namespace Uviewer.Services
         }
 
         private static (byte[] Pixels, int Width, int Height, int DelayMs)? DecodeNextAvifFrame(
-            avifDecoderLite decoder)
+            LibAvifDecoder decoder)
         {
-            using var image = decoder.GetNextImage();
-            using var rgbImage = image.ToRGBImage(8, avifRGBFormat.BGRA);
-
-            int width = checked((int)rgbImage.Width);
-            int height = checked((int)rgbImage.Height);
-            byte[] pixels = rgbImage.GetPixelBytes().ToArray();
+            var frame = decoder.DecodeNextFrame(8, bgra: true);
+            int width = frame.Width;
+            int height = frame.Height;
+            byte[] pixels = frame.Pixels;
             if (pixels.Length != checked(width * height * 4))
             {
                 throw new InvalidDataException("The AVIF frame has an unexpected pixel buffer size.");
@@ -1059,7 +1056,7 @@ namespace Uviewer.Services
             // B8G8R8A8 bitmap path expects premultiplied alpha.
             PremultiplyBgraPixels(pixels);
 
-            double durationSeconds = decoder.ImageTiming.Duration;
+            double durationSeconds = decoder.FrameDuration;
             double durationMilliseconds = durationSeconds * 1000.0;
             int delayMs = double.IsFinite(durationMilliseconds) && durationMilliseconds > 0
                 ? (int)Math.Clamp(

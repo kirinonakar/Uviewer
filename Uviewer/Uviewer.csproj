@@ -54,6 +54,14 @@
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
     </Content>
+    <Content Include="Libs\libavif.dll">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+    </Content>
+    <Content Include="Libs\libavif\*.txt;Libs\libavif\README.md">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+    </Content>
   </ItemGroup>
 
   <ItemGroup>
@@ -84,7 +92,6 @@
     <PackageReference Include="SharpCompress" Version="0.50.7" />
     <PackageReference Include="SkiaSharp" Version="4.154.0" />
     <PackageReference Include="Svg.Skia" Version="5.2.3" />
-    <PackageReference Include="Starward.Codec" Version="0.5.2" />
     <PackageReference Include="Microsoft.Graphics.Win2D" Version="1.4.0" />
     <PackageReference Include="System.Management" Version="10.0.14" />
     <PackageReference Include="System.Security.Cryptography.ProtectedData" Version="10.0.14" />
