@@ -92,7 +92,7 @@
 ## 🛠️ System Requirements
 - **OS**: Windows 10 (Version 19041+) or Windows 11.
 - **Runtime**: .NET 10.0.
-- **Framework**: Windows App SDK 2.2.0.
+- **Framework**: WinUI 3 (`Microsoft.WindowsAppSDK.WinUI` 2.6.4).
 - **HDR Viewing (optional)**: HDR-capable display with HDR enabled under **Windows Settings → System → Display → HDR**. HDR AVIF decoding uses the bundled libavif runtime.
 
 ## ⌨️ Keyboard Shortcuts
