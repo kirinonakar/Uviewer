@@ -260,7 +260,8 @@ namespace Uviewer.Services
                     return;
                 }
 
-                if (_host.ImageEntries.Count <= 1)
+                // Keep zoomed PDF/image presses available for panning without turning pages.
+                if (_host.ZoomLevel > 1.01 || _host.ImageEntries.Count <= 1)
                     return;
 
                 var point = e.GetCurrentPoint(_host.ImageArea);
