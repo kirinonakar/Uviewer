@@ -20,21 +20,8 @@ namespace Uviewer.Services
         {
             using var gate = ExclusiveFileLock.Acquire(_path + ".lock");
             var document = update(ReadCore());
-            string temporary = _path + "." + Guid.NewGuid().ToString("N") + ".tmp";
-            try
-            {
-                using (var output = new FileStream(temporary, FileMode.CreateNew, FileAccess.Write, FileShare.None))
-                {
-                    JsonSerializer.Serialize(output, document, AppSettingsJsonContext.Default.AppSettingsDocument);
-                    output.Flush(flushToDisk: true);
-                }
-                if (File.Exists(_path)) File.Replace(temporary, _path, _path + ".bak", ignoreMetadataErrors: true);
-                else File.Move(temporary, _path);
-            }
-            finally
-            {
-                if (File.Exists(temporary)) File.Delete(temporary);
-            }
+            AtomicFileWriter.Write(_path, output =>
+                JsonSerializer.Serialize(output, document, AppSettingsJsonContext.Default.AppSettingsDocument));
         }
 
         private AppSettingsDocument? ReadCore()

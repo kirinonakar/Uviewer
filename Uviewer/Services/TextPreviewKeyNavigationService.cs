@@ -45,13 +45,13 @@ namespace Uviewer.Services
             switch (e.Key)
             {
                 case VirtualKey.Home:
-                    await GoToStartAsync(context);
                     e.Handled = true;
+                    await GoToStartAsync(context);
                     return;
 
                 case VirtualKey.End:
-                    await GoToEndAsync(context);
                     e.Handled = true;
+                    await GoToEndAsync(context);
                     return;
 
                 case VirtualKey.G:
@@ -87,8 +87,8 @@ namespace Uviewer.Services
                     return;
 
                 case VirtualKey.V when !context.IsMarkdownRenderMode:
-                    await context.ToggleVerticalModeAsync();
                     e.Handled = true;
+                    await context.ToggleVerticalModeAsync();
                     return;
 
                 case VirtualKey.F:

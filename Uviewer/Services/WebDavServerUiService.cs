@@ -4,6 +4,8 @@ using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
 using System;
 using System.Collections.Generic;
+using System.Threading;
+using System.Threading.Tasks;
 using Uviewer.Models;
 
 namespace Uviewer.Services
@@ -19,6 +21,36 @@ namespace Uviewer.Services
 
     internal sealed class WebDavServerUiService
     {
+        public async Task<bool> ShowCertificateWarningAsync(
+            XamlRoot xamlRoot,
+            ElementTheme requestedTheme,
+            string serverName,
+            WebDavCertificateError certificateError,
+            CancellationToken token)
+        {
+            token.ThrowIfCancellationRequested();
+            var dialog = new ContentDialog
+            {
+                Title = Strings.WebDavCertificateWarningTitle,
+                Content = new TextBlock
+                {
+                    Text = Strings.WebDavCertificateWarning(serverName) + "\n\nhttps://" + certificateError.Authority,
+                    TextWrapping = TextWrapping.Wrap
+                },
+                PrimaryButtonText = Strings.WebDavConnect,
+                CloseButtonText = Strings.WebDavCancel,
+                DefaultButton = ContentDialogButton.Close,
+                XamlRoot = xamlRoot,
+                RequestedTheme = requestedTheme
+            };
+
+            var showTask = dialog.ShowAsync();
+            using var registration = token.Register(() => dialog.DispatcherQueue.TryEnqueue(() => dialog.Hide()));
+            var result = await showTask;
+            token.ThrowIfCancellationRequested();
+            return result == ContentDialogResult.Primary;
+        }
+
         public async System.Threading.Tasks.Task<WebDavServerDialogResult> ShowAddServerDialogAsync(
             XamlRoot xamlRoot,
             ElementTheme requestedTheme)

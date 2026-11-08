@@ -85,6 +85,53 @@ namespace Uviewer
         }
 
         internal TextReaderState TextReaderState => _textReaderState;
+
+        // Bridge legacy preferences to one effective state while migrating mode transitions.
+        private ReaderMode CurrentReaderMode
+        {
+            get
+            {
+                var content = _isEpubMode ? ReaderContentKind.Epub
+                    : IsPlainTextModeLockedDocumentActive() || !_isAozoraMode ? ReaderContentKind.PlainText
+                    : _isMarkdownRenderMode ? ReaderContentKind.Markdown : ReaderContentKind.Aozora;
+                var orientation = !IsPlainTextModeLockedDocumentActive() &&
+                    (!_isMarkdownRenderMode || _isEpubMode) && _isVerticalMode
+                    ? ReaderOrientation.Vertical : ReaderOrientation.Horizontal;
+                return new(content, orientation);
+            }
+        }
+
+        private void ApplyMode(ReaderMode state)
+        {
+            if (state.Orientation == ReaderOrientation.Horizontal)
+            {
+                _verticalResizeTimer?.Stop();
+                _currentVerticalRenderCts?.Cancel();
+                _verticalPageCalcCts?.Cancel();
+            }
+
+            var surfaces = state.Surfaces;
+            SetVisible(TextScrollViewer, surfaces.TextScroll);
+            SetVisible(AozoraTextCanvas, surfaces.AozoraCanvas);
+            SetVisible(VerticalTextCanvas, surfaces.VerticalCanvas);
+            SetVisible(TextArea, surfaces.TextArea);
+            SetVisible(EpubArea, surfaces.EpubArea);
+            ConfigureMarkdownScrollView();
+
+            bool attachVerticalKey = state.Orientation == ReaderOrientation.Vertical;
+            if (RootGrid != null && attachVerticalKey != _verticalKeyAttached)
+            {
+                if (attachVerticalKey) RootGrid.PreviewKeyDown += RootGrid_Vertical_PreviewKeyDown;
+                else RootGrid.PreviewKeyDown -= RootGrid_Vertical_PreviewKeyDown;
+                _verticalKeyAttached = attachVerticalKey;
+            }
+        }
+
+        private static void SetVisible(UIElement? element, bool visible)
+        {
+            if (element != null) element.Visibility = visible ? Visibility.Visible : Visibility.Collapsed;
+        }
+
         internal List<TextLine> TextLines
         {
             get => _textLines;

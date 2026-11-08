@@ -233,10 +233,10 @@ namespace Uviewer
             });
         }
 
-        private async void FileNameStatusHoverSurface_Tapped(object sender, TappedRoutedEventArgs e)
+        private void FileNameStatusHoverSurface_Tapped(object sender, TappedRoutedEventArgs e)
         {
-            await ShowCurrentImageExifAsync();
             e.Handled = true;
+            _ = AsyncEventRunner.RunAsync(ShowCurrentImageExifAsync, ShowNotification);
         }
 
         private void FileNameStatusHoverSurface_PointerEntered(object sender, PointerRoutedEventArgs e)

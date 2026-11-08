@@ -13,7 +13,8 @@
 .agents/
 *codex*
 AGENTS.md
-tests/
+tests/*
+!tests/ReaderReliability/
 validation/
 
 # User-specific files (MonoDevelop/Xamarin Studio)

@@ -224,7 +224,10 @@ namespace Uviewer
 
         private bool _isAozoraModeSwitchInProgress;
 
-        internal async void ToggleAozoraMode()
+        internal void ToggleAozoraMode() =>
+            _ = AsyncEventRunner.RunAsync(ToggleAozoraModeAsync, ShowNotification);
+
+        private async Task ToggleAozoraModeAsync()
         {
             if (_isAozoraModeSwitchInProgress) return;
             _isAozoraModeSwitchInProgress = true;
@@ -319,30 +322,20 @@ namespace Uviewer
                 CancelAndResetGlobalTextCts();
                 var token = _globalTextCts!.Token;
 
+                ApplyMode(CurrentReaderMode);
+
                 if (_isVerticalMode)
                 {
-                    if (TextScrollViewer != null) TextScrollViewer.Visibility = Visibility.Collapsed;
-                    if (AozoraTextCanvas != null) AozoraTextCanvas.Visibility = Visibility.Collapsed;
-                    if (VerticalTextCanvas != null) VerticalTextCanvas.Visibility = Visibility.Visible;
-
                     await PrepareVerticalTextAsync(targetLine, -1, token);
                     FileNameText.Text = FileExplorerService.GetFormattedDisplayName(fileName, _currentTextArchiveEntryKey != null, _archiveSession.CurrentPath);
                 }
                 else if (_isAozoraMode)
                 {
-                    if (TextScrollViewer != null) TextScrollViewer.Visibility = Visibility.Collapsed;
-                    if (AozoraTextCanvas != null) AozoraTextCanvas.Visibility = Visibility.Visible;
-                    if (VerticalTextCanvas != null) VerticalTextCanvas.Visibility = Visibility.Collapsed;
-
                     await PrepareAozoraDisplayAsync(_currentTextContent, targetLine, -1, token);
                     FileNameText.Text = FileExplorerService.GetFormattedDisplayName(fileName, _currentTextArchiveEntryKey != null, _archiveSession.CurrentPath);
                 }
                 else
                 {
-                    if (TextScrollViewer != null) TextScrollViewer.Visibility = Visibility.Visible;
-                    if (AozoraTextCanvas != null) AozoraTextCanvas.Visibility = Visibility.Collapsed;
-                    if (VerticalTextCanvas != null) VerticalTextCanvas.Visibility = Visibility.Collapsed;
-
                     if (TextItemsRepeater != null && RootGrid.Resources.TryGetValue("TextItemTemplate", out var template))
                     {
                         TextItemsRepeater.ItemTemplate = (DataTemplate)template;
@@ -768,7 +761,10 @@ namespace Uviewer
             StartBackwardPageCaching(_aozoraPageState.NavigationStartBlockIndex, false); // <-- 현재 페이지 렌더링 직후 백그라운드 캐싱 시작
         }
 
-        internal async void StartAozoraPageCalculationAsync()
+        internal void StartAozoraPageCalculationAsync() =>
+            _ = AsyncEventRunner.RunAsync(CalculateAozoraPagesAsync);
+
+        private async Task CalculateAozoraPagesAsync()
         {
             if (IsMarkdownScrollMode) return;
             CancellationTokenSource? calculationCts = null;

@@ -697,6 +697,10 @@
   <data name="WebDavServerSaved" xml:space="preserve"><value>서버 '{0}'이(가) 저장되었습니다.</value></data>
   <data name="WebDavServerDeleted" xml:space="preserve"><value>서버 '{0}'이(가) 삭제되었습니다.</value></data>
   <data name="WebDavServerConnected" xml:space="preserve"><value>'{0}'에 연결되었습니다.</value></data>
+  <data name="WebDavCertificateWarning" xml:space="preserve"><value>'{0}'의 HTTPS 인증서에 오류가 있어 서버의 신원을 확인할 수 없습니다. 그래도 연결하시겠습니까?</value></data>
+  <data name="WebDavCertificateWarningTitle" xml:space="preserve"><value>HTTPS 인증서 오류</value></data>
+  <data name="WebDavConnect" xml:space="preserve"><value>연결</value></data>
+  <data name="WebDavConnectionCancelled" xml:space="preserve"><value>WebDAV 연결을 취소했습니다.</value></data>
   <data name="WebDavFavoriteOpenFailed" xml:space="preserve"><value>WebDAV 즐겨찾기 열기 실패: {0}</value></data>
   <data name="WebDavRecentOpenFailed" xml:space="preserve"><value>WebDAV 최근 항목 열기 실패: {0}</value></data>
   <data name="ChapterNumber" xml:space="preserve"><value>{0}장</value></data>

@@ -206,18 +206,7 @@ namespace Uviewer.Services
             _sidebar.SidebarRecentList.RemoveClicked += (_, item) => RunAsync(() => bookmarks.HandleRecentRemoveClickedAsync(item));
         }
 
-        private async void RunAsync(Func<Task> operation)
-        {
-            try
-            {
-                await operation();
-            }
-            catch (OperationCanceledException) { }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"Control event failed: {ex.Message}");
-                _handlers.ShowNotification($"{ex.Message}", "\uE783", "Red");
-            }
-        }
+        private void RunAsync(Func<Task> operation) =>
+            _ = AsyncEventRunner.RunAsync(operation, _handlers.ShowNotification);
     }
 }

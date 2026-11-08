@@ -697,6 +697,10 @@
   <data name="WebDavServerSaved" xml:space="preserve"><value>Đã lưu máy chủ '{0}'.</value></data>
   <data name="WebDavServerDeleted" xml:space="preserve"><value>Đã xóa máy chủ '{0}'.</value></data>
   <data name="WebDavServerConnected" xml:space="preserve"><value>Đã kết nối với '{0}'.</value></data>
+  <data name="WebDavCertificateWarning" xml:space="preserve"><value>Không thể xác minh danh tính của '{0}' do lỗi chứng chỉ HTTPS. Vẫn kết nối?</value></data>
+  <data name="WebDavCertificateWarningTitle" xml:space="preserve"><value>Lỗi chứng chỉ HTTPS</value></data>
+  <data name="WebDavConnect" xml:space="preserve"><value>Kết nối</value></data>
+  <data name="WebDavConnectionCancelled" xml:space="preserve"><value>Đã hủy kết nối WebDAV.</value></data>
   <data name="WebDavFavoriteOpenFailed" xml:space="preserve"><value>Không thể mở mục WebDAV yêu thích: {0}</value></data>
   <data name="WebDavRecentOpenFailed" xml:space="preserve"><value>Không thể mở mục WebDAV gần đây: {0}</value></data>
   <data name="ChapterNumber" xml:space="preserve"><value>Chương {0}</value></data>

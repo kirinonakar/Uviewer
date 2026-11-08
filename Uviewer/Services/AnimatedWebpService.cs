@@ -435,7 +435,10 @@ namespace Uviewer.Services
             QueueFramePrefetch(frames, canvas);
         }
 
-        private async void AnimatedWebpTimer_Tick(DispatcherQueueTimer sender, object args)
+        private void AnimatedWebpTimer_Tick(DispatcherQueueTimer sender, object args) =>
+            _ = AsyncEventRunner.RunAsync(() => AdvanceAnimationFrameAsync(sender));
+
+        private async Task AdvanceAnimationFrameAsync(DispatcherQueueTimer sender)
         {
             if (!ReferenceEquals(sender, _animatedWebpTimer)) return;
             // [안정성 수정] 로컬 변수에 스냅샷을 캡처하여 도중에 Stop()이 호출되어도 안전하게 접근

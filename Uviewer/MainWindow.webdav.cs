@@ -88,14 +88,22 @@ namespace Uviewer
         /// </summary>
         private void UpdateWebDavServerList()
         {
-            if (WebDavPanel == null) return;
+            try
+            {
+                if (WebDavPanel == null) return;
 
-            _webDavServerUiService.RefreshServerList(
-                WebDavPanel,
-                _webDavService.GetSavedServerNames(),
-                _settingsManager?.UIFontFamily,
-                WebDavServerItem_Click,
-                WebDavDeleteServer_Click);
+                _webDavServerUiService.RefreshServerList(
+                    WebDavPanel,
+                    _webDavService.GetSavedServerNames(),
+                    _settingsManager?.UIFontFamily,
+                    WebDavServerItem_Click,
+                    WebDavDeleteServer_Click);
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine(ex);
+                ShowNotification(ex.Message, "\uE783", "Red");
+            }
         }
 
         /// <summary>
@@ -124,11 +132,19 @@ namespace Uviewer
         /// </summary>
         private void WebDavDeleteServer_Click(object sender, RoutedEventArgs e)
         {
-            if (sender is Button btn && btn.Tag is string serverName)
+            try
             {
-                _webDavService.DeleteServer(serverName);
-                ShowNotification(Strings.WebDavServerDeleted(serverName));
-                UpdateWebDavServerList();
+                if (sender is Button btn && btn.Tag is string serverName)
+                {
+                    _webDavService.DeleteServer(serverName);
+                    ShowNotification(Strings.WebDavServerDeleted(serverName));
+                    UpdateWebDavServerList();
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine(ex);
+                ShowNotification(ex.Message, "\uE783", "Red");
             }
         }
 
@@ -155,6 +171,20 @@ namespace Uviewer
             try
             {
                 var connected = await _webDavService.ConnectAsync(serverInfo, token);
+                while (!connected && _webDavService.CertificateError is { } certificateError)
+                {
+                    var proceed = await _webDavServerUiService.ShowCertificateWarningAsync(
+                        RootGrid.XamlRoot, RootGrid.ActualTheme, serverName, certificateError, token);
+                    token.ThrowIfCancellationRequested();
+                    if (!proceed)
+                    {
+                        DisconnectWebDav();
+                        FileNameText.Text = Strings.WebDavConnectionCancelled;
+                        return;
+                    }
+
+                    connected = await _webDavService.ConnectAsync(serverInfo, token, certificateError);
+                }
                 if (!connected)
                 {
                     FileNameText.Text = Strings.WebDavConnectionFailed;

@@ -697,6 +697,10 @@
   <data name="WebDavServerSaved" xml:space="preserve"><value>Server '{0}' saved.</value></data>
   <data name="WebDavServerDeleted" xml:space="preserve"><value>Server '{0}' deleted.</value></data>
   <data name="WebDavServerConnected" xml:space="preserve"><value>Connected to '{0}'.</value></data>
+  <data name="WebDavCertificateWarning" xml:space="preserve"><value>An HTTPS certificate error prevents verifying the identity of '{0}'. Connect anyway?</value></data>
+  <data name="WebDavCertificateWarningTitle" xml:space="preserve"><value>HTTPS certificate error</value></data>
+  <data name="WebDavConnect" xml:space="preserve"><value>Connect</value></data>
+  <data name="WebDavConnectionCancelled" xml:space="preserve"><value>WebDAV connection cancelled.</value></data>
   <data name="WebDavFavoriteOpenFailed" xml:space="preserve"><value>Failed to open WebDAV favorite: {0}</value></data>
   <data name="WebDavRecentOpenFailed" xml:space="preserve"><value>Failed to open recent WebDAV item: {0}</value></data>
   <data name="ChapterNumber" xml:space="preserve"><value>Chapter {0}</value></data>

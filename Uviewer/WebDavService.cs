@@ -4,10 +4,9 @@ using System.IO;
 using System.Linq;
 using System.Net;
 using System.Net.Http;
+using System.Net.Security;
 using System.Security.Cryptography;
 using System.Text;
-using System.Text.Json;
-using System.Text.Json.Serialization;
 using System.Threading;
 using System.Threading.Tasks;
 using WebDav;
@@ -16,6 +15,8 @@ using Windows.Security.Credentials;
 
 namespace Uviewer
 {
+    public sealed record WebDavCertificateError(string Authority, string Fingerprint, SslPolicyErrors Errors);
+
     /// <summary>
     /// WebDAV 서버 정보. 서버 이름만 평문, 나머지는 PasswordVault에 암호화 저장.
     /// </summary>
@@ -101,6 +102,7 @@ namespace Uviewer
 
         public WebDavServerInfo? CurrentServer => _currentServer;
         public bool IsConnected => _webDavClient != null;
+        public WebDavCertificateError? CertificateError { get; private set; }
 
         /// <summary>
         /// 실제 URL을 SHA256 해시화하여 PasswordVault Resource 키로 사용.
@@ -122,16 +124,14 @@ namespace Uviewer
         /// </summary>
         public void SaveServer(WebDavServerInfo info)
         {
-            var vault = new PasswordVault();
-            string resource = GetVaultResourceKey(info.ResourceUrl);
-
-            // userId와 password를 합쳐서 '비밀번호' 필드에 저장.
-            // 서버 이름을 UserName으로 사용하여 동일 주소(URL)에서 다른 이름의 서버 설정을 가능하게 함.
-            string combinedSecret = $"{info.UserId}{CredentialSeparator}{info.Password}";
-            vault.Add(new PasswordCredential(resource, info.ServerName, combinedSecret));
-
-            // 서버 이름 → URL 매핑은 DPAPI 암호화 JSON에 저장
-            SaveServerNameMapping(info.ServerName, info.ResourceUrl);
+            _serverMappings.Update(mapping =>
+            {
+                var vault = new PasswordVault();
+                string resource = GetVaultResourceKey(info.ResourceUrl);
+                string combinedSecret = $"{info.UserId}{CredentialSeparator}{info.Password}";
+                vault.Add(new PasswordCredential(resource, info.ServerName, combinedSecret));
+                mapping[info.ServerName] = info.ResourceUrl;
+            });
         }
 
         /// <summary>
@@ -139,7 +139,7 @@ namespace Uviewer
         /// </summary>
         public WebDavServerInfo? LoadServer(string serverName)
         {
-            var mapping = LoadServerNameMappings();
+            var mapping = _serverMappings.Read();
             if (!mapping.TryGetValue(serverName, out var resourceUrl))
                 return null;
 
@@ -203,40 +203,42 @@ namespace Uviewer
         /// </summary>
         public void DeleteServer(string serverName)
         {
-            var mapping = LoadServerNameMappings();
-            if (!mapping.TryGetValue(serverName, out var resourceUrl))
-                return;
-
-            var vault = new PasswordVault();
-            string resource = GetVaultResourceKey(resourceUrl);
-
-            try
+            _serverMappings.Update(mapping =>
             {
-                var credentials = vault.FindAllByResource(resource);
-                
-                // 1. 해당 서버 이름을 가진 자격 증명만 삭제
-                var specificCred = credentials.FirstOrDefault(c => c.UserName == serverName);
-                if (specificCred != null)
-                {
-                    vault.Remove(specificCred);
-                }
+                if (!mapping.TryGetValue(serverName, out var resourceUrl))
+                    return;
 
-                // 2. 구버전 마이그레이션용(ObfuscatedUserName) 삭제 여부 결정
-                // 해당 주소를 사용하는 다른 서버가 없는 경우에만 삭제하여 다른 서버 간섭 방지
-                bool otherUsesSameUrl = mapping.Any(kvp => kvp.Key != serverName && kvp.Value == resourceUrl);
-                if (!otherUsesSameUrl)
+                var vault = new PasswordVault();
+                string resource = GetVaultResourceKey(resourceUrl);
+
+                try
                 {
-                    var oldCred = credentials.FirstOrDefault(c => c.UserName == ObfuscatedUserName);
-                    if (oldCred != null)
+                    var credentials = vault.FindAllByResource(resource);
+
+                    // 1. 해당 서버 이름을 가진 자격 증명만 삭제
+                    var specificCred = credentials.FirstOrDefault(c => c.UserName == serverName);
+                    if (specificCred != null)
                     {
-                        vault.Remove(oldCred);
+                        vault.Remove(specificCred);
+                    }
+
+                    // 2. 구버전 마이그레이션용(ObfuscatedUserName) 삭제 여부 결정
+                    // 해당 주소를 사용하는 다른 서버가 없는 경우에만 삭제하여 다른 서버 간섭 방지
+                    bool otherUsesSameUrl = mapping.Any(kvp => kvp.Key != serverName && kvp.Value == resourceUrl);
+                    if (!otherUsesSameUrl)
+                    {
+                        var oldCred = credentials.FirstOrDefault(c => c.UserName == ObfuscatedUserName);
+                        if (oldCred != null)
+                        {
+                            vault.Remove(oldCred);
+                        }
                     }
                 }
-            }
-            catch { }
+                catch { }
 
-            // 서버 이름 매핑 제거
-            RemoveServerNameMapping(serverName);
+                // 서버 이름 매핑 제거
+                mapping.Remove(serverName);
+            });
         }
 
         /// <summary>
@@ -244,70 +246,12 @@ namespace Uviewer
         /// </summary>
         public List<string> GetSavedServerNames()
         {
-            var mapping = LoadServerNameMappings();
+            var mapping = _serverMappings.Read();
             return mapping.Keys.ToList();
         }
 
-        private const string WebDavServersFileName = "webdav_servers.json";
-        private string GetWebDavServersFilePath() => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "Uviewer", WebDavServersFileName);
-
-        private void SaveServerNameMapping(string serverName, string resourceUrl)
-        {
-            var dict = LoadServerNameMappings();
-            dict[serverName] = resourceUrl;
-            SaveServerNameMappings(dict);
-        }
-
-        private void RemoveServerNameMapping(string serverName)
-        {
-            var dict = LoadServerNameMappings();
-            dict.Remove(serverName);
-            SaveServerNameMappings(dict);
-        }
-
-        private Dictionary<string, string> LoadServerNameMappings()
-        {
-            try
-            {
-                var filePath = GetWebDavServersFilePath();
-                if (File.Exists(filePath))
-                {
-                    var encryptedBase64 = File.ReadAllText(filePath);
-                    var encryptedBytes = Convert.FromBase64String(encryptedBase64);
-                    // WMI 엔트로피 제거: 속도 향상 및 DPAPI 기본 보안(CurrentUser) 사용
-                    var decryptedBytes = ProtectedData.Unprotect(encryptedBytes, null, DataProtectionScope.CurrentUser);
-                    var json = Encoding.UTF8.GetString(decryptedBytes);
-                    return JsonSerializer.Deserialize(json, WebDavJsonContext.Default.DictionaryStringString)
-                           ?? new Dictionary<string, string>();
-                }
-            }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"Error loading WebDAV servers: {ex.Message}");
-            }
-            return new Dictionary<string, string>();
-        }
-
-        private void SaveServerNameMappings(Dictionary<string, string> dict)
-        {
-            try
-            {
-                var filePath = GetWebDavServersFilePath();
-                var dir = Path.GetDirectoryName(filePath);
-                if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir))
-                    Directory.CreateDirectory(dir);
-
-                var json = JsonSerializer.Serialize(dict, WebDavJsonContext.Default.DictionaryStringString);
-                var jsonBytes = Encoding.UTF8.GetBytes(json);
-                // WMI 엔트로피 제거
-                var encryptedBytes = ProtectedData.Protect(jsonBytes, null, DataProtectionScope.CurrentUser);
-                File.WriteAllText(filePath, Convert.ToBase64String(encryptedBytes));
-            }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"Error saving WebDAV servers: {ex.Message}");
-            }
-        }
+        private readonly WebDavServerMappingStore _serverMappings = new(Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "Uviewer", "webdav_servers.json"));
 
         #endregion
 
@@ -316,16 +260,38 @@ namespace Uviewer
         /// <summary>
         /// WebDAV 서버에 HTTPS로 접속
         /// </summary>
-        public async Task<bool> ConnectAsync(WebDavServerInfo serverInfo, CancellationToken token = default)
+        public async Task<bool> ConnectAsync(WebDavServerInfo serverInfo, CancellationToken token = default,
+            WebDavCertificateError? approvedCertificate = null)
         {
+            WebDavCertificateError? rejectedCertificate = null;
             try
             {
                 Disconnect();
+                token.ThrowIfCancellationRequested();
 
                 var handler = new HttpClientHandler
                 {
                     Credentials = new NetworkCredential(serverInfo.UserId, serverInfo.Password),
-                    PreAuthenticate = true
+                    PreAuthenticate = true,
+                    ServerCertificateCustomValidationCallback = (request, certificate, _, errors) =>
+                    {
+                        if (errors == SslPolicyErrors.None)
+                            return true;
+
+                        // Approval applies only to this endpoint and certificate for this connection.
+                        var error = new WebDavCertificateError(
+                            request.RequestUri!.Authority,
+                            certificate?.GetCertHashString(HashAlgorithmName.SHA256) ?? "",
+                            errors);
+                        if (certificate != null && approvedCertificate != null &&
+                            string.Equals(error.Authority, approvedCertificate.Authority, StringComparison.OrdinalIgnoreCase) &&
+                            error.Fingerprint == approvedCertificate.Fingerprint &&
+                            (errors & ~approvedCertificate.Errors) == SslPolicyErrors.None)
+                            return true;
+
+                        rejectedCertificate = error;
+                        return false;
+                    }
                 };
 
                 _httpClient = new HttpClient(handler)
@@ -334,13 +300,8 @@ namespace Uviewer
                     Timeout = TimeSpan.FromSeconds(30)
                 };
 
-                var clientParams = new WebDavClientParams
-                {
-                    BaseAddress = new Uri(serverInfo.BaseUrl),
-                    Credentials = new NetworkCredential(serverInfo.UserId, serverInfo.Password),
-                    PreAuthenticate = true
-                };
-                _webDavClient = new WebDavClient(clientParams);
+                // Share the handler for connection checks, folder listings and both download paths.
+                _webDavClient = new WebDavClient(_httpClient);
 
                 // 접속 테스트: 루트 폴더 목록 가져오기
                 var result = await _webDavClient.Propfind("/", new PropfindParameters
@@ -359,12 +320,19 @@ namespace Uviewer
                 }
 
                 Disconnect();
+                CertificateError = rejectedCertificate;
                 return false;
+            }
+            catch (OperationCanceledException) when (token.IsCancellationRequested)
+            {
+                Disconnect();
+                throw;
             }
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"WebDAV connect error: {ex.Message}");
                 Disconnect();
+                CertificateError = rejectedCertificate;
                 return false;
             }
         }
@@ -379,6 +347,7 @@ namespace Uviewer
             _httpClient?.Dispose();
             _httpClient = null;
             _currentServer = null;
+            CertificateError = null;
         }
 
         #endregion
@@ -640,8 +609,4 @@ namespace Uviewer
         }
     }
 
-    [JsonSerializable(typeof(Dictionary<string, string>))]
-    internal partial class WebDavJsonContext : JsonSerializerContext
-    {
-    }
 }

@@ -148,18 +148,7 @@ namespace Uviewer.Services
             _toolbar.CloseWindowRequested += (_, _) => _handlers.CloseWindow();
         }
 
-        private async void RunAsync(Func<Task> operation)
-        {
-            try
-            {
-                await operation();
-            }
-            catch (OperationCanceledException) { }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"Toolbar command failed: {ex.Message}");
-                _handlers.ShowNotification($"{ex.Message}", "\uE783", "Red");
-            }
-        }
+        private void RunAsync(Func<Task> operation) =>
+            _ = AsyncEventRunner.RunAsync(operation, _handlers.ShowNotification);
     }
 }

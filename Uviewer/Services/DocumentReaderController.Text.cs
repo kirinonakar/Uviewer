@@ -69,13 +69,14 @@ namespace Uviewer
             set => _textReaderState.LastRecentSaveLine = value;
         }
 
-        internal async void EncodingItem_Click(object sender, RoutedEventArgs e)
-        {
-            if (sender is ToggleMenuFlyoutItem item && item.Tag is string tag)
+        internal void EncodingItem_Click(object sender, RoutedEventArgs e) =>
+            _ = AsyncEventRunner.RunAsync(async () =>
             {
-                await ApplyEncodingSelectionAsync(tag);
-            }
-        }
+                if (sender is ToggleMenuFlyoutItem item && item.Tag is string tag)
+                {
+                    await ApplyEncodingSelectionAsync(tag);
+                }
+            }, ShowNotification);
 
         internal async Task ApplyEncodingSelectionAsync(string tag)
         {
@@ -280,17 +281,13 @@ namespace Uviewer
                 _textLines.Clear();
             }
 
-            // Ensure visibility is mutually exclusive
-            if (TextScrollViewer != null) TextScrollViewer.Visibility = Visibility.Collapsed;
-            if (AozoraTextCanvas != null) AozoraTextCanvas.Visibility = Visibility.Collapsed;
-            if (VerticalTextCanvas != null) VerticalTextCanvas.Visibility = Visibility.Collapsed;
+            ApplyMode(CurrentReaderMode);
 
             if (_isVerticalMode && !_isMarkdownRenderMode)
             {
                 if (TextArea != null) TextArea.Background = _settingsManager.GetThemeBackground();
                 await PrepareVerticalTextAsync(targetLine, targetBlockIdx, token);
                 if (token.IsCancellationRequested) return;
-                if (VerticalTextCanvas != null) VerticalTextCanvas.Visibility = Visibility.Visible;
 
                 FileNameText.Text = FileExplorerService.GetFormattedDisplayName(name, _currentTextArchiveEntryKey != null);
                 UpdateTextStatusBar();
@@ -302,7 +299,6 @@ namespace Uviewer
                 // Use page-based container display with target line restoration
                 await PrepareAozoraDisplayAsync(content, targetLine, targetBlockIdx, token);
                 if (token.IsCancellationRequested) return;
-                if (AozoraTextCanvas != null) AozoraTextCanvas.Visibility = Visibility.Visible;
 
                 FileNameText.Text = FileExplorerService.GetFormattedDisplayName(name, _currentTextArchiveEntryKey != null);
             }
@@ -313,9 +309,6 @@ namespace Uviewer
                 {
                     TextItemsRepeater.ItemTemplate = (DataTemplate)template;
                 }
-
-                // [핵심 수정] ScrollToLine이 정상 작동하도록 가상화 컨테이너를 먼저 화면에 표시(Visible)합니다.
-                if (TextScrollViewer != null) TextScrollViewer.Visibility = Visibility.Visible;
 
                 // Progressive loading for large files
                 await LoadTextLinesProgressivelyAsync(content, targetLine, token);
@@ -383,18 +376,10 @@ namespace Uviewer
             _textReaderState.CancelPageCalculation();
             ClearBackwardCache();
 
-            if (_verticalKeyAttached && RootGrid != null)
-            {
-                RootGrid.PreviewKeyDown -= RootGrid_Vertical_PreviewKeyDown;
-                _verticalKeyAttached = false;
-            }
-
             MainToolbar.SetAozoraToggleState(isChecked: false, isEnabled: false);
             MainToolbar.SetVerticalToggleState(isChecked: false, isEnabled: false);
 
-            if (AozoraTextCanvas != null) AozoraTextCanvas.Visibility = Visibility.Collapsed;
-            if (VerticalTextCanvas != null) VerticalTextCanvas.Visibility = Visibility.Collapsed;
-            if (TextScrollViewer != null) TextScrollViewer.Visibility = Visibility.Visible;
+            ApplyMode(CurrentReaderMode);
         }
 
         private static bool RequiresPlainTextModeLock(string name, string? uniquePath)
@@ -473,24 +458,7 @@ namespace Uviewer
             // Load Settings (Must happen before visibility check)
             LoadTextSettings();
 
-            if (_isVerticalMode)
-            {
-                VerticalTextCanvas.Visibility = Visibility.Visible;
-                TextScrollViewer.Visibility = Visibility.Collapsed;
-                AozoraTextCanvas.Visibility = Visibility.Collapsed;
-            }
-            else if (_isAozoraMode)
-            {
-                VerticalTextCanvas.Visibility = Visibility.Collapsed;
-                TextScrollViewer.Visibility = Visibility.Collapsed;
-                AozoraTextCanvas.Visibility = Visibility.Visible;
-            }
-            else
-            {
-                VerticalTextCanvas.Visibility = Visibility.Collapsed;
-                TextScrollViewer.Visibility = Visibility.Visible;
-                AozoraTextCanvas.Visibility = Visibility.Collapsed;
-            }
+            ApplyMode(CurrentReaderMode);
 
             // Update Title
             Title = Strings.WindowTitle;
@@ -829,13 +797,14 @@ namespace Uviewer
             _ = ShowColorPickerDialog();
         }
 
-        internal async void LanguageItem_Click(object sender, RoutedEventArgs e)
-        {
-            if (sender is ToggleMenuFlyoutItem item && item.Tag is string lang)
+        internal void LanguageItem_Click(object sender, RoutedEventArgs e) =>
+            _ = AsyncEventRunner.RunAsync(async () =>
             {
-                await ApplyLanguageSelectionAsync(lang);
-            }
-        }
+                if (sender is ToggleMenuFlyoutItem item && item.Tag is string lang)
+                {
+                    await ApplyLanguageSelectionAsync(lang);
+                }
+            }, ShowNotification);
 
         internal async Task ApplyLanguageSelectionAsync(string lang)
         {
@@ -998,12 +967,13 @@ namespace Uviewer
             _ = ShowGoToLineDialog();
         }
 
-        internal async void RootGrid_Text_PreviewKeyDown(object sender, KeyRoutedEventArgs e)
-        {
-            await _textPreviewKeyNavigationService.HandleAsync(
-                e,
-                CreateTextPreviewKeyNavigationContext());
-        }
+        internal void RootGrid_Text_PreviewKeyDown(object sender, KeyRoutedEventArgs e) =>
+            _ = AsyncEventRunner.RunAsync(async () =>
+            {
+                await _textPreviewKeyNavigationService.HandleAsync(
+                    e,
+                    CreateTextPreviewKeyNavigationContext());
+            }, ShowNotification);
 
         internal TextPreviewKeyNavigationContext CreateTextPreviewKeyNavigationContext()
         {

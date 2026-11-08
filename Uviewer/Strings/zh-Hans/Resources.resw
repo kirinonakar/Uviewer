@@ -697,6 +697,10 @@
   <data name="WebDavServerSaved" xml:space="preserve"><value>服务器“{0}”已保存。</value></data>
   <data name="WebDavServerDeleted" xml:space="preserve"><value>服务器“{0}”已删除。</value></data>
   <data name="WebDavServerConnected" xml:space="preserve"><value>已连接到“{0}”。</value></data>
+  <data name="WebDavCertificateWarning" xml:space="preserve"><value>“{0}”的 HTTPS 证书存在错误，无法验证服务器身份。是否仍要连接？</value></data>
+  <data name="WebDavCertificateWarningTitle" xml:space="preserve"><value>HTTPS 证书错误</value></data>
+  <data name="WebDavConnect" xml:space="preserve"><value>连接</value></data>
+  <data name="WebDavConnectionCancelled" xml:space="preserve"><value>已取消 WebDAV 连接。</value></data>
   <data name="WebDavFavoriteOpenFailed" xml:space="preserve"><value>无法打开 WebDAV 收藏项：{0}</value></data>
   <data name="WebDavRecentOpenFailed" xml:space="preserve"><value>无法打开最近使用的 WebDAV 项目：{0}</value></data>
   <data name="ChapterNumber" xml:space="preserve"><value>第 {0} 章</value></data>

@@ -193,6 +193,9 @@ namespace Uviewer
         public static string WebDavPassword => GetString("WebDavPassword");
         public static string WebDavSave => GetString("WebDavSave");
         public static string WebDavCancel => GetString("WebDavCancel");
+        public static string WebDavConnect => GetString("WebDavConnect");
+        public static string WebDavCertificateWarningTitle => GetString("WebDavCertificateWarningTitle");
+        public static string WebDavConnectionCancelled => GetString("WebDavConnectionCancelled");
         public static string WebDavConnecting => GetString("WebDavConnecting");
         public static string WebDavConnectionFailed => GetString("WebDavConnectionFailed");
         public static string RequiredFieldsMissing => GetString("RequiredFieldsMissing");
@@ -340,6 +343,7 @@ namespace Uviewer
         public static string WebDavServerSaved(string name) => string.Format(GetString("WebDavServerSaved"), name);
         public static string WebDavServerDeleted(string name) => string.Format(GetString("WebDavServerDeleted"), name);
         public static string WebDavServerConnected(string name) => string.Format(GetString("WebDavServerConnected"), name);
+        public static string WebDavCertificateWarning(string name) => string.Format(GetString("WebDavCertificateWarning"), name);
         public static string WebDavFavoriteOpenFailed(string msg) => string.Format(GetString("WebDavFavoriteOpenFailed"), msg);
         public static string WebDavRecentOpenFailed(string msg) => string.Format(GetString("WebDavRecentOpenFailed"), msg);
         public static string ChapterNumber(int number) => string.Format(GetString("ChapterNumber"), number);
