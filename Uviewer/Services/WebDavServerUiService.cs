@@ -105,7 +105,8 @@ namespace Uviewer.Services
 
             if (string.IsNullOrEmpty(serverName) ||
                 string.IsNullOrEmpty(address) ||
-                string.IsNullOrEmpty(userId))
+                string.IsNullOrEmpty(userId) ||
+                !WebDavServerAddress.TryParse(address, port, out var host, out var effectivePort))
             {
                 return WebDavServerDialogResult.Invalid;
             }
@@ -116,8 +117,8 @@ namespace Uviewer.Services
                 new WebDavServerInfo
                 {
                     ServerName = serverName,
-                    Address = address,
-                    Port = port,
+                    Address = host,
+                    Port = effectivePort,
                     UserId = userId,
                     Password = password
                 });
