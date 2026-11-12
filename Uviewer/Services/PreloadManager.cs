@@ -13,7 +13,8 @@ namespace Uviewer.Services
     {
         private readonly ImageCacheManager _imageCache;
         private readonly DispatcherQueue _dispatcherQueue;
-        private const int DefaultPreloadCount = 5;
+        internal const int ImagePreloadCount = 5;
+        private const int PdfCacheKeepRange = 20;
 
         private CancellationTokenSource? _preloadCts;
         private PdfPreloadRequest? _pdfRequest;
@@ -74,27 +75,27 @@ namespace Uviewer.Services
 
                 if (token.IsCancellationRequested || entries == null || entries.Count == 0) return;
 
-                int preloadDist = isPdfMode ? 3 : DefaultPreloadCount;
                 var tasks = new List<Task>();
+                int nextIndex = currentIndex;
+                int previousIndex = currentIndex;
 
-                for (int d = 1; d <= preloadDist; d++)
+                for (int d = 0; d < ImagePreloadCount; d++)
                 {
                     if (token.IsCancellationRequested) break;
 
-                    // 우선순위 방향에 따라 배열 순서 변경
+                    int next = FileExplorerService.GetNextImageIndex(entries, nextIndex, 1, isNext: true);
+                    int previous = FileExplorerService.GetNextImageIndex(entries, previousIndex, 1, isNext: false);
+                    if (next == nextIndex && previous == previousIndex) break;
+
                     int[] targets = prioritizeNext
-                        ? new[] { currentIndex + d, currentIndex - d }
-                        : new[] { currentIndex - d, currentIndex + d };
+                        ? new[] { next, previous }
+                        : new[] { previous, next };
 
                     foreach (int index in targets)
                     {
-                        if (index < 0 || index >= entries.Count || index == currentIndex) continue;
-                    
-                        if (!FileExplorerService.IsNavigableImage(entries[index])) continue;
+                        if (index == nextIndex || index == previousIndex) continue;
 
-                        bool isPdfEntry = entries[index].IsPdfEntry && isPdfMode;
-
-                        if (_imageCache.ShouldSkipPreload(index, isPdfEntry, zoomLevel, requireSharpening)) continue;
+                        if (_imageCache.ShouldSkipPreload(index, false, zoomLevel, requireSharpening)) continue;
                         if (!_imageCache.TryMarkForLoading(index, generation)) continue;
 
                         var entry = entries[index];
@@ -117,7 +118,7 @@ namespace Uviewer.Services
 
                                 if (bitmap != null)
                                 {
-                                    if (!_imageCache.UpdateCache(capturedIndex, bitmap, isPdfEntry, zoomLevel,
+                                    if (!_imageCache.UpdateCache(capturedIndex, bitmap, false, zoomLevel,
                                         currentBitmap, generation, token)) return;
 
                                     _dispatcherQueue.TryEnqueue(DispatcherQueuePriority.Low, () =>
@@ -134,13 +135,19 @@ namespace Uviewer.Services
                             }
                         })); // Run finally even if cancellation preceded scheduling.
                     }
+
+                    nextIndex = next;
+                    previousIndex = previous;
                 }
 
                 await Task.WhenAll(tasks);
 
                 if (!token.IsCancellationRequested && generation == _imageCache.Generation)
                 {
-                    _imageCache.CleanupOldPreloadedImages(currentIndex, isPdfMode, DefaultPreloadCount, currentBitmap, leftBitmap, rightBitmap);
+                    int keepCount = ImagePreloadCount * 2;
+                    int firstIndex = FileExplorerService.GetNextImageIndex(entries, currentIndex, keepCount, isNext: false);
+                    int lastIndex = FileExplorerService.GetNextImageIndex(entries, currentIndex, keepCount, isNext: true);
+                    _imageCache.CleanupOldPreloadedImages(firstIndex, lastIndex, currentBitmap, leftBitmap, rightBitmap);
                 }
             }
             catch (OperationCanceledException) { }
@@ -213,8 +220,8 @@ namespace Uviewer.Services
 
                 if (batch.Count == 0)
                 {
-                    _imageCache.CleanupOldPreloadedImages(request.CurrentIndex, true,
-                        DefaultPreloadCount, request.CurrentBitmap, request.LeftBitmap, request.RightBitmap);
+                    _imageCache.CleanupOldPreloadedImages(request.CurrentIndex - PdfCacheKeepRange,
+                        request.CurrentIndex + PdfCacheKeepRange, request.CurrentBitmap, request.LeftBitmap, request.RightBitmap);
                     return;
                 }
 

@@ -258,11 +258,12 @@ namespace Uviewer.Services
                 var token = context.GetCancellationToken();
                 if (token.IsCancellationRequested) return true;
                 double zoomLevel = context.GetZoomLevel();
+                bool isPdfMode = context.IsPdfMode();
                 int oldIndex = context.GetCurrentIndex();
                 context.ImageCache.UpdateCache(
                     oldIndex,
                     currentBitmap,
-                    isPdf: true,
+                    isPdf: isPdfMode,
                     currentZoom: zoomLevel,
                     currentDisplayingBitmap: context.GetCurrentBitmap());
 
@@ -275,7 +276,7 @@ namespace Uviewer.Services
                     if (!context.ImageCache.UpdateCache(
                         targetIndex,
                         targetBitmap,
-                        isPdf: true,
+                        isPdf: isPdfMode,
                         currentZoom: zoomLevel,
                         currentDisplayingBitmap: context.GetCurrentBitmap(),
                         expectedGeneration: generation,

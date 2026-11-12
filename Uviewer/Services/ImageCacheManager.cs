@@ -162,13 +162,12 @@ namespace Uviewer.Services
             }
         }
 
-        public void CleanupOldPreloadedImages(int currentIndex, bool isPdfMode, int basePreloadCount, params CanvasBitmap?[] activeBitmaps)
+        internal void CleanupOldPreloadedImages(int firstIndex, int lastIndex, params CanvasBitmap?[] activeBitmaps)
         {
             lock (_lockObject)
             {
-                int keepRange = isPdfMode ? 20 : basePreloadCount * 2;
                 var keysToRemove = _preloadedImages.Keys
-                    .Where(index => Math.Abs(index - currentIndex) > keepRange)
+                    .Where(index => index < firstIndex || index > lastIndex)
                     .ToList();
 
                 foreach (var key in keysToRemove)

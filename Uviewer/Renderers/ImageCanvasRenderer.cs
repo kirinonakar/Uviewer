@@ -87,7 +87,7 @@ namespace Uviewer.Renderers
                 (canvasSize.Width - scaledSize.Width) / 2,
                 (canvasSize.Height - scaledSize.Height) / 2);
 
-            if (isPdfMode || (zoomLevel > 1.01 && !isCurrentViewSideBySide))
+            if (zoomLevel > 1.01 && !isCurrentViewSideBySide)
             {
                 double maxPan = Math.Max(0, (scaledSize.Height - canvasSize.Height) / 2);
                 double clampMargin = canvasSize.Height + 500;
@@ -96,24 +96,12 @@ namespace Uviewer.Renderers
 
                 position.X = (canvasSize.Width - scaledSize.Width) / 2 + panX;
                 position.Y = (canvasSize.Height - scaledSize.Height) / 2 + panY;
-                DrawBitmap(ds, currentBitmap, new Rect(position, scaledSize), isPdfMode, preferAnimationSpeed);
+                DrawBitmap(ds, currentBitmap, new Rect(position, scaledSize), false, preferAnimationSpeed);
 
-                double gap = 20 * zoomLevel;
-                DrawAdjacentImages(
-                    ds,
-                    canvasSize,
-                    imageCache,
-                    currentBitmap,
-                    imageEntries,
-                    currentIndex,
-                    zoomLevel,
-                    isPdfMode,
-                    sharpenEnabled,
-                    panX,
-                    position.Y,
-                    scaledSize.Height,
-                    gap,
-                    preferAnimationSpeed);
+                DrawAdjacentImages(ds, canvasSize, imageCache, currentBitmap, imageEntries, currentIndex,
+                    zoomLevel, sharpenEnabled, panX, position.Y, forward: false, preferAnimationSpeed);
+                DrawAdjacentImages(ds, canvasSize, imageCache, currentBitmap, imageEntries, currentIndex,
+                    zoomLevel, sharpenEnabled, panX, position.Y + scaledSize.Height, forward: true, preferAnimationSpeed);
             }
             else
             {
@@ -194,74 +182,32 @@ namespace Uviewer.Renderers
             IReadOnlyList<ImageEntry> imageEntries,
             int currentIndex,
             double zoomLevel,
-            bool isPdfMode,
             bool sharpenEnabled,
             double panX,
-            double currentY,
-            double currentHeight,
-            double gap,
+            double edge,
+            bool forward,
             bool preferAnimationSpeed)
         {
-            double currentTop = currentY;
-            for (int i = 1; i <= 5; i++)
+            double gap = 20 * zoomLevel;
+            for (int i = 0; i < PreloadManager.ImagePreloadCount; i++)
             {
-                int prevIndex = currentIndex - i;
-                if (prevIndex < 0) break;
+                int index = FileExplorerService.GetNextImageIndex(imageEntries, currentIndex, 1, forward);
+                if (index == currentIndex) break;
+                currentIndex = index;
 
-                var prev = sharpenEnabled && !isPdfMode ? imageCache.GetSharpenedImage(prevIndex) : null;
-                prev ??= imageCache.GetPreloadedImage(prevIndex, zoomLevel);
-                if (prev != null && CanvasBitmapHelper.TryGetBitmapSize(prev, out var prevSize) && prev != currentBitmap)
-                {
-                    var fit = Math.Min(canvasSize.Width / prevSize.Width, canvasSize.Height / prevSize.Height);
-                    var scaledSize = new Size(prevSize.Width * fit * zoomLevel, prevSize.Height * fit * zoomLevel);
-                    var position = new Point(
-                        (canvasSize.Width - scaledSize.Width) / 2 + panX,
-                        currentTop - scaledSize.Height - gap);
+                var bitmap = sharpenEnabled ? imageCache.GetSharpenedImage(index) : null;
+                bitmap ??= imageCache.GetPreloadedImage(index, zoomLevel);
+                if (bitmap == currentBitmap) continue;
+                if (bitmap == null || !CanvasBitmapHelper.TryGetBitmapSize(bitmap, out var size)) break;
 
-                    DrawBitmap(ds, prev, new Rect(position, scaledSize), isPdfMode, preferAnimationSpeed);
-                    currentTop = position.Y;
+                var scaledSize = ZoomService.CalculateScaledSize(canvasSize, size, zoomLevel);
+                var position = new Point((canvasSize.Width - scaledSize.Width) / 2 + panX,
+                    forward ? edge + gap : edge - scaledSize.Height - gap);
 
-                    if (currentTop + scaledSize.Height < -500) break;
-                }
-                else if (prev == currentBitmap)
-                {
-                    continue;
-                }
-                else
-                {
-                    break;
-                }
-            }
-
-            double currentBottom = currentY + currentHeight;
-            for (int i = 1; i <= 5; i++)
-            {
-                int nextIndex = currentIndex + i;
-                if (nextIndex >= imageEntries.Count) break;
-
-                var next = sharpenEnabled && !isPdfMode ? imageCache.GetSharpenedImage(nextIndex) : null;
-                next ??= imageCache.GetPreloadedImage(nextIndex, zoomLevel);
-                if (next != null && CanvasBitmapHelper.TryGetBitmapSize(next, out var nextSize) && next != currentBitmap)
-                {
-                    var fit = Math.Min(canvasSize.Width / nextSize.Width, canvasSize.Height / nextSize.Height);
-                    var scaledSize = new Size(nextSize.Width * fit * zoomLevel, nextSize.Height * fit * zoomLevel);
-                    var position = new Point(
-                        (canvasSize.Width - scaledSize.Width) / 2 + panX,
-                        currentBottom + gap);
-
-                    DrawBitmap(ds, next, new Rect(position, scaledSize), isPdfMode, preferAnimationSpeed);
-                    currentBottom = position.Y + scaledSize.Height;
-
-                    if (position.Y > canvasSize.Height + 500) break;
-                }
-                else if (next == currentBitmap)
-                {
-                    continue;
-                }
-                else
-                {
-                    break;
-                }
+                DrawBitmap(ds, bitmap, new Rect(position, scaledSize), false, preferAnimationSpeed);
+                double bottom = position.Y + scaledSize.Height;
+                edge = forward ? bottom : position.Y;
+                if (forward ? position.Y > canvasSize.Height + 500 : bottom < -500) break;
             }
         }
 
