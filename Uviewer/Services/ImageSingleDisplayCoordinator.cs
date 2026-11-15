@@ -70,7 +70,7 @@ namespace Uviewer.Services
                     return;
                 }
 
-                StartAnimationIfSupported(entry, token);
+                StartAnimationIfSupported(entry, expectedIndex, token);
             }
             catch (OperationCanceledException) { }
             catch (Exception ex)
@@ -128,7 +128,7 @@ namespace Uviewer.Services
             }
         }
 
-        private void StartAnimationIfSupported(ImageEntry entry, CancellationToken token)
+        private void StartAnimationIfSupported(ImageEntry entry, int expectedIndex, CancellationToken token)
         {
             if (!_host.AnimatedWebpService.IsAnimationSupported(entry))
             {
@@ -136,6 +136,15 @@ namespace Uviewer.Services
             }
 
             _host.FileNameText.Text += Strings.Loading;
+
+            void RefreshStatusBar()
+            {
+                if (!token.IsCancellationRequested && IsCurrentEntry(expectedIndex, entry) &&
+                    _host.CurrentBitmap is CanvasBitmap bitmap)
+                {
+                    _updateStatusBar(entry, bitmap);
+                }
+            }
 
             _ = Task.Run(async () =>
             {
@@ -152,22 +161,11 @@ namespace Uviewer.Services
                         (float)_host.ImageOptions.UnsharpAmount,
                         (float)_host.ImageOptions.UnsharpRadius,
                         _host.SharpenEnabled);
-
-                    _host.DispatcherQueue.TryEnqueue(() =>
-                    {
-                        if (!token.IsCancellationRequested && _host.CurrentBitmap != null)
-                        {
-                            _updateStatusBar(entry, _host.CurrentBitmap);
-                        }
-                    });
                 }
-                catch
+                catch { }
+                finally
                 {
-                    _host.DispatcherQueue.TryEnqueue(() =>
-                    {
-                        if (token.IsCancellationRequested || _host.CurrentBitmap == null) return;
-                        _updateStatusBar(entry, _host.CurrentBitmap);
-                    });
+                    _host.DispatcherQueue.TryEnqueue(RefreshStatusBar);
                 }
             }, token);
         }

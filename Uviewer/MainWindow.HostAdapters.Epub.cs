@@ -87,7 +87,7 @@ namespace Uviewer
             public void EnsureMinWindowSizeForText() => _window.EnsureMinWindowSizeForText();
             public void UpdateSideBySideButtonState() => _window._imageViewerController.UpdateSideBySideButtonState();
             public void UpdateNextImageSideButtonState() => _window._imageViewerController.UpdateNextImageSideButtonState();
-            public void SyncSidebarSelection(ImageEntry entry) => _window._imageViewerController.SyncSidebarSelection(entry);
+            public void SyncSidebarSelection(ImageEntry entry) => _window._imageViewerController.OnReaderFileDisplayed(entry);
             public void ClearBackwardCache() => _window.ClearBackwardCache();
             public void ClearVerticalDisplayState() => _window.ClearVerticalDisplayState();
             public Task PrepareVerticalTextAsync(int line) => _window.PrepareVerticalTextAsync(line);

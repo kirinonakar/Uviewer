@@ -55,7 +55,7 @@ namespace Uviewer.Services
                     _releaseBitmapIfUnused,
                     token);
 
-                if (pair == null) return;
+                if (pair?.PrimaryBitmap is not CanvasBitmap primaryBitmap) return;
                 if (token.IsCancellationRequested || _host.CurrentIndex != expectedIndex ||
                     expectedIndex >= _host.ImageEntries.Count ||
                     !ReferenceEquals(_host.ImageEntries[expectedIndex], expectedEntry))
@@ -79,19 +79,13 @@ namespace Uviewer.Services
                 _fitToWindow();
                 _showImageUi();
 
-                var primaryEntry = expectedEntry;
-                CanvasBitmap? primaryBitmap = pair.PrimaryBitmap ?? _host.CurrentBitmap;
+                bool hasPrimaryImage = (pair.NextImageOnRight ? pair.LeftBitmap : pair.RightBitmap) != null;
+                var displayedEntry = hasPrimaryImage
+                    ? expectedEntry
+                    : (pair.NextImageOnRight ? pair.RightEntry : pair.LeftEntry);
+                _updateStatusBar(displayedEntry, primaryBitmap);
 
-                if (primaryBitmap != null)
-                {
-                    _updateStatusBar(primaryEntry, primaryBitmap);
-                }
-                else if (_host.CurrentBitmap != null)
-                {
-                    _updateStatusBar(primaryEntry, _host.CurrentBitmap);
-                }
-
-                _syncSidebarSelection(primaryEntry);
+                _syncSidebarSelection(expectedEntry);
 
                 ReleasePreviousBitmaps(oldLeft, oldRight, pair.LeftBitmap, pair.RightBitmap);
             }

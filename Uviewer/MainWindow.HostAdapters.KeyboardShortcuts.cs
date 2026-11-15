@@ -7,6 +7,19 @@ namespace Uviewer
 {
     public sealed partial class MainWindow
     {
+        private bool CanDeleteFromKeyboard(string? path)
+        {
+            // Navigation can update the index and sidebar before the new file is visible.
+            return !_isWebDavMode &&
+                !_fastNavigationService.IsNavigationSuspended &&
+                !_fastNavigationService.HasPendingReset &&
+                string.Equals(path, _imageViewerController.GetCurrentNavigatingPath(), System.StringComparison.Ordinal) &&
+                string.Equals(path, _imageViewerController.DisplayedLocalFilePath, System.StringComparison.Ordinal) &&
+                (path == null
+                    ? _imageViewerState.Entries.Count == 0
+                    : _isTextMode || _isEpubMode || _imageViewerState.CurrentBitmap != null);
+        }
+
         private string? GetNextImagePathAfterDelete(string deletedPath)
         {
             if (_isWebDavMode ||
@@ -201,9 +214,13 @@ namespace Uviewer
                 _window._documentNavigationCoordinator.NavigatePageAsync(direction);
             public Task DisplayCurrentImageAsync() => _window._imageViewerController.DisplayCurrentImageAsync();
             public Task NavigateToFileAsync(bool forward) => _window._imageViewerController.NavigateToFileAsync(forward);
-            public Task DeleteSelectedFileAsync() =>
-                _window._explorerSidebarController.DeleteSelectedAsync(
-                    _window._imageViewerController.GetCurrentNavigatingPath());
+            public Task DeleteSelectedFileAsync()
+            {
+                var path = _window._imageViewerController.DisplayedLocalFilePath;
+                return _window.CanDeleteFromKeyboard(path)
+                    ? _window._explorerSidebarController.DeleteFromKeyboardAsync(path, () => _window.CanDeleteFromKeyboard(path))
+                    : Task.CompletedTask;
+            }
             public Task AddToFavoritesAsync() => _window._bookmarkInteractionController.AddCurrentFavoriteAsync();
 
             public void ToggleSharpening()

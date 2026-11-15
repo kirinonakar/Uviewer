@@ -102,7 +102,7 @@ namespace Uviewer
             public PdfDocumentView? CurrentPdfDocument => _window._currentPdfDocument;
 
             public Task AddToRecentAsync(bool immediate) => _window._bookmarkInteractionController.AddCurrentRecentAsync(immediate);
-            public void SyncSidebarSelection(ImageEntry entry) => _window._imageViewerController.SyncSidebarSelection(entry);
+            public void SyncSidebarSelection(ImageEntry entry) => _window._imageViewerController.OnReaderFileDisplayed(entry);
             public void UpdateSideBySideButtonState() => _window._imageViewerController.UpdateSideBySideButtonState();
             public void UpdateNextImageSideButtonState() => _window._imageViewerController.UpdateNextImageSideButtonState();
             public void UpdateStatusBar(ImageEntry entry, CanvasBitmap bitmap) => _window._imageViewerController.UpdateStatusBar(entry, bitmap);

@@ -494,30 +494,17 @@ namespace Uviewer.Services
             _ = HandleSelectionChangedAsync(item);
         }
 
-        public Task DeleteSelectedAsync(string? currentPath = null)
+        public Task DeleteFromKeyboardAsync(string? currentPath, Func<bool> canConfirm)
         {
-            var item = GetSelectedItem();
-
-            if (item == null && !_host.IsWebDavMode && !string.IsNullOrEmpty(currentPath))
-            {
-                item = _host.FileItems.FirstOrDefault(file =>
-                    !file.IsWebDav &&
-                    file.FullPath.Equals(currentPath, StringComparison.OrdinalIgnoreCase));
-
-                if (item == null && File.Exists(currentPath))
+            var item = currentPath == null
+                ? GetSelectedItem()
+                : new FileItem
                 {
-                    item = new FileItem
-                    {
-                        Name = Path.GetFileName(currentPath),
-                        FullPath = currentPath
-                    };
-                    FileExplorerService.ApplyFileKind(
-                        item,
-                        FileExplorerService.GetSupportedFileKind(currentPath));
-                }
-            }
+                    Name = Path.GetFileName(currentPath),
+                    FullPath = currentPath
+                };
 
-            return _itemOperationController.DeleteAsync(item);
+            return _itemOperationController.DeleteAsync(item, canConfirm);
         }
 
         public void HandleGridPreviewKeyDown(KeyRoutedEventArgs e)

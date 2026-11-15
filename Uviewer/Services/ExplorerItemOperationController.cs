@@ -32,6 +32,7 @@ namespace Uviewer.Services
         private ContentDialog? _activeDeleteDialog;
         private Button? _deleteButton;
         private Button? _cancelButton;
+        private bool _isDeleting;
 
         public bool IsDeleteDialogOpen => _activeDeleteDialog != null;
 
@@ -151,12 +152,14 @@ namespace Uviewer.Services
             }
         }
 
-        public async Task DeleteAsync(FileItem? item)
+        public async Task DeleteAsync(FileItem? item, Func<bool>? canConfirm = null)
         {
-            if (item == null || item.IsParentDirectory || item.IsDrive || item.IsWebDav) return;
+            if (_isDeleting || _activeDeleteDialog != null ||
+                item == null || item.IsParentDirectory || item.IsDrive || item.IsWebDav) return;
 
             var path = item.FullPath;
-            if (!File.Exists(path) && !Directory.Exists(path))
+            bool isDirectory = item.IsDirectory;
+            if (!(isDirectory ? Directory.Exists(path) : File.Exists(path)))
             {
                 _handlers.ShowNotification(Strings.FileNotFound, "\uE7BA", "Red");
                 _handlers.RefreshExplorer();
@@ -199,17 +202,18 @@ namespace Uviewer.Services
                 _cancelButton = null;
             }
 
-            if (result != ContentDialogResult.Primary) return;
+            if (result != ContentDialogResult.Primary || canConfirm?.Invoke() == false) return;
 
-            var shouldClearViewer = _handlers.IsTargetOpen(path, item.IsDirectory);
-            var nextImagePath = shouldClearViewer && !item.IsDirectory
-                ? _handlers.GetNextImagePathAfterDelete(path)
-                : null;
-            await _handlers.ReleaseCurrentDocumentAsync(path, item.IsDirectory);
-
+            _isDeleting = true;
             try
             {
-                if (item.IsDirectory)
+                var shouldClearViewer = _handlers.IsTargetOpen(path, isDirectory);
+                var nextImagePath = shouldClearViewer && !isDirectory
+                    ? _handlers.GetNextImagePathAfterDelete(path)
+                    : null;
+                await _handlers.ReleaseCurrentDocumentAsync(path, isDirectory);
+
+                if (isDirectory)
                 {
                     Microsoft.VisualBasic.FileIO.FileSystem.DeleteDirectory(
                         path,
@@ -242,6 +246,10 @@ namespace Uviewer.Services
             catch (Exception ex)
             {
                 _handlers.ShowNotification(Strings.DeleteFailed(ex.Message), "\uE783", "Red");
+            }
+            finally
+            {
+                _isDeleting = false;
             }
         }
 

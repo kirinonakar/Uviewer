@@ -4,6 +4,7 @@ using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Input;
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
 using Uviewer.Models;
@@ -26,6 +27,8 @@ namespace Uviewer.Services
         private readonly ImageViewingOptionsCoordinator _viewingOptionsCoordinator;
         private readonly ImageZoomCoordinator _zoomCoordinator;
         private bool _wasAutoDoublePageWindowWideEnough;
+
+        public string? DisplayedLocalFilePath { get; private set; }
 
         public ImageViewerController(ImageViewerControllerDependencies dependencies)
         {
@@ -52,7 +55,7 @@ namespace Uviewer.Services
                 dependencies.PdfPageDisplayHost,
                 IsBitmapInCache,
                 ShowImageUI,
-                UpdateStatusBar);
+                UpdateDisplayedImageStatusBar);
             _presenter = new ImageViewerPresenter(dependencies.PresentationHost);
             _preloadCoordinator = new ImagePreloadCoordinator(dependencies.PreloadHost);
             _sideBySideDisplayCoordinator = new ImageSideBySideDisplayCoordinator(
@@ -62,7 +65,7 @@ namespace Uviewer.Services
                 IsBitmapInCache,
                 FitToWindow,
                 ShowImageUI,
-                UpdateStatusBar,
+                UpdateDisplayedImageStatusBar,
                 SyncSidebarSelection);
             _singleDisplayCoordinator = new ImageSingleDisplayCoordinator(
                 dependencies.SingleDisplayHost,
@@ -70,7 +73,7 @@ namespace Uviewer.Services
                 IsBitmapInCache,
                 FitToWindow,
                 ShowImageUI,
-                UpdateStatusBar,
+                UpdateDisplayedImageStatusBar,
                 UpdateSharpenButtonState,
                 SyncSidebarSelection);
             _viewingOptionsCoordinator = new ImageViewingOptionsCoordinator(
@@ -98,7 +101,7 @@ namespace Uviewer.Services
         public void PrepareForImageLoad()
         {
             _presenter.PrepareForImageLoad();
-            _bitmapLifetimeCoordinator.ClearImageResources();
+            ClearImageResources();
         }
 
         public void ZoomActual() => _zoomCoordinator.ZoomActual();
@@ -246,6 +249,12 @@ namespace Uviewer.Services
             _explorerNavigationCoordinator.SyncSidebarSelection(entry);
         }
 
+        public void OnReaderFileDisplayed(ImageEntry entry)
+        {
+            RecordDisplayedFile(entry);
+            SyncSidebarSelection(entry);
+        }
+
         private async Task DisplaySingleImageAsync(int expectedIndex, CancellationToken token)
         {
             await _singleDisplayCoordinator.DisplaySingleImageAsync(expectedIndex, token);
@@ -315,7 +324,7 @@ namespace Uviewer.Services
                 LoadPdfPageBitmapAsync = (pageIndex, canvas, token) => _host.LoadPdfPageBitmapAsync(pageIndex, canvas, token),
                 LoadImageBitmapAsync = LoadImageBitmapAsync,
                 LoadBitmapForPreloadAsync = LoadBitmapForPreloadAsync,
-                UpdateStatusBar = UpdateStatusBar,
+                UpdateStatusBar = UpdateDisplayedImageStatusBar,
                 SyncSidebarSelection = SyncSidebarSelection,
                 ApplyZoom = ApplyZoom,
                 InvalidateCanvas = () => _host.MainCanvas?.Invalidate()
@@ -362,6 +371,20 @@ namespace Uviewer.Services
         public void UpdateStatusBar(ImageEntry entry, CanvasBitmap bitmap)
         {
             _presenter.UpdateStatusBar(entry, bitmap);
+        }
+
+        private void UpdateDisplayedImageStatusBar(ImageEntry entry, CanvasBitmap bitmap)
+        {
+            RecordDisplayedFile(entry);
+            UpdateStatusBar(entry, bitmap);
+        }
+
+        private void RecordDisplayedFile(ImageEntry entry)
+        {
+            var path = entry.IsArchiveEntry ? _host.ArchiveSession.CurrentPath : entry.FilePath;
+            DisplayedLocalFilePath = !entry.IsWebDavEntry && path != null && Path.IsPathFullyQualified(path)
+                ? path
+                : null;
         }
 
         public void ImageAreaSizeChanged(SizeChangedEventArgs e)
@@ -425,6 +448,7 @@ namespace Uviewer.Services
 
         public void ClearImageResources()
         {
+            DisplayedLocalFilePath = null;
             _bitmapLifetimeCoordinator.ClearImageResources();
         }
 
