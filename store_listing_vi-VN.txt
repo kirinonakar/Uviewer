@@ -4,7 +4,7 @@ Mô tả ngắn:
 Trình xem đa năng cho ảnh, văn bản, PDF và EPUB, có hỗ trợ Aozora Bunko (chữ dọc) và xem trực tiếp trong tệp nén. Trải nghiệm hiện đại, hiệu năng cao trên WinUI 3.
 
 Mô tả:
-Uviewer là trình xem tích hợp, hiện đại và hiệu năng cao cho Windows, được xây dựng trên WinUI 3 và .NET 10. Ứng dụng xử lý mượt mà ảnh, văn bản, PDF và EPUB, đồng thời cung cấp các tính năng nâng cao như xem ảnh trực tiếp trong tệp nén, chế độ xem song song và hỗ trợ mạnh mẽ cho Aozora Bunko với khả năng hiển thị chữ dọc.
+Uviewer là trình xem tích hợp, hiện đại và hiệu năng cao cho Windows, được xây dựng trên WinUI 3 và .NET 11. Ứng dụng xử lý mượt mà ảnh, văn bản, PDF và EPUB, đồng thời cung cấp các tính năng nâng cao như xem ảnh trực tiếp trong tệp nén, chế độ xem song song và hỗ trợ mạnh mẽ cho Aozora Bunko với khả năng hiển thị chữ dọc.
 
 Với thiết kế linh hoạt, Uviewer còn hỗ trợ Markdown, tự động phát hiện mã hóa thông minh và kết nối WebDAV để tối ưu quy trình đọc và xem nội dung số của bạn.
 

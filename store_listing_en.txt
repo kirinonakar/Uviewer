@@ -4,7 +4,7 @@ Short Description:
 A versatile viewer for images, text, PDF and EPUBs with Aozora Bunko (Vertical Text) and Archive support. Modern high-performance experience built on WinUI 3.
 
 Description:
-Uviewer is a versatile, integrated viewer for Windows that delivers a modern, high-performance experience built on WinUI 3 and .NET 10. It seamlessly handles images, text, PDF and EPUB documents, offering advanced capabilities such as direct image viewing from archives, side-by-side viewing modes, and robust support for Aozora Bunko—complete with vertical text rendering. 
+Uviewer is a versatile, integrated viewer for Windows that delivers a modern, high-performance experience built on WinUI 3 and .NET 11. It seamlessly handles images, text, PDF and EPUB documents, offering advanced capabilities such as direct image viewing from archives, side-by-side viewing modes, and robust support for Aozora Bunko—complete with vertical text rendering.
 
 Designed for flexibility, it also features integrated Markdown support, smart encoding detection, and WebDAV connectivity to streamline your digital reading and viewing workflow.
 

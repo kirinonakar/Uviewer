@@ -4,7 +4,7 @@
 
 ![Uviewer Screenshot](Uviewer/Assets/screenshot.jpg)
 
-**Uviewer** is a versatile, integrated viewer for Windows that delivers a modern, high-performance experience built on **WinUI 3** and **.NET 10**. It seamlessly handles images, text, PDF and EPUB documents, offering advanced capabilities such as direct image viewing from **archives**, **side-by-side viewing modes**, and robust support for **Aozora Bunko**—complete with **vertical text rendering**. Designed for flexibility, it also features integrated **Markdown support**, smart encoding detection, and **WebDAV connectivity** to streamline your digital reading and viewing workflow.
+**Uviewer** is a versatile, integrated viewer for Windows that delivers a modern, high-performance experience built on **WinUI 3** and **.NET 11**. It seamlessly handles images, text, PDF and EPUB documents, offering advanced capabilities such as direct image viewing from **archives**, **side-by-side viewing modes**, and robust support for **Aozora Bunko**—complete with **vertical text rendering**. Designed for flexibility, it also features integrated **Markdown support**, smart encoding detection, and **WebDAV connectivity** to streamline your digital reading and viewing workflow.
 
 ## ✨ Key Features
 
@@ -91,8 +91,9 @@
 
 ## 🛠️ System Requirements
 - **OS**: Windows 10 (Version 19041+) or Windows 11.
-- **Runtime**: .NET 10.0.
-- **Framework**: WinUI 3 (`Microsoft.WindowsAppSDK.WinUI` 2.6.4).
+- **Runtime**: .NET 11, included in self-contained builds.
+- The CPU must meet the [.NET 11 hardware requirements](https://learn.microsoft.com/en-us/dotnet/core/whats-new/dotnet-11/runtime#updated-minimum-hardware-requirements).
+- **Framework**: WinUI 3 (`Microsoft.WindowsAppSDK.WinUI` 2.6.5).
 - **HDR Viewing (optional)**: HDR-capable display with HDR enabled under **Windows Settings → System → Display → HDR**. HDR AVIF decoding uses the bundled libavif runtime.
 
 ## ⌨️ Keyboard Shortcuts
@@ -156,7 +157,8 @@ Unzip the file and run `Uviewer.exe`.
    git clone https://github.com/kirinonakar/Uviewer.git
    cd Uviewer
    ```
-2. Open `Uviewer.slnx` in **Visual Studio 2022**.
+2. Open `Uviewer.slnx` in **Visual Studio 2026 (18.12 or later)**.
+   - Required SDK: **.NET 11 SDK (11.0.100 or later)**.
    - Required workloads: **.NET Desktop Development**.
    - Required extension: **Windows App SDK**.
 3. Build and Run:
@@ -165,7 +167,7 @@ Unzip the file and run `Uviewer.exe`.
 
 ### Build via Command Line
 ```bash
-dotnet build -c Release --self-contained true
+dotnet build Uviewer.slnx -c Release -p:Platform=x64 --self-contained true
 ```
 
 ## 🏗️ Architecture

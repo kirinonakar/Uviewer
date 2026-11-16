@@ -112,6 +112,9 @@ namespace Uviewer.Services
 
         private async Task<bool> TrySetMemoryThumbnailAsync(FileItem item, DispatcherQueue dispatcher, CancellationToken ct, string key)
         {
+            ct.ThrowIfCancellationRequested();
+            if (!_memoryCache.TryGet(key, out var bitmap)) return false;
+
             var tcs = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
             using var registration = ct.Register(() => tcs.TrySetCanceled(ct));
             bool enqueued = dispatcher.TryEnqueue(DispatcherQueuePriority.Normal, () =>
@@ -119,12 +122,8 @@ namespace Uviewer.Services
                 try
                 {
                     ct.ThrowIfCancellationRequested();
-                    if (_memoryCache.TryGet(key, out var bitmap))
-                    {
-                        item.Thumbnail = bitmap;
-                        tcs.TrySetResult(true);
-                    }
-                    else tcs.TrySetResult(false);
+                    item.Thumbnail = bitmap;
+                    tcs.TrySetResult(true);
                 }
                 catch (OperationCanceledException) { tcs.TrySetCanceled(ct); }
                 catch (Exception ex) { tcs.TrySetException(ex); }
