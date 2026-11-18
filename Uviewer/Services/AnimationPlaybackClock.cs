@@ -11,6 +11,7 @@ internal sealed class AnimationPlaybackClock
     private readonly long _frequency;
     private long _cycleStart;
     private bool _waitingForFrame;
+    private uint _loopCount;
 
     public AnimationPlaybackClock(long frequency = 0)
     {
@@ -19,6 +20,7 @@ internal sealed class AnimationPlaybackClock
 
     public int FrameIndex { get; private set; }
     public long NextDeadline { get; private set; }
+    public bool IsFinished { get; private set; }
 
     public void Reset()
     {
@@ -27,6 +29,8 @@ internal sealed class AnimationPlaybackClock
         NextDeadline = 0;
         _cycleStart = 0;
         _waitingForFrame = false;
+        _loopCount = 0;
+        IsFinished = false;
     }
 
     public void AddFrame(int delayMs)
@@ -35,17 +39,19 @@ internal sealed class AnimationPlaybackClock
         _frameEnds.Add((_frameEnds.Count == 0 ? 0 : _frameEnds[^1]) + duration);
     }
 
-    public void Start(long now)
+    public void Start(long now, uint loopCount = 0)
     {
         FrameIndex = 0;
         _cycleStart = now;
         _waitingForFrame = false;
+        _loopCount = loopCount;
+        IsFinished = false;
         NextDeadline = now + _frameEnds[0];
     }
 
     public bool Advance(long now, bool decodingComplete)
     {
-        if (_frameEnds.Count == 0 || now < NextDeadline) return false;
+        if (IsFinished || _frameEnds.Count == 0 || now < NextDeadline) return false;
 
         if (_waitingForFrame)
         {
@@ -65,7 +71,20 @@ internal sealed class AnimationPlaybackClock
         if (decodingComplete && elapsed >= cycle)
         {
             // Handles sleep/resume and busy dispatchers without iterating over missed loops.
-            _cycleStart += (elapsed / cycle) * cycle;
+            long elapsedLoops = elapsed / cycle;
+            if (_loopCount > 0)
+            {
+                if (elapsedLoops >= _loopCount)
+                {
+                    IsFinished = true;
+                    int lastFrame = _frameEnds.Count - 1;
+                    bool changed = FrameIndex != lastFrame;
+                    FrameIndex = lastFrame;
+                    return changed;
+                }
+                _loopCount -= (uint)elapsedLoops;
+            }
+            _cycleStart += elapsedLoops * cycle;
             elapsed %= cycle;
         }
         else if (!decodingComplete && elapsed >= cycle)

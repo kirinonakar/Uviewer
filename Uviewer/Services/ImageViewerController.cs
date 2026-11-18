@@ -27,8 +27,10 @@ namespace Uviewer.Services
         private readonly ImageViewingOptionsCoordinator _viewingOptionsCoordinator;
         private readonly ImageZoomCoordinator _zoomCoordinator;
         private bool _wasAutoDoublePageWindowWideEnough;
+        private CancellationToken? _pendingImageDisplay;
 
         public string? DisplayedLocalFilePath { get; private set; }
+        public bool IsImageDisplayPending => _pendingImageDisplay is { IsCancellationRequested: false };
 
         public ImageViewerController(ImageViewerControllerDependencies dependencies)
         {
@@ -172,7 +174,15 @@ namespace Uviewer.Services
                 }
                 else
                 {
-                    await DisplayImageEntryAsync(entry, capturedIndexAtStart, token);
+                    _pendingImageDisplay = token;
+                    try
+                    {
+                        await DisplayImageEntryAsync(entry, capturedIndexAtStart, token);
+                    }
+                    finally
+                    {
+                        if (_pendingImageDisplay == token) _pendingImageDisplay = null;
+                    }
                 }
 
                 if (focusViewer) _host.FocusRoot();

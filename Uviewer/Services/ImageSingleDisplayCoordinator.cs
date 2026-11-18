@@ -136,6 +136,8 @@ namespace Uviewer.Services
             }
 
             _host.FileNameText.Text += Strings.Loading;
+            float hdrPeak = _host.HdrDisplayPeak;
+            var archiveSession = _host.ArchiveSession;
 
             void RefreshStatusBar()
             {
@@ -160,7 +162,9 @@ namespace Uviewer.Services
                         (float)_host.ImageOptions.SharpenThreshold,
                         (float)_host.ImageOptions.UnsharpAmount,
                         (float)_host.ImageOptions.UnsharpRadius,
-                        _host.SharpenEnabled);
+                        _host.SharpenEnabled,
+                        hdrPeak,
+                        archiveSession);
                 }
                 catch { }
                 finally

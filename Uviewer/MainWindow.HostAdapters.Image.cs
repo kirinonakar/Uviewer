@@ -202,12 +202,14 @@ namespace Uviewer
             public CanvasBitmap? CurrentBitmap { get => ImageState.CurrentBitmap; set => ImageState.CurrentBitmap = value; }
             public bool IsAnimatedFrameActive { get => ImageState.IsAnimatedFrameActive; set => ImageState.IsAnimatedFrameActive = value; }
             public bool SharpenEnabled => ImageState.IsSharpenEnabled;
+            public float HdrDisplayPeak => Window._isHdrOutputActive ? Window._hdrDisplayMaxLuminance : 0;
 
             public CanvasControl MainCanvas => Window.MainCanvas;
             public TextBlock FileNameText => Window.FileNameText;
             public Microsoft.UI.Dispatching.DispatcherQueue DispatcherQueue => Window.DispatcherQueue;
 
             public ImageCacheManager ImageCache => Window._imageCache;
+            public ArchiveSession ArchiveSession => Window._archiveSession;
             public ImageViewportNavigationService ImageViewportNavigationService => Window._imageViewportNavigationService;
             public IAnimatedWebpService AnimatedWebpService => Window._animatedWebpService;
             public ImageProcessingViewModel ImageOptions => Window.ImageOptions;

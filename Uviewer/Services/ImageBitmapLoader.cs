@@ -202,6 +202,7 @@ namespace Uviewer.Services
             {
                 var bitmap = await LoadImageFromPathAsync(
                     entry.FilePath,
+                    entry,
                     canvas,
                     token,
                     context.IsHdrOutputActive,
@@ -226,11 +227,11 @@ namespace Uviewer.Services
                         entry.FilePath = tempPath;
                         return await LoadImageFromPathAsync(
                             tempPath,
+                            entry,
                             canvas,
                             token,
                             context.IsHdrOutputActive,
-                            context.HdrDisplayMaxLuminance,
-                            entry.WebDavPath);
+                            context.HdrDisplayMaxLuminance);
                     }
                 }
                 catch (Exception ex)
@@ -244,11 +245,11 @@ namespace Uviewer.Services
 
         private async Task<CanvasBitmap?> LoadImageFromPathAsync(
             string filePath,
+            ImageEntry entry,
             CanvasControl canvas,
             CancellationToken token,
             bool isHdrOutputActive,
-            float hdrDisplayMaxLuminance,
-            string? sourceName = null)
+            float hdrDisplayMaxLuminance)
         {
             try
             {
@@ -256,37 +257,8 @@ namespace Uviewer.Services
                 using var stream = await file.OpenAsync(FileAccessMode.Read);
                 var device = canvas.Device ?? CanvasDevice.GetSharedDevice();
 
-                bool shouldTryHdr = string.Equals(
-                    Path.GetExtension(sourceName ?? filePath),
-                    ".avif",
-                    StringComparison.OrdinalIgnoreCase) && isHdrOutputActive;
-
-                try
-                {
-                    if (shouldTryHdr)
-                    {
-                        var hdrBitmap = await HdrImageDecoder.TryLoadAsync(
-                            device,
-                            stream,
-                            hdrDisplayMaxLuminance,
-                            token);
-                        if (hdrBitmap != null) return hdrBitmap;
-                    }
-                }
-                catch (OperationCanceledException)
-                {
-                    return null;
-                }
-                catch (Exception ex)
-                {
-                    // If the installed Windows codec cannot provide RGBA16, retain
-                    // the existing SDR decode path instead of failing to show it.
-                    System.Diagnostics.Debug.WriteLine($"HDR decode unavailable, using SDR fallback: {ex.Message}");
-                }
-
-                token.ThrowIfCancellationRequested();
-                stream.Seek(0);
-                return await CanvasBitmap.LoadAsync(device, stream, 96.0f);
+                return await DecodeBitmapAsync(device, stream, entry, null,
+                    isHdrOutputActive ? hdrDisplayMaxLuminance : 0, token);
             }
             catch (Exception ex)
             {
@@ -308,11 +280,11 @@ namespace Uviewer.Services
             {
                 return await LoadImageFromPathAsync(
                     imageEntry.FilePath,
+                    imageEntry,
                     canvas,
                     token,
                     context.IsHdrOutputActive,
-                    context.HdrDisplayMaxLuminance,
-                    entryKey);
+                    context.HdrDisplayMaxLuminance);
             }
 
             try
@@ -321,11 +293,11 @@ namespace Uviewer.Services
                 {
                     return await LoadImageFromPathAsync(
                         imageEntry.FilePath,
+                        imageEntry,
                         canvas,
                         token,
                         context.IsHdrOutputActive,
-                        context.HdrDisplayMaxLuminance,
-                        entryKey);
+                        context.HdrDisplayMaxLuminance);
                 }
 
                 var bytes = await context.ArchiveSession.ReadEntryBytesAsync(entryKey, token);
@@ -335,51 +307,57 @@ namespace Uviewer.Services
                 {
                     return await LoadImageFromPathAsync(
                         imageEntry.FilePath,
+                        imageEntry,
                         canvas,
                         token,
                         context.IsHdrOutputActive,
-                        context.HdrDisplayMaxLuminance,
-                        entryKey);
+                        context.HdrDisplayMaxLuminance);
                 }
 
                 using var memoryStream = new MemoryStream(bytes);
                 using var randomAccessStream = memoryStream.AsRandomAccessStream();
                 var device = canvas.Device ?? CanvasDevice.GetSharedDevice();
 
-                try
-                {
-                    if (context.IsHdrOutputActive &&
-                        string.Equals(Path.GetExtension(entryKey), ".avif", StringComparison.OrdinalIgnoreCase))
-                    {
-                        var hdrBitmap = await HdrImageDecoder.TryLoadAsync(
-                            device,
-                            randomAccessStream,
-                            context.HdrDisplayMaxLuminance,
-                            token);
-                        if (hdrBitmap != null) return hdrBitmap;
-                    }
-                }
-                catch (OperationCanceledException)
-                {
-                    return null;
-                }
-                catch (Exception ex)
-                {
-                    System.Diagnostics.Debug.WriteLine($"HDR archive decode unavailable, using SDR fallback: {ex.Message}");
-                }
-
-                token.ThrowIfCancellationRequested();
-                randomAccessStream.Seek(0);
-                return await CanvasBitmap.LoadAsync(
-                    device,
-                    randomAccessStream,
-                    96.0f);
+                return await DecodeBitmapAsync(device, randomAccessStream, imageEntry, bytes,
+                    context.IsHdrOutputActive ? context.HdrDisplayMaxLuminance : 0, token, entryKey);
             }
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"Win2D Load Error: {ex.Message}");
                 return null;
             }
+        }
+
+        private static async Task<CanvasBitmap> DecodeBitmapAsync(
+            CanvasDevice device, Windows.Storage.Streams.IRandomAccessStream stream, ImageEntry? entry,
+            byte[]? bytes, float hdrPeak, CancellationToken token, string? sourceName = null)
+        {
+            sourceName ??= entry?.ArchiveEntryKey ?? entry?.WebDavPath ?? entry?.FilePath;
+            try
+            {
+                if (JxlImageDecoder.IsJxl(sourceName))
+                {
+                    if (entry != null) entry.IsJxlAnimated = false;
+                    var (bitmap, animated) = await JxlImageDecoder.LoadAsync(device, stream, bytes, hdrPeak, token);
+                    if (entry != null) entry.IsJxlAnimated = animated;
+                    return bitmap;
+                }
+
+                if (hdrPeak > 0 &&
+                    string.Equals(Path.GetExtension(sourceName), ".avif", StringComparison.OrdinalIgnoreCase))
+                {
+                    var hdrBitmap = await HdrImageDecoder.TryLoadAsync(device, stream, hdrPeak, token);
+                    if (hdrBitmap != null) return hdrBitmap;
+                }
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                System.Diagnostics.Debug.WriteLine($"Native image decode unavailable, using Windows codec: {ex.Message}");
+            }
+
+            token.ThrowIfCancellationRequested();
+            stream.Seek(0);
+            return await CanvasBitmap.LoadAsync(device, stream, 96.0f);
         }
 
         private async Task<CanvasBitmap?> ApplySharpenAsync(CanvasBitmap bitmap, SharpenParams sharpenParams)

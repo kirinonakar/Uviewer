@@ -253,12 +253,14 @@ namespace Uviewer.Services
         CanvasBitmap? CurrentBitmap { get; set; }
         bool IsAnimatedFrameActive { get; set; }
         bool SharpenEnabled { get; }
+        float HdrDisplayPeak { get; }
 
         CanvasControl MainCanvas { get; }
         TextBlock FileNameText { get; }
         DispatcherQueue DispatcherQueue { get; }
 
         ImageCacheManager ImageCache { get; }
+        ArchiveSession ArchiveSession { get; }
         ImageViewportNavigationService ImageViewportNavigationService { get; }
         IAnimatedWebpService AnimatedWebpService { get; }
         ImageProcessingViewModel ImageOptions { get; }

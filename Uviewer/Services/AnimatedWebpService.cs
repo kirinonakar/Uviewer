@@ -12,7 +12,6 @@ using System.Linq;
 using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
-using Windows.Graphics.DirectX;
 using Windows.Graphics.Imaging;
 using Uviewer.Models;
 
@@ -39,6 +38,7 @@ namespace Uviewer.Services
         private int _animationGeneration;
         private int _highResolutionTimerActive;
         private readonly AnimationPlaybackClock _playbackClock = new();
+        private uint _animationLoopCount;
         private int _gpuFrameCacheCapacity = MinimumGpuFrameCacheCount;
         private int _framePrefetchActive;
         private readonly SemaphoreSlim _framePersistenceSlots = new(2, 2);
@@ -119,6 +119,9 @@ namespace Uviewer.Services
         }
         public bool IsAnimationSupported(ImageEntry entry)
         {
+            if (JxlImageDecoder.IsJxl(entry.ArchiveEntryKey ?? entry.WebDavPath ?? entry.FilePath))
+                return entry.IsJxlAnimated;
+
             string? ext = null;
             if (entry.FilePath != null) ext = Path.GetExtension(entry.FilePath).ToLowerInvariant();
             else if (entry.ArchiveEntryKey != null) ext = Path.GetExtension(entry.ArchiveEntryKey).ToLowerInvariant();
@@ -164,6 +167,7 @@ namespace Uviewer.Services
             lock (_animatedWebpBitmapCacheLock)
             {
                 _playbackClock.Reset();
+                _animationLoopCount = 0;
                 _animatedWebpDelaysMs?.Clear();
                 _animatedWebpDelaysMs = null;
                 frameStore = _frameStore;
@@ -241,16 +245,13 @@ namespace Uviewer.Services
         }
 
         public async Task StartAsync(ImageEntry entry, CanvasControl canvas, CancellationToken token, 
-            float upscaleFactor, float sharpenAmount, float sharpenThreshold, float unsharpAmount, float unsharpRadius, bool sharpenEnabled)
+            float upscaleFactor, float sharpenAmount, float sharpenThreshold, float unsharpAmount, float unsharpRadius,
+            bool sharpenEnabled, float hdrPeak = 0, ArchiveSession? archiveSession = null)
         {
             token.ThrowIfCancellationRequested();
-            string? extension = entry.FilePath != null
-                ? Path.GetExtension(entry.FilePath)
-                : entry.ArchiveEntryKey != null
-                    ? Path.GetExtension(entry.ArchiveEntryKey)
-                    : entry.WebDavPath != null
-                        ? Path.GetExtension(entry.WebDavPath)
-                        : null;
+            string? sourceName = entry.ArchiveEntryKey ?? entry.WebDavPath ?? entry.FilePath;
+            string? extension = Path.GetExtension(sourceName);
+            bool isJxl = JxlImageDecoder.IsJxl(sourceName);
             bool isAvif = string.Equals(extension, ".avif", StringComparison.OrdinalIgnoreCase);
             var initialized = new TaskCompletionSource<int>(TaskCreationOptions.RunContinuationsAsynchronously);
             void Initialize()
@@ -260,7 +261,7 @@ namespace Uviewer.Services
                     token.ThrowIfCancellationRequested();
                     // Serialize stop/start and bitmap detachment on the owning UI queue.
                     Stop();
-                    _useIndependentAnimationTimer = isAvif
+                    _useIndependentAnimationTimer = isAvif || isJxl
                         || string.Equals(extension, ".webp", StringComparison.OrdinalIgnoreCase)
                         || string.Equals(extension, ".gif", StringComparison.OrdinalIgnoreCase);
                     _currentCanvas = canvas;
@@ -281,7 +282,11 @@ namespace Uviewer.Services
             try
             {
                 byte[]? imageBytes = null;
-                if (entry.FilePath != null)
+                if (isJxl && entry.ArchiveEntryKey is string entryKey && archiveSession != null)
+                {
+                    imageBytes = await archiveSession.ReadEntryBytesAsync(entryKey, token);
+                }
+                else if (entry.FilePath != null)
                 {
                     imageBytes = await File.ReadAllBytesAsync(entry.FilePath, token);
                 }
@@ -298,14 +303,12 @@ namespace Uviewer.Services
                     _processedFrameStore = sharpenEnabled ? new AnimationFrameStore() : null;
                 }
 
-                if (isAvif)
+                if (isAvif || isJxl)
                 {
-                    var (avifFrames, _, _, _) = await TryLoadAnimatedAvifFramesNativeAsync(
-                        imageBytes,
-                        store,
-                        animationGeneration,
-                        token);
-                    await QueueAnimationTimerStartAsync(avifFrames, token, animationGeneration);
+                    var framesFromCodec = isJxl
+                        ? StartJxlAnimation(imageBytes, store, hdrPeak, animationGeneration, token)
+                        : StartAvifAnimation(imageBytes, store, animationGeneration, token);
+                    await QueueAnimationTimerStartAsync(framesFromCodec, token, animationGeneration);
                     return;
                 }
 
@@ -360,7 +363,7 @@ namespace Uviewer.Services
             if (canvas == null) return;
 
             // Only the first frame is required to start. Prefetch and cache writes
-            // run behind playback, for both WebP and AVIF.
+            // run behind playback.
             var firstBitmap = await GetOrPrepareFrameBitmapAsync(frames, canvas, 0).ConfigureAwait(false);
             if (firstBitmap == null) return;
 
@@ -429,7 +432,7 @@ namespace Uviewer.Services
                 }
             }
             if (_animationWakeTimer == null) EnsureHighResolutionTimer();
-            _playbackClock.Start(Stopwatch.GetTimestamp());
+            _playbackClock.Start(Stopwatch.GetTimestamp(), _animationLoopCount);
             _animatedWebpTimer.Tick += AnimatedWebpTimer_Tick;
             ScheduleNextFrame(_animatedWebpTimer);
             QueueFramePrefetch(frames, canvas);
@@ -522,7 +525,16 @@ namespace Uviewer.Services
         {
             long remainingTicks;
             lock (_animatedWebpBitmapCacheLock)
+            {
+                if (_playbackClock.IsFinished)
+                {
+                    _animationWakeTimer?.Dispose();
+                    _animationWakeTimer = null;
+                    RestoreTimerResolution();
+                    return;
+                }
                 remainingTicks = _playbackClock.NextDeadline - Stopwatch.GetTimestamp();
+            }
             double remainingMilliseconds = remainingTicks * 1000.0 / Stopwatch.Frequency;
             timer.Interval = TimeSpan.FromMilliseconds(Math.Max(1.0, remainingMilliseconds));
             if (_animationWakeTimer != null)
@@ -819,6 +831,7 @@ namespace Uviewer.Services
 
         private CanvasBitmap CreateOrReuseGpuBitmap(CanvasDevice device, AnimatedFrameData frame, List<AnimatedFrameData> frames)
         {
+            var format = frame.HdrNormalizationScale > 0 ? JxlImageDecoder.HdrFormat : JxlImageDecoder.SdrFormat;
             CanvasBitmap? reusableBitmap = null;
             lock (_animatedWebpBitmapCacheLock)
             {
@@ -829,7 +842,8 @@ namespace Uviewer.Services
                     try
                     {
                         if ((int)candidate.SizeInPixels.Width == frame.Width
-                            && (int)candidate.SizeInPixels.Height == frame.Height)
+                            && (int)candidate.SizeInPixels.Height == frame.Height
+                            && candidate.Format == format)
                         {
                             reusableBitmap = candidate;
                             break;
@@ -843,7 +857,7 @@ namespace Uviewer.Services
 
             try
             {
-                return frame.WithPixels(pixels =>
+                var bitmap = frame.WithPixels(pixels =>
                 {
                     if (reusableBitmap != null)
                     {
@@ -864,10 +878,13 @@ namespace Uviewer.Services
                         pixels,
                         frame.Width,
                         frame.Height,
-                        DirectXPixelFormat.B8G8R8A8UIntNormalized,
+                        format,
                         96.0f,
                         CanvasAlphaMode.Premultiplied);
                 });
+                if (frame.HdrNormalizationScale > 0)
+                    HdrImageDecoder.SetNormalizationScale(bitmap, frame.HdrNormalizationScale);
+                return bitmap;
             }
             catch
             {
@@ -898,12 +915,12 @@ namespace Uviewer.Services
             return frameIndex % frameCount;
         }
 
-        private void UpdateGpuFrameCacheCapacity(int width, int height)
+        private void UpdateGpuFrameCacheCapacity(int width, int height, int bytesPerPixel = 4)
         {
             double scale = _sharpenEnabled && _upscaleFactor > 1.0f ? _upscaleFactor : 1.0f;
             long displayWidth = Math.Max(1L, (long)Math.Ceiling(width * scale));
             long displayHeight = Math.Max(1L, (long)Math.Ceiling(height * scale));
-            long frameBytes = Math.Max(1L, displayWidth * displayHeight * 4L);
+            long frameBytes = Math.Max(1L, displayWidth * displayHeight * bytesPerPixel);
             long capacity = GpuFrameCacheBudgetBytes / frameBytes;
             _gpuFrameCacheCapacity = (int)Math.Clamp(
                 capacity,
@@ -911,139 +928,126 @@ namespace Uviewer.Services
                 MaximumGpuFrameCacheCount);
         }
 
-        private Task<(List<AnimatedFrameData>? frames, List<int>? delaysMs, int width, int height)> TryLoadAnimatedAvifFramesNativeAsync(
-            byte[] imageBytes,
-            AnimationFrameStore store,
-            int animationGeneration,
-            CancellationToken token)
+        private readonly record struct NativeAnimationFrame(
+            byte[] Pixels, int Width, int Height, int DelayMs, float HdrNormalizationScale = 0);
+
+        private List<AnimatedFrameData>? StartAvifAnimation(
+            byte[] imageBytes, AnimationFrameStore store, int generation, CancellationToken token)
         {
-            LibAvifDecoder? decoder = null;
-
-            try
+            var decoder = LibAvifDecoder.Create(imageBytes);
+            int remainingFrames = decoder.ImageCount;
+            if (remainingFrames <= 1)
             {
-                // libavif reads the animation track directly. This avoids relying on
-                // the installed Windows AVIF codec exposing the track as BitmapDecoder
-                // frames (some versions expose only the primary still image).
-                decoder = LibAvifDecoder.Create(imageBytes);
-                int frameCount = decoder.ImageCount;
-                if (frameCount <= 1 || token.IsCancellationRequested)
-                {
-                    return Task.FromResult<(List<AnimatedFrameData>?, List<int>?, int, int)>((null, null, 0, 0));
-                }
-
-                var firstFrame = DecodeNextAvifFrame(decoder);
-                if (firstFrame == null || animationGeneration != Volatile.Read(ref _animationGeneration))
-                {
-                    return Task.FromResult<(List<AnimatedFrameData>?, List<int>?, int, int)>((null, null, 0, 0));
-                }
-
-                int width = firstFrame.Value.Width;
-                int height = firstFrame.Value.Height;
-                var frames = new List<AnimatedFrameData>
-                {
-                    new(store, firstFrame.Value.Pixels, width, height, isDisplayReady: !_sharpenEnabled)
-                };
-                var delaysMs = new List<int> { firstFrame.Value.DelayMs };
-                var displayDevice = CanvasDevice.GetSharedDevice();
-
-                lock (_animatedWebpBitmapCacheLock)
-                {
-                    if (token.IsCancellationRequested || animationGeneration != Volatile.Read(ref _animationGeneration))
-                        throw new OperationCanceledException();
-                    _isDecodingAnimatedImage = true;
-                    _animatedWebpFrames = frames;
-                    _animatedWebpDelaysMs = delaysMs;
-                    _playbackClock.AddFrame(firstFrame.Value.DelayMs);
-                    _animatedWebpWidth = width;
-                    _animatedWebpHeight = height;
-                    _animationDevice = displayDevice;
-                    UpdateGpuFrameCacheCapacity(width, height);
-                }
-
-                LibAvifDecoder decoderForBackground = decoder;
-                decoder = null;
-                _ = Task.Run(() => DecodeRemainingAvifFrames(
-                    decoderForBackground,
-                    store,
-                    frameCount,
-                    frames,
-                    delaysMs,
-                    animationGeneration,
-                    token));
-
-                return Task.FromResult<(List<AnimatedFrameData>?, List<int>?, int, int)>(
-                    (frames, delaysMs, width, height));
+                decoder.Dispose();
+                return null;
             }
-            catch (OperationCanceledException)
+
+            return StartNativeAnimation(decoder, ReadFrame, store, 0, generation, token);
+
+            NativeAnimationFrame? ReadFrame() =>
+                remainingFrames-- > 0 ? DecodeNextAvifFrame(decoder) : null;
+        }
+
+        private List<AnimatedFrameData>? StartJxlAnimation(
+            byte[] imageBytes, AnimationFrameStore store, float hdrPeak, int generation, CancellationToken token)
+        {
+            var device = CanvasDevice.GetSharedDevice();
+            float displayPeak = JxlImageDecoder.GetDisplayPeak(device, hdrPeak);
+            var decoder = new LibJxlDecoder(imageBytes, device.MaximumBitmapSizeInPixels);
+            if (!decoder.IsAnimated)
             {
-                return Task.FromResult<(List<AnimatedFrameData>?, List<int>?, int, int)>((null, null, 0, 0));
+                decoder.Dispose();
+                return null;
             }
-            catch (Exception ex)
+
+            return StartNativeAnimation(decoder, ReadFrame, store, decoder.LoopCount, generation, token);
+
+            NativeAnimationFrame? ReadFrame()
             {
-                Debug.WriteLine($"AVIF animation decode error: {ex.Message}");
-                return Task.FromResult<(List<AnimatedFrameData>?, List<int>?, int, int)>((null, null, 0, 0));
-            }
-            finally
-            {
-                decoder?.Dispose();
+                var frame = decoder.ReadFrame(displayPeak, token);
+                return frame is { } decoded
+                    ? new(decoded.Pixels, decoder.Width, decoder.Height, decoded.DelayMs, decoded.HdrNormalizationScale)
+                    : null;
             }
         }
 
-        private void DecodeRemainingAvifFrames(
-            LibAvifDecoder decoder,
-            AnimationFrameStore store,
-            int frameCount,
-            List<AnimatedFrameData> frames,
-            List<int> delaysMs,
-            int animationGeneration,
-            CancellationToken token)
+        private List<AnimatedFrameData>? StartNativeAnimation(
+            IDisposable decoder, Func<NativeAnimationFrame?> readFrame, AnimationFrameStore store,
+            uint loopCount, int generation, CancellationToken token)
+        {
+            bool handedOff = false;
+            try
+            {
+                token.ThrowIfCancellationRequested();
+                if (readFrame() is not { } first) return null;
+
+                var frames = new List<AnimatedFrameData> { CreateFrame(first, store) };
+                var delaysMs = new List<int> { first.DelayMs };
+                var device = CanvasDevice.GetSharedDevice();
+
+                lock (_animatedWebpBitmapCacheLock)
+                {
+                    if (token.IsCancellationRequested || generation != Volatile.Read(ref _animationGeneration))
+                        return null;
+
+                    _isDecodingAnimatedImage = true;
+                    _animatedWebpFrames = frames;
+                    _animatedWebpDelaysMs = delaysMs;
+                    _animationLoopCount = loopCount;
+                    _playbackClock.AddFrame(first.DelayMs);
+                    _animatedWebpWidth = first.Width;
+                    _animatedWebpHeight = first.Height;
+                    _animationDevice = device;
+                    UpdateGpuFrameCacheCapacity(first.Width, first.Height, first.HdrNormalizationScale > 0 ? 8 : 4);
+                }
+
+                _ = Task.Run(() => DecodeRemainingNativeFrames(
+                    decoder, readFrame, store, frames, delaysMs, generation, token));
+                handedOff = true;
+                return frames;
+            }
+            finally
+            {
+                if (!handedOff) decoder.Dispose();
+            }
+        }
+
+        private AnimatedFrameData CreateFrame(NativeAnimationFrame frame, AnimationFrameStore store) =>
+            new(store, frame.Pixels, frame.Width, frame.Height, !_sharpenEnabled, frame.HdrNormalizationScale);
+
+        private void DecodeRemainingNativeFrames(
+            IDisposable decoder, Func<NativeAnimationFrame?> readFrame, AnimationFrameStore store,
+            List<AnimatedFrameData> frames, List<int> delaysMs, int generation, CancellationToken token)
         {
             try
             {
-                for (int i = 1; i < frameCount; i++)
+                while (!token.IsCancellationRequested && generation == Volatile.Read(ref _animationGeneration))
                 {
-                    if (token.IsCancellationRequested
-                        || animationGeneration != Volatile.Read(ref _animationGeneration))
-                    {
-                        break;
-                    }
-
-                    var decodedFrame = DecodeNextAvifFrame(decoder);
-                    if (decodedFrame == null) break;
-
-                    var frame = new AnimatedFrameData(
-                        store,
-                        decodedFrame.Value.Pixels,
-                        decodedFrame.Value.Width,
-                        decodedFrame.Value.Height,
-                        isDisplayReady: !_sharpenEnabled);
-                    int delayMs = decodedFrame.Value.DelayMs;
-
-                    if (!PublishDecodedFrame(frames, delaysMs, frame, delayMs, animationGeneration)) break;
+                    if (readFrame() is not { } decoded) break;
+                    var frame = CreateFrame(decoded, store);
+                    if (!PublishDecodedFrame(frames, delaysMs, frame, decoded.DelayMs, generation)) break;
                     frame.Persist();
                 }
             }
+            catch (OperationCanceledException) { }
             catch (Exception ex)
             {
-                Debug.WriteLine($"AVIF frame decode error: {ex.Message}");
+                Debug.WriteLine($"Animation frame decode error: {ex.Message}");
             }
             finally
             {
                 decoder.Dispose();
-
                 lock (_animatedWebpBitmapCacheLock)
                 {
-                    if (animationGeneration == Volatile.Read(ref _animationGeneration))
+                    if (generation == Volatile.Read(ref _animationGeneration))
                         _isDecodingAnimatedImage = false;
                     else
-                    {
                         frames.Clear();
-                    }
                 }
             }
         }
 
-        private static (byte[] Pixels, int Width, int Height, int DelayMs)? DecodeNextAvifFrame(
+        private static NativeAnimationFrame DecodeNextAvifFrame(
             LibAvifDecoder decoder)
         {
             var frame = decoder.DecodeNextFrame(8, bgra: true);
@@ -1068,7 +1072,7 @@ namespace Uviewer.Services
                     int.MaxValue)
                 : DefaultWebpFrameDelayMs;
 
-            return (pixels, width, height, delayMs);
+            return new NativeAnimationFrame(pixels, width, height, delayMs);
         }
 
         private static void PremultiplyBgraPixels(byte[] pixels)

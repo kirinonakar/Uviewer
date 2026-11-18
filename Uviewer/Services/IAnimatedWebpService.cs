@@ -13,7 +13,8 @@ namespace Uviewer.Services
         bool IsAnimationSupported(ImageEntry entry);
         void Stop();
         Task StartAsync(ImageEntry entry, CanvasControl canvas, CancellationToken token, 
-            float upscaleFactor, float sharpenAmount, float sharpenThreshold, float unsharpAmount, float unsharpRadius, bool sharpenEnabled);
+            float upscaleFactor, float sharpenAmount, float sharpenThreshold, float unsharpAmount, float unsharpRadius,
+            bool sharpenEnabled, float hdrPeak = 0, ArchiveSession? archiveSession = null);
         
         bool IsBitmapInCache(CanvasBitmap bitmap);
 

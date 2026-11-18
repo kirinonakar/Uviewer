@@ -4,23 +4,26 @@ namespace Uviewer.Services;
 
 internal sealed class AnimatedFrameData
 {
-    public AnimatedFrameData(AnimationFrameStore store, byte[] pixels, int width, int height, bool isDisplayReady)
+    public AnimatedFrameData(AnimationFrameStore store, byte[] pixels, int width, int height,
+        bool isDisplayReady, float hdrNormalizationScale = 0)
     {
         _store = store;
         _pixels = pixels;
         Width = width;
         Height = height;
         IsDisplayReady = isDisplayReady;
+        HdrNormalizationScale = hdrNormalizationScale;
     }
 
     private AnimatedFrameData(AnimationFrameStore store, AnimationFrameStore.Frame storedFrame,
-        int width, int height)
+        int width, int height, float hdrNormalizationScale)
     {
         _store = store;
         _storedFrame = storedFrame;
         Width = width;
         Height = height;
         IsDisplayReady = true;
+        HdrNormalizationScale = hdrNormalizationScale;
     }
 
     private readonly AnimationFrameStore _store;
@@ -57,8 +60,9 @@ internal sealed class AnimatedFrameData
     }
 
     public AnimatedFrameData StoreProcessedPixels(AnimationFrameStore store, byte[] pixels, int width, int height) =>
-        new(store, store.Write(pixels), width, height);
+        new(store, store.Write(pixels), width, height, HdrNormalizationScale);
     public int Width { get; }
     public int Height { get; }
     public bool IsDisplayReady { get; }
+    public float HdrNormalizationScale { get; }
 }

@@ -9,8 +9,8 @@
 ## ✨ Key Features
 
 ### 🖼️ Image & PDF Viewing
-- **Broad Format Support**: PDF, JPEG, PNG, GIF, BMP, TIFF, ICO, SVG, WebP, AVIF (AV1 Video Extension required), JXL (JPEG XL Image Extension required), **Animated WebP** and **Animated AVIF**.
-- **HDR AVIF**: Uses a bundled libavif decoder for the original 10-bit PQ (SMPTE ST 2084) signal, then renders BT.2020 or Display-P3 images through a linear FP16 scRGB path. Highlights are tone-mapped to the active monitor's peak luminance, and HDR sharpening operates on luminance instead of independently boosting RGB channels. A compatible HDR display with **Use HDR** enabled in Windows is required for true HDR output; when HDR is inactive, Uviewer automatically uses the Windows SDR decode path.
+- **Broad Format Support**: PDF, JPEG, PNG, GIF, BMP, TIFF, ICO, SVG, WebP, AVIF, and JPEG XL (JXL). Single-image view plays animated GIF, WebP, AVIF, and JPEG XL.
+- **HDR AVIF & JPEG XL**: Bundled libavif and libjxl decoders read 10-bit PQ (SMPTE ST 2084) and HLG content, including animations, and render BT.2020/Display-P3 frames through a linear FP16 scRGB path with tone mapping to the monitor's peak luminance (HDR sharpening works on luminance). With HDR inactive, Uviewer falls back to a tone-mapped SDR path.
 - **High-Performance Rendering**: Powered by **Win2D** (Direct2D) for smooth zooming and panning.
 - **Smart Scaling**: Customizable zoom levels (0.1x to 10x), fit-to-window, and actual size.
 - **EXIF & Image Metadata**: Click the file name in the status bar while viewing an image to inspect EXIF details and embedded metadata such as prompts or parameters.
@@ -94,7 +94,7 @@
 - **Runtime**: .NET 11, included in self-contained builds.
 - The CPU must meet the [.NET 11 hardware requirements](https://learn.microsoft.com/en-us/dotnet/core/whats-new/dotnet-11/runtime#updated-minimum-hardware-requirements).
 - **Framework**: WinUI 3 (`Microsoft.WindowsAppSDK.WinUI` 2.6.5).
-- **HDR Viewing (optional)**: HDR-capable display with HDR enabled under **Windows Settings → System → Display → HDR**. HDR AVIF decoding uses the bundled libavif runtime.
+- **HDR Viewing (optional)**: HDR-capable display with HDR enabled under **Windows Settings → System → Display → HDR**. AVIF and JPEG XL use bundled HDR decoders.
 
 ## ⌨️ Keyboard Shortcuts
 

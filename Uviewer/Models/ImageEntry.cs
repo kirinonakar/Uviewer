@@ -11,5 +11,6 @@ namespace Uviewer.Models
         public uint PdfPageIndex { get; set; } = 0;
         public string? WebDavPath { get; set; }
         public bool IsWebDavEntry => WebDavPath != null;
+        internal bool IsJxlAnimated { get; set; }
     }
 }

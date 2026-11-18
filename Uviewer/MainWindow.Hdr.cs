@@ -1,6 +1,9 @@
 using System;
 using System.IO;
+using System.Linq;
 using System.Threading.Tasks;
+using Uviewer.Models;
+using Uviewer.Services;
 using AppDisplayInformation = Microsoft.Graphics.Display.DisplayInformation;
 using AppDisplayAdvancedColorKind = Microsoft.Graphics.Display.DisplayAdvancedColorKind;
 
@@ -89,7 +92,17 @@ namespace Uviewer
             _imageSwapChainRenderer.Hide(HdrLeftCanvas);
             _imageSwapChainRenderer.Hide(HdrRightCanvas);
 
-            if (_imageViewerController == null || !IsCurrentEntryAvif())
+            bool hasHdrEntries = _imageViewerController != null && _imageViewerState.Entries.Any(UsesHdrDecode);
+            if (hasHdrEntries)
+            {
+                // SDR/HDR mode and peak luminance are part of the decoded bitmap's
+                // state. Invalidate preloaded and sharpened copies together.
+                _preloadManager.CancelAll();
+                _imageCache.ClearAllExcept(_currentBitmap, _leftBitmap, _rightBitmap);
+            }
+
+            if (_imageViewerController == null || !hasHdrEntries ||
+                (!IsDisplayingHdrFormat() && !_imageViewerController.IsImageDisplayPending))
             {
                 MainCanvas?.Invalidate();
                 LeftCanvas?.Invalidate();
@@ -97,21 +110,27 @@ namespace Uviewer
                 return;
             }
 
-            // The cached bitmap format depends on display mode: FP16 scRGB while
-            // HDR is active, and the Windows codec's SDR bitmap otherwise.
             _imageViewerController.PrepareForImageLoad();
             await _imageViewerController.DisplayCurrentImageAsync();
         }
 
-        private bool IsCurrentEntryAvif()
+        private bool IsDisplayingHdrFormat()
         {
-            if (_imageViewerState.CurrentIndex < 0 ||
-                _imageViewerState.CurrentIndex >= _imageViewerState.Entries.Count)
+            var entries = _imageViewerState.Entries;
+            int index = _imageViewerState.CurrentIndex;
+            if (index < 0 || index >= entries.Count)
                 return false;
 
-            var entry = _imageViewerState.Entries[_imageViewerState.CurrentIndex];
+            return UsesHdrDecode(entries[index]) ||
+                   (_isCurrentViewSideBySide &&
+                    UsesHdrDecode(entries[FileExplorerService.GetNextImageIndex(entries, index, 1, true)]));
+        }
+
+        private static bool UsesHdrDecode(ImageEntry entry)
+        {
             string? sourceName = entry.ArchiveEntryKey ?? entry.WebDavPath ?? entry.FilePath;
-            return string.Equals(Path.GetExtension(sourceName), ".avif", StringComparison.OrdinalIgnoreCase);
+            return JxlImageDecoder.IsJxl(sourceName) ||
+                   string.Equals(Path.GetExtension(sourceName), ".avif", StringComparison.OrdinalIgnoreCase);
         }
 
         private void DisposeHdrDisplayState()
