@@ -1,5 +1,4 @@
 using System;
-using System.IO;
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
@@ -16,7 +15,7 @@ namespace Uviewer.Services
         private readonly object _stateGate = new();
         private readonly string _tempRoot;
 
-        public SevenZipExtractionCoordinator() : this(Path.Combine(Path.GetTempPath(), "Uviewer")) { }
+        public SevenZipExtractionCoordinator() : this(TemporaryFiles.Root) { }
         internal SevenZipExtractionCoordinator(string tempRoot) => _tempRoot = tempRoot;
 
         public string? CurrentTempFolder => _tempDirectory?.Folder;
@@ -111,8 +110,5 @@ namespace Uviewer.Services
             CleanupTempData();
             return Task.WhenAll(_cleanupTasks);
         }
-
-        public void CleanupAbandonedTempFolders() => _ = Task.Run(() =>
-            LeasedTempDirectory.CleanupAbandoned(_tempRoot, "7z_*"));
     }
 }

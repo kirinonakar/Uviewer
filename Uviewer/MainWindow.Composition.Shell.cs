@@ -192,7 +192,6 @@ namespace Uviewer
                         window._windowShellController.UpdateTitleBarColors();
                         window.RootGrid.Focus(FocusState.Programmatic);
                         await Task.Delay(50);
-                        WebDavService.CleanupTempFiles();
                         await window.InitializeAsync(launchFilePath);
                     };
 

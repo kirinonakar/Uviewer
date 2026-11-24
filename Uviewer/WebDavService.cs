@@ -72,7 +72,7 @@ namespace Uviewer
             lock (_tempGate)
             {
                 ObjectDisposedException.ThrowIf(_disposed, this);
-                _tempDirectory ??= LeasedTempDirectory.Create(Path.Combine(Path.GetTempPath(), "Uviewer", "WebDav"), "instance_");
+                _tempDirectory ??= LeasedTempDirectory.Create(TemporaryFiles.WebDavRoot, "instance_");
                 return _tempDirectory.Folder;
             }
         }
@@ -594,18 +594,6 @@ namespace Uviewer
                 _tempDirectory = null;
             }
             if (directory != null) await directory.DeleteAsync().ConfigureAwait(false);
-        }
-
-        /// <summary>
-        /// WebDAV 임시 다운로드 폴더 정리
-        /// </summary>
-        public static Task CleanupTempFilesAsync() => Task.Run(() =>
-            LeasedTempDirectory.CleanupAbandoned(Path.Combine(Path.GetTempPath(), "Uviewer", "WebDav"), "*"));
-
-        /// <summary>동기 래퍼 (하위 호환)</summary>
-        public static void CleanupTempFiles()
-        {
-            _ = CleanupTempFilesAsync();
         }
     }
 

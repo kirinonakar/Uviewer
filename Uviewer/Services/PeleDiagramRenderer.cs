@@ -25,8 +25,7 @@ internal static class PeleDiagramRenderer
     private static readonly object CacheSync = new();
     private static readonly SemaphoreSlim RasterGate = new(2);
     private static readonly ConcurrentDictionary<string, (byte[]? Raster, string? Error)> Cache = new();
-    private static readonly ThumbnailDiskCache DiskCache = new(
-        Path.Combine(Path.GetTempPath(), "Uviewer", "Cache", "PeleRaster-win2d-v2"), 64 * 1024 * 1024, 512);
+    private static readonly ThumbnailDiskCache DiskCache = new(ThumbnailDiskCache.PeleCacheName, 64 * 1024 * 1024, 512);
     private static int _cacheBytes;
     private static Engine? _engine;
     private static bool _hasFullBundle;
@@ -67,7 +66,7 @@ internal static class PeleDiagramRenderer
         if (TryReadCache(key, out frame, out error)) return error == null;
 
         // This method runs on an image-loader worker. A disk hit bypasses Jint,
-        // Win2D rasterization and all first-use initialization, including after app restarts.
+        // Win2D rasterization and all first-use initialization within this session.
         var stored = DiskCache.ReadAsync(key, CancellationToken.None).GetAwaiter().GetResult();
         if (stored != null && (frame = PeleDiagramFrameCodec.Decode(stored)) != null)
         {

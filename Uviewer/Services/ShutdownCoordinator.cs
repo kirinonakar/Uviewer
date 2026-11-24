@@ -31,7 +31,6 @@ namespace Uviewer.Services
         public ImageCacheManager? ImageCache { get; init; }
         public IEnumerable<ImageEntry>? ImageEntries { get; init; }
         public SevenZipExtractionCoordinator? SevenZipExtraction { get; init; }
-        public Action? CleanupWebDavTempFiles { get; init; }
         public RecentService? RecentService { get; init; }
         public FavoritesService? FavoritesService { get; init; }
         public WebDavService? WebDavService { get; init; }
@@ -143,6 +142,7 @@ namespace Uviewer.Services
             RunStep("cancel image loading", () => context.ImageLoadingCts?.Cancel());
             RunStep("cancel text load", () => context.TextReaderState?.CancelGlobalLoad());
             RunStep("cancel text page calculation", () => context.TextReaderState?.CancelPageCalculation());
+            Task diskCacheCleanup = ThumbnailDiskCache.CleanupForShutdownAsync();
             RunStep("shutdown PDF resources", context.ShutdownPdfResources);
             await RunStepAsync("shutdown EPUB resources", context.ShutdownEpubResourcesAsync);
             RunStep("dispose fast navigation", () => context.FastNavigationService?.Dispose());
@@ -165,7 +165,6 @@ namespace Uviewer.Services
             }
 
             await RunStepAsync("cleanup 7z temp data", () => context.SevenZipExtraction?.CleanupTempDataAsync() ?? Task.CompletedTask);
-            RunStep("cleanup WebDAV temp files", context.CleanupWebDavTempFiles);
             RunStep("save window settings", context.SaveWindowSettings);
 
             await RunStepAsync("save recent items", () => context.RecentService?.SaveRecentItemsAsync() ?? Task.CompletedTask);
@@ -178,6 +177,7 @@ namespace Uviewer.Services
             RunStep("dispose text reader state", () => context.TextReaderState?.Dispose());
             RunStep("dispose document search state", () => context.DocumentSearchState?.Dispose());
             RunStep("dispose animated WebP service", () => context.AnimatedWebpService?.Dispose());
+            await RunStepAsync("cleanup disk caches", () => diskCacheCleanup);
 
             Interlocked.Exchange(ref _shutdownCompleted, 1);
             RunStep("request normal application exit", context.RequestApplicationExit);

@@ -20,7 +20,7 @@ internal sealed class AnimationFrameStore : IDisposable
 
     public AnimationFrameStore()
     {
-        _stream = new FileStream(Path.Combine(Path.GetTempPath(), $"Uviewer-animation-{Guid.NewGuid():N}.tmp"),
+        _stream = new FileStream(TemporaryFiles.NewAnimationPath(),
             FileMode.CreateNew, FileAccess.ReadWrite, FileShare.None, 65536,
             FileOptions.DeleteOnClose | FileOptions.RandomAccess);
     }

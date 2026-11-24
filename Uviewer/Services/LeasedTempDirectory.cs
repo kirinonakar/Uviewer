@@ -23,13 +23,13 @@ namespace Uviewer.Services
                 new FileStream(Path.Combine(folder, LeaseName), FileMode.CreateNew, FileAccess.ReadWrite, FileShare.None));
         }
 
-        internal static void CleanupAbandoned(string root, string pattern)
+        internal static void CleanupAbandoned(string root, string pattern, bool protectRecentUnleasedFolders = true)
         {
             try
             {
                 if (!Directory.Exists(root)) return;
                 foreach (string folder in Directory.EnumerateDirectories(root, pattern))
-                    TryDeleteInactive(folder, allowLegacy: true);
+                    TryDeleteInactive(folder, protectRecentUnleasedFolders);
             }
             catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"Temp cleanup failed: {ex.Message}"); }
         }
@@ -40,7 +40,7 @@ namespace Uviewer.Services
             lease?.Dispose();
             try
             {
-                TryDeleteInactive(Folder, allowLegacy: false);
+                TryDeleteInactive(Folder, protectRecentUnleasedFolders: false);
             }
             catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"Temp disposal failed: {ex.Message}"); }
         }
@@ -56,7 +56,7 @@ namespace Uviewer.Services
             // Keep the marker if a stream still prevents deletion; startup retries it.
         }
 
-        private static void TryDeleteInactive(string folder, bool allowLegacy)
+        private static void TryDeleteInactive(string folder, bool protectRecentUnleasedFolders)
         {
             try
             {
@@ -67,7 +67,8 @@ namespace Uviewer.Services
                 {
                     if ((File.GetAttributes(folder) & FileAttributes.ReparsePoint) != 0) return;
                     // Older builds did not lease their folders. Give those folders a grace period.
-                    if (!File.Exists(leasePath) && allowLegacy && Directory.GetLastWriteTimeUtc(folder) > DateTime.UtcNow.AddDays(-1)) return;
+                    if (protectRecentUnleasedFolders && !File.Exists(leasePath) &&
+                        Directory.GetLastWriteTimeUtc(folder) > DateTime.UtcNow.AddDays(-1)) return;
                     lease = new FileStream(leasePath, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None);
                 }
                 using (lease)

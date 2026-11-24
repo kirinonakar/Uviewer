@@ -527,6 +527,7 @@ namespace Uviewer
             if (_isComActivation) return;
             try
             {
+                _ = Task.Run(Services.TemporaryFiles.CleanupAbandoned);
                 RegisterFileAssociations();
                 _window = new MainWindow(LaunchFilePath);
                 _window.Activate();

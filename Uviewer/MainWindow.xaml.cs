@@ -115,9 +115,6 @@ namespace Uviewer
                 _bookmarkInteractionController.UpdateFavoritesMenu(_fileFavoriteItems, _folderFavoriteItems);
                 _bookmarkInteractionController.UpdateRecentMenu(_recentItemsList);
 
-                // Only reclaim folders whose owner is no longer running.
-                _sevenZipExtraction.CleanupAbandonedTempFolders();
-
                 if (!string.IsNullOrEmpty(launchFilePath))
                 {
                     // [Priority] Process launch path
@@ -204,7 +201,6 @@ namespace Uviewer
             ImageCache = _imageCache,
             ImageEntries = _imageEntries,
             SevenZipExtraction = _sevenZipExtraction,
-            CleanupWebDavTempFiles = WebDavService.CleanupTempFiles,
             RecentService = _recentService,
             FavoritesService = _favoritesService,
             WebDavService = _webDavService,
