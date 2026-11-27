@@ -9,7 +9,7 @@
 ## ✨ Key Features
 
 ### 🖼️ Image & PDF Viewing
-- **Broad Format Support**: PDF, JPEG, PNG, GIF, BMP, TIFF, ICO, SVG, WebP, AVIF, and JPEG XL (JXL). Single-image view plays animated GIF, WebP, AVIF, and JPEG XL.
+- **Broad Format Support**: PDF, JPEG, PNG, GIF, BMP, TIFF, ICO, SVG, WebP, AVIF, HEIC, and JPEG XL (JXL). Single-image view plays animated GIF, WebP, AVIF, and JPEG XL.
 - **HDR AVIF & JPEG XL**: Bundled libavif and libjxl decoders read 10-bit PQ (SMPTE ST 2084) and HLG content, including animations, and render BT.2020/Display-P3 frames through a linear FP16 scRGB path with tone mapping to the monitor's peak luminance (HDR sharpening works on luminance). With HDR inactive, Uviewer falls back to a tone-mapped SDR path.
 - **High-Performance Rendering**: Powered by **Win2D** (Direct2D) for smooth zooming and panning.
 - **Smart Scaling**: Customizable zoom levels (0.1x to 10x), fit-to-window, and actual size.
@@ -95,6 +95,7 @@
 - The CPU must meet the [.NET 11 hardware requirements](https://learn.microsoft.com/en-us/dotnet/core/whats-new/dotnet-11/runtime#updated-minimum-hardware-requirements).
 - **Framework**: WinUI 3 (`Microsoft.WindowsAppSDK.WinUI` 2.6.5).
 - **HDR Viewing (optional)**: HDR-capable display with HDR enabled under **Windows Settings → System → Display → HDR**. AVIF and JPEG XL use bundled HDR decoders.
+- HEIC viewing uses Windows imaging codecs and requires [HEIF Image Extensions and HEVC Video Extensions](https://support.microsoft.com/en-us/windows/apps/photos/photos-app-video-editor-error-can-t-view-this-file-type) if they are missing from your PC.
 
 ## ⌨️ Keyboard Shortcuts
 
